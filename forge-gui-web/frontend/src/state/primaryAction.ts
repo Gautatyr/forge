@@ -2,6 +2,7 @@ import type { Intent, PromptAnswer } from '../model/intents';
 import { stepInfo } from '../model/phases';
 import { player } from '../model/selectors';
 import type { ChoicePrompt, GameView, StepId } from '../model/types';
+import { trayConfirm, trayDraft } from '../components/tray/trayLogic';
 import type { StopPrefs } from './prefs';
 import { nextStopLabel } from './stops';
 import type { ChoiceDraft, UiState } from './ui';
@@ -121,14 +122,14 @@ export function primaryAction(game: GameView, ui: UiState, stops: StopPrefs): Pr
       };
     }
     case 'choice': {
-      const draft = draftFor(d.prompt, ui.choiceDraft);
-      const answer = answerFromDraft(d.prompt, draft);
+      // Mirrors the tray's confirm: "Sacrifice (1)", "Choose 1 more".
+      const c = trayConfirm(d.prompt, trayDraft(d.prompt, ui.choiceDraft));
       return {
-        label: d.prompt.confirmLabel,
+        label: c.label,
         detail: d.prompt.title,
-        enabled: answer !== undefined,
+        enabled: c.enabled,
         tone: 'priority',
-        intent: answer ? { type: 'answer', promptId: d.prompt.id, answer } : undefined,
+        intent: c.enabled && c.answer ? { type: 'answer', promptId: d.prompt.id, answer: c.answer } : undefined,
       };
     }
   }

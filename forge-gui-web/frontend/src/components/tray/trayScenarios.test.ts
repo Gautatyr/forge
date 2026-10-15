@@ -26,15 +26,27 @@ describe('the main button mirrors the tray confirm (§2.2)', () => {
       const check = () => {
         const main = primaryAction(g, { ...INITIAL_UI, choiceDraft: draft }, DEFAULT_STOPS);
         const tray = trayConfirm(p, draft);
+        expect(main.label, s.id).toBe(tray.label);
         expect(main.enabled, s.id).toBe(tray.enabled);
         expect(main.intent, s.id).toEqual(tray.answer ? { type: 'answer', promptId: p.id, answer: tray.answer } : undefined);
       };
       check();
+      // No stored draft yet (first render): the main button already answers the engine's default.
+      const fresh = primaryAction(g, INITIAL_UI, DEFAULT_STOPS);
+      expect([fresh.label, fresh.enabled], s.id).toEqual([trayConfirm(p, draft).label, trayConfirm(p, draft).enabled]);
       if (p.shape === 'chooseN' && p.options[0] && p.max > 0) {
         draft = toggleOption(p, draft, p.options[0].id);
         check();
       }
     }
+  });
+
+  it('says why it is disabled, then counts the pick: "Choose 1 more", "Sacrifice (1)"', () => {
+    const g = scenarioById('sacrifice').build();
+    const p = promptOf(g) as Extract<ChoicePrompt, { shape: 'chooseN' }>;
+    expect(primaryAction(g, INITIAL_UI, DEFAULT_STOPS)).toMatchObject({ label: 'Choose 1 more', enabled: false });
+    const ui = { ...INITIAL_UI, choiceDraft: toggleOption(p, initialDraft(p), p.options[0]!.id) };
+    expect(primaryAction(g, ui, DEFAULT_STOPS)).toMatchObject({ label: 'Sacrifice (1)', enabled: true });
   });
 });
 
