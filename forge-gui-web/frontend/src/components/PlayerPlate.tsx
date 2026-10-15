@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import { commanderTax } from '../model/selectors';
 import type { PlayerView } from '../model/types';
 import { playerTargetSpot, spotlightItem } from '../state/cardStatus';
+import { currentDefender } from '../state/focus';
 import { useMatch } from '../state/MatchContext';
 import type { ViewableZone } from '../state/ui';
 import { Card } from './Card';
@@ -18,14 +19,14 @@ interface Props {
 }
 
 export function PlayerPlate({ player: p, density, vertical = false, onExpand }: Props) {
-  const { game, ui, setUi, activatePlayer } = useMatch();
+  const { game, ui, prefs, setUi, activatePlayer } = useMatch();
   const d = game.decision;
   const active = game.turn.activePlayerId === p.id;
   const priority = game.turn.priorityPlayerId === p.id;
   const legalTarget = d.kind === 'chooseTargets' && d.legal.some((t) => t.kind === 'player' && t.id === p.id);
   const chosenTarget = d.kind === 'chooseTargets' && d.chosen.some((t) => t.kind === 'player' && t.id === p.id);
   const defenderPick = d.kind === 'declareAttackers' && d.defenders.includes(p.id);
-  const currentDefender = defenderPick && (ui.attackDefender ?? d.defenders[0]) === p.id;
+  const isDefender = defenderPick && currentDefender(game, ui, prefs.layout) === p.id;
   const incoming = game.combat?.attacks.filter((a) => a.defenderId === p.id).length ?? 0;
   const draftIncoming = d.kind === 'declareAttackers' ? d.draft.filter((a) => a.defenderId === p.id).length : 0;
   const clickable = legalTarget || defenderPick;
@@ -65,7 +66,7 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
   const cmdDamage = p.commanderDamageTaken.filter((x) => x.amount > 0);
   const ring = chosenTarget
     ? styles.ringSelected
-    : currentDefender
+    : isDefender
       ? styles.ringDefender
       : legalTarget || defenderPick
         ? styles.ringActionable
@@ -79,6 +80,7 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
     <div
       className={`${styles.plate} ${styles[density]} ${vertical ? styles.vertical : ''} ${active ? styles.active : ''} ${ring}`}
       data-player-id={p.id}
+      data-arrow-occluder
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
       onClick={clickable ? () => activatePlayer(p.id) : undefined}

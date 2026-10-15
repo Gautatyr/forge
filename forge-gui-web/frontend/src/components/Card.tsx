@@ -169,20 +169,20 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
             </span>
 
             {s.attacking && onBoard ? (
-              <span className={`${styles.combatStrip} ${styles.stripAttack}`}>
+              <span className={`${styles.combatStrip} ${styles.stripAttack}`} data-arrow-occluder>
                 <Icon name="sword" />
                 <span>{s.attacking.defender}</span>
               </span>
             ) : null}
             {s.blocking && onBoard ? (
-              <span className={`${styles.combatStrip} ${styles.stripBlock}`}>
+              <span className={`${styles.combatStrip} ${styles.stripBlock}`} data-arrow-occluder>
                 <Icon name="shield" />
                 <span>{s.blocking.attacker}</span>
               </span>
             ) : null}
 
             {onBoard && c.counters.length > 0 ? (
-              <span className={styles.counters}>
+              <span className={styles.counters} data-arrow-occluder>
                 {c.counters.map((k) => (
                   <span key={k.kind} className={styles.counter} title={`${k.count} ${k.kind} counter(s)`}>
                     {k.kind === '+1/+1' ? `+${k.count}` : `${k.kind} ${k.count}`}
@@ -192,20 +192,24 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
             ) : null}
 
             {onBoard && c.damage > 0 ? (
-              <span className={styles.damage} title={`${c.damage} damage marked`}>
+              <span className={styles.damage} title={`${c.damage} damage marked`} data-arrow-occluder>
                 <Icon name="burst" />
                 {c.damage}
               </span>
             ) : null}
 
             {onBoard && c.power !== undefined ? (
-              <span className={`${styles.pt} ${dir === 'up' ? styles.ptUp : dir === 'down' ? styles.ptDown : ''}`}>
+              <span className={`${styles.pt} ${dir === 'up' ? styles.ptUp : dir === 'down' ? styles.ptDown : ''}`} data-arrow-occluder>
                 {dir ? <Icon name={dir} /> : null}
                 {c.power}/{c.toughness}
               </span>
             ) : null}
 
-            {count > 1 ? <span className={styles.count}>×{count}</span> : null}
+            {count > 1 ? (
+              <span className={styles.count} data-arrow-occluder>
+                ×{count}
+              </span>
+            ) : null}
 
             {s.playable && context === 'hand' && notch ? (
               <span className={styles.playNotch} aria-hidden>

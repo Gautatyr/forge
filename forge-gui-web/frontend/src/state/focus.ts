@@ -1,6 +1,7 @@
 import type { Intent } from '../model/intents';
 import { opponents } from '../model/selectors';
 import type { GameView, PlayerId } from '../model/types';
+import type { OpponentLayout } from './prefs';
 import type { UiState } from './ui';
 
 /**
@@ -30,4 +31,21 @@ export function focusedOpponent(game: GameView, ui: UiState): PlayerId | undefin
   const id = ui.focusOpponentId;
   if (id && opponents(game).some((p) => p.id === id && !p.hasLost)) return id;
   return focusOnTurnChange(game, undefined);
+}
+
+/**
+ * The defender new attackers go at. In the Focus layout it is the focused
+ * opponent, so the big seat always matches the selected defender and the first
+ * attacker click does not swap the board (picking a defender also focuses it).
+ * Elsewhere: the player picked, else the first defender.
+ */
+export function currentDefender(game: GameView, ui: UiState, layout: OpponentLayout): PlayerId | undefined {
+  const d = game.decision;
+  if (d.kind !== 'declareAttackers') return undefined;
+  if (layout === 'focus') {
+    const focused = focusedOpponent(game, ui);
+    if (focused && d.defenders.includes(focused)) return focused;
+  }
+  if (ui.attackDefender && d.defenders.includes(ui.attackDefender)) return ui.attackDefender;
+  return d.defenders[0];
 }

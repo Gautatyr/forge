@@ -3,7 +3,7 @@ import type { Intent } from '../model/intents';
 import type { CardId, GameView, PlayerId } from '../model/types';
 import { applyIntent, type MockGame } from '../mock/engine';
 import { blockClick } from './blockClick';
-import { focusForIntent, focusOnTurnChange } from './focus';
+import { currentDefender, focusForIntent, focusOnTurnChange } from './focus';
 import { scenarioById } from '../mock/scenarios';
 import { loadPrefs, savePrefs, type Prefs } from './prefs';
 import { INITIAL_UI, type UiState } from './ui';
@@ -123,7 +123,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
           return;
         case 'declareAttackers': {
           if (!d.candidates.includes(id)) return;
-          const defender = ui.attackDefender ?? d.defenders[0];
+          const defender = currentDefender(game, ui, prefs.layout);
           if (defender) send({ type: 'toggleAttacker', cardId: id, defenderId: defender });
           return;
         }
@@ -137,7 +137,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
           return;
       }
     },
-    [game.decision, send, setUi, ui.attackDefender, ui.pendingAttacker, ui.pendingBlocker],
+    [game, ui, prefs.layout, send, setUi],
   );
 
   const activatePlayer = useCallback(

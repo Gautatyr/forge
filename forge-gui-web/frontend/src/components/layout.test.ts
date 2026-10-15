@@ -46,11 +46,31 @@ describe('handGeometry (ruling D2)', () => {
     });
   }
 
+  /** Width the hand component lays out: staggered hand, group gap, other-zone cards with gaps between them. */
+  const totalWidth = (n: number, extra: number, g: ReturnType<typeof handGeometry>) =>
+    (n - 1) * g.step + g.cardW + (extra > 0 ? g.groupGap + extra * g.cardW + (extra - 1) * g.gap : 0);
+
   it('staggers 10 cards plus 2 castable from other zones at full size', () => {
     const g = handGeometry(10, 2, W, H, REM);
     expect(g.stagger).toBe(true);
     expect(g.cardW).toBeCloseTo(full, 5);
+    expect(totalWidth(10, 2, g)).toBeLessThanOrEqual(W + 0.01);
   });
+
+  // Large hands with other-zone cards shrink; the shrunk row still fits (review of PR 16).
+  for (const [n, extra] of [
+    [15, 2],
+    [20, 2],
+    [30, 3],
+    [12, 4],
+  ] as const) {
+    it(`fits ${n} cards plus ${extra} castable from other zones in the width`, () => {
+      const g = handGeometry(n, extra, W, H, REM);
+      expect(g.stagger).toBe(true);
+      expect(totalWidth(n, extra, g)).toBeLessThanOrEqual(W + 0.01);
+      expect(2 * g.step).toBeGreaterThanOrEqual(g.cardW - 0.01);
+    });
+  }
 
   it('keeps 10+ cards flat only when they fit at full size with no overlap', () => {
     const g = handGeometry(10, 0, 4000, H, REM);

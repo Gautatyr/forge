@@ -32,7 +32,7 @@ export function Seat({ player, density, orientation = 'stacked', onExpand }: Pro
       <div className={`${styles.plateCol} ${compact ? styles.compactCol : ''}`}>
         <PlayerPlate player={player} density={density} vertical={side && !compact} onExpand={onExpand} />
         {compact ? (
-          <div className={styles.summary}>
+          <div className={styles.summary} data-arrow-occluder>
             <span>
               Hidden here: {others.length} other permanent{others.length === 1 ? '' : 's'}, {lands.length} lands ({untappedLands}{' '}
               untapped)

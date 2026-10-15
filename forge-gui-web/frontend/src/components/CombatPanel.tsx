@@ -1,4 +1,5 @@
 import { player } from '../model/selectors';
+import { currentDefender } from '../state/focus';
 import { useMatch } from '../state/MatchContext';
 import { Icon, SeatGlyph } from './Icon';
 import styles from './CombatPanel.module.css';
@@ -8,14 +9,14 @@ import styles from './CombatPanel.module.css';
  * (while you attack) which opponent new attackers go at.
  */
 export function CombatPanel() {
-  const { game, ui, setUi, send } = useMatch();
+  const { game, ui, prefs, setUi, send } = useMatch();
   const d = game.decision;
   const attacks = d.kind === 'declareAttackers' ? d.draft : (game.combat?.attacks ?? []);
   const blocks = d.kind === 'declareBlockers' ? d.draft : (game.combat?.blocks ?? []);
   if (d.kind !== 'declareAttackers' && !game.combat) return null;
 
   if (d.kind === 'declareAttackers') {
-    const current = ui.attackDefender ?? d.defenders[0];
+    const current = currentDefender(game, ui, prefs.layout);
     return (
       <section className={`${styles.panel} ${styles.attack}`} aria-label="Declare attackers">
         <h2>

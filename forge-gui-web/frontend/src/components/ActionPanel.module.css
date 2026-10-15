@@ -19,12 +19,18 @@
   color: var(--c-text-2);
   flex: 1;
   overflow: hidden;
+}
+
+/* Clamped to the whole lines that fit in .prompt (ActionPanel sets the count),
+   so a line is never cut in half. */
+.promptText {
   display: -webkit-box;
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-/* Contextual buttons (Attack with all, Cancel) appear here. The slot always
+/* Contextual buttons (Attack all, Cancel) appear here. The slot always
    keeps one row's height, so the persistent controls below never move. */
 .contextual {
   flex: none;
