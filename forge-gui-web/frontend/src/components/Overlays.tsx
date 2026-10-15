@@ -3,7 +3,7 @@ import { player } from '../model/selectors';
 import { SCENARIOS } from '../mock/scenarios';
 import { SHORTCUTS } from '../state/keymap';
 import { useMatch } from '../state/MatchContext';
-import { OPPONENT_SHARES, type CardSize, type OpponentLayout, type OpponentShare } from '../state/prefs';
+import { OPPONENT_SHARES, type OpponentLayout, type OpponentShare } from '../state/prefs';
 import { Icon, SeatGlyph } from './Icon';
 import { LogText } from './LogText';
 import styles from './Overlays.module.css';
@@ -73,19 +73,10 @@ export function DisplaySettings() {
           Opponents {prefs.opponentShare}%, you {100 - prefs.opponentShare}%. Default 45%.
         </span>
       </div>
-      <div className={styles.field}>
-        <span className={styles.fieldLabel}>Card size on the battlefield</span>
-        <Segmented<CardSize>
-          label="Card size"
-          value={prefs.cardSize}
-          onChange={(cardSize) => setPrefs({ cardSize })}
-          options={[
-            ['s', 'Small'],
-            ['m', 'Medium'],
-            ['l', 'Large'],
-          ]}
-        />
-      </div>
+      <label className={styles.check}>
+        <input type="checkbox" checked={prefs.nameLabels} onChange={(e) => setPrefs({ nameLabels: e.target.checked })} />
+        Name labels on small cards
+      </label>
       <label className={styles.check}>
         <input type="checkbox" checked={prefs.groupLands} onChange={(e) => setPrefs({ groupLands: e.target.checked })} />
         Group identical lands

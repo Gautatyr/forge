@@ -55,11 +55,9 @@ function initialPrefs(): Prefs {
   const p = loadPrefs();
   const q = new URLSearchParams(location.search);
   const layout = q.get('layout');
-  const size = q.get('size');
   return {
     ...p,
     ...(layout === 'columns' || layout === 'table' || layout === 'focus' ? { layout } : {}),
-    ...(size === 's' || size === 'm' || size === 'l' ? { cardSize: size } : {}),
   };
 }
 

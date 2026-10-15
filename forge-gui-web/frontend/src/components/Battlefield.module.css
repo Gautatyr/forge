@@ -32,6 +32,21 @@
   padding-top: calc(var(--cw) / var(--card-ratio) * 0.17 * var(--host-att));
 }
 
+/* Last resort when even 72 px cards do not fit: staggered like the hand. Back
+   cards (even children) are raised so their name band shows above the front ones. */
+.stagger {
+  padding-top: var(--raise);
+}
+.stagger > .host + .host {
+  margin-left: calc(-1 * var(--overlap));
+}
+.stagger > .host:nth-child(odd) {
+  z-index: 1;
+}
+.stagger > .host:nth-child(even) {
+  translate: 0 calc(-1 * var(--raise));
+}
+
 .separator {
   margin-left: calc(var(--gap) * 1.5);
 }
@@ -42,4 +57,23 @@
   position: absolute;
   left: 0;
   bottom: calc(var(--ch) * 0.17 * var(--j));
+}
+
+/* The commander in the command zone, in the support row: two short lines over its foot. */
+.caption {
+  position: absolute;
+  left: 50%;
+  bottom: var(--sp-1);
+  translate: -50% 0;
+  z-index: 2;
+  width: max-content;
+  max-width: calc(var(--cw) * 1.6);
+  padding: 0 var(--sp-1);
+  border-radius: var(--r-sm);
+  background: var(--c-label-band);
+  color: var(--c-text);
+  font-size: var(--fs-2xs);
+  line-height: 1.25;
+  text-align: center;
+  pointer-events: none;
 }
