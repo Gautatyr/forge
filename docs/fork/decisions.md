@@ -104,3 +104,8 @@ Newest last. Each entry: the decision, why, and what it implies.
 - Stops live in the match screen's prefs (`prefs.stops`), not in the view-model: `GameView.stops` and the `setStop` intent are removed. This follows Forge, where the GUI owns stops and the engine asks `IGuiGame.isUiSetToSkipPhase(turnPlayer, phase)`.
 - The bridge (#11) must answer `isUiSetToSkipPhase` from stops the client sends; the message for that is not designed yet.
 - Defaults are Forge's (`ForgePreferences` PHASE_HUMAN_* / PHASE_AI_*). Shared rows persist; per-opponent rows last one match.
+
+## 2026-10-16 — Bridge: card images come from the desktop app's image cache (issue #10)
+- `GET /img?key=<view image key>&token=<per-launch token>` serves `CardStateView.ImageKey` (both faces: the back face key ends in `$alt`) and `CardView.FacedownImageKey` / `t:hidden` (card back). 200 with `Cache-Control: private, max-age=31536000, immutable`; 404 `no-store` when there is no image.
+- The isolated web profile links `<home>/.cache/forge/pics` to the desktop app's `pics` folder (Linux `~/.cache/forge/pics`), so images are shared with Swing Forge and downloads land there. Only `pics` is shared; `~/.forge` stays untouched. `--image-cache <dir>` overrides the target. A profile `pics` folder that already holds files is kept, not linked.
+- A miss downloads through Forge's `ImageFetcher` (same URLs and file names as the desktop app); the request waits up to 90 s for that download.

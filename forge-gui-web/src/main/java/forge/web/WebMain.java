@@ -25,6 +25,8 @@ import forge.model.FModel;
 import forge.player.GamePlayerUtil;
 import forge.web.bridge.GameStream;
 import forge.web.bridge.WebSpectatorGuiGame;
+import forge.web.images.DesktopImageCache;
+import forge.web.images.ForgeImages;
 import forge.web.server.AccessPolicy;
 import forge.web.server.StreamHub;
 import forge.web.server.WebServer;
@@ -41,6 +43,7 @@ import forge.web.server.WebServer;
  * --hidden redact|full    redact: each seat sees what the engine lets that player see, the
  *                         spectator what every player may see (default); full: omniscient, debug only
  * --port 7655  --assets forge-gui/  --home &lt;dir&gt;  --viewer &lt;dir&gt;
+ * --image-cache &lt;dir&gt;    card image cache (default: the desktop app's, e.g. ~/.cache/forge/pics)
  * --wait-client SECONDS   wait for a WebSocket client before the first game
  *                         (open the URL printed as "[web] serving ...": it carries the per-launch token)
  * --exit                  stop the server after the last game
@@ -69,6 +72,10 @@ public final class WebMain {
         // Isolated profile: the engine derives its user dir (~/.forge) from user.home. Never touch the real one.
         Path home = Paths.get(opt.getOrDefault("home", moduleDir.resolve("target/forge-home").toString())).toAbsolutePath();
         Files.createDirectories(home);
+        // ...except the card image cache, shared with the desktop app (override: --image-cache <pics dir>)
+        Path pics = opt.containsKey("image-cache") ? Paths.get(opt.get("image-cache")).toAbsolutePath()
+                : DesktopImageCache.desktopPics(System.getProperty("user.home"), System.getProperty("os.name"));
+        System.out.println("[web] " + DesktopImageCache.link(home, pics));
         System.setProperty("user.home", home.toString());
         System.setProperty("java.awt.headless", "true");
         System.setProperty("java.util.Arrays.useLegacyMergeSort", "true");
@@ -91,7 +98,7 @@ public final class WebMain {
 
         // per-launch token: printed once in the page URL ("[web] serving http://127.0.0.1:PORT/#token=..."), never stored
         WebServer server = new WebServer(port, Paths.get(opt.getOrDefault("viewer", moduleDir.resolve("spike-viewer").toString())),
-                StreamHub.of(stream), AccessPolicy.newToken());
+                StreamHub.of(stream), AccessPolicy.newToken(), ForgeImages.create());
         server.start();
 
         int waitClient = Integer.parseInt(opt.getOrDefault("wait-client", "0"));

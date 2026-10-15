@@ -13,7 +13,7 @@ import java.util.Set;
  * <li>{@code Host} must name the loopback server (blocks DNS rebinding);</li>
  * <li>a WebSocket upgrade must come from the server's own page ({@code Origin}) and carry the
  * per-launch token; a request without {@code Origin} is a non-browser client and needs the token only;</li>
- * <li>game data over HTTP ({@code /state}, {@code /metrics}) needs the token.</li>
+ * <li>game data over HTTP ({@code /state}, {@code /metrics}) and card images ({@code /img}) need the token.</li>
  * </ul>
  */
 public final class AccessPolicy {

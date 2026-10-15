@@ -49,7 +49,7 @@ Code: `forge-gui-web/src/main/java/forge/web/bridge/` (`GameStream`) and `bridge
 - **Java functions in prompts.** `getChoices` takes an `FSerializableFunction` that renders each choice as text. The server must pre-render labels before sending.
 - **Upstream churn.** Last year `ProtocolMethod.java` changed in 27 commits and `TrackableProperty.java` in 26 (about 2 each per month). Generate the TypeScript types from these Java enums at build time, so an upstream change breaks the TypeScript build loudly instead of failing silently in a game.
 - **Adapter layer.** UI components should depend on a clean UI view-model, not on the wire format. One adapter maps wire messages to the view-model. This keeps upstream churn out of the components.
-- **Card images.** Serve over local HTTP from Forge's existing image cache (`ImageFetcher` downloads from Scryfall into the cache folder).
+- **Card images.** Serve over local HTTP from Forge's existing image cache (`ImageFetcher` downloads from Scryfall into the cache folder). Built in #10: `GET /img?key=…&token=…` ([decisions](../decisions.md)).
 - **Threading.** Prompts block the game thread until the player answers. The bridge must hold a pending future per prompt and complete it when the answer arrives, as `NetworkGuiGame` / `ReplyPool` already do.
 - **Network stack.** `netty-all` 4.1.115 is already a dependency of `forge-gui` and includes HTTP and WebSocket codecs. Jetty 9.4 is declared in `forge-gui/pom.xml` but no Java code uses it.
 

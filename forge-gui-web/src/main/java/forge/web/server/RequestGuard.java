@@ -24,8 +24,8 @@ import io.netty.handler.codec.http.QueryStringDecoder;
  */
 final class RequestGuard extends SimpleChannelInboundHandler<FullHttpRequest> {
 
-    /** Endpoints that expose game state. */
-    private static final Set<String> DATA_PATHS = Set.of("/state", "/metrics");
+    /** Endpoints that expose game state, and card images (they download on a miss). */
+    private static final Set<String> DATA_PATHS = Set.of("/state", "/metrics", WebServer.IMG_PATH);
 
     private final String wsPath;
     private final Supplier<AccessPolicy> policy;
