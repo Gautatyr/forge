@@ -68,3 +68,8 @@ Newest last. Each entry: the decision, why, and what it implies.
   - Per-worktree ports (`scripts/dev-port.sh`) so parallel agents don't collide.
 - **Structure adopted from the owner's UltimateReadingApp project:** per-folder `CLAUDE.md` files loaded on demand (`forge-gui-web/`, `forge-gui-web/frontend/`); project skills the global agents preload (`.claude/skills/project-review-gate`, `.claude/skills/product-context`); `.claude/settings.json` denies (`git stash`, git config writes, pushing upstream, force-pushes); `decisions.md` is append-only.
 - **Open:** whether review findings outside correctness/security may be non-blocking. The global reviewer agent treats every code/UI finding as blocking and only yields to stricter project rules, so this needs the owner's call.
+
+## 2026-10-15 — Review threshold for this project
+- Supersedes the "Open" point of "Agent process tightened": Hugo ruled that for this project, for now, "everything is blocking" does not apply.
+- Blocking: real defects (correctness, security, hidden information, threading, tests, acceptance criteria, owner rulings) and polish a user would notice in normal use. Non-blocking: slight polish and nitpicks. Reviewers approve when only non-blocking notes remain.
+- Written in `.claude/skills/project-review-gate/SKILL.md` (preloaded by the reviewer agent); the orchestrator applies it when deciding merges.

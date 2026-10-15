@@ -49,6 +49,19 @@ updates. Root `CLAUDE.md` rules apply on top (upstream ban, branches, pushing).
   anything that waits has an explicit timeout.
 - Client ids are resolved through current zone collections, never `Tracker.getObj`.
 
+**Verdict threshold for this project (Hugo, 2026-10-15).** Hugo ruled that for the Forge
+fork, for now, "everything is blocking" does **not** apply. This project ruling replaces
+the hard-track "everything blocking, even nits" line of the global reviewer file here.
+- **Blocking:** correctness and behaviour bugs, security, hidden information, threading,
+  missing or broken tests, unmet acceptance criteria, violated owner rulings, and polish a
+  user would notice in normal use (clipped or overlapping text, misaligned or jumping
+  controls, wrong in-app copy).
+- **Non-blocking:** slight polish and nitpicks — offsets of a few pixels visible only when
+  zoomed in, single-frame glitches, internal code-style or immutability preferences with
+  no concrete failure, wording of comments and docs.
+- Verdict: **APPROVE** when only non-blocking notes remain; list them in one line each
+  under "Notes (non-blocking)". **CHANGES-REQUESTED** only for blocking findings.
+
 **Reviewer.**
 - Report every finding in round 1. Round 2 checks the fixes and anything the fixup
   changed; a new finding in round 2 must concern code the fixup touched or a regression.
