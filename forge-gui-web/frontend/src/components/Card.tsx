@@ -119,6 +119,7 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
     s.dimmed ? styles.dimmed : '',
     s.attacking && onBoard ? styles.nudged : '',
     count > 1 ? styles.grouped : '',
+    nameLabel ? styles.labelled : '',
     className ?? '',
   ].join(' ');
 
