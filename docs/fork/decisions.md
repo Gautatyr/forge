@@ -44,6 +44,12 @@ Newest last. Each entry: the decision, why, and what it implies.
 - The only upstream file edited is one `<module>forge-gui-web</module>` line in the root `pom.xml`.
 - **Must-fix before human play:** filter hidden information per viewer on the server (network play today sends opponents' hands and hides them only on the client); check `Origin` and use a per-launch token on the WebSocket; bound the send queue; harden prompt replies (`ReplyPool` waits forever; prompt ids come from a non-thread-safe static counter).
 
+## 2026-10-15 — Match-screen mockup merged
+- Clickable React/TypeScript mockup with mock data in `forge-gui-web/frontend/` (Vite, React 19, CSS Modules over one design-token file). Notes: [design/mockup-notes.md](design/mockup-notes.md).
+- Squash-merged into `develop`. Only 9 compressed screenshots (about 3 MB) are committed; the full 53 MB PNG set stays local and ignored, to keep repo history small.
+- Local-only ignores (e.g. `.playwright-mcp/`, browser-tool output) go in `.git/info/exclude`, not in upstream's `.gitignore`.
+- Awaiting the owner's review and answers to the open questions in the notes.
+
 ## 2026-10-15 — Next steps started
 - A clickable mockup of the multiplayer match screen with mock data (web).
 - A web spike: stream a live AI-vs-AI game over a WebSocket to a read-only page, to de-risk the bridge.

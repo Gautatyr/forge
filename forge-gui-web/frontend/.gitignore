@@ -1,0 +1,6 @@
+node_modules
+dist
+*.tsbuildinfo
+.vite
+.scratch
+docs/screenshots/*.png

@@ -1,0 +1,98 @@
+.track {
+  display: flex;
+  align-items: stretch;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.legend {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0.35rem var(--sp-2) 0.3rem 0;
+  font-size: var(--fs-2xs);
+  white-space: nowrap;
+  color: var(--c-text-3);
+  line-height: 1.1;
+}
+
+.legend b {
+  font-weight: var(--fw-medium);
+  color: var(--c-text-2);
+}
+
+.legendTitle {
+  visibility: hidden;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.15rem;
+  padding: 0.2rem 0.25rem;
+  min-width: 3.6rem;
+  border-radius: var(--r-md);
+}
+
+.combat {
+  background: var(--c-panel);
+  border-radius: 0;
+}
+.combatStart {
+  border-top-left-radius: var(--r-md);
+  border-bottom-left-radius: var(--r-md);
+}
+.combatEnd {
+  border-top-right-radius: var(--r-md);
+  border-bottom-right-radius: var(--r-md);
+}
+
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--c-text-2);
+  white-space: nowrap;
+}
+
+.past .label {
+  color: var(--c-text-3);
+}
+
+.current .label {
+  background: var(--c-text);
+  color: var(--c-text-on-accent);
+  font-weight: var(--fw-bold);
+}
+
+.pips {
+  display: flex;
+  gap: 0.2rem;
+  min-height: 1rem;
+}
+
+.pip {
+  display: grid;
+  place-items: center;
+  width: 1.05rem;
+  height: 1.05rem;
+  border-radius: var(--r-sm);
+  color: var(--c-text-3);
+  font-size: 0.85rem;
+}
+
+.pip:hover {
+  background: var(--c-panel-hover);
+  color: var(--c-text);
+}
+
+.on {
+  color: var(--c-priority);
+}

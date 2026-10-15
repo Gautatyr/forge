@@ -1,0 +1,324 @@
+/* A card always gets its width from --cw set by its container. */
+.slot {
+  --ch: calc(var(--cw) / var(--card-ratio));
+  --ofs: clamp(0.625rem, calc(var(--cw) * 0.115), 1rem);
+  position: relative;
+  flex: none;
+  width: var(--cw);
+  height: var(--ch);
+  transition: width var(--dur-med) var(--ease-out), height var(--dur-med) var(--ease-out);
+}
+
+.tapped {
+  width: var(--ch);
+  height: var(--cw);
+}
+
+.card {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--cw);
+  height: var(--ch);
+  transform: translate(-50%, -50%);
+  border-radius: var(--r-card);
+  font-size: var(--ofs);
+  transition:
+    transform var(--dur-med) var(--ease-out),
+    translate var(--dur-med) var(--ease-out),
+    opacity var(--dur-med);
+}
+
+.tapped .card {
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.nudged .card {
+  translate: 0 calc(var(--nudge-dir, -1) * 7%);
+}
+
+.face {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-card);
+  overflow: hidden;
+  background: var(--c-panel-raised);
+  box-shadow: var(--shadow-card);
+}
+
+.face img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.noImage {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: var(--sp-1);
+  text-align: center;
+  font-size: var(--fs-xs);
+}
+
+/* Edges of the cards behind a group. */
+.stackEdge {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-card);
+  background: var(--c-panel-raised);
+  border: 1px solid var(--c-line-strong);
+  translate: calc(var(--i) * 0.28em) calc(var(--i) * -0.28em);
+}
+
+/* --- State rings: colour + line style + icon badge ------------------------- */
+.card::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 6.5% / 4.8%;
+  border: var(--outline-w) solid transparent;
+  pointer-events: none;
+}
+
+.ringActionable::after {
+  border-color: var(--c-actionable);
+  box-shadow: 0 0 14px rgb(86 180 233 / 0.45);
+}
+
+.ringTarget::after {
+  border-color: var(--c-actionable);
+  border-style: dashed;
+  border-width: var(--outline-w-strong);
+}
+
+.ringIncoming::after {
+  border-color: var(--c-attack);
+  border-style: dashed;
+  border-width: var(--outline-w-strong);
+}
+
+.ringSelected::after {
+  border-color: var(--c-selected);
+  border-width: var(--outline-w-strong);
+  box-shadow: 0 0 16px rgb(240 228 66 / 0.45);
+}
+
+.ringAttack::after {
+  border-color: var(--c-attack);
+  border-width: var(--outline-w-strong);
+}
+
+.ringBlock::after {
+  border-color: var(--c-block);
+  border-width: var(--outline-w-strong);
+}
+
+.ringTargeted::after {
+  border-color: var(--c-targeted);
+  border-style: dotted;
+  border-width: var(--outline-w-strong);
+}
+
+.ringTargetedStrong::after {
+  border-color: var(--c-targeted);
+  border-width: var(--outline-w-strong);
+  box-shadow: 0 0 18px rgb(204 121 167 / 0.7);
+}
+
+.dimmed .face,
+.dimmed .badges {
+  opacity: 0.32;
+  filter: grayscale(0.75);
+}
+
+/* --- Overlays ------------------------------------------------------------------ */
+.badges {
+  position: absolute;
+  left: 5%;
+  top: 13%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+  pointer-events: none;
+}
+
+.badge {
+  display: grid;
+  place-items: center;
+  width: 1.65em;
+  height: 1.65em;
+  border-radius: 0.4em;
+  font-size: 1em;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
+}
+
+.badge svg {
+  width: 1.1em;
+  height: 1.1em;
+}
+
+.bActionable {
+  background: var(--c-actionable);
+  color: var(--c-text-on-accent);
+}
+.bSelected {
+  background: var(--c-selected);
+  color: var(--c-text-on-accent);
+}
+.bAttack {
+  background: var(--c-attack);
+  color: var(--c-text-on-accent);
+}
+.bTargeted {
+  background: var(--c-targeted);
+  color: var(--c-text-on-accent);
+}
+.bNeutral {
+  background: rgb(13 20 23 / 0.88);
+  color: var(--c-text);
+  border: 1px solid var(--c-line-strong);
+}
+
+.combatStrip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 58%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25em;
+  padding: 0.2em 0.3em;
+  font-weight: var(--fw-bold);
+  font-size: 0.95em;
+  color: var(--c-text-on-accent);
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.combatStrip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stripAttack {
+  background: var(--c-attack);
+}
+.stripBlock {
+  background: var(--c-block);
+}
+
+.counters {
+  position: absolute;
+  left: 4%;
+  bottom: 4%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15em;
+  pointer-events: none;
+}
+
+.counter {
+  padding: 0.05em 0.4em;
+  border-radius: var(--r-pill);
+  background: rgb(13 20 23 / 0.9);
+  border: 1px solid var(--c-text-2);
+  color: var(--c-text);
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  font-size: 0.95em;
+}
+
+.pt {
+  position: absolute;
+  right: 4%;
+  bottom: 4%;
+  display: flex;
+  align-items: center;
+  gap: 0.1em;
+  padding: 0.05em 0.4em;
+  border-radius: var(--r-sm);
+  background: var(--c-text);
+  color: var(--c-text-on-accent);
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  font-size: 1.05em;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
+  pointer-events: none;
+}
+
+.pt svg {
+  width: 0.75em;
+  height: 0.75em;
+}
+
+.ptUp {
+  box-shadow:
+    0 0 0 2px var(--c-actionable),
+    0 1px 3px rgb(0 0 0 / 0.6);
+}
+
+.ptDown {
+  box-shadow:
+    0 0 0 2px var(--c-targeted),
+    0 1px 3px rgb(0 0 0 / 0.6);
+}
+
+.damage {
+  position: absolute;
+  right: 4%;
+  bottom: calc(4% + 1.7em);
+  display: flex;
+  align-items: center;
+  gap: 0.1em;
+  padding: 0.05em 0.35em;
+  border-radius: var(--r-sm);
+  background: var(--c-attack);
+  color: var(--c-text-on-accent);
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  pointer-events: none;
+}
+
+.count {
+  position: absolute;
+  left: 50%;
+  bottom: 20%;
+  transform: translateX(-50%);
+  padding: 0.05em 0.5em;
+  border-radius: var(--r-pill);
+  background: rgb(13 20 23 / 0.92);
+  border: 1px solid var(--c-text-2);
+  color: var(--c-text);
+  font-family: var(--font-display);
+  font-weight: var(--fw-bold);
+  font-size: 1.25em;
+  pointer-events: none;
+}
+
+.playNotch {
+  position: absolute;
+  left: 50%;
+  bottom: -0.7em;
+  transform: translateX(-50%);
+  display: grid;
+  place-items: center;
+  width: 1.5em;
+  height: 1.5em;
+  border-radius: 50%;
+  background: var(--c-actionable);
+  color: var(--c-text-on-accent);
+  box-shadow: 0 0 0 3px var(--c-bg);
+  pointer-events: none;
+}
+
+.hand .card {
+  cursor: pointer;
+}
+
+.thumb .face {
+  box-shadow: none;
+}

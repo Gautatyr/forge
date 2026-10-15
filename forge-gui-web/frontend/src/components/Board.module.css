@@ -1,0 +1,70 @@
+.board {
+  position: relative;
+  display: grid;
+  gap: var(--sp-2);
+  min-height: 0;
+  min-width: 0;
+  padding: var(--sp-2) 0 var(--sp-2) var(--sp-2);
+  grid-template-rows: minmax(0, 45fr) minmax(0, 55fr);
+}
+
+.opps {
+  display: grid;
+  gap: var(--sp-2);
+  min-height: 0;
+  min-width: 0;
+}
+
+.me {
+  position: relative;
+  display: grid;
+  min-height: 0;
+  min-width: 0;
+}
+
+.duel {
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+/* Focus: one opponent expanded, the others compact on the right. */
+.focus .opps {
+  grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr);
+}
+
+.compactCol {
+  display: grid;
+  grid-auto-rows: minmax(0, 1fr);
+  gap: var(--sp-2);
+  min-height: 0;
+}
+
+/* Table: seats around you in turn order (clockwise: left, top, right). */
+.table {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.75fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 42fr) minmax(0, 58fr);
+  grid-template-areas:
+    'left top right'
+    'left me right';
+}
+
+.left {
+  grid-area: left;
+  display: grid;
+  min-height: 0;
+  min-width: 0;
+}
+.top {
+  grid-area: top;
+  display: grid;
+  min-height: 0;
+  min-width: 0;
+}
+.right {
+  grid-area: right;
+  display: grid;
+  min-height: 0;
+  min-width: 0;
+}
+.table .me {
+  grid-area: me;
+}

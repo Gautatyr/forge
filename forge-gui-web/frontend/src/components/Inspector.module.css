@@ -1,0 +1,144 @@
+.inspector {
+  position: fixed;
+  top: var(--topbar-h);
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-drawer);
+  width: min(64rem, 74vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--c-bg);
+  border-left: 1px solid var(--c-line-strong);
+  box-shadow: var(--shadow-float);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--c-line);
+}
+
+.head h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-2xl);
+}
+
+.close {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--c-line-strong);
+}
+
+.close:hover {
+  background: var(--c-panel-raised);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: var(--sp-5);
+  padding: var(--sp-4);
+  overflow: auto;
+}
+
+.faces {
+  display: flex;
+  gap: var(--sp-3);
+  flex: none;
+}
+
+.face {
+  margin: 0;
+  width: min(22rem, 26vw);
+}
+
+.face img {
+  width: 100%;
+  aspect-ratio: 0.716;
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-float);
+}
+
+.face figcaption {
+  margin-top: var(--sp-1);
+  text-align: center;
+  font-size: var(--fs-sm);
+  color: var(--c-text-2);
+}
+
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 16rem;
+  flex: 1;
+}
+
+.details h3 {
+  margin: 0 0 var(--sp-1);
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+}
+
+.details p {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-md);
+  color: var(--c-text);
+}
+
+.details .type {
+  color: var(--c-text-2);
+  font-style: italic;
+}
+
+.text + .text {
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--c-line);
+}
+
+.pt {
+  border-collapse: collapse;
+  font-size: var(--fs-md);
+}
+
+.pt td {
+  padding: 0.2rem var(--sp-4) 0.2rem 0;
+  border-bottom: 1px solid var(--c-line);
+}
+
+.pt td:last-child {
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+}
+
+.total td {
+  border-bottom: 0;
+  font-weight: var(--fw-bold);
+}
+
+.facts {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--c-text-2);
+  font-size: var(--fs-md);
+}
+
+.attachments {
+  display: flex;
+  gap: var(--sp-3);
+}
+
+.attachment {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-sm);
+}

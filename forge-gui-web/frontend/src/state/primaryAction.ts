@@ -1,0 +1,146 @@
+import type { Intent, PromptAnswer } from '../model/intents';
+import { stepInfo, nextStep } from '../model/phases';
+import { player } from '../model/selectors';
+import type { ChoicePrompt, GameView } from '../model/types';
+import type { ChoiceDraft, UiState } from './ui';
+
+export type Tone = 'priority' | 'attack' | 'block' | 'neutral';
+
+export interface PrimaryAction {
+  /** What the button will do, in words. */
+  label: string;
+  /** One line of consequence under the label. */
+  detail?: string;
+  enabled: boolean;
+  tone: Tone;
+  intent?: Intent;
+}
+
+/** The draft for a prompt, initialised from the prompt when missing or stale. */
+export function draftFor(prompt: ChoicePrompt, draft: ChoiceDraft | undefined): ChoiceDraft {
+  if (draft && draft.promptId === prompt.id) return draft;
+  const lists: Record<string, string[]> = {};
+  if (prompt.shape === 'order') for (const l of prompt.lists) lists[l.id] = l.items.map((i) => i.id);
+  return { promptId: prompt.id, selected: [], lists };
+}
+
+export function answerFromDraft(prompt: ChoicePrompt, draft: ChoiceDraft): PromptAnswer | undefined {
+  switch (prompt.shape) {
+    case 'chooseN':
+      if (draft.selected.length < prompt.min || draft.selected.length > prompt.max) return undefined;
+      return { shape: 'chooseN', optionIds: draft.selected };
+    case 'order':
+      return { shape: 'order', lists: Object.entries(draft.lists).map(([id, itemIds]) => ({ id, itemIds })) };
+    case 'yesNo':
+      return { shape: 'yesNo', yes: draft.selected[0] !== 'no' };
+    case 'distribute':
+      return { shape: 'distribute', amounts: {} };
+    case 'input':
+      return { shape: 'input', value: draft.selected[0] ?? '' };
+  }
+}
+
+export function primaryAction(game: GameView, ui: UiState): PrimaryAction {
+  const d = game.decision;
+  switch (d.kind) {
+    case 'waiting': {
+      const who = player(game, d.forPlayerId);
+      return { label: `Waiting for ${who.name}`, detail: d.what, enabled: false, tone: 'neutral' };
+    }
+    case 'priority': {
+      const top = game.stack.at(-1);
+      if (top) {
+        const name = game.cards[top.sourceCardId]?.name ?? 'the top item';
+        return {
+          label: 'Resolve',
+          detail: `Pass priority: ${name} resolves if everyone passes`,
+          enabled: true,
+          tone: 'priority',
+          intent: { type: 'primary' },
+        };
+      }
+      const yours = game.turn.activePlayerId === game.youId;
+      if (yours && game.turn.step === 'main1')
+        return { label: 'Go to combat', detail: 'Pass priority with an empty stack', enabled: true, tone: 'priority', intent: { type: 'primary' } };
+      if (yours && game.turn.step === 'main2') {
+        const next = game.players[1];
+        return { label: 'End turn', detail: next ? `${next.name} plays next` : undefined, enabled: true, tone: 'priority', intent: { type: 'primary' } };
+      }
+      return {
+        label: 'Pass priority',
+        detail: `Move on to ${stepInfo(nextStep(game.turn.step)).longLabel.toLowerCase()}`,
+        enabled: true,
+        tone: 'priority',
+        intent: { type: 'primary' },
+      };
+    }
+    case 'chooseTargets': {
+      const name = game.cards[d.sourceCardId]?.name ?? 'spell';
+      const ready = d.chosen.length >= d.min;
+      return {
+        label: ready ? `Cast ${name}` : 'Choose a target',
+        detail: ready ? `Target: ${d.chosen.map((t) => (t.kind === 'card' ? game.cards[t.id]?.name : player(game, t.id).name)).join(', ')}` : d.instruction,
+        enabled: ready,
+        tone: 'priority',
+        intent: { type: 'primary' },
+      };
+    }
+    case 'declareAttackers': {
+      const n = d.draft.length;
+      const power = d.draft.reduce((s, a) => s + (game.cards[a.attackerId]?.power ?? 0), 0);
+      return n === 0
+        ? { label: 'Skip attack', detail: 'No creatures attack this turn', enabled: true, tone: 'neutral', intent: { type: 'primary' } }
+        : { label: `Attack with ${n}`, detail: `${power} power in total`, enabled: true, tone: 'attack', intent: { type: 'primary' } };
+    }
+    case 'declareBlockers': {
+      const n = d.draft.length;
+      const unblocked = d.attackers.filter((a) => !d.draft.some((b) => b.attackerId === a));
+      const dmg = unblocked.reduce((s, a) => s + (game.cards[a]?.power ?? 0), 0);
+      return {
+        label: n === 0 ? 'No blocks' : `Block with ${n}`,
+        detail: `You take ${dmg} damage from unblocked attackers`,
+        enabled: true,
+        tone: n === 0 ? 'neutral' : 'block',
+        intent: { type: 'primary' },
+      };
+    }
+    case 'choice': {
+      const draft = draftFor(d.prompt, ui.choiceDraft);
+      const answer = answerFromDraft(d.prompt, draft);
+      return {
+        label: d.prompt.confirmLabel,
+        detail: d.prompt.title,
+        enabled: answer !== undefined,
+        tone: 'priority',
+        intent: answer ? { type: 'answer', promptId: d.prompt.id, answer } : undefined,
+      };
+    }
+  }
+}
+
+/** What the game is waiting for, in one sentence. */
+export function promptText(game: GameView): string {
+  const d = game.decision;
+  switch (d.kind) {
+    case 'waiting':
+      return `${d.what}.`;
+    case 'priority': {
+      const top = game.stack.at(-1);
+      if (top) {
+        const who = top.controllerId === game.youId ? 'Your' : `${player(game, top.controllerId).name}'s`;
+        return `${who} ${game.cards[top.sourceCardId]?.name ?? 'spell'} is on top of the stack. Respond with a lit card, or let it resolve.`;
+      }
+      if (game.turn.activePlayerId === game.youId && (game.turn.step === 'main1' || game.turn.step === 'main2'))
+        return 'Your main phase. Play a land or cast a lit card.';
+      return `You have priority in the ${stepInfo(game.turn.step).longLabel.toLowerCase()}.`;
+    }
+    case 'chooseTargets':
+      return `${d.instruction} for ${game.cards[d.sourceCardId]?.name ?? 'this spell'}. Lit cards are legal.`;
+    case 'declareAttackers':
+      return 'Click creatures to attack with them. Click an opponent first to change who they attack.';
+    case 'declareBlockers':
+      return 'Click your creature, then the attacker it blocks — or the attacker first, then your creature.';
+    case 'choice':
+      return d.prompt.instruction;
+  }
+}

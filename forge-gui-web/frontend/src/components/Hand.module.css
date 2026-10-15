@@ -1,0 +1,79 @@
+.hand {
+  grid-area: hand;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  padding: 0 var(--sp-4);
+  background: linear-gradient(180deg, var(--c-bg), var(--c-table) 140%);
+  border-top: 1px solid var(--c-line);
+}
+
+.measure {
+  position: relative;
+  height: 100%;
+  width: 100%;
+}
+
+.inner {
+  position: relative;
+  height: 100%;
+  margin: 0 auto;
+}
+
+.pos {
+  position: absolute;
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    left var(--dur-med) var(--ease-out);
+}
+
+.front {
+  z-index: 2;
+}
+.back {
+  z-index: 1;
+}
+
+/* Hover or keyboard focus lifts a card above its neighbours. */
+.pos:hover,
+.pos:focus-within {
+  z-index: 10;
+  transform: translateY(calc(var(--raise) * -0.85));
+}
+
+.back:hover,
+.back:focus-within {
+  transform: translateY(0);
+}
+
+.caption {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: 0.2rem;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  color: var(--c-text-2);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.other:hover .caption {
+  visibility: hidden;
+}
+
+.divider {
+  position: absolute;
+  width: 1px;
+  background: var(--c-line-strong);
+}
+
+.empty {
+  margin: 0;
+  padding-top: 3rem;
+  color: var(--c-text-3);
+  text-align: center;
+}

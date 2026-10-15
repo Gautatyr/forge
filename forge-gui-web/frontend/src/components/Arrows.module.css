@@ -1,0 +1,44 @@
+.arrows {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: var(--z-arrows);
+  pointer-events: none;
+}
+
+.halo {
+  stroke: var(--c-bg);
+  stroke-width: 8;
+  stroke-linecap: round;
+  opacity: 0.7;
+}
+
+.block {
+  stroke: var(--c-block);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.target {
+  stroke: var(--c-targeted);
+  stroke-width: 3.5;
+  stroke-dasharray: 9 7;
+  stroke-linecap: round;
+}
+
+.markBlock {
+  fill: var(--c-block);
+  stroke: var(--c-bg);
+  stroke-width: 2;
+}
+
+.markTarget {
+  fill: var(--c-bg);
+  stroke: var(--c-targeted);
+  stroke-width: 3;
+}
+
+.markTargetDot {
+  fill: var(--c-targeted);
+}

@@ -1,0 +1,71 @@
+.bar {
+  grid-area: top;
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) auto minmax(12rem, 1fr);
+  align-items: center;
+  gap: var(--sp-4);
+  padding: 0 var(--sp-3);
+  background: var(--c-bg);
+  border-bottom: 1px solid var(--c-line);
+  min-width: 0;
+}
+
+.turn {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.turnNo {
+  font-size: var(--fs-sm);
+  color: var(--c-text-3);
+  white-space: nowrap;
+}
+
+.whose {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
+}
+
+.whose svg {
+  font-size: var(--fs-md);
+  color: var(--c-text-2);
+}
+
+.tools {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-1);
+}
+
+.tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem var(--sp-2);
+  border-radius: var(--r-md);
+  color: var(--c-text-2);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+
+.tool:hover,
+.tool[aria-pressed='true'] {
+  background: var(--c-panel-raised);
+  color: var(--c-text);
+}
+
+kbd {
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  padding: 0 0.3rem;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-line-strong);
+  color: var(--c-text-3);
+}

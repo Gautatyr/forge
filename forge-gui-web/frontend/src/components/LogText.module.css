@@ -1,0 +1,12 @@
+.ref {
+  display: inline;
+  font-weight: var(--fw-bold);
+  color: var(--c-text);
+  text-decoration: underline;
+  text-decoration-color: var(--c-line-strong);
+  text-underline-offset: 2px;
+}
+
+.ref:hover {
+  text-decoration-color: var(--c-text);
+}

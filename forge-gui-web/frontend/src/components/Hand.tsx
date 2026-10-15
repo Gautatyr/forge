@@ -1,0 +1,80 @@
+import type { CSSProperties } from 'react';
+import { commanderTax, you } from '../model/selectors';
+import type { CardView } from '../model/types';
+import { useMatch } from '../state/MatchContext';
+import { Card } from './Card';
+import { handGeometry } from './handLayout';
+import { useSize } from './useSize';
+import styles from './Hand.module.css';
+
+function otherZoneCaption(c: CardView, tax: number): string {
+  if (c.zone === 'command') return tax > 0 ? `Command zone · tax +${tax}` : 'Command zone';
+  if (c.zone === 'graveyard') return 'Graveyard · flashback';
+  if (c.zone === 'exile') return 'Exile';
+  return c.zone;
+}
+
+export function Hand() {
+  const { game } = useMatch();
+  const me = you(game);
+  const [ref, box] = useSize<HTMLDivElement>();
+
+  const hand = me.hand.map((id) => game.cards[id]!);
+  const playable = game.decision.kind === 'priority' ? game.decision.playable : [];
+  const other = [
+    ...me.command.map((id) => game.cards[id]!),
+    ...[...me.graveyard, ...me.exile].filter((id) => playable.includes(id)).map((id) => game.cards[id]!),
+  ];
+  const g = handGeometry(hand.length, other.length, box.w, box.h, box.rem);
+  const handWidth = hand.length > 0 ? (hand.length - 1) * g.step + g.cardW : 0;
+  const otherLeft = handWidth + (other.length ? g.groupGap : 0);
+  const total = otherLeft + (other.length ? other.length * g.cardW + (other.length - 1) * g.gap : 0);
+
+  return (
+    <section className={styles.hand} aria-label={`Your hand, ${hand.length} cards`}>
+      <div ref={ref} className={styles.measure}>
+        {box.w > 0 ? (
+          <div
+            className={styles.inner}
+            style={{ width: total, '--cw': `${g.cardW}px`, '--raise': `${g.raise}px` } as CSSProperties}
+          >
+            {hand.length === 0 ? <p className={styles.empty}>Your hand is empty.</p> : null}
+            {hand.map((c, i) => {
+              const back = g.stagger && i % 2 === 1;
+              return (
+                <div
+                  key={c.id}
+                  className={`${styles.pos} ${back ? styles.back : styles.front}`}
+                  style={{ left: i * g.step, top: g.stagger && !back ? g.raise : g.stagger ? 0 : g.raise }}
+                >
+                  {/* A back card's notch would sit between the front cards and read as theirs;
+                      the outline on its visible name band says "playable". */}
+                  <Card card={c} context="hand" notch={!back} />
+                </div>
+              );
+            })}
+            {other.length > 0 ? (
+              <>
+                <div
+                  className={styles.divider}
+                  style={{ left: handWidth + g.groupGap / 2, top: g.raise, height: g.cardH }}
+                  aria-hidden
+                />
+                {other.map((c, j) => (
+                  <div
+                    key={c.id}
+                    className={`${styles.pos} ${styles.front} ${styles.other}`}
+                    style={{ left: otherLeft + j * (g.cardW + g.gap), top: g.raise }}
+                  >
+                    <span className={styles.caption}>{otherZoneCaption(c, commanderTax(me, c.id))}</span>
+                    <Card card={c} context="hand" />
+                  </div>
+                ))}
+              </>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}

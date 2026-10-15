@@ -1,0 +1,20 @@
+.screen {
+  height: 100vh;
+  width: 100vw;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--rail-w);
+  grid-template-rows: var(--topbar-h) minmax(0, 1fr) var(--hand-h);
+  grid-template-areas:
+    'top top'
+    'board rail'
+    'hand action';
+  background: radial-gradient(120% 90% at 45% 60%, var(--c-table) 0%, var(--c-bg) 75%);
+}
+
+.boardArea {
+  grid-area: board;
+  position: relative;
+  display: grid;
+  min-height: 0;
+  min-width: 0;
+}

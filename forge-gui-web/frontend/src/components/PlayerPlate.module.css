@@ -1,0 +1,274 @@
+.plate {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: var(--sp-3);
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-lg);
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  min-width: 0;
+}
+
+.plate[role='button'] {
+  cursor: pointer;
+}
+
+.active {
+  border-color: var(--c-line-strong);
+  background: linear-gradient(90deg, var(--c-panel-raised), var(--c-panel));
+}
+
+.ringActionable {
+  outline: var(--outline-w) dashed var(--c-actionable);
+  outline-offset: 2px;
+}
+.ringDefender {
+  outline: var(--outline-w-strong) solid var(--c-attack);
+  outline-offset: 2px;
+}
+.ringSelected {
+  outline: var(--outline-w-strong) solid var(--c-selected);
+  outline-offset: 2px;
+}
+
+.lifeBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.4rem;
+  border-right: 1px solid var(--c-line);
+  padding-right: var(--sp-3);
+}
+
+.life {
+  font-family: var(--font-display);
+  font-size: var(--fs-life);
+  font-weight: var(--fw-bold);
+  font-variation-settings: 'wdth' 85;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.lifeLabel {
+  font-size: var(--fs-2xs);
+  color: var(--c-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--sp-1);
+  min-width: 0;
+  flex: 1;
+}
+
+.nameRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.glyph {
+  display: grid;
+  place-items: center;
+  color: var(--c-text-2);
+  font-size: var(--fs-md);
+}
+
+.name {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 0.05rem var(--sp-2);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
+}
+
+.tagTurn {
+  background: var(--c-text);
+  color: var(--c-text-on-accent);
+}
+.tagPriority {
+  background: var(--c-priority);
+  color: var(--c-text-on-accent);
+}
+.tagAttacked {
+  background: var(--c-attack);
+  color: var(--c-text-on-accent);
+}
+.tagTarget {
+  background: var(--c-actionable);
+  color: var(--c-text-on-accent);
+}
+
+.chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--c-text-2);
+}
+
+.zone {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem var(--sp-2);
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+}
+
+.zoneButton {
+  border-color: var(--c-line);
+}
+.zoneButton:hover {
+  background: var(--c-panel-hover);
+  color: var(--c-text);
+}
+.zoneOpen {
+  background: var(--c-panel-hover);
+  border-color: var(--c-text-2);
+  color: var(--c-text);
+}
+
+.zoneCount {
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  color: var(--c-text);
+}
+
+.cmdGroup {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  margin-left: auto;
+  font-size: var(--fs-sm);
+  color: var(--c-text-2);
+}
+
+.cmdLabel {
+  font-size: var(--fs-xs);
+  color: var(--c-text-3);
+}
+
+.cmd {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.05rem var(--sp-2);
+  border-radius: var(--r-md);
+  background: var(--c-panel-raised);
+}
+
+.cmd b {
+  font-family: var(--font-mono);
+  color: var(--c-text);
+}
+
+.of21 {
+  color: var(--c-text-3);
+  margin-left: -0.25rem;
+}
+
+.warn {
+  color: var(--c-attack-text);
+  border: 1px solid var(--c-attack);
+  font-weight: var(--fw-bold);
+}
+
+.command {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.commandCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.commandLabel {
+  font-size: var(--fs-2xs);
+  color: var(--c-text-2);
+  white-space: nowrap;
+}
+
+/* Compact plates (focus layout, side seats). */
+.compact {
+  padding: var(--sp-1) var(--sp-2);
+  gap: var(--sp-2);
+}
+.compact .life {
+  font-size: var(--fs-2xl);
+}
+.compact .lifeBox {
+  min-width: 2.8rem;
+  padding-right: var(--sp-2);
+}
+.compact .name {
+  font-size: var(--fs-md);
+}
+.compact .zoneLabel {
+  display: none;
+}
+.compact .zone {
+  padding: 0.05rem 0.35rem;
+}
+.compact .cmdLabel {
+  display: none;
+}
+
+/* Vertical plates sit left of the battlefield (your seat, 1v1). */
+.vertical {
+  flex-direction: column;
+  justify-content: flex-start;
+  width: 13.5rem;
+  flex: none;
+}
+.vertical .lifeBox {
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: var(--sp-2);
+  border-right: 0;
+  border-bottom: 1px solid var(--c-line);
+  padding: 0 0 var(--sp-2);
+}
+.vertical .main {
+  justify-content: flex-start;
+  gap: var(--sp-2);
+}
+.vertical .cmdGroup {
+  margin-left: 0;
+  margin-top: var(--sp-1);
+}
+.vertical .cmdLabel {
+  width: 100%;
+}
+/* Top right, beside the life total, so a short seat never clips it. */
+.vertical .command {
+  position: absolute;
+  top: var(--sp-2);
+  right: var(--sp-2);
+}

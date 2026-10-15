@@ -1,0 +1,164 @@
+import { createContext, use, useCallback, useMemo, useReducer, useState, type ReactNode } from 'react';
+import type { Intent } from '../model/intents';
+import type { CardId, GameView, PlayerId } from '../model/types';
+import { applyIntent, type MockGame } from '../mock/engine';
+import { blockClick } from './blockClick';
+import { scenarioById } from '../mock/scenarios';
+import { loadPrefs, savePrefs, type Prefs } from './prefs';
+import { INITIAL_UI, type UiState } from './ui';
+
+interface MatchApi {
+  game: GameView;
+  ui: UiState;
+  prefs: Prefs;
+  scenarioId: string;
+  canUndo: boolean;
+  send: (intent: Intent) => void;
+  setUi: (patch: Partial<UiState> | ((u: UiState) => UiState)) => void;
+  setPrefs: (patch: Partial<Prefs>) => void;
+  loadScenario: (id: string) => void;
+  /** Click on a card: what it means depends on the current decision. */
+  activateCard: (id: CardId) => void;
+  /** Click on a player (targets, attack defender). */
+  activatePlayer: (id: PlayerId) => void;
+}
+
+const Ctx = createContext<MatchApi | null>(null);
+
+interface History {
+  scenarioId: string;
+  game: MockGame;
+  past: MockGame[];
+}
+
+type HistoryAction = { type: 'intent'; intent: Intent } | { type: 'load'; id: string };
+
+function historyReducer(h: History, a: HistoryAction): History {
+  if (a.type === 'load') return { scenarioId: a.id, game: scenarioById(a.id).build(), past: [] };
+  if (a.intent.type === 'undo') {
+    const prev = h.past.at(-1);
+    return prev ? { ...h, game: prev, past: h.past.slice(0, -1) } : h;
+  }
+  const next = applyIntent(h.game, a.intent);
+  if (next === h.game) return h;
+  // Only real game actions are undoable, not settings toggles.
+  const undoable = !['setStop', 'setAutoPass', 'setAutoYield', 'toggleAutoYieldTo'].includes(a.intent.type);
+  return { ...h, game: next, past: undoable ? [...h.past, h.game].slice(-30) : h.past };
+}
+
+function initialScenario(): string {
+  return new URLSearchParams(location.search).get('scenario') ?? 'priority';
+}
+
+function initialPrefs(): Prefs {
+  const p = loadPrefs();
+  const q = new URLSearchParams(location.search);
+  const layout = q.get('layout');
+  const size = q.get('size');
+  return {
+    ...p,
+    ...(layout === 'columns' || layout === 'table' || layout === 'focus' ? { layout } : {}),
+    ...(size === 's' || size === 'm' || size === 'l' ? { cardSize: size } : {}),
+  };
+}
+
+export function MatchProvider({ children }: { children: ReactNode }) {
+  const [h, dispatch] = useReducer(historyReducer, undefined, () => {
+    const id = initialScenario();
+    return { scenarioId: id, game: scenarioById(id).build(), past: [] };
+  });
+  const [ui, setUiState] = useState<UiState>(INITIAL_UI);
+  const [prefs, setPrefsState] = useState<Prefs>(initialPrefs);
+
+  const setUi = useCallback((patch: Partial<UiState> | ((u: UiState) => UiState)) => {
+    setUiState((u) => (typeof patch === 'function' ? patch(u) : { ...u, ...patch }));
+  }, []);
+
+  const setPrefs = useCallback((patch: Partial<Prefs>) => {
+    setPrefsState((p) => {
+      const next = { ...p, ...patch };
+      savePrefs(next);
+      return next;
+    });
+  }, []);
+
+  const send = useCallback((intent: Intent) => {
+    dispatch({ type: 'intent', intent });
+    if (['primary', 'cancel', 'undo', 'answer', 'play'].includes(intent.type)) {
+      setUiState((u) => ({ ...u, pendingAttacker: undefined, pendingBlocker: undefined, trayPeek: false }));
+    }
+  }, []);
+
+  const loadScenario = useCallback((id: string) => {
+    dispatch({ type: 'load', id });
+    setUiState({ ...INITIAL_UI });
+    const url = new URL(location.href);
+    url.searchParams.set('scenario', id);
+    history.replaceState(null, '', url);
+  }, []);
+
+  const game = h.game;
+
+  const activateCard = useCallback(
+    (id: CardId) => {
+      const d = game.decision;
+      switch (d.kind) {
+        case 'priority':
+          if (d.playable.includes(id)) send({ type: 'play', cardId: id });
+          return;
+        case 'chooseTargets':
+          send({ type: 'toggleTarget', target: { kind: 'card', id } });
+          return;
+        case 'declareAttackers': {
+          if (!d.candidates.includes(id)) return;
+          const defender = ui.attackDefender ?? d.defenders[0];
+          if (defender) send({ type: 'toggleAttacker', cardId: id, defenderId: defender });
+          return;
+        }
+        case 'declareBlockers': {
+          const r = blockClick(d, { pendingBlocker: ui.pendingBlocker, pendingAttacker: ui.pendingAttacker }, id);
+          if (r.intent) send(r.intent);
+          setUi(r.pending);
+          return;
+        }
+        default:
+          return;
+      }
+    },
+    [game.decision, send, setUi, ui.attackDefender, ui.pendingAttacker, ui.pendingBlocker],
+  );
+
+  const activatePlayer = useCallback(
+    (id: PlayerId) => {
+      const d = game.decision;
+      if (d.kind === 'chooseTargets') send({ type: 'toggleTarget', target: { kind: 'player', id } });
+      if (d.kind === 'declareAttackers' && d.defenders.includes(id)) setUi({ attackDefender: id });
+    },
+    [game.decision, send, setUi],
+  );
+
+  const api = useMemo<MatchApi>(
+    () => ({
+      game,
+      ui,
+      prefs,
+      scenarioId: h.scenarioId,
+      canUndo: h.past.length > 0,
+      send,
+      setUi,
+      setPrefs,
+      loadScenario,
+      activateCard,
+      activatePlayer,
+    }),
+    [game, ui, prefs, h.scenarioId, h.past.length, send, setUi, setPrefs, loadScenario, activateCard, activatePlayer],
+  );
+
+  return <Ctx value={api}>{children}</Ctx>;
+}
+
+export function useMatch(): MatchApi {
+  const v = use(Ctx);
+  if (!v) throw new Error('useMatch outside MatchProvider');
+  return v;
+}
