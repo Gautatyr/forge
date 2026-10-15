@@ -23,6 +23,7 @@
   transform: translate(-50%, -50%);
   border-radius: var(--r-card);
   font-size: var(--ofs);
+  container: card / inline-size;
   transition:
     transform var(--dur-med) var(--ease-out),
     translate var(--dur-med) var(--ease-out),
@@ -340,6 +341,14 @@
   /* Keyword icons hold the right edge: the group count moves to the left. */
   left: 4%;
   transform: none;
+}
+
+/* No keyword icon shows on a card this narrow (KeywordIcons.module.css): the count stays centred. */
+@container card (width < 3.25rem) {
+  .countLeft {
+    left: 50%;
+    transform: translateX(-50%);
+  }
 }
 
 .playNotch {

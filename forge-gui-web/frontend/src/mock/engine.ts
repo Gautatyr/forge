@@ -159,6 +159,19 @@ function hasKeyword(c: CardView, kw: string) {
   return c.keywords.some((k) => k.name === kw);
 }
 
+const COLOUR_SYMBOL: Record<string, string> = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' };
+
+/** Hexproof, or "hexproof from <colour>" when `source` (an opponent's spell or ability) has that colour. */
+function hexproofAgainst(c: CardView, source: CardView | undefined): boolean {
+  return c.keywords.some((k) => {
+    if (k.name !== 'Hexproof') return false;
+    const from = /^Hexproof from (\w+)$/i.exec(k.label)?.[1];
+    if (!from) return true;
+    const symbol = COLOUR_SYMBOL[from.toLowerCase()];
+    return !!symbol && !!source && new RegExp(`[{/]${symbol}[}/]`).test(currentFace(source).manaCost);
+  });
+}
+
 function availableMana(g: MockGame, pid: PlayerId): number {
   return player(g, pid)
     .battlefield.map((id) => g.cards[id]!)
@@ -215,18 +228,19 @@ export function computePlayable(g: MockGame): CardId[] {
     if (!instantSpeed && !sorcerySpeed) continue;
     if (castCost(g, c) > mana) continue;
     const t = rule(c).target;
-    if (t && legalTargets(g, t.spec, g.youId).length === 0) continue;
+    if (t && legalTargets(g, t.spec, g.youId, c).length === 0) continue;
     out.push(c.id);
   }
   return out;
 }
 
-export function legalTargets(g: MockGame, spec: TargetSpec, casterId: PlayerId): TargetRef[] {
+/** `source`: the card of the spell or ability, for "hexproof from <colour>". */
+export function legalTargets(g: MockGame, spec: TargetSpec, casterId: PlayerId, source?: CardView): TargetRef[] {
   const all = g.players.flatMap((p) => p.battlefield.map((id) => g.cards[id]!));
   return all
     .filter((c) => {
       if (c.attachedTo && spec !== 'permanent' && spec !== 'nonlandPermanent') return false;
-      if (c.controllerId !== casterId && hasKeyword(c, 'Hexproof')) return false;
+      if (c.controllerId !== casterId && hexproofAgainst(c, source)) return false;
       switch (spec) {
         case 'creature':
           return isCreature(c);
@@ -328,7 +342,7 @@ function resolveTop(g: MockGame) {
     if (t.kind !== 'card') return true;
     const tc = g.cards[t.id];
     if (!tc || tc.zone !== 'battlefield') return false;
-    return !(tc.controllerId !== item.controllerId && hasKeyword(tc, 'Hexproof'));
+    return !(tc.controllerId !== item.controllerId && hexproofAgainst(tc, src));
   });
   if (item.targets.length > 0 && liveTargets.length === 0) {
     log(g, `${ref(src.id)} has no legal target left and does nothing.`, caster.id);
@@ -592,7 +606,7 @@ export function applyIntent(prev: MockGame, intent: Intent): MockGame {
           kind: 'chooseTargets',
           sourceCardId: c.id,
           instruction: t.instruction,
-          legal: legalTargets(g, t.spec, g.youId),
+          legal: legalTargets(g, t.spec, g.youId, c),
           chosen: [],
           min: 1,
           max: 1,

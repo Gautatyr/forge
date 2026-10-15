@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyIntent } from './engine';
+import { applyIntent, legalTargets } from './engine';
 import { printedKeywords } from './keywords';
 import { scenarioById } from './scenarios';
 
@@ -89,5 +89,33 @@ describe('mock permanents carry printed and added keywords', () => {
       ['Hexproof', 'Heroic Intervention'],
       ['Indestructible', 'Heroic Intervention'],
     ]);
+  });
+});
+
+describe('hexproof in mock targeting', () => {
+  const knightOf = (g: ReturnType<ReturnType<typeof scenarioById>['build']>) =>
+    Object.values(g.cards).find((c) => c.name === 'Knight of Grace')!;
+
+  it('a white spell can target a creature with hexproof from black', () => {
+    let g = scenarioById('keywords').build();
+    const path = g.players[0]!.hand.find((id) => g.cards[id]!.name === 'Path to Exile')!;
+    g = applyIntent(g, { type: 'play', cardId: path });
+    expect(g.decision.kind).toBe('chooseTargets');
+    const legal = g.decision.kind === 'chooseTargets' ? g.decision.legal : [];
+    expect(legal).toContainEqual({ kind: 'card', id: knightOf(g).id });
+  });
+
+  it('a black spell cannot target it, and full hexproof still stops any colour', () => {
+    const g = scenarioById('keywords').build();
+    const path = Object.values(g.cards).find((c) => c.name === 'Path to Exile')!;
+    const black = { ...path, front: { ...path.front, manaCost: '{1}{B}' } };
+    const hybrid = { ...path, front: { ...path.front, manaCost: '{W/B}' } };
+    const ids = (src: typeof path) => legalTargets(g, 'creature', g.youId, src).map((t) => (t.kind === 'card' ? t.id : ''));
+    expect(ids(black)).not.toContain(knightOf(g).id);
+    expect(ids(hybrid)).not.toContain(knightOf(g).id);
+    expect(ids(path)).toContain(knightOf(g).id);
+    const hawk = Object.values(g.cards).find((c) => c.name === 'Vampire Nighthawk')!;
+    hawk.controllerId = g.players[1]!.id;
+    expect(ids(path)).not.toContain(hawk.id);
   });
 });

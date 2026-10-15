@@ -1,7 +1,9 @@
 import {
+  useEffect,
   useId,
   useLayoutEffect,
   useRef,
+  useState,
   useSyncExternalStore,
   type FocusEvent,
   type MouseEvent,
@@ -11,7 +13,14 @@ import {
 import { createPortal } from 'react-dom';
 import type { CardKeyword } from '../model/types';
 import { grantedText, iconKeywords, keywordIcon, keywordLine, slotPlan, type KeywordIcon, type SizeTier } from './keywordCatalog';
+import { placeWordChips, type Rect, type WordChipPlacement } from './wordChipLayout';
 import styles from './KeywordIcons.module.css';
+
+/** What a click or right-click on the card does; icons and chips forward pointer clicks to it. */
+export interface CardActions {
+  activate: () => void;
+  inspect: () => void;
+}
 
 /* --- One tooltip at a time ------------------------------------------------------ */
 
@@ -21,11 +30,15 @@ const HIDE_DELAY_MS = 150;
 
 interface TipState {
   id: string;
+  /** Snapshot of the icon's box; the tooltip closes when something scrolls the icon (see onWindowMove). */
   anchor: DOMRect;
+  el: HTMLElement;
 }
 
 let tip: TipState | undefined;
 let timer: number | undefined;
+/** The tooltip `timer` will open or close. */
+let timerOwner: string | undefined;
 const tipListeners = new Set<() => void>();
 
 function setTip(next: TipState | undefined) {
@@ -36,8 +49,9 @@ function setTip(next: TipState | undefined) {
   for (const l of tipListeners) l();
 }
 
-function later(ms: number, fn: () => void) {
+function later(owner: string, ms: number, fn: () => void) {
   window.clearTimeout(timer);
+  timerOwner = owner;
   timer = window.setTimeout(fn, ms);
 }
 
@@ -53,50 +67,74 @@ function onWindowKey(e: KeyboardEvent) {
   e.stopPropagation();
   setTip(undefined);
 }
-const onWindowResize = () => setTip(undefined);
+/** Close when the window resizes or a scroll moves the icon (not when the log or another region scrolls). */
+const onWindowMove = (e: Event) => {
+  if (!tip) return;
+  const t = e.target;
+  if (e.type === 'resize' || !(t instanceof Node) || t.contains(tip.el)) setTip(undefined);
+};
 
 function subscribeTip(l: () => void) {
   if (tipListeners.size === 0) {
     window.addEventListener('keydown', onWindowKey, true);
-    window.addEventListener('resize', onWindowResize);
+    window.addEventListener('resize', onWindowMove);
+    window.addEventListener('scroll', onWindowMove, true);
   }
   tipListeners.add(l);
   return () => {
     tipListeners.delete(l);
     if (tipListeners.size > 0) return;
     window.removeEventListener('keydown', onWindowKey, true);
-    window.removeEventListener('resize', onWindowResize);
+    window.removeEventListener('resize', onWindowMove);
+    window.removeEventListener('scroll', onWindowMove, true);
   };
 }
 
-/** Hover (after 300 ms), keyboard focus and click open the tooltip; leaving, blur and Escape close it. */
-function useTip() {
+/**
+ * Hover (after 300 ms), keyboard focus and click open the tooltip; leaving, blur and Escape close it.
+ * A pointer click also does what a click on the card does, and a right-click inspects the card.
+ */
+function useTip(card: CardActions) {
   const id = useId();
+  useEffect(
+    () => () => {
+      // Unmounted (card left the battlefield, overlay key held): drop its pending or open tooltip.
+      if (timerOwner === id) window.clearTimeout(timer);
+      if (tip?.id === id) setTip(undefined);
+    },
+    [id],
+  );
   const anchor = useSyncExternalStore(
     subscribeTip,
     () => (tip?.id === id ? tip.anchor : undefined),
     () => undefined,
   );
-  const show = (el: HTMLElement) => setTip({ id, anchor: el.getBoundingClientRect() });
+  const show = (el: HTMLElement) => setTip({ id, anchor: el.getBoundingClientRect(), el });
   const handlers = {
     onPointerEnter: (e: PointerEvent<HTMLElement>) => {
       const el = e.currentTarget;
       if (tip?.id === id) return window.clearTimeout(timer);
-      later(tip ? 0 : SHOW_DELAY_MS, () => show(el));
+      later(id, tip ? 0 : SHOW_DELAY_MS, () => show(el));
     },
-    onPointerLeave: () => later(HIDE_DELAY_MS, hideIf(id)),
+    onPointerLeave: () => later(id, HIDE_DELAY_MS, hideIf(id)),
     onFocus: (e: FocusEvent<HTMLElement>) => show(e.currentTarget),
     onBlur: hideIf(id),
     // Click (or tap) shows it at once; it never toggles off, since a click also focuses.
+    // Only a pointer click (detail > 0) reaches the card: Enter on a focused icon just shows it.
     onClick: (e: MouseEvent<HTMLElement>) => {
       if (tip?.id !== id) show(e.currentTarget);
+      if (e.detail > 0) card.activate();
+    },
+    onContextMenu: (e: MouseEvent<HTMLElement>) => {
+      e.preventDefault();
+      card.inspect();
     },
   };
   const tipProps = {
     id: `${id}-tip`,
     anchor,
     onPointerEnter: () => window.clearTimeout(timer),
-    onPointerLeave: () => later(HIDE_DELAY_MS, hideIf(id)),
+    onPointerLeave: () => later(id, HIDE_DELAY_MS, hideIf(id)),
   };
   return { open: anchor !== undefined, tipId: tipProps.id, handlers, tipProps };
 }
@@ -152,8 +190,8 @@ const hideClasses = (shownOn: SizeTier[]) =>
     .map((t) => HIDE_ON[t])
     .join(' ');
 
-function KeywordDisc({ icon, className }: { icon: KeywordIcon; className: string }) {
-  const { open, tipId, handlers, tipProps } = useTip();
+function KeywordDisc({ icon, className, card }: { icon: KeywordIcon; className: string; card: CardActions }) {
+  const { open, tipId, handlers, tipProps } = useTip(card);
   const k = icon.keyword;
   const line = keywordLine(k);
   const granted = grantedText(k);
@@ -180,8 +218,8 @@ function KeywordDisc({ icon, className }: { icon: KeywordIcon; className: string
   );
 }
 
-function MoreChip({ hidden, className }: { hidden: KeywordIcon[]; className: string }) {
-  const { open, tipId, handlers, tipProps } = useTip();
+function MoreChip({ hidden, className, card }: { hidden: KeywordIcon[]; className: string; card: CardActions }) {
+  const { open, tipId, handlers, tipProps } = useTip(card);
   const labels = hidden.map((i) => i.keyword.label);
   return (
     <>
@@ -210,6 +248,110 @@ function MoreChip({ hidden, className }: { hidden: KeywordIcon[]; className: str
   );
 }
 
+/** Card overlays the word chips stay clear of (state badges, count, P/T, damage, counters, combat strip). */
+export const KW_AVOID_ATTR = 'data-kw-avoid';
+
+const rectIn = (el: Element, box: DOMRect): Rect => {
+  const r = el.getBoundingClientRect();
+  return { left: r.left - box.left, top: r.top - box.top, right: r.right - box.left, bottom: r.bottom - box.top };
+};
+const sizeOf = (el: Element | null | undefined) => {
+  const r = el?.getBoundingClientRect();
+  return { width: r?.width ?? 0, height: r?.height ?? 0 };
+};
+const half = (n: number) => Math.round(n * 2) / 2;
+
+/**
+ * Overlay key held: each icon as a word chip, upright in the slot (the turned
+ * box on a tapped card). Chips are placed by measurement (wordChipLayout) so
+ * they never cover the card's other overlays; what does not fit becomes "+N".
+ */
+function WordChips({ icons, card }: { icons: KeywordIcon[]; card: CardActions }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const chipEls = useRef<(HTMLSpanElement | null)[]>([]);
+  const probeEl = useRef<HTMLSpanElement>(null);
+  const [plan, setPlan] = useState<WordChipPlacement>();
+  const [, remeasure] = useState(0);
+
+  useEffect(() => {
+    const slot = ref.current?.closest('[data-card-id]');
+    if (!slot) return;
+    const ro = new ResizeObserver(() => remeasure((n) => n + 1));
+    ro.observe(slot);
+    return () => ro.disconnect();
+  }, []);
+
+  // Every render: the card's overlays change with its state. Sizes and overlays
+  // do not depend on where the chips are, so this settles in one pass.
+  useLayoutEffect(() => {
+    const region = ref.current;
+    const slot = region?.closest('[data-card-id]');
+    if (!region || !slot) return;
+    const box = region.getBoundingClientRect();
+    const avoid = [...slot.querySelectorAll(`[${KW_AVOID_ATTR}]`)]
+      .map((el) => rectIn(el, box))
+      .filter((r) => r.right > r.left && r.bottom > r.top);
+    const next = placeWordChips(
+      sizeOf(region),
+      icons.map((_, n) => sizeOf(chipEls.current[n])),
+      sizeOf(probeEl.current),
+      avoid,
+      parseFloat(getComputedStyle(region).rowGap) || 0,
+    );
+    const rounded: WordChipPlacement = { bottoms: next.bottoms.map(half) };
+    if (next.more !== undefined) rounded.more = half(next.more);
+    setPlan((p) => (JSON.stringify(p) === JSON.stringify(rounded) ? p : rounded));
+  });
+
+  const chipHandlers = {
+    onClick: card.activate,
+    onContextMenu: (e: MouseEvent<HTMLElement>) => {
+      e.preventDefault();
+      card.inspect();
+    },
+  };
+  const at = (bottom: number | undefined) =>
+    bottom === undefined ? { bottom: 0, visibility: 'hidden' as const } : { bottom };
+  const hidden = plan ? icons.slice(plan.bottoms.length) : [];
+  return (
+    <span ref={ref} className={styles.words}>
+      {icons.map((i, n) => {
+        const bottom = plan?.bottoms[n];
+        return (
+          <span
+            key={i.keyword.label}
+            ref={(el) => {
+              chipEls.current[n] = el;
+            }}
+            className={`${styles.word} ${i.keyword.grantedBy ? styles.granted : ''}`}
+            style={at(bottom)}
+            title={[i.keyword.label, grantedText(i.keyword)].filter(Boolean).join(' · ')}
+            data-arrow-occluder={bottom === undefined ? undefined : ''}
+            {...chipHandlers}
+          >
+            {i.keyword.label}
+          </span>
+        );
+      })}
+      {plan?.more !== undefined ? (
+        <span
+          className={`${styles.word} ${styles.wordMore}`}
+          style={at(plan.more)}
+          title={hidden.map((i) => i.keyword.label + (i.keyword.grantedBy ? ' (added)' : '')).join(' · ')}
+          data-arrow-occluder=""
+          {...chipHandlers}
+        >
+          +{hidden.length}
+        </span>
+      ) : null}
+      {/* Measures the widest "+N" chip. */}
+      <span ref={probeEl} className={`${styles.word} ${styles.wordMore}`} style={at(undefined)} aria-hidden>
+        +{icons.length}
+      </span>
+    </span>
+  );
+}
+
 interface Props {
   keywords: CardKeyword[];
   /** Drawn tapped (rotated): icons turn back upright. */
@@ -218,6 +360,7 @@ interface Props {
   above: 'strip' | 'damage' | 'pt' | 'none';
   /** Overlay key held: every icon as a word chip instead. */
   words: boolean;
+  card: CardActions;
 }
 
 /**
@@ -225,36 +368,21 @@ interface Props {
  * the P/T box. The parent frame matches the card box (rotated with it when
  * tapped). How many fit depends on the card width (container queries).
  */
-export function KeywordIcons({ keywords, tapped, above, words }: Props) {
+export function KeywordIcons({ keywords, tapped, above, words, card }: Props) {
   const icons = iconKeywords(keywords);
   if (!icons.length) return null;
+  if (words) return <WordChips icons={icons} card={card} />;
   const start = { strip: styles.aboveStrip, damage: styles.aboveDamage, pt: styles.abovePt, none: '' }[above];
-
-  if (words) {
-    return (
-      <span className={`${styles.words} ${tapped ? '' : start}`} data-arrow-occluder>
-        {icons.map((i) => (
-          <span
-            key={i.keyword.label}
-            className={`${styles.word} ${i.keyword.grantedBy ? styles.granted : ''}`}
-            title={[i.keyword.label, grantedText(i.keyword)].filter(Boolean).join(' · ')}
-          >
-            {i.keyword.label}
-          </span>
-        ))}
-      </span>
-    );
-  }
 
   const plan = slotPlan(icons.length);
   return (
     <span className={styles.frame}>
       <span className={`${styles.column} ${start} ${tapped ? styles.upright : ''}`} data-arrow-occluder>
         {plan.icons.map(({ index, tiers }) => (
-          <KeywordDisc key={index} icon={icons[index]!} className={hideClasses(tiers)} />
+          <KeywordDisc key={index} icon={icons[index]!} className={hideClasses(tiers)} card={card} />
         ))}
         {plan.more.map(({ tier, count }) => (
-          <MoreChip key={tier} hidden={icons.slice(icons.length - count)} className={hideClasses([tier])} />
+          <MoreChip key={tier} hidden={icons.slice(icons.length - count)} className={hideClasses([tier])} card={card} />
         ))}
       </span>
     </span>
