@@ -1,14 +1,24 @@
+/* Spans the board and hand rows: one full-height column. */
 .rail {
   grid-area: rail;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--c-line);
+  background: var(--c-bg);
+}
+
+/* Everything above the action block. It takes the height the action block
+   leaves; scrolling here is the last resort (each region scrolls its own
+   body first) and never moves the action block. */
+.regions {
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
   padding: var(--sp-2);
   min-height: 0;
-  /* Last resort only: each region below scrolls its own body first. */
   overflow-y: auto;
-  border-left: 1px solid var(--c-line);
-  background: var(--c-bg);
 }
 
 .block {
@@ -47,9 +57,11 @@
   min-height: 9rem;
 }
 
+/* Takes the height left above the action block. The floor fits the header
+   and three events of up to two lines each. */
 .recent {
   flex: 1 1 auto;
-  min-height: 8.5rem;
+  min-height: 11rem;
 }
 
 .head {
