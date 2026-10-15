@@ -15,6 +15,7 @@ Audience: the owner and friends, possibly the public later. Never monetised.
 |---|---|
 | [decisions.md](decisions.md) | Decision log. Read this first. |
 | [design/match-screen-decisions.md](design/match-screen-decisions.md) | Owner's rulings on the match-screen design. Overrides the memo where they differ. |
+| [design/mockup-review-1.md](design/mockup-review-1.md) | Owner's first review of the mockup, answers to its open questions. |
 | [design/mockup-notes.md](design/mockup-notes.md) | Clickable match-screen mockup: how to run it, scenarios, layouts, design choices, open questions. |
 | [design/match-screen-memo.md](design/match-screen-memo.md) | Product discovery memo: interaction inventory, pain points, benchmarks, options. |
 | [architecture/web-ui.md](architecture/web-ui.md) | Web UI architecture: the engine/UI seam, the existing network protocol, the bridge plan. |

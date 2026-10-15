@@ -24,6 +24,20 @@ Rulings by the owner (Hugo) on 2026-10-15, in response to [match-screen-memo.md]
 | D10 | Accessibility | As memo. **Colour-blind support is a priority: the owner has colour-blind friends.** Shape + colour on every state, colour-blind-safe palette, UI scale 75–200%. |
 | D11 | Card rendering | Full card images. **Cards are nice to look at; players must be able to admire them in game.** |
 
+## Rulings from mockup review 1 (2026-10-15)
+Source: [mockup-review-1.md](mockup-review-1.md).
+- **Keyword icons:** permanents show an icon per keyword ability (haste, flying, trample, …). Hovering an icon explains the keyword with a short summary of its effect.
+- **Target highlights follow the stack:** show targets for the stack item that is resolving next (the top). Other items show their targets only on hover. Never ring every target of every item at once.
+- **Stable controls:** persistent buttons (e.g. Undo) keep a fixed position. Contextual buttons appear in reserved space without shifting the persistent ones.
+- **Scrolling:** each region of the side panel scrolls on its own; opening a zone pile must never push the log out of reach.
+- **UI scale:** changing the scale must not reflow the layout continuously while dragging (apply on release, or preview then apply).
+- **Focus layout:** the focused opponent defaults to the one whose turn it is.
+- **Board split:** 45% opponents / 55% you by default, configurable.
+- **Hand beyond 9 cards:** stagger right away; no shrinking step first.
+- **No per-colour untapped-mana display for opponents.**
+- **Open, delegated to product:** how to show the turn sequence and phase stops (the current dots are unclear); where manual mana payment and floating mana go.
+- **Open, from the orchestrator's review:** opponents' cards are too small to read; space is underused.
+
 ## Facts checked in the code (2026-10-15)
 - The engine's 13 prompt messages that need an answer fit 5 shapes: choose N from a list (min/max), yes/no, order (including moving between two lists), distribute an amount, type a text or number (`showInputDialog`). One generic choice tray can render them all. See [../architecture/web-ui.md](../architecture/web-ui.md).
 - Sideboarding between games uses the generic two-list order dialog on desktop (`forge-gui-desktop/src/main/java/forge/gui/GuiChoose.java:227`), so the choice tray covers it.
