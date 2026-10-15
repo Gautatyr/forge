@@ -8,21 +8,22 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.IntUnaryOperator;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import forge.trackable.TrackableProperty;
+import forge.web.bridge.visibility.CardRefs;
 
 /**
- * Server-side copy of exactly what clients have been sent, as JSON. A connecting client gets
+ * Server-side copy of exactly what one viewer's clients have been sent, as JSON. A connecting client gets
  * {@link #toJsonObjects()} as its snapshot, so the snapshot never walks the live (game-thread-owned)
  * view graph. Not thread-safe: the owner serialises access.
  */
 public final class StateMirror {
 
-    public record Obj(String type, int id, String state, JsonObject props, boolean redacted) {
+    public record Obj(String type, int id, String state, JsonObject props) {
         public String key() {
             return state == null ? type + ":" + id : type + ":" + id + ":" + state;
         }
@@ -84,6 +85,37 @@ public final class StateMirror {
     }
 
     /**
+     * Rewrites card references {@code old id -> new id} in every object and returns, per object key,
+     * the properties that changed (their new values), for the client to merge.
+     */
+    public Map<String, JsonObject> rewriteCardRefs(Map<Integer, Integer> renames) {
+        Map<String, JsonObject> changed = new LinkedHashMap<>();
+        if (renames.isEmpty()) {
+            return changed;
+        }
+        IntUnaryOperator f = id -> renames.getOrDefault(id, id);
+        for (Obj o : objects.values()) {
+            JsonObject delta = null;
+            for (Map.Entry<String, JsonElement> e : o.props().entrySet()) {
+                JsonElement mapped = CardRefs.map(e.getKey(), e.getValue(), f);
+                if (mapped != e.getValue()) {
+                    if (delta == null) {
+                        delta = new JsonObject();
+                    }
+                    delta.add(e.getKey(), mapped);
+                }
+            }
+            if (delta != null) {
+                for (Map.Entry<String, JsonElement> e : delta.entrySet()) {
+                    o.props().add(e.getKey(), e.getValue());
+                }
+                changed.put(o.key(), delta);
+            }
+        }
+        return changed;
+    }
+
+    /**
      * Drops every object no longer reachable from the root through reference properties and
      * returns their keys in mirror order. Clients apply the same removals.
      */
@@ -120,13 +152,11 @@ public final class StateMirror {
         if (v == null || v.isJsonNull()) {
             return;
         }
-        TrackableProperty prop;
-        try {
-            prop = TrackableProperty.valueOf(propName);
-        } catch (IllegalArgumentException e) {
+        WireSchema.Kind kind = WireSchema.refKindOf(propName);
+        if (kind == null) {
             return;
         }
-        switch (WireSchema.kindOf(prop)) {
+        switch (kind) {
             case CARD: todo.add("card:" + v.getAsInt()); break;
             case PLAYER: todo.add("player:" + v.getAsInt()); break;
             case STACK_ITEM: todo.add("stackItem:" + v.getAsInt()); break;

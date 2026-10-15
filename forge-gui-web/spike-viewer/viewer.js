@@ -43,7 +43,9 @@
   }
 
   function connect(attempt = 0) {
-    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+    // ?seat=N watches as that player (index in the game's player list); no seat = spectator
+    const seat = params.get('seat');
+    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws${seat !== null ? `?seat=${encodeURIComponent(seat)}` : ''}`);
     ws.onopen = () => { setStatus('live', 'live'); attempt = 0; };
     ws.onmessage = (ev) => {
       meter.msgs++; meter.bytes += ev.data.length;

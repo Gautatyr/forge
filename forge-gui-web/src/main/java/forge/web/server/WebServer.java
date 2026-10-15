@@ -70,7 +70,7 @@ public final class WebServer {
                                 .addLast(new HttpServerCodec())
                                 .addLast(new HttpObjectAggregator(1 << 16))
                                 .addLast(new WebSocketServerCompressionHandler())
-                                .addLast(new WebSocketServerProtocolHandler("/ws", null, true, 1 << 20))
+                                .addLast(new WebSocketServerProtocolHandler("/ws", null, true, 1 << 20, false, true))
                                 .addLast(new HttpHandler())
                                 .addLast(new WsHandler());
                     }
@@ -89,6 +89,19 @@ public final class WebServer {
         }
     }
 
+    /** {@code ?seat=N} picks a player's stream (index in the game's player list); anything else is a spectator. */
+    static int seatOf(String uri) {
+        java.util.List<String> v = new QueryStringDecoder(uri).parameters().get("seat");
+        if (v == null || v.isEmpty()) {
+            return GameStream.SPECTATOR;
+        }
+        try {
+            return Math.max(GameStream.SPECTATOR, Integer.parseInt(v.get(0)));
+        } catch (NumberFormatException e) {
+            return GameStream.SPECTATOR;
+        }
+    }
+
     private final class HttpHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
         @Override
         protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest req) throws IOException {
@@ -98,7 +111,7 @@ public final class WebServer {
             }
             String path = new QueryStringDecoder(req.uri()).path();
             if ("/state".equals(path)) {
-                send(ctx, HttpResponseStatus.OK, TYPES.get("json"), stream.snapshot().getBytes(StandardCharsets.UTF_8));
+                send(ctx, HttpResponseStatus.OK, TYPES.get("json"), stream.snapshot(seatOf(req.uri())).getBytes(StandardCharsets.UTF_8));
                 return;
             }
             if ("/metrics".equals(path)) {
@@ -135,7 +148,7 @@ public final class WebServer {
             if (evt instanceof WebSocketServerProtocolHandler.HandshakeComplete) {
                 Channel ch = ctx.channel();
                 sink = json -> ch.writeAndFlush(new TextWebSocketFrame(json));
-                stream.addClient(sink);
+                stream.addClient(sink, seatOf(((WebSocketServerProtocolHandler.HandshakeComplete) evt).requestUri()));
                 System.out.println("[web] client connected " + ch.remoteAddress() + " (" + stream.clientCount() + " total)");
             } else {
                 super.userEventTriggered(ctx, evt);
