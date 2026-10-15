@@ -11,6 +11,7 @@ import { HoverPreview } from './HoverPreview';
 import { Inspector } from './Inspector';
 import { DevPanel, DisplaySettings, GameMenu, LogDrawer, ShortcutsOverlay } from './Overlays';
 import { Rail } from './Rail';
+import { StopsPanel } from './StopsPanel';
 import { TopBar } from './TopBar';
 import styles from './MatchScreen.module.css';
 
@@ -34,7 +35,7 @@ export function MatchScreen() {
 
     if (key === ' ') {
       e.preventDefault();
-      const a = primaryAction(game, ui);
+      const a = primaryAction(game, ui, prefs.stops);
       if (a.enabled && a.intent) send(a.intent);
       return;
     }
@@ -101,6 +102,7 @@ export function MatchScreen() {
       <main className={styles.boardArea}>
         <Board />
         <ChoiceTray />
+        <StopsPanel />
       </main>
       <Rail />
       <Hand />

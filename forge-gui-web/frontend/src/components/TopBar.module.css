@@ -1,50 +1,100 @@
 .bar {
   grid-area: top;
-  display: grid;
-  grid-template-columns: minmax(12rem, 1fr) auto minmax(12rem, 1fr);
+  display: flex;
   align-items: center;
   gap: var(--sp-4);
   padding: 0 var(--sp-3);
   background: var(--c-bg);
   border-bottom: 1px solid var(--c-line);
   min-width: 0;
+  /* Parts kept only for measuring (see TopBar's useFit) must never widen the page. */
+  overflow: hidden;
 }
 
+/* Whose turn, the turn line and the priority chip. Shrinks last, with "…". */
 .turn {
-  display: flex;
-  align-items: baseline;
-  gap: var(--sp-3);
+  flex: 1 1 auto;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.1rem;
 }
 
-.turnNo {
-  font-size: var(--fs-sm);
-  color: var(--c-text-3);
+/* One line each, as wide as its text so the bar can measure it; cut with "…" when short of room. */
+.whose,
+.turnLine,
+.chip {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.whose svg,
+.turnLine svg,
+.chip svg {
+  vertical-align: -0.125em;
 }
 
 .whose {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
   font-family: var(--font-display);
-  font-size: var(--fs-xl);
+  font-size: var(--fs-lg);
   font-weight: var(--fw-bold);
-  white-space: nowrap;
+  line-height: 1.1;
 }
 
 .whose svg {
-  font-size: var(--fs-md);
   color: var(--c-text-2);
 }
 
+.turnLine {
+  font-size: var(--fs-2xs);
+  line-height: 1.2;
+  color: var(--c-text-3);
+}
+
+.turnLine svg {
+  color: var(--c-text-2);
+}
+
+/* Who the game waits for. Yours: orange, like the main button. Theirs: neutral. */
+.chip {
+  padding: 0 0.4rem;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-medium);
+  line-height: 1.35;
+  background: var(--c-panel-raised);
+  color: var(--c-text-2);
+}
+
+.chipYou {
+  background: var(--c-priority);
+  color: var(--c-text-on-accent);
+  font-weight: var(--fw-bold);
+}
+
+/* An AI just got priority: keep the slot, show the chip after a short delay. */
+.chipPending {
+  visibility: hidden;
+}
+
 .tools {
+  flex: 1 0 auto;
   display: flex;
   justify-content: flex-end;
+}
+
+.toolsInner {
+  display: flex;
   gap: var(--sp-1);
 }
 
 .tool {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -59,6 +109,15 @@
 .tool[aria-pressed='true'] {
   background: var(--c-panel-raised);
   color: var(--c-text);
+}
+
+/* A tool's word while the bar is short of room: hidden, still measurable. */
+.measureOnly {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 kbd {

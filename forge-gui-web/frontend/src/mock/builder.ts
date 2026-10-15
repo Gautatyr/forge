@@ -30,10 +30,6 @@ export class GameBuilder {
       stack: [],
       turn: { number: 1, activePlayerId: 'you', step: 'main1', priorityPlayerId: 'you' },
       decision: { kind: 'priority', playable: [] },
-      stops: {
-        yourTurn: ['upkeep', 'draw', 'main1', 'declareAttackers', 'declareBlockers', 'main2', 'end'],
-        opponentsTurn: ['upkeep', 'main1', 'declareAttackers', 'declareBlockers', 'end'],
-      },
       autoPass: false,
       autoYield: false,
       autoYieldTo: [],

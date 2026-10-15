@@ -30,7 +30,7 @@ function useWholeLines<T extends HTMLElement>() {
 /** Bottom-right, beside the hand: what the game wants, and the one button that answers it. */
 export function ActionPanel() {
   const { game, ui, prefs, send, setUi, canUndo } = useMatch();
-  const action = primaryAction(game, ui);
+  const action = primaryAction(game, ui, prefs.stops);
   const [promptRef, promptLines] = useWholeLines<HTMLParagraphElement>();
   const d = game.decision;
   const canCancel =
@@ -87,9 +87,13 @@ export function ActionPanel() {
             {action.tone === 'attack' ? <Icon name="sword" /> : action.tone === 'block' ? <Icon name="shield" /> : null}
             {!action.enabled && d.kind === 'waiting' ? <Icon name="hourglass" /> : null}
             {action.label}
+            {action.enabled ? <kbd className={styles.key}>Space</kbd> : null}
           </span>
-          {action.detail ? <span className={styles.primaryDetail}>{action.detail}</span> : null}
-          {action.enabled ? <kbd className={styles.key}>Space</kbd> : null}
+          {action.detail ? (
+            <span className={styles.primaryDetail} title={action.detail}>
+              {action.detail}
+            </span>
+          ) : null}
         </button>
       </div>
 
