@@ -3,6 +3,8 @@ import type { PlayerView } from '../model/types';
 import { playerTargetSpot, spotlightItem } from '../state/cardStatus';
 import { currentDefender } from '../state/focus';
 import { useMatch } from '../state/MatchContext';
+import { playerChoice } from './tray/inPlace';
+import { useInPlacePick } from './tray/useInPlacePick';
 import type { ViewableZone } from '../state/ui';
 import { Icon, SeatGlyph, type IconName } from './Icon';
 import styles from './PlayerPlate.module.css';
@@ -27,7 +29,10 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
   const isDefender = defenderPick && currentDefender(game, ui, prefs.layout) === p.id;
   const incoming = game.combat?.attacks.filter((a) => a.defenderId === p.id).length ?? 0;
   const draftIncoming = d.kind === 'declareAttackers' ? d.draft.filter((a) => a.defenderId === p.id).length : 0;
-  const clickable = legalTarget || defenderPick;
+  const pickInPlace = useInPlacePick();
+  const choice = playerChoice(game, ui, p.id);
+  const clickable = legalTarget || defenderPick || choice !== undefined;
+  const onActivate = () => (choice ? pickInPlace({ kind: 'player', id: p.id }) : activatePlayer(p.id));
   const stackSpot = playerTargetSpot(game, ui, p.id);
   const spotSource = stackSpot ? game.cards[spotlightItem(game, ui)?.sourceCardId ?? '']?.name : undefined;
 
@@ -62,11 +67,11 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
   };
 
   const cmdDamage = p.commanderDamageTaken.filter((x) => x.amount > 0);
-  const ring = chosenTarget
+  const ring = chosenTarget || choice?.chosen
     ? styles.ringSelected
     : isDefender
       ? styles.ringDefender
-      : legalTarget || defenderPick
+      : legalTarget || defenderPick || choice
         ? styles.ringActionable
         : stackSpot === 'hover'
           ? styles.ringTargetedStrong
@@ -81,13 +86,16 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
       data-arrow-occluder
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
-      onClick={clickable ? () => activatePlayer(p.id) : undefined}
-      onKeyDown={clickable ? (e) => e.key === 'Enter' && activatePlayer(p.id) : undefined}
+      onClick={clickable ? onActivate : undefined}
+      onKeyDown={clickable ? (e) => e.key === 'Enter' && onActivate() : undefined}
+      aria-pressed={choice ? choice.chosen : undefined}
       aria-label={
         clickable
-          ? legalTarget
-            ? `Target ${p.name}`
-            : `Attack ${p.name} with the next creatures you choose`
+          ? choice
+            ? `Choose ${p.name}`
+            : legalTarget
+              ? `Target ${p.name}`
+              : `Attack ${p.name} with the next creatures you choose`
           : undefined
       }
     >
@@ -147,6 +155,12 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
             <span className={`${styles.tag} ${styles.tagTargeted}`} title={`Targeted by ${spotSource ?? 'a stack item'}`}>
               <Icon name="target" />
               <span className={styles.tagText}>Targeted</span>
+            </span>
+          ) : null}
+          {choice?.chosen ? (
+            <span className={`${styles.tag} ${styles.tagChosen}`} title="Chosen">
+              <Icon name="check" />
+              <span className={styles.tagText}>Chosen</span>
             </span>
           ) : null}
           {legalTarget && !chosenTarget ? (

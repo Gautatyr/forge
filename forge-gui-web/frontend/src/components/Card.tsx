@@ -1,12 +1,14 @@
 import { useState, type CSSProperties, type FocusEvent, type MouseEvent } from 'react';
 import { currentFace, isCreature } from '../model/selectors';
 import type { CardView } from '../model/types';
-import { cardStatus, type CardStatus } from '../state/cardStatus';
+import type { CardStatus } from '../state/cardStatus';
 import { useMatch } from '../state/MatchContext';
 import { useOverlayKey } from '../state/overlayKey';
 import { Icon, type IconName } from './Icon';
 import { KeywordIcons, KW_AVOID_ATTR, type CardActions } from './KeywordIcons';
 import { iconKeywords } from './keywordCatalog';
+import { cardStatusWithChoice } from './tray/inPlace';
+import { useInPlacePick } from './tray/useInPlacePick';
 import styles from './Card.module.css';
 
 export type CardContext = 'board' | 'hand' | 'thumb';
@@ -83,7 +85,8 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
   const words = useOverlayKey();
   // Scryfall's CDN occasionally refuses a burst of requests: retry once, then show the name.
   const [failures, setFailures] = useState<{ src: string; count: number }>();
-  const s = cardStatus(game, ui, c.id);
+  const pickInPlace = useInPlacePick();
+  const s = cardStatusWithChoice(game, ui, c.id);
   const face = currentFace(c);
   const img = face.image ?? c.front.image;
   const onBoard = context === 'board';
@@ -101,7 +104,11 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
   };
   const unhover = () => setUi((u) => (u.hover?.cardId === c.id ? { ...u, hover: undefined } : u));
   const actions: CardActions = {
-    activate: () => (onActivate ? onActivate() : activateCard(groupIds?.[0] ?? c.id)),
+    activate: () => {
+      if (onActivate) return onActivate();
+      const id = groupIds?.[0] ?? c.id;
+      if (!pickInPlace({ kind: 'card', id })) activateCard(id);
+    },
     inspect: () => setUi({ inspectId: c.id, hover: undefined }),
   };
   const avoid = { [KW_AVOID_ATTR]: '' };

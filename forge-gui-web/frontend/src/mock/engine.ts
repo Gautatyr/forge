@@ -511,11 +511,64 @@ function resolveCombatDamage(g: MockGame) {
   }
 }
 
+/**
+ * Answers to the choice-tray scenarios (design pass 4 §2.2, issue #30).
+ * Returns false for prompts it does not own.
+ */
+function answerTrayPrompt(g: MockGame, prompt: import('../model/types').ChoicePrompt, answer: PromptAnswer): boolean {
+  const you = player(g, g.youId);
+  const label = (id: string) => (prompt.shape === 'chooseN' ? prompt.options.find((o) => o.id === id)?.label : undefined) ?? id;
+  if (prompt.id.startsWith('ability:') && answer.shape === 'chooseN') {
+    const c = g.cards[prompt.id.slice(8)];
+    const picked = answer.optionIds[0];
+    if (c && picked) {
+      c.tapped = true;
+      log(g, `You activate ${ref(c.id)}: ${label(picked)}`, you.id);
+      if (picked === 'search') moveCard(g, c.id, 'graveyard');
+    }
+    return true;
+  }
+  if (prompt.id === 'sacrifice' && answer.shape === 'chooseN') {
+    for (const id of answer.optionIds) {
+      const c = g.cards[id];
+      if (!c) continue;
+      log(g, `You sacrifice ${ref(id)}.`, you.id);
+      moveCard(g, id, c.isCommander ? 'command' : 'graveyard');
+    }
+    return true;
+  }
+  if (prompt.id.startsWith('commander-zone:') && answer.shape === 'yesNo') {
+    const c = g.cards[prompt.id.slice(15)];
+    if (c) {
+      moveCard2(g, c, answer.yes ? 'command' : 'graveyard');
+      log(g, answer.yes ? `You move ${ref(c.id)} to the command zone.` : `${ref(c.id)} goes to your graveyard.`, you.id);
+    }
+    return true;
+  }
+  if (prompt.shape === 'order' && answer.shape === 'order' && prompt.lists.length === 1) {
+    const names = answer.lists[0]?.itemIds.map((id) => prompt.lists[0]!.items.find((i) => i.id === id)?.label ?? id) ?? [];
+    log(g, `Your triggers resolve in this order: ${names.join(', ')}.`, you.id);
+    return true;
+  }
+  const ownBranch = prompt.id === 'cultivate' || prompt.id.startsWith('face:');
+  if (prompt.shape === 'chooseN' && answer.shape === 'chooseN' && !ownBranch) {
+    // Reveals are logged when they happen; other choices name what was chosen.
+    const chosen = answer.optionIds.map((id) => label(id).replace(/\.$/, '')).join(', ');
+    if (prompt.max > 0) log(g, chosen ? `You choose: ${chosen}.` : 'You choose nothing.', you.id);
+    return true;
+  }
+  return false;
+}
+
 function answerPrompt(g: MockGame, answer: PromptAnswer) {
   if (g.decision.kind !== 'choice') return;
   const prompt = g.decision.prompt;
   const you = player(g, g.youId);
-  if (answer.shape === 'order') {
+  if (prompt.id.startsWith('face:') && answer.shape === 'chooseN' && answer.optionIds.length === 0) {
+    // Ability menu closed (Esc): back to priority, nothing played.
+  } else if (answerTrayPrompt(g, prompt, answer)) {
+    // Handled above.
+  } else if (answer.shape === 'order') {
     const top = answer.lists.find((l) => l.id === 'top')?.itemIds.length ?? 0;
     const bottom = answer.lists.find((l) => l.id === 'bottom')?.itemIds.length ?? 0;
     log(g, `You scry 2: ${top} on top, ${bottom} on the bottom.`, you.id);
@@ -580,13 +633,13 @@ export function applyIntent(prev: MockGame, intent: Intent): MockGame {
             title: `Play ${c.front.name}`,
             instruction: 'This card has two faces. Choose how to play it.',
             sourceCardId: c.id,
-            confirmLabel: 'Play',
+            confirmLabel: 'Choose a face',
             min: 1,
             max: 1,
+            // Faces use the ability menu at the card (design pass 4 P2).
+            abilityMenu: true,
             options: [
-              ...(canCast
-                ? [{ id: 'spell', label: `Cast ${c.front.name}`, detail: `${c.front.typeLine} · ${c.front.manaCost}` }]
-                : []),
+              ...(canCast ? [{ id: 'spell', label: `Cast ${c.front.name}`, cost: c.front.manaCost, detail: c.front.typeLine }] : []),
               { id: 'land', label: `Play ${c.back.name}`, detail: `${c.back.typeLine} · enters tapped` },
             ],
           },

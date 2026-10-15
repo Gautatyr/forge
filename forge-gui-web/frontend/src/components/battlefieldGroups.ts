@@ -1,8 +1,8 @@
 import { groupKey, isCreature, isLand, typeLine } from '../model/selectors';
 import type { CardView, GameView } from '../model/types';
-import { cardStatus } from '../state/cardStatus';
 import type { Prefs } from '../state/prefs';
 import type { UiState } from '../state/ui';
+import { cardStatusWithChoice } from './tray/inPlace';
 
 export interface Entry {
   card: CardView;
@@ -45,7 +45,7 @@ export function groupPermanents(cards: CardView[], game: GameView, ui: UiState, 
       out.push({ card: c, ids: [c.id] });
       continue;
     }
-    const s = cardStatus(game, ui, c.id);
+    const s = cardStatusWithChoice(game, ui, c.id);
     const key = groupKey(c, JSON.stringify([s.attacking, s.blocking, s.selected, s.actionKind, s.dimmed]));
     const e = byKey.get(key);
     if (e) e.ids.push(c.id);

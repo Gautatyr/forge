@@ -185,11 +185,18 @@ export interface CombatState {
 
 export interface ChoiceOption {
   id: string;
+  /** Option text; for an ability its full text ("{2}, {T}, Sacrifice …: Search …"). Never truncated. */
   label: string;
   /** When the option is a card, the tray shows the card image. */
   cardId?: CardId;
+  /** When the option is a player (choose a player). */
+  playerId?: PlayerId;
   /** Shown under the label, e.g. "14 in library". */
   detail?: string;
+  /** Colour choice: the colour's mana symbol, e.g. "{G}". */
+  symbol?: string;
+  /** Ability menu: the cost as symbols, e.g. "{2}{T}". */
+  cost?: string;
 }
 
 interface PromptBase {
@@ -202,22 +209,41 @@ interface PromptBase {
   sourceCardId?: CardId;
   /** Label of the confirm button, e.g. "Confirm scry". */
   confirmLabel: string;
+  /** Player whose action this is (another player's reveal): the title gets their seat shape. */
+  byPlayerId?: PlayerId;
 }
 
+/**
+ * Choose between `min` and `max` options. When every option is a card on the
+ * battlefield, a card in your hand or a player, the screen picks them in place.
+ * `max` 0 is a reveal or look: nothing to pick, the answer is an empty list (OK).
+ */
 export interface ChooseNPrompt extends PromptBase {
   shape: 'chooseN';
   options: ChoiceOption[];
   min: number;
   max: number;
+  /**
+   * The engine asks which ability (or face) of `sourceCardId` to use: drawn as a
+   * menu anchored to that card instead of the tray. An empty answer cancels.
+   */
+  abilityMenu?: boolean;
 }
 
 export interface YesNoPrompt extends PromptBase {
   shape: 'yesNo';
   yesLabel: string;
   noLabel: string;
+  /** The engine's default (primary button, Space). Yes when absent. */
+  defaultAnswer?: 'yes' | 'no';
+  /** Card shown in the body, e.g. a commander about to change zones. */
+  cardId?: CardId;
 }
 
-/** Order one list, or move items between two lists (scry, surveil, sideboard). */
+/**
+ * Order one list (simultaneous triggers: item 0 resolves first), or move items
+ * between two lists (scry, surveil, sideboard).
+ */
 export interface OrderPrompt extends PromptBase {
   shape: 'order';
   lists: { id: string; label: string; hint: string; items: ChoiceOption[] }[];
