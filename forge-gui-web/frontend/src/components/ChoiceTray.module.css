@@ -385,7 +385,7 @@
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  padding: var(--sp-1) var(--sp-2);
+  padding: var(--sp-0) var(--sp-2);
   border-radius: var(--r-md);
   border: 1px solid var(--c-line-strong);
   background: var(--c-panel-raised);
@@ -411,13 +411,7 @@
   white-space: normal;
 }
 
-.hint {
-  margin: var(--sp-2) 0 0;
-  font-size: var(--fs-xs);
-  color: var(--c-text-3);
-}
-
 .row .orderControls button {
-  padding: var(--sp-1) var(--sp-3);
+  padding: var(--sp-0) var(--sp-3);
   font-size: var(--fs-md);
 }

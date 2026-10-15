@@ -25,6 +25,9 @@ function SingleList({ prompt, draft, setDraft }: BodyProps<OrderPrompt>) {
     <section className={styles.column} aria-label={list.label}>
       <h3>
         {list.label} {list.hint ? <span>{list.hint}</span> : null}
+        <span>
+          <kbd>Alt</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd> moves the focused item
+        </span>
       </h3>
       <ol className={styles.columnItems}>
         {ids.map((id, i) => {
@@ -55,9 +58,6 @@ function SingleList({ prompt, draft, setDraft }: BodyProps<OrderPrompt>) {
           );
         })}
       </ol>
-      <p className={styles.hint}>
-        <kbd>Alt</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd> moves the focused item.
-      </p>
     </section>
   );
 }
