@@ -1,6 +1,7 @@
 import { useState, type CSSProperties, type FocusEvent, type MouseEvent } from 'react';
 import { currentFace, isCreature } from '../model/selectors';
 import type { CardView } from '../model/types';
+import { useCardClick } from '../state/cardClick';
 import type { CardStatus } from '../state/cardStatus';
 import { useMatch } from '../state/MatchContext';
 import { useOverlayKey } from '../state/overlayKey';
@@ -26,8 +27,6 @@ interface Props {
   onActivate?: () => void;
   /** Extra label for screen readers. */
   ariaExtra?: string;
-  /** Show the "playable" notch under hand cards. */
-  notch?: boolean;
   /** Readable name over the title bar (small battlefield cards, pass-3 spec section 4). */
   nameLabel?: boolean;
 }
@@ -80,8 +79,9 @@ function ptDirection(c: CardView): 'up' | 'down' | undefined {
   return undefined;
 }
 
-export function Card({ card: c, context, count = 1, groupIds, className, style, onActivate, ariaExtra, notch = true, nameLabel = false }: Props) {
-  const { game, ui, setUi, activateCard } = useMatch();
+export function Card({ card: c, context, count = 1, groupIds, className, style, onActivate, ariaExtra, nameLabel = false }: Props) {
+  const { game, ui, setUi } = useMatch();
+  const click = useCardClick();
   const words = useOverlayKey();
   // Scryfall's CDN occasionally refuses a burst of requests: retry once, then show the name.
   const [failures, setFailures] = useState<{ src: string; count: number }>();
@@ -106,8 +106,10 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
   const actions: CardActions = {
     activate: () => {
       if (onActivate) return onActivate();
+      // A group ("Forest ×3") stands for its first card: one click taps one land.
       const id = groupIds?.[0] ?? c.id;
-      if (!pickInPlace({ kind: 'card', id })) activateCard(id);
+      // An open in-place choice takes the click first; otherwise play, tap for mana or activate.
+      if (!pickInPlace({ kind: 'card', id })) click(id);
     },
     inspect: () => setUi({ inspectId: c.id, hover: undefined }),
   };
@@ -118,7 +120,7 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
     count > 1 ? `${count} of them` : '',
     c.tapped ? 'tapped' : '',
     c.power !== undefined ? `${c.power}/${c.toughness}` : '',
-    s.playable ? 'playable' : '',
+    s.actionKind === 'mana' ? 'can pay: click to tap for mana' : '',
     onBoard ? c.keywords.map((k) => k.label).join(', ') : '',
     ariaExtra ?? '',
   ]
@@ -236,9 +238,9 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
               </span>
             ) : null}
 
-            {s.playable && context === 'hand' && notch ? (
-              <span className={styles.playNotch} aria-hidden>
-                <Icon name="play" />
+            {s.actionKind === 'mana' && onBoard ? (
+              <span className={styles.manaNotch} aria-hidden>
+                <Icon name="mana" />
               </span>
             ) : null}
           </>

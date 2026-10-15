@@ -8,6 +8,7 @@ import { ChoiceTray } from './ChoiceTray';
 import { Hand } from './Hand';
 import { HoverPreview } from './HoverPreview';
 import { Inspector } from './Inspector';
+import { liveManaChoice, ManaChooser } from './ManaChooser';
 import { DevPanel, DisplaySettings, GameMenu, LogDrawer, ShortcutsOverlay } from './Overlays';
 import { Rail } from './Rail';
 import { StopsPanel } from './StopsPanel';
@@ -31,6 +32,7 @@ export function MatchScreen() {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const d = game.decision;
     const key = e.key;
+    const manaChoice = liveManaChoice(game, ui);
 
     if (key === ' ') {
       e.preventDefault();
@@ -47,8 +49,9 @@ export function MatchScreen() {
       if (ui.inspectId) setUi({ inspectId: undefined });
       else if (ui.overlay) setUi({ overlay: undefined });
       else if (ui.logOpen) setUi({ logOpen: false });
+      else if (manaChoice) setUi({ manaChoice: undefined });
       else if (ui.pendingBlocker || ui.pendingAttacker) setUi({ pendingBlocker: undefined, pendingAttacker: undefined });
-      else if (d.kind === 'chooseTargets') send({ type: 'cancel' });
+      else if (d.kind === 'chooseTargets' || d.kind === 'payMana') send({ type: 'cancel' });
       else if (ui.zoneView) setUi({ zoneView: undefined });
       else if (ui.trayPeek) setUi({ trayPeek: false });
       return;
@@ -67,13 +70,23 @@ export function MatchScreen() {
       case 'p':
         return send({ type: 'setAutoPass', on: !game.autoPass });
       case 'z':
-        return send({ type: 'undo' });
+        // While paying, Z undoes the last tap (design pass 4, §2.1).
+        return send(d.kind === 'payMana' ? { type: 'undoTap' } : { type: 'undo' });
       case 'a':
         if (d.kind === 'declareAttackers') {
           const defenderId = currentDefender(game, ui, prefs.layout);
           if (defenderId) send({ type: 'attackWithAll', defenderId });
         }
         return;
+    }
+    // A dual land's mana chooser: live only while paying or holding priority, so never alongside the tray.
+    if (/^[1-9]$/.test(key) && manaChoice) {
+      const colour = manaChoice.colours[Number(key) - 1];
+      if (colour) {
+        setUi({ manaChoice: undefined });
+        send({ type: 'tapForMana', cardId: manaChoice.cardId, colour });
+      }
+      return;
     }
     // A prompt's own keys (1–9, V, Y/N, Space, Esc in the ability menu) are handled by ChoiceTray.
   });
@@ -97,6 +110,7 @@ export function MatchScreen() {
       <Arrows />
       <HoverPreview />
       <Inspector />
+      <ManaChooser />
       <LogDrawer />
       <DisplaySettings />
       <GameMenu />

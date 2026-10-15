@@ -9,7 +9,7 @@
   border-top: 1px solid var(--c-line);
 }
 
-/* Issue 24 fills it with the floating mana; takes no room while empty. */
+/* Floating mana (Payment.tsx); takes no room while empty. */
 .floatingMana:empty {
   display: none;
 }
@@ -24,6 +24,11 @@
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Neutral note for 3 s ("You can't play … right now."): no red, no shake. */
+.note {
+  color: var(--c-text);
 }
 
 /* Contextual buttons (Attack all, Cancel). The row is there only while one

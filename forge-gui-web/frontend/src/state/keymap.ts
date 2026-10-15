@@ -6,13 +6,13 @@ export interface Shortcut {
 }
 
 export const SHORTCUTS: Shortcut[] = [
-  { keys: 'Space', action: 'Main button: pass, resolve, attack, block, confirm', group: 'Play' },
-  { keys: 'Esc', action: 'Cancel a spell being cast, clear a pending choice, close panels', group: 'Play' },
+  { keys: 'Space', action: 'Main button: pass, resolve, attack, block, confirm, pay automatically', group: 'Play' },
+  { keys: 'Esc', action: 'Cancel a spell being cast or paid for (its lands untap), clear a pending choice, close panels', group: 'Play' },
   { keys: 'Shift + Enter', action: 'Pass until my next turn', group: 'Play' },
-  { keys: 'Z', action: 'Undo', group: 'Play' },
+  { keys: 'Z', action: 'Undo (while paying: untap the last land)', group: 'Play' },
   { keys: 'A', action: 'Attack all (while declaring attackers)', group: 'Play' },
   { keys: 'P', action: 'Auto-pass when I can’t act: on / off', group: 'Play' },
-  { keys: '1 – 9', action: 'Pick an option in the choice tray or a row of the ability menu', group: 'Play' },
+  { keys: '1 – 9', action: 'Pick an option in the choice tray, a row of the ability menu, or the mana a dual land adds', group: 'Play' },
   { keys: 'Y / N', action: 'Answer a yes / no question', group: 'Play' },
   { keys: 'Alt + ↑ / ↓', action: 'Move the focused item while ordering', group: 'Play' },
   { keys: 'I', action: 'Inspect the hovered card (or right-click it)', group: 'Look' },

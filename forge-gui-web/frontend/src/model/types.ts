@@ -126,6 +126,20 @@ export interface PlayerView {
   commanderDamageTaken: CommanderDamage[];
   landsPlayedThisTurn: number;
   hasLost: boolean;
+  /** Floating mana; absent or all zero when empty. */
+  manaPool?: ManaPool;
+}
+
+/** One kind of mana: the five colours and colourless ({C}). */
+export type ManaColour = 'W' | 'U' | 'B' | 'R' | 'G' | 'C';
+
+/** Floating mana by kind. Empties at the end of each step. */
+export type ManaPool = Partial<Record<ManaColour, number>>;
+
+/** A permanent that can add mana now, and the kinds one tap can add (a dual land lists two; you pick one). */
+export interface ManaSource {
+  cardId: CardId;
+  colours: ManaColour[];
 }
 
 export type TargetRef = { kind: 'card'; id: CardId } | { kind: 'player'; id: PlayerId };
@@ -266,11 +280,15 @@ export type ChoicePrompt = ChooseNPrompt | YesNoPrompt | OrderPrompt | Distribut
 
 /** What the game is waiting for from this player right now. */
 export type Decision =
-  /** You hold priority. `playable` cards are lit in hand, on the board and in other zones. */
-  | { kind: 'priority'; playable: CardId[] }
+  /**
+   * You hold priority. `playable`: what you may play now. Never drawn ("highlights
+   * are answers, never hints"); it only answers a click on a card you can't play.
+   * `manaSources`: your permanents a click taps for mana (into your pool).
+   */
+  | { kind: 'priority'; playable: CardId[]; manaSources?: ManaSource[] }
   /** Someone else is deciding. */
   | { kind: 'waiting'; forPlayerId: PlayerId; what: string }
-  /** Casting or activating: pick targets among the lit ones. */
+  /** Casting or activating: pick targets among the legal ones (ringed while this is open). */
   | {
       kind: 'chooseTargets';
       sourceCardId: CardId;
@@ -284,7 +302,34 @@ export type Decision =
   /** `draft` is the attack being built; the engine validates on confirm. */
   | { kind: 'declareAttackers'; candidates: CardId[]; defenders: PlayerId[]; draft: Attack[] }
   | { kind: 'declareBlockers'; candidates: CardId[]; attackers: CardId[]; draft: Block[] }
-  | { kind: 'choice'; prompt: ChoicePrompt };
+  | { kind: 'choice'; prompt: ChoicePrompt }
+  /**
+   * Paying the mana cost of a spell or ability (design pass 4, §2.1). The spell
+   * goes on the stack as soon as `remaining` is empty: no confirm step.
+   */
+  | {
+      kind: 'payMana';
+      /** The spell, or the permanent whose ability is activated. */
+      sourceCardId: CardId;
+      /** Set when paying for an ability, e.g. "Equip {1}". */
+      ability?: string;
+      /** Full cost, X already chosen and commander tax included: "{2}{G}{W}". */
+      cost: string;
+      /** What is left to pay, same notation; "" once paid. */
+      remaining: string;
+      /** Commander tax included in `cost` (generic mana); 0 when none. */
+      tax: number;
+      /** The X chosen before payment, when the cost has one. */
+      x?: number;
+      /** Permanents that can still pay, with the kinds that still help. */
+      sources: ManaSource[];
+      /** A tap or a pool spend can be undone (Z). */
+      canUndoTap: boolean;
+      /** What "Pay automatically" would tap, in order; empty when the pool covers it. */
+      autoTaps: CardId[];
+      /** Untapped sources and the pool cover the rest. */
+      autoCanPay: boolean;
+    };
 
 export interface LogEntry {
   id: string;
@@ -308,6 +353,8 @@ export interface GameView {
   decision: Decision;
   /** Pass priority automatically when you have no possible action. Off by default (D4). */
   autoPass: boolean;
+  /** Pay mana costs at once when casting. Off (or absent) by default: payment is manual (pass-3 override). */
+  autoPay?: boolean;
   /** Honour per-ability auto-yields set on stack items. Off by default (D4). */
   autoYield: boolean;
   /** Card names/abilities the player chose to always yield to. */
