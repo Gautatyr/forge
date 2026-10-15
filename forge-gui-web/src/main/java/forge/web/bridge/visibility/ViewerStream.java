@@ -9,11 +9,15 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.function.IntUnaryOperator;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import forge.game.card.CardView;
+import forge.game.zone.ZoneType;
+import forge.trackable.TrackableProperty;
 import forge.web.bridge.StateMirror;
 import forge.web.bridge.WireEncoder.ObjRef;
 
@@ -24,9 +28,18 @@ import forge.web.bridge.WireEncoder.ObjRef;
  * <p>A card this viewer may see in full travels under its engine id. Any other card travels under
  * an alias (from {@link #ALIAS_BASE} up, never reused) as a placeholder or a face-down card. The
  * alias is replaced by a fresh one whenever the card stops being fully visible, and whenever its
- * zone is shuffled or reordered, so a client cannot follow a once-seen card into a hidden zone.
- * When a card's id changes for this viewer, every reference to it in the mirror is rewritten and
- * sent as a change.
+ * zone is shuffled or reordered.
+ *
+ * <p>References. Zone lists name each card by its id or alias, so counts and positions hold. Any
+ * other reference names a face-down card by its alias (attachments, combat, targets) and a hidden
+ * card by its <em>unseen id</em>: an id from the alias range that names no object, the same in
+ * every reference until the card is visible in full again, then replaced by the engine id. The
+ * reveal history ({@code RevealedCardsCollection}) never names an alias: a face-down card is its
+ * unseen id there. When a card's id changes, zone lists follow it; other references follow only a
+ * public link (alias to engine id; a face-down card that stays on the battlefield). Otherwise a
+ * reference that held the engine id gets the unseen id, and one that held an alias gets {@code -1}.
+ * So a client cannot follow a once-seen card into a hidden zone or through a shuffle; only its slot
+ * in a zone list it stays in (a re-hidden hand card) still places it.
  *
  * <p>Not thread-safe: the owning stream serialises access.
  */
@@ -34,6 +47,21 @@ public final class ViewerStream {
 
     /** First alias id; engine card ids stay far below. */
     public static final int ALIAS_BASE = 1 << 30;
+
+    /** Player properties that list a zone's cards. */
+    private static final Set<String> ZONE_LISTS = zoneLists();
+    /** References that record which card was seen: never an alias. */
+    private static final Set<String> IDENTITY_REFS = Set.of(TrackableProperty.RevealedCardsCollection.name());
+
+    private static Set<String> zoneLists() {
+        Set<String> s = new HashSet<>();
+        for (ZoneType z : ZoneType.values()) {
+            if (z.getTrackableProperty() != null) {
+                s.add(z.getTrackableProperty().name());
+            }
+        }
+        return s;
+    }
 
     /** What one flush changes for this viewer. */
     public record Delta(List<StateMirror.Obj> news, Map<String, JsonObject> changes, List<String> removed) {
@@ -48,6 +76,9 @@ public final class ViewerStream {
     private final Map<Integer, Visibility> levels = new HashMap<>();
     private final Map<Integer, Integer> aliasOf = new HashMap<>();
     private final Map<Integer, Integer> realOf = new HashMap<>();
+    /** Unseen id of each card this viewer may not see in full, once a reference outside zone lists named it. */
+    private final Map<Integer, Integer> unseenOf = new HashMap<>();
+    private final Function<String, IntUnaryOperator> refs = this::refsFor;
     private int nextAlias = ALIAS_BASE;
     private long seq;
 
@@ -98,12 +129,15 @@ public final class ViewerStream {
         }
         order.addAll(now.keySet());
 
-        Map<Integer, Integer> renames = new HashMap<>();
+        Map<Integer, Integer> zoneRenames = new HashMap<>();
+        Map<Integer, Integer> refRenames = new HashMap<>();
+        Map<Integer, Integer> identityRenames = new HashMap<>();
         Set<Integer> whole = new LinkedHashSet<>();
         for (int id : order) {
             Visibility lvl = now.get(id);
             Visibility prev = levels.get(id);
             Integer oldWire = prev == null ? null : prev == Visibility.FULL ? Integer.valueOf(id) : aliasOf.get(id);
+            boolean wasOnBattlefield = oldWire != null && onBattlefield(mirror.get("card:" + oldWire));
             int wire;
             if (lvl == Visibility.FULL) {
                 dropAlias(id);
@@ -116,8 +150,13 @@ public final class ViewerStream {
             if (prev == null || prev != lvl || oldWire == null || oldWire != wire || f.isNewInPacket(id)) {
                 whole.add(id);
             }
-            if (oldWire != null && oldWire != wire) {
-                renames.put(oldWire, wire);
+            if (oldWire != null) {
+                if (oldWire != wire) {
+                    zoneRenames.put(oldWire, wire);
+                }
+                CardView cv = f.live().get(id);
+                boolean stayedOnBattlefield = wasOnBattlefield && cv != null && cv.getZone() == ZoneType.Battlefield;
+                renameRefs(id, prev, lvl, oldWire, wire, stayedOnBattlefield, refRenames, identityRenames);
             }
         }
         levels.clear();
@@ -129,6 +168,7 @@ public final class ViewerStream {
                 it.remove();
             }
         }
+        unseenOf.keySet().retainAll(now.keySet());
 
         Map<String, StateMirror.Obj> news = new LinkedHashMap<>();
         Map<String, JsonObject> changes = new LinkedHashMap<>();
@@ -141,12 +181,12 @@ public final class ViewerStream {
             }
             Visibility lvl = now.get(id);
             int w = wire(id);
-            JsonObject projected = CardRefs.map(Projection.card(props, lvl), this::wire);
+            JsonObject projected = CardRefs.map(Projection.card(props, lvl), refs);
             putNew(news, new StateMirror.Obj("card", w, null, projected));
             JsonElement current = projected.get("CurrentState");
             for (Map.Entry<String, JsonObject> st : f.cardStates(id).entrySet()) {
                 if (stateAllowed(lvl, st.getKey(), current)) {
-                    putNew(news, new StateMirror.Obj("cardState", w, st.getKey(), CardRefs.map(st.getValue(), this::wire)));
+                    putNew(news, new StateMirror.Obj("cardState", w, st.getKey(), CardRefs.map(st.getValue(), refs)));
                 }
             }
         }
@@ -162,11 +202,11 @@ public final class ViewerStream {
                 Visibility lvl = now.get(ref.id());
                 JsonElement current = currentState(ref.id());
                 if (stateAllowed(lvl, ref.state(), current)) {
-                    putNew(news, new StateMirror.Obj("cardState", wire(ref.id()), ref.state(), CardRefs.map(e.props(), this::wire)));
+                    putNew(news, new StateMirror.Obj("cardState", wire(ref.id()), ref.state(), CardRefs.map(e.props(), refs)));
                 }
                 continue;
             }
-            putNew(news, new StateMirror.Obj(ref.type(), ref.id(), ref.state(), CardRefs.map(e.props(), this::wire)));
+            putNew(news, new StateMirror.Obj(ref.type(), ref.id(), ref.state(), CardRefs.map(e.props(), refs)));
         }
         for (Flush.Entry e : f.changes()) {
             ObjRef ref = e.ref();
@@ -177,16 +217,16 @@ public final class ViewerStream {
                     continue;
                 }
                 key = "card:" + wire(ref.id());
-                props = CardRefs.map(Projection.card(e.props(), now.get(ref.id())), this::wire);
+                props = CardRefs.map(Projection.card(e.props(), now.get(ref.id())), refs);
             } else if ("cardState".equals(ref.type())) {
                 if (whole.contains(ref.id()) || !stateAllowed(now.get(ref.id()), ref.state(), currentState(ref.id()))) {
                     continue;
                 }
                 key = "cardState:" + wire(ref.id()) + ":" + ref.state();
-                props = CardRefs.map(e.props(), this::wire);
+                props = CardRefs.map(e.props(), refs);
             } else {
                 key = ref.key();
-                props = CardRefs.map(e.props(), this::wire);
+                props = CardRefs.map(e.props(), refs);
             }
             if (news.containsKey(key) || props.isEmpty()) {
                 continue;
@@ -209,8 +249,13 @@ public final class ViewerStream {
         for (Map.Entry<String, JsonObject> e : changes.entrySet()) {
             mirror.merge(e.getKey(), e.getValue());
         }
-        if (!renames.isEmpty()) {
-            for (Map.Entry<String, JsonObject> e : mirror.rewriteCardRefs(renames).entrySet()) {
+        if (!zoneRenames.isEmpty() || !refRenames.isEmpty() || !identityRenames.isEmpty()) {
+            Function<String, IntUnaryOperator> renamer = prop -> {
+                Map<Integer, Integer> m = ZONE_LISTS.contains(prop) ? zoneRenames
+                        : IDENTITY_REFS.contains(prop) ? identityRenames : refRenames;
+                return m.isEmpty() ? null : id -> m.getOrDefault(id, id);
+            };
+            for (Map.Entry<String, JsonObject> e : mirror.rewriteCardRefs(renamer).entrySet()) {
                 if (!news.containsKey(e.getKey())) {
                     mergeInto(changes, e.getKey(), e.getValue());
                 }
@@ -253,14 +298,82 @@ public final class ViewerStream {
         }
     }
 
-    /** The id this viewer knows a card by: its engine id if fully visible, else its alias. */
+    /**
+     * How references other than zone lists follow a card whose state changed for this viewer
+     * (see the class comment). Fills {@code refRenames} (attachments, targets...) and
+     * {@code identityRenames} (reveal history) with {@code old id -> new id}.
+     */
+    private void renameRefs(int id, Visibility prev, Visibility lvl, int oldWire, int wire, boolean stayedOnBattlefield,
+            Map<Integer, Integer> refRenames, Map<Integer, Integer> identityRenames) {
+        if (lvl == Visibility.FULL) {
+            if (prev != Visibility.FULL) {
+                refRenames.put(oldWire, id); // a face-down card turned face up or revealed
+            }
+            Integer unseen = unseenOf.remove(id);
+            if (unseen != null) {
+                refRenames.put(unseen, id);
+                identityRenames.put(unseen, id);
+            }
+            return;
+        }
+        boolean publicLink = lvl == Visibility.FACE_DOWN && prev != Visibility.HIDDEN && stayedOnBattlefield;
+        if (prev == Visibility.FULL) {
+            int unseen = unseen(id);
+            identityRenames.put(id, unseen);
+            refRenames.put(id, publicLink ? wire : unseen);
+        } else if (oldWire != wire) {
+            refRenames.put(oldWire, publicLink ? wire : -1);
+        } else if (prev == Visibility.FACE_DOWN && lvl == Visibility.HIDDEN) {
+            refRenames.put(oldWire, -1);
+        }
+    }
+
+    private static boolean onBattlefield(StateMirror.Obj card) {
+        JsonElement z = card == null ? null : card.props().get(TrackableProperty.Zone.name());
+        return z != null && z.isJsonPrimitive() && ZoneType.Battlefield.name().equals(z.getAsString());
+    }
+
+    /** How a property names cards for this viewer. */
+    private IntUnaryOperator refsFor(String prop) {
+        if (ZONE_LISTS.contains(prop)) {
+            return this::wire;
+        }
+        return IDENTITY_REFS.contains(prop) ? this::identityRef : this::tableRef;
+    }
+
+    /** The id this viewer knows a card by in a zone list: its engine id if fully visible, else its alias; -1 if unknown. */
     private int wire(int realId) {
         Visibility lvl = levels.get(realId);
-        if (lvl == null || lvl == Visibility.FULL) {
+        if (lvl == null) {
+            return -1; // never fail open
+        }
+        if (lvl == Visibility.FULL) {
             return realId;
         }
         Integer a = aliasOf.get(realId);
-        return a == null ? realId : a;
+        return a == null ? -1 : a;
+    }
+
+    /** A reference outside zone lists: engine id, face-down alias, else the card's unseen id; -1 if unknown. */
+    private int tableRef(int realId) {
+        Visibility lvl = levels.get(realId);
+        if (lvl == Visibility.FULL || lvl == Visibility.FACE_DOWN) {
+            return wire(realId);
+        }
+        return lvl == null ? -1 : unseen(realId);
+    }
+
+    /** A reveal-history entry: engine id, else the card's unseen id, never an alias; -1 if unknown. */
+    private int identityRef(int realId) {
+        Visibility lvl = levels.get(realId);
+        if (lvl == Visibility.FULL) {
+            return realId;
+        }
+        return lvl == null ? -1 : unseen(realId);
+    }
+
+    private int unseen(int realId) {
+        return unseenOf.computeIfAbsent(realId, k -> nextAlias++);
     }
 
     private int freshAlias(int realId) {

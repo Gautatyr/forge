@@ -11,11 +11,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 
@@ -26,8 +29,12 @@ import forge.game.event.GameEvent;
 import forge.game.event.GameEventShuffle;
 import forge.game.player.Player;
 import forge.game.zone.ZoneType;
+import forge.trackable.TrackableCollection;
+import forge.trackable.TrackableProperty;
 import forge.web.bridge.GameStream;
 import forge.web.bridge.GameStream.HiddenPolicy;
+import forge.web.bridge.WireEncoder.ObjRef;
+import forge.web.bridge.WireSchema;
 
 /**
  * Per-viewer streams over a real engine game: each seat and the spectator get only what the
@@ -76,6 +83,84 @@ public class PerViewerVisibilityTest {
     private void assertConsistent(ClientModel c, int seat) {
         assertTrue(c.errors.isEmpty(), "client errors for seat " + seat + ": " + c.errors);
         assertNull(c.diffAgainst(seat < 0 ? stream.snapshot() : stream.snapshot(seat)), "client state for seat " + seat);
+    }
+
+    /** Player properties that list a zone's cards. */
+    private static final Set<String> ZONE_PROPS = zoneProps();
+
+    private static Set<String> zoneProps() {
+        Set<String> s = new HashSet<>();
+        for (ZoneType z : ZoneType.values()) {
+            if (z.getTrackableProperty() != null) {
+                s.add(z.getTrackableProperty().name());
+            }
+        }
+        return s;
+    }
+
+    /** Every card id a client holds in a reference outside the zone lists. */
+    private static List<Integer> refsOutsideZones(ClientModel c) {
+        List<Integer> out = new ArrayList<>();
+        for (JsonObject o : c.objects.values()) {
+            boolean player = "player".equals(o.get("type").getAsString());
+            for (Map.Entry<String, JsonElement> e : o.getAsJsonObject("props").entrySet()) {
+                WireSchema.Kind kind = WireSchema.refKindOf(e.getKey());
+                if (kind == null || (player && ZONE_PROPS.contains(e.getKey()))) {
+                    continue;
+                }
+                collectCardIds(kind, e.getValue(), out);
+            }
+        }
+        return out;
+    }
+
+    private static void collectCardIds(WireSchema.Kind kind, JsonElement v, List<Integer> out) {
+        if (v == null || v.isJsonNull()) {
+            return;
+        }
+        switch (kind) {
+            case CARD: out.add(v.getAsInt()); break;
+            case CARDS: v.getAsJsonArray().forEach(id -> out.add(id.getAsInt())); break;
+            case ENTITY: {
+                JsonObject r = v.getAsJsonObject();
+                if (r.has("type") && "card".equals(r.get("type").getAsString())) {
+                    out.add(r.get("id").getAsInt());
+                }
+                break;
+            }
+            case COMBAT:
+                for (JsonElement band : v.getAsJsonArray()) {
+                    JsonObject b = band.getAsJsonObject();
+                    collectCardIds(WireSchema.Kind.CARDS, b.get("attackers"), out);
+                    collectCardIds(WireSchema.Kind.CARDS, b.get("blockers"), out);
+                    collectCardIds(WireSchema.Kind.ENTITY, b.get("defender"), out);
+                }
+                break;
+            default:
+                break;
+        }
+    }
+
+    /** No reference outside the zone lists names a card this client holds only as a placeholder. */
+    private static void assertNoRefToHiddenCards(ClientModel c, String who) {
+        for (int id : refsOutsideZones(c)) {
+            JsonObject props = c.props("card:" + id);
+            assertFalse(props != null && PLACEHOLDER_PROPS.containsAll(props.keySet()),
+                    who + ": a reference outside the zone lists names hidden card " + id);
+        }
+    }
+
+    private static List<Integer> ids(JsonObject props, String name) {
+        List<Integer> out = new ArrayList<>();
+        if (props != null && props.has(name)) {
+            props.getAsJsonArray(name).forEach(e -> out.add(e.getAsInt()));
+        }
+        return out;
+    }
+
+    private static JsonObject gameProps(ClientModel c) {
+        return c.objects.values().stream().filter(o -> "game".equals(o.get("type").getAsString()))
+                .findFirst().orElseThrow().getAsJsonObject("props");
     }
 
     private static void assertPlaceholder(ClientModel c, int wireId) {
@@ -189,6 +274,116 @@ public class PerViewerVisibilityTest {
     }
 
     @Test
+    public void reissuedIdNeverReachesReferencesOutsideZoneLists() {
+        start(2);
+        TestEngine.add("Llanowar Elves", p0, ZoneType.Hand);
+        Card bolt = TestEngine.add("Lightning Bolt", p0, ZoneType.Hand);
+        TestEngine.add("Llanowar Elves", p0, ZoneType.Hand);
+        for (int i = 0; i < 6; i++) {
+            TestEngine.add("Llanowar Elves", p0, ZoneType.Library);
+        }
+        Card host = TestEngine.add("Grizzly Bears", p0, ZoneType.Battlefield);
+        host.addImprintedCard(bolt);
+        flush();
+        assertNoRefToHiddenCards(seat1, "seat 1");
+        assertNoRefToHiddenCards(spectator, "spectator");
+
+        // revealed to seat 1 the way PlayerControllerHuman.reveal does: temporary look + reveal history
+        bolt.addMayLookTemp(p1);
+        game.getView().updateRevealedCards(new TrackableCollection<>(bolt.getView()));
+        flush();
+        assertEquals(ids(gameProps(seat1), "RevealedCardsCollection"), List.of(bolt.getId()));
+        assertEquals(ids(seat1.props("card:" + host.getId()), "ImprintedCards"), List.of(bolt.getId()));
+
+        // re-hidden: the hand slot gets a fresh alias that no other reference may name
+        bolt.removeMayLookTemp(p1);
+        flush();
+        int handAlias = seat1.zone(p0.getId(), "Hand").get(1);
+        assertNotEquals(handAlias, bolt.getId());
+        assertFalse(refsOutsideZones(seat1).contains(handAlias), "re-hide alias reached a reference: " + refsOutsideZones(seat1));
+        assertNoRefToHiddenCards(seat1, "seat 1 after re-hide");
+        List<Integer> history = ids(gameProps(seat1), "RevealedCardsCollection");
+        assertEquals(history.size(), 1);
+        int unseen = history.get(0);
+        assertNotEquals(unseen, bolt.getId());
+        assertNull(seat1.objects.get("card:" + unseen), "the reveal history must name no object");
+        assertEquals(ids(seat1.props("card:" + host.getId()), "ImprintedCards"), List.of(unseen));
+        assertNoRefToHiddenCards(spectator, "spectator after re-hide");
+
+        // a reveal recorded later re-sends the whole history: the re-hidden card still names no object
+        Card elves = p0.getCardsIn(ZoneType.Hand).get(0);
+        elves.addMayLookTemp(p1);
+        game.getView().updateRevealedCards(new TrackableCollection<>(List.of(bolt.getView(), elves.getView())));
+        flush();
+        assertEquals(ids(gameProps(seat1), "RevealedCardsCollection"), List.of(unseen, elves.getId()));
+        elves.removeMayLookTemp(p1);
+        flush();
+
+        // shuffled into the library: nothing outside the library list names a library card
+        game.getAction().moveTo(ZoneType.Library, bolt, null, null);
+        CardCollection reversed = new CardCollection(p0.getCardsIn(ZoneType.Library));
+        Collections.reverse(reversed);
+        p0.getZone(ZoneType.Library).setCards(reversed);
+        flush(new GameEventShuffle(p0));
+        assertEquals(seat1.zone(p0.getId(), "Library").size(), 7);
+        for (ClientModel c : List.of(seat0, seat1, spectator)) {
+            List<Integer> refs = refsOutsideZones(c);
+            for (int id : c.zone(p0.getId(), "Library")) {
+                assertFalse(refs.contains(id), "library card " + id + " named outside the library: " + refs);
+            }
+            assertNoRefToHiddenCards(c, "after shuffle");
+        }
+        assertEquals(ids(seat1.props("card:" + host.getId()), "ImprintedCards"), List.of(unseen));
+
+        // public again: the references resolve to the real card
+        Card inLibrary = p0.getCardsIn(ZoneType.Library).stream().filter(c -> c.getId() == bolt.getId()).findFirst().orElseThrow();
+        game.getAction().moveTo(ZoneType.Graveyard, inLibrary, null, null);
+        flush();
+        assertEquals(ids(gameProps(seat1), "RevealedCardsCollection").get(0).intValue(), bolt.getId());
+        assertEquals(ids(seat1.props("card:" + host.getId()), "ImprintedCards"), List.of(bolt.getId()));
+        assertEquals(ids(spectator.props("card:" + host.getId()), "ImprintedCards"), List.of(bolt.getId()));
+    }
+
+    @Test
+    public void rememberedIsNeverSent() {
+        start(2);
+        Card bolt = TestEngine.add("Lightning Bolt", p0, ZoneType.Hand);
+        Card bears = TestEngine.add("Grizzly Bears", p0, ZoneType.Battlefield);
+        bears.addRemembered(bolt);
+        Map<TrackableProperty, Object> tracked = bears.getView().getProps();
+        Object remembered = tracked.get(TrackableProperty.Remembered);
+        assertNotNull(remembered, "the engine tracks what the card remembers");
+        assertTrue(remembered.toString().contains("Lightning Bolt"), "the engine names the hidden card: " + remembered);
+        flush();
+        for (ClientModel c : List.of(seat0, seat1, spectator)) {
+            assertNotNull(c.props("card:" + bears.getId()));
+            for (String frame : c.frames) {
+                if (!frame.startsWith("{\"t\":\"hello\"")) { // the hello schema lists every property name
+                    assertFalse(frame.contains("\"Remembered\""), "Remembered was sent: " + frame);
+                }
+            }
+        }
+        assertFalse(seat1.allText().contains("Lightning Bolt"));
+        assertFalse(spectator.allText().contains("Lightning Bolt"));
+    }
+
+    @Test
+    public void unknownCardReferenceFailsClosed() {
+        start(2);
+        JsonObject props = new JsonObject();
+        JsonArray commander = new JsonArray();
+        commander.add(987654);
+        props.add("Commander", commander);
+        props.addProperty("PairedWith", 987655);
+        Flush f = new Flush(LiveCards.of(game.getView()),
+                List.of(new Flush.Entry(new ObjRef("player", p0.getId(), null), props)), List.of(), Set.of());
+        ViewerStream vs = new ViewerStream(Viewer.seat(1, List.of(p0.getView(), p1.getView())));
+        JsonObject sent = vs.apply(f).news().stream().filter(o -> "player".equals(o.type())).findFirst().orElseThrow().props();
+        assertEquals(ids(sent, "Commander"), List.of(-1));
+        assertEquals(sent.get("PairedWith").getAsInt(), -1);
+    }
+
+    @Test
     public void ownLibraryCardIsVisibleOnlyWhileLookedAt() {
         start(2);
         Card top = TestEngine.add("Lightning Bolt", p0, ZoneType.Library);
@@ -219,8 +414,14 @@ public class PerViewerVisibilityTest {
         start(2);
         Card bears = TestEngine.add("Grizzly Bears", p0, ZoneType.Battlefield);
         Card aura = TestEngine.add("Holy Strength", p0, ZoneType.Battlefield);
+        Card encoded = TestEngine.add("Lightning Bolt", p0, ZoneType.Exile);
+        Card haunt = TestEngine.add("Llanowar Elves", p0, ZoneType.Exile);
         bears.turnFaceDown(true);
         aura.attachToEntity(bears, null, true);
+        bears.setCommander(true);
+        bears.setRingBearer(true);
+        bears.addEncodedCard(encoded);
+        bears.addHauntedBy(haunt);
         flush();
 
         // controller: full card, real face included
@@ -248,6 +449,11 @@ public class PerViewerVisibilityTest {
             assertEquals(attachedTo.get("type").getAsString(), "card");
             assertEquals(attachedTo.get("id").getAsInt(), wire);
             assertTrue(props.getAsJsonArray("AttachedCards").contains(new JsonPrimitive(aura.getId())));
+            // public table state that Forge's own UI shows on a face-down card to every player
+            assertTrue(props.has("IsCommander") && props.get("IsCommander").getAsBoolean(), "IsCommander dropped");
+            assertTrue(props.has("IsRingBearer") && props.get("IsRingBearer").getAsBoolean(), "IsRingBearer dropped");
+            assertEquals(ids(props, "EncodedCards"), List.of(encoded.getId()));
+            assertEquals(ids(props, "HauntedBy"), List.of(haunt.getId()));
         }
 
         // turned face up: everyone gets the real card, and references follow
@@ -260,6 +466,16 @@ public class PerViewerVisibilityTest {
             assertEquals(attachedTo.get("id").getAsInt(), bears.getId());
         }
         assertTrue(seat1.textSince(mark1).contains("Grizzly Bears"));
+
+        // turned face down again in place: the link stays public, references follow the new alias
+        bears.turnFaceDown(true);
+        flush();
+        for (ClientModel c : List.of(seat1, spectator)) {
+            List<Integer> bf = c.zone(p0.getId(), "Battlefield");
+            assertFalse(bf.contains(bears.getId()));
+            int wire = bf.stream().filter(id -> id != aura.getId()).findFirst().orElseThrow();
+            assertEquals(c.props("card:" + aura.getId()).getAsJsonObject("EntityAttachedTo").get("id").getAsInt(), wire);
+        }
     }
 
     @Test

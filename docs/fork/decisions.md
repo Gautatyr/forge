@@ -61,4 +61,4 @@ Newest last. Each entry: the decision, why, and what it implies.
 
 ## 2026-10-15 — Bridge: hidden information is filtered per viewer on the server
 - Each seat and the spectator get their own stream, filtered by the engine's view rules (`CardView.canBeShownTo` / `canFaceDownBeShownTo`). A spectator sees only what every player may see.
-- Cards a viewer may not see travel under per-viewer alias ids, re-issued when a card becomes hidden and when its zone is shuffled or reordered, so a client cannot track a once-seen card into a hidden zone. Details: [architecture/web-ui.md](architecture/web-ui.md#bridge-per-viewer-visibility-wire-v2).
+- Cards a viewer may not see travel under per-viewer alias ids, re-issued when a card becomes hidden and when its zone is shuffled or reordered. References outside zone lists never carry a re-issued alias, so a client cannot track a once-seen card into a hidden zone or through a shuffle; only a re-hidden card's slot in a zone it stays in still places it. Details: [architecture/web-ui.md](architecture/web-ui.md#bridge-per-viewer-visibility-wire-v2).

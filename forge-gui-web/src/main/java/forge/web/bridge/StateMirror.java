@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.IntUnaryOperator;
 
 import com.google.gson.JsonArray;
@@ -85,18 +86,22 @@ public final class StateMirror {
     }
 
     /**
-     * Rewrites card references {@code old id -> new id} in every object and returns, per object key,
-     * the properties that changed (their new values), for the client to merge.
+     * Rewrites card references in every object, each property through the id mapping
+     * {@code mapperFor} gives for its name (null: left as is), and returns, per object key, the
+     * properties that changed (their new values), for the client to merge.
      */
-    public Map<String, JsonObject> rewriteCardRefs(Map<Integer, Integer> renames) {
+    public Map<String, JsonObject> rewriteCardRefs(Function<String, IntUnaryOperator> mapperFor) {
         Map<String, JsonObject> changed = new LinkedHashMap<>();
-        if (renames.isEmpty()) {
-            return changed;
-        }
-        IntUnaryOperator f = id -> renames.getOrDefault(id, id);
         for (Obj o : objects.values()) {
             JsonObject delta = null;
             for (Map.Entry<String, JsonElement> e : o.props().entrySet()) {
+                if (WireSchema.refKindOf(e.getKey()) == null) {
+                    continue;
+                }
+                IntUnaryOperator f = mapperFor.apply(e.getKey());
+                if (f == null) {
+                    continue;
+                }
                 JsonElement mapped = CardRefs.map(e.getKey(), e.getValue(), f);
                 if (mapped != e.getValue()) {
                     if (delta == null) {

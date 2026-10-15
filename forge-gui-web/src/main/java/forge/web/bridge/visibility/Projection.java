@@ -22,7 +22,9 @@ public final class Projection {
             TrackableProperty.Zone, TrackableProperty.Owner, TrackableProperty.Controller));
 
     /**
-     * A face-down card whose face the viewer may not see: what lies on the table. The real face
+     * A face-down card whose face the viewer may not see: what lies on the table, and the
+     * card-level state Forge's own UI shows every player on a face-down card (commander and
+     * Ring-bearer icons, {@code CardDetailUtil}'s encoded/haunt/imprint/exile links). The real face
      * ({@code AlternateState}, split states, {@code PaperCardBackup}, names, chosen values) is left out.
      */
     private static final Set<String> FACE_DOWN_PROPS = names(EnumSet.of(
@@ -36,7 +38,9 @@ public final class Projection {
             TrackableProperty.ExertedThisTurn, TrackableProperty.Detained, TrackableProperty.MustBlockCards,
             TrackableProperty.PairedWith, TrackableProperty.PlayerMayLook, TrackableProperty.Foretold,
             TrackableProperty.NeedsTapAnimation, TrackableProperty.NeedsUntapAnimation,
-            TrackableProperty.PreventNextDamage));
+            TrackableProperty.PreventNextDamage, TrackableProperty.IsCommander, TrackableProperty.CommanderAltType,
+            TrackableProperty.IsRingBearer, TrackableProperty.EncodedCards, TrackableProperty.HauntedBy,
+            TrackableProperty.ImprintedCards, TrackableProperty.ExiledCards, TrackableProperty.UntilLeavesBattlefield));
 
     /**
      * Never sent, whatever the visibility: {@code Remembered} is the {@code toString()} of whatever

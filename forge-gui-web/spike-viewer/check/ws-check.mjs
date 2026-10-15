@@ -13,9 +13,12 @@ const httpBase = url.replace(/^ws/, 'http').replace(/\/ws$/, '');
 const ALIAS_BASE = 2 ** 30;
 const PLACEHOLDER = new Set(['Zone', 'Owner', 'Controller']);
 const FACE_HIDING = ['AlternateState', 'LeftSplitState', 'RightSplitState', 'PaperCardBackup'];
-// Containment references (zones, stack, states) must resolve; cross references such as
-// Controller or EntityAttachedTo may point at objects network play itself never walks.
-const CONTAINMENT = new Set(['cards', 'players', 'stack_items', 'card_state']);
+// Containment references (zone lists, players, stack, states) must resolve; cross references such as
+// Controller or EntityAttachedTo may point at objects network play itself never walks, and other card
+// references name a hidden card by an unseen id that resolves to nothing.
+const CONTAINMENT = new Set(['players', 'stack_items', 'card_state']);
+const ZONE_LISTS = new Set(['Hand', 'Library', 'Graveyard', 'Battlefield', 'Exile', 'Flashback', 'Command', 'Sideboard',
+  'Ante', 'SchemeDeck', 'PlanarDeck', 'AttractionDeck', 'Junkyard', 'ContraptionDeck', 'StickerSheets']);
 
 const keyOf = (o) => o.state ? `${o.type}:${o.id}:${o.state}` : `${o.type}:${o.id}`;
 const isObj = (o) => o && typeof o.type === 'string' && Number.isInteger(o.id) && typeof o.props === 'object'
@@ -31,6 +34,7 @@ class Stream {
     this.objects = new Map();
     this.lat = []; this.deltas = 0; this.bytes = 0; this.maxBytes = 0; this.snapshotBytes = 0;
     this.logLines = 0; this.finalSeen = false; this.placeholdersSeen = 0; this.faceDownHiddenSeen = 0;
+    this.cardRefChecks = 0; this.danglingEngineRefs = 0;
   }
   fail(m) { if (this.errors.length < 50) this.errors.push(m); }
 
@@ -72,11 +76,34 @@ class Stream {
     for (const o of this.objects.values()) {
       for (const [name, v] of Object.entries(o.props)) {
         if (!(name in this.schema)) this.fail(`${where}: unknown property ${name}`);
-        if (!CONTAINMENT.has(this.schema[name])) continue;
+        const zoneList = o.type === 'player' && ZONE_LISTS.has(name);
+        if (!zoneList && this.hidden !== 'FULL') this.checkCardRefs(o, name, v, statesOf, where);
+        if (!CONTAINMENT.has(this.schema[name]) && !zoneList) continue;
         for (const r of this.refsOf(o, name, v)) if (!this.objects.has(r)) this.fail(`${where}: ${keyOf(o)}.${name} -> missing ${r}`);
       }
       if (o.type !== 'card' || this.hidden === 'FULL') continue;
       this.checkCard(o, statesOf.get(o.id) ?? [], where);
+    }
+  }
+
+  // Outside zone lists, a card reference never names a placeholder (a hidden card is an unseen id),
+  // and the reveal history never names an alias that resolves (face-down or placeholder).
+  checkCardRefs(o, name, v, statesOf, where) {
+    const kind = this.schema[name];
+    let ids = [];
+    if (kind === 'card' && Number.isInteger(v)) ids = [v];
+    else if (kind === 'cards' && Array.isArray(v)) ids = v;
+    else if (kind === 'entity' && v?.type === 'card') ids = [v.id];
+    else if (kind === 'combat' && Array.isArray(v)) {
+      for (const b of v) ids.push(...(b.attackers ?? []), ...(b.blockers ?? []), ...(b.defender?.type === 'card' ? [b.defender.id] : []));
+    }
+    for (const id of ids) {
+      if (id === -1) continue;
+      this.cardRefChecks++;
+      const c = this.objects.get(`card:${id}`);
+      if (!c) { if (id < ALIAS_BASE) this.danglingEngineRefs++; continue; }
+      if (!statesOf.has(id) && Object.keys(c.props).every((k) => PLACEHOLDER.has(k))) this.fail(`${where}: ${keyOf(o)}.${name} names placeholder card:${id}`);
+      if (name === 'RevealedCardsCollection' && id >= ALIAS_BASE) this.fail(`${where}: reveal history names alias card:${id}`);
     }
   }
 
@@ -185,6 +212,7 @@ for (let i = 0; i < streams.length; i++) {
     snapshotBytes: s.snapshotBytes, deltas: s.deltas, deltaBytes: s.bytes, maxDeltaBytes: s.maxBytes,
     avgDeltaBytes: Math.round(s.bytes / Math.max(1, s.deltas)), logLines: s.logLines,
     placeholderChecks: s.placeholdersSeen, hiddenFaceDownChecks: s.faceDownHiddenSeen,
+    cardRefChecks: s.cardRefChecks, danglingEngineRefs: s.danglingEngineRefs,
     deltasPerSecond: +(s.deltas / secs).toFixed(2), bytesPerSecond: Math.round(s.bytes / secs),
     latencyMs: s.lat.length ? { avg: +(s.lat.reduce((a, b) => a + b, 0) / s.lat.length).toFixed(1), p95: s.lat.sort((a, b) => a - b)[Math.floor(s.lat.length * 0.95)], max: s.lat[s.lat.length - 1] } : null,
     errors: s.errors });

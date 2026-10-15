@@ -109,7 +109,7 @@ public class WireEncoderTest {
         mirror.putNew(obj("card", 10, null, "{\"AttachedCards\":[11]}"));
         mirror.putNew(obj("card", 11, null, "{\"EntityAttachedTo\":{\"type\":\"card\",\"id\":10},\"PairedWith\":10}"));
 
-        Map<String, JsonObject> changed = mirror.rewriteCardRefs(Map.of(10, 500));
+        Map<String, JsonObject> changed = mirror.rewriteCardRefs(p -> id -> id == 10 ? 500 : id);
         assertEquals(changed.get("player:1").toString(), "{\"Battlefield\":[500,11]}");
         assertEquals(changed.get("card:11").toString(),
                 "{\"EntityAttachedTo\":{\"type\":\"card\",\"id\":500},\"PairedWith\":500}");
@@ -118,6 +118,21 @@ public class WireEncoderTest {
         assertFalse(changed.containsKey("card:10"), "card 10's own props do not reference it");
         assertEquals(mirror.get("player:1").props().get("Battlefield").toString(), "[500,11]");
         assertEquals(mirror.get("player:1").props().get("Life").getAsInt(), 20);
+    }
+
+    @Test
+    public void mirrorRewritesEachPropertyThroughItsOwnMapping() {
+        StateMirror mirror = new StateMirror();
+        mirror.putNew(obj("game", 1, null, "{\"RevealedCardsCollection\":[10],\"Players\":[1]}"));
+        mirror.putNew(obj("player", 1, null, "{\"Hand\":[10],\"Life\":20}"));
+        mirror.putNew(obj("card", 11, null, "{\"ImprintedCards\":[10]}"));
+
+        Map<String, JsonObject> changed = mirror.rewriteCardRefs(p -> "Hand".equals(p) ? id -> 500
+                : "ImprintedCards".equals(p) ? id -> -1 : null);
+        assertEquals(changed.get("player:1").toString(), "{\"Hand\":[500]}");
+        assertEquals(changed.get("card:11").toString(), "{\"ImprintedCards\":[-1]}");
+        assertFalse(changed.containsKey("game:1"), "a property without a mapping is left as is");
+        assertEquals(mirror.get("game:1").props().get("RevealedCardsCollection").toString(), "[10]");
     }
 
     private static StateMirror.Obj obj(String type, int id, String state, String propsJson) {

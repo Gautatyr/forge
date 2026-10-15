@@ -1,6 +1,7 @@
 package forge.web.bridge.visibility;
 
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.IntUnaryOperator;
 
 import com.google.gson.JsonArray;
@@ -20,11 +21,12 @@ public final class CardRefs {
 
     private CardRefs() { }
 
-    /** A copy of {@code props} with every card reference mapped through {@code f}. */
-    public static JsonObject map(JsonObject props, IntUnaryOperator f) {
+    /** A copy of {@code props} with the card references of each property mapped through {@code mapperFor} of its name. */
+    public static JsonObject map(JsonObject props, Function<String, IntUnaryOperator> mapperFor) {
         JsonObject out = new JsonObject();
         for (Map.Entry<String, JsonElement> e : props.entrySet()) {
-            out.add(e.getKey(), map(e.getKey(), e.getValue(), f));
+            String k = e.getKey();
+            out.add(k, WireSchema.refKindOf(k) == null ? e.getValue() : map(k, e.getValue(), mapperFor.apply(k)));
         }
         return out;
     }
