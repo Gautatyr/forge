@@ -242,7 +242,7 @@ function card(id: string, typeLine: string, extra: Partial<CardView> = {}): Card
     counters: [],
     damage: 0,
     ptModifiers: [],
-    grantedKeywords: [],
+    keywords: [],
     attachments: [],
     ...extra,
   };
