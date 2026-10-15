@@ -30,14 +30,14 @@ mvn -pl forge-gui-web -am compile dependency:build-classpath -Dmdep.outputFile=t
 mvn -pl forge-gui-web -am test -Dtest=WireEncoderTest -Dsurefire.failIfNoSpecifiedTests=false
 
 # from forge-gui-web/
-./run-spike.sh                                   # 1v1, then keeps serving; open http://127.0.0.1:7655/
+./run-spike.sh                                   # 1v1, then keeps serving; open the printed URL http://127.0.0.1:7655/#token=<per-launch token>
 ./run-spike.sh --mode commander --speed fast     # 4-player Commander (C17/C20 precons)
 ./run-spike.sh --mode commander --hidden full    # no redaction (what network play sends today)
 # other flags: --games N  --decks a.dck,b.dck  --wait-client SECONDS  --exit  --port  --label
-# viewer: http://127.0.0.1:7655/?images=1 shows Scryfall art
+# viewer: http://127.0.0.1:7655/?images=1#token=<token> shows Scryfall art
 
 # scripted check against a running server (exit 0 = all checks passed)
-node spike-viewer/check/ws-check.mjs
+node spike-viewer/check/ws-check.mjs --token <token>
 # one measured run (server waits for the check, exits after the game; CPU sampled every 2 s)
 spike-viewer/check/measure.sh /tmp/runs cmd-redact-fast --mode commander --speed fast
 ```

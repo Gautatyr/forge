@@ -8,9 +8,20 @@
   let log = [];
   let game = null, seq = 0;
   let renderQueued = false;
+  let socket = null;
   const meter = { msgs: 0, bytes: 0, last: Date.now(), rateMsgs: 0, rateBytes: 0 };
 
   const params = new URLSearchParams(location.search);
+  // Per-launch token: the server prints http://127.0.0.1:PORT/#token=…; kept for reloads, dropped from the address bar.
+  const token = (() => {
+    const fromHash = new URLSearchParams(location.hash.slice(1)).get('token');
+    if (fromHash) {
+      history.replaceState(null, '', location.pathname + location.search);
+      try { sessionStorage.setItem('forge-token', fromHash); } catch { /* storage blocked: this load only */ }
+      return fromHash;
+    }
+    try { return sessionStorage.getItem('forge-token'); } catch { return null; }
+  })();
   const imagesBox = $('images');
   imagesBox.checked = params.get('images') === '1';
   imagesBox.addEventListener('change', queueRender);
@@ -30,6 +41,12 @@
       return;
     }
     if (m.t !== 'delta' || m.game !== game) return;
+    if (m.seq !== seq + 1) {
+      // missed a delta: ignore deltas until the server sends a fresh snapshot
+      game = null;
+      socket?.send(JSON.stringify({ t: 'requestResync' }));
+      return;
+    }
     seq = m.seq;
     for (const o of m.new) objects.set(keyOf(o), o);
     for (const c of m.changed) {
@@ -43,7 +60,9 @@
   }
 
   function connect(attempt = 0) {
-    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+    if (!token) { setStatus('no token: open the URL the server printed', 'down'); return; }
+    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws?token=${encodeURIComponent(token)}`);
+    socket = ws;
     ws.onopen = () => { setStatus('live', 'live'); attempt = 0; };
     ws.onmessage = (ev) => {
       meter.msgs++; meter.bytes += ev.data.length;
