@@ -8,6 +8,7 @@ import {
   initialDraft,
   keyAction,
   moveItem,
+  revealScrollTop,
   toggleOption,
   trayConfirm,
   visibleOptions,
@@ -218,5 +219,25 @@ describe('ability menu anchoring (P2)', () => {
   it('falls back above the card when neither side has room', () => {
     const narrow = { w: 500, h: 1080 };
     expect(anchorMenu({ left: 100, top: 800, right: 400, bottom: 1000 }, menu, narrow, 8)).toEqual({ left: 100, top: 672 });
+  });
+});
+
+describe('revealScrollTop', () => {
+  const view = { top: 346, height: 177, scrollTop: 0 };
+  it('keeps the scroll when the row is fully visible', () => {
+    expect(revealScrollTop(view, { top: 420, bottom: 460 }, 4)).toBe(0);
+  });
+  it('scrolls down just enough to show a row below the view, plus the margin', () => {
+    // Row 4 at 1366x768 before the fix: bottom 546 vs view bottom 523.
+    expect(revealScrollTop(view, { top: 506, bottom: 546 }, 4)).toBe(27);
+  });
+  it('scrolls up just enough to show a row above the view, plus the margin', () => {
+    expect(revealScrollTop({ ...view, scrollTop: 30 }, { top: 340, bottom: 380 }, 4)).toBe(20);
+  });
+  it('never scrolls above 0', () => {
+    expect(revealScrollTop({ ...view, scrollTop: 2 }, { top: 340, bottom: 380 }, 4)).toBe(0);
+  });
+  it('shows the top of a row taller than the view', () => {
+    expect(revealScrollTop(view, { top: 400, bottom: 700 }, 0)).toBe(54);
   });
 });

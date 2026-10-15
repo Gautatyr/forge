@@ -1,9 +1,9 @@
-import type { CSSProperties, KeyboardEvent } from 'react';
+import { useLayoutEffect, useRef, type CSSProperties, type KeyboardEvent } from 'react';
 import type { OrderPrompt } from '../../model/types';
 import { useMatch } from '../../state/MatchContext';
 import { Card } from '../Card';
 import type { BodyProps } from './TrayBody';
-import { moveBetween, moveItem } from './trayLogic';
+import { moveBetween, moveItem, revealScrollTop } from './trayLogic';
 import styles from '../ChoiceTray.module.css';
 
 /** One list: a column, first item at the top. Two lists: the scry layout, click moves a card across. */
@@ -16,10 +16,30 @@ function SingleList({ prompt, draft, setDraft }: BodyProps<OrderPrompt>) {
   const list = prompt.lists[0]!;
   const items = new Map(list.items.map((i) => [i.id, i]));
   const ids = draft.lists[list.id] ?? [];
+  const rows = useRef(new Map<string, HTMLLIElement>());
+  const moved = useRef<string | null>(null);
+  // After a move, scroll the tray body so the moved (focused) row stays in sight.
+  useLayoutEffect(() => {
+    const row = moved.current ? rows.current.get(moved.current) : undefined;
+    moved.current = null;
+    const view = row?.closest<HTMLElement>(`.${styles.body}`);
+    if (!row || !view) return;
+    // A ↑/↓ button that just became disabled drops focus to <body>: keep it on the row.
+    if (document.activeElement === document.body) row.focus({ preventScroll: true });
+    const v = view.getBoundingClientRect();
+    const r = row.getBoundingClientRect();
+    const cs = getComputedStyle(row);
+    const ring = (parseFloat(cs.outlineWidth) || 0) + (parseFloat(cs.outlineOffset) || 0); // keep the focus ring in sight
+    view.scrollTop = revealScrollTop({ top: v.top, height: view.clientHeight, scrollTop: view.scrollTop }, r, ring);
+  }, [draft]);
+  const move = (i: number, by: number) => {
+    moved.current = ids[i] ?? null;
+    setDraft(moveItem(draft, list.id, i, by));
+  };
   const onKey = (i: number) => (e: KeyboardEvent) => {
     if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
     e.preventDefault();
-    setDraft(moveItem(draft, list.id, i, e.key === 'ArrowUp' ? -1 : 1));
+    move(i, e.key === 'ArrowUp' ? -1 : 1);
   };
   return (
     <section className={styles.column} aria-label={list.label}>
@@ -34,20 +54,30 @@ function SingleList({ prompt, draft, setDraft }: BodyProps<OrderPrompt>) {
           const o = items.get(id)!;
           const card = o.cardId ? game.cards[o.cardId] : undefined;
           return (
-            <li key={id} className={styles.row} tabIndex={0} onKeyDown={onKey(i)} aria-label={`${i + 1}. ${o.label}`}>
+            <li
+              key={id}
+              ref={(el) => {
+                if (el) rows.current.set(id, el);
+                else rows.current.delete(id);
+              }}
+              className={styles.row}
+              tabIndex={0}
+              onKeyDown={onKey(i)}
+              aria-label={`${i + 1}. ${o.label}`}
+            >
               <span className={styles.rowIndex}>{i + 1}</span>
-              {card ? <Card card={card} context="thumb" style={{ '--cw': '2rem' } as CSSProperties} onActivate={() => undefined} /> : null}
+              {card ? <Card card={card} context="thumb" style={{ '--cw': '1.5rem' } as CSSProperties} onActivate={() => undefined} /> : null}
               <span className={styles.rowText}>
                 <span className={styles.optionLabel}>{o.label}</span>
                 {o.detail ? <span className={styles.optionDetail}>{o.detail}</span> : null}
               </span>
               <span className={styles.orderControls}>
-                <button type="button" onClick={() => setDraft(moveItem(draft, list.id, i, -1))} disabled={i === 0} aria-label={`Move ${o.label} up`}>
+                <button type="button" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move ${o.label} up`}>
                   ↑
                 </button>
                 <button
                   type="button"
-                  onClick={() => setDraft(moveItem(draft, list.id, i, 1))}
+                  onClick={() => move(i, 1)}
                   disabled={i === ids.length - 1}
                   aria-label={`Move ${o.label} down`}
                 >

@@ -80,6 +80,22 @@ export function moveItem(d: ChoiceDraft, listId: string, index: number, by: numb
   return { ...d, lists: { ...d.lists, [listId]: list } };
 }
 
+/**
+ * The scrollTop that brings a row (viewport coordinates) into a scrolled view with the
+ * least movement, `margin` px clear of the edges; a row taller than the view shows its top.
+ */
+export function revealScrollTop(
+  view: { top: number; height: number; scrollTop: number },
+  row: { top: number; bottom: number },
+  margin: number,
+): number {
+  const above = row.top - margin - view.top;
+  const below = row.bottom + margin - (view.top + view.height);
+  if (above < 0) return Math.max(0, view.scrollTop + above);
+  if (below > 0) return view.scrollTop + Math.min(below, above);
+  return view.scrollTop;
+}
+
 /** Move an item to the end of another list (two-list order). */
 export function moveBetween(d: ChoiceDraft, itemId: string, from: string, to: string): ChoiceDraft {
   return {

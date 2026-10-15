@@ -74,6 +74,19 @@ describe('mock answers', () => {
     expect(player(after, 'you').command).toContain(sythis);
   });
 
+  it('optional trigger: "No" logs the engine label', () => {
+    const g = scenarioById('optional').build();
+    expect(answer(g, { shape: 'yesNo', yes: false }).log.at(-1)!.text).toBe('You choose: No.');
+  });
+
+  it('trigger order: the log line has no doubled full stops', () => {
+    const g = scenarioById('triggers').build();
+    const p = promptOf(g);
+    const text = answer(g, trayConfirm(p, initialDraft(p)).answer!).log.at(-1)!.text;
+    expect(text).toMatch(/^Your triggers resolve in this order: .*flying\.$/);
+    expect(text).not.toContain('..');
+  });
+
   it('ability menu: a row activates, an empty answer cancels', () => {
     const g = scenarioById('ability-menu').build();
     const verge = promptOf(g).sourceCardId!;

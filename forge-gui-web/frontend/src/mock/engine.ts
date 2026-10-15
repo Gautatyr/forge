@@ -546,7 +546,7 @@ function answerTrayPrompt(g: MockGame, prompt: import('../model/types').ChoicePr
     return true;
   }
   if (prompt.shape === 'order' && answer.shape === 'order' && prompt.lists.length === 1) {
-    const names = answer.lists[0]?.itemIds.map((id) => prompt.lists[0]!.items.find((i) => i.id === id)?.label ?? id) ?? [];
+    const names = answer.lists[0]?.itemIds.map((id) => (prompt.lists[0]!.items.find((i) => i.id === id)?.label ?? id).replace(/\.$/, '')) ?? [];
     log(g, `Your triggers resolve in this order: ${names.join(', ')}.`, you.id);
     return true;
   }
@@ -605,7 +605,8 @@ function answerPrompt(g: MockGame, answer: PromptAnswer) {
       castFromZone(g, c, []);
     }
   } else if (answer.shape === 'yesNo') {
-    log(g, `You choose ${answer.yes ? prompt.shape === 'yesNo' ? prompt.yesLabel : 'yes' : 'no'}.`, you.id);
+    const said = prompt.shape === 'yesNo' ? (answer.yes ? prompt.yesLabel : prompt.noLabel) : answer.yes ? 'Yes' : 'No';
+    log(g, `You choose: ${said}.`, you.id);
   } else {
     log(g, `You answer: ${prompt.title}.`, you.id);
   }
