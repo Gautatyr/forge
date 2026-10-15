@@ -2,7 +2,6 @@ import { useEffect, useEffectEvent } from 'react';
 import { currentDefender } from '../state/focus';
 import { useMatch } from '../state/MatchContext';
 import { draftFor, primaryAction } from '../state/primaryAction';
-import { ActionPanel } from './ActionPanel';
 import { Arrows } from './Arrows';
 import { Board } from './Board';
 import { ChoiceTray } from './ChoiceTray';
@@ -104,7 +103,6 @@ export function MatchScreen() {
       </main>
       <Rail />
       <Hand />
-      <ActionPanel />
       <Arrows />
       <HoverPreview />
       <Inspector />

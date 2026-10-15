@@ -33,6 +33,7 @@ import forge.web.bridge.visibility.LiveCards;
 import forge.web.bridge.visibility.Viewer;
 import forge.web.bridge.visibility.ViewerStream;
 import forge.web.bridge.visibility.ZoneOrder;
+import forge.web.schema.WireEnvelope;
 
 /**
  * Turns one game's view graph into one JSON stream per viewer: each seat (player) and the
@@ -86,7 +87,7 @@ public final class GameStream {
         this.spectator = new ViewerStream(viewer(SPECTATOR, List.of()));
         hello = new JsonObject();
         hello.addProperty("t", "hello");
-        hello.addProperty("v", 2);
+        hello.addProperty("v", WireEnvelope.VERSION);
         hello.addProperty("hidden", policy.name());
         hello.add("schema", WireSchema.schemaJson());
     }

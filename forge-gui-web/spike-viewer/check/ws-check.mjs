@@ -2,7 +2,8 @@
 // Opens one WebSocket per viewer (a seat or the spectator), validates every message's shape, rebuilds
 // each viewer's state from snapshot + deltas, checks referential integrity and per-viewer visibility
 // after every delta, and at the end of the game compares each rebuilt state with the server's /state.
-// Usage: node ws-check.mjs [--url ws://127.0.0.1:7655/ws] [--viewers spectator,0,1] [--min-deltas 20] [--timeout 1800]
+// Usage: node ws-check.mjs --token <per-launch token> [--url ws://127.0.0.1:7655/ws] [--viewers spectator,0,1] [--min-deltas 20] [--timeout 1800]
+// The token is in the URL the server prints: "[web] serving http://127.0.0.1:PORT/#token=<token>".
 const args = Object.fromEntries(process.argv.slice(2).reduce((a, v, i, all) =>
   v.startsWith('--') ? [...a, [v.slice(2), all[i + 1]]] : a, []));
 const url = args.url ?? 'ws://127.0.0.1:7655/ws';
@@ -10,6 +11,7 @@ const viewers = (args.viewers ?? 'spectator').split(',').map((v) => v.trim()).fi
 const minDeltas = Number(args['min-deltas'] ?? 20);
 const timeoutS = Number(args.timeout ?? 1800);
 const httpBase = url.replace(/^ws/, 'http').replace(/\/ws$/, '');
+const token = encodeURIComponent(args.token ?? '');
 const ALIAS_BASE = 2 ** 30;
 const PLACEHOLDER = new Set(['Zone', 'Owner', 'Controller']);
 const FACE_HIDING = ['AlternateState', 'LeftSplitState', 'RightSplitState', 'PaperCardBackup'];
@@ -28,7 +30,7 @@ const sortKeys = (o) => Object.fromEntries(Object.entries(o).sort(([a], [b]) => 
 class Stream {
   constructor(name) {
     this.name = name; // 'spectator' or a seat index
-    this.query = name === 'spectator' ? '' : `?seat=${name}`;
+    this.query = name === 'spectator' ? `?token=${token}` : `?token=${token}&seat=${name}`;
     this.errors = [];
     this.schema = null; this.hidden = null; this.viewer = null; this.game = null; this.seq = 0;
     this.objects = new Map();

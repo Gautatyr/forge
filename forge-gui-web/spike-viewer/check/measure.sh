@@ -14,6 +14,7 @@ until grep -q "serving http" "$out/$label.server.log"; do
   kill -0 "$srv" 2>/dev/null || { echo "server died"; exit 1; }
   sleep 1
 done
+token=$(grep -o 'token=[A-Za-z0-9_-]*' "$out/$label.server.log" | head -1 | cut -d= -f2)
 java_pid=$(pgrep -P "$srv" java || echo "$srv")
 (
   hz=$(getconf CLK_TCK); prev=0
@@ -24,7 +25,7 @@ java_pid=$(pgrep -P "$srv" java || echo "$srv")
     prev=$t; sleep 2
   done
 ) > "$out/$label.cpu.txt" &
-node spike-viewer/check/ws-check.mjs --timeout 3000 --viewers "${VIEWERS:-spectator}" > "$out/$label.check.json"
+node spike-viewer/check/ws-check.mjs --token "$token" --timeout 3000 --viewers "${VIEWERS:-spectator}" > "$out/$label.check.json"
 rc=$?
 wait "$srv"
 echo "check exit=$rc"

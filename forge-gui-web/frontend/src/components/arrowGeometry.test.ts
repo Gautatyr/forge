@@ -59,3 +59,36 @@ describe('player target anchor (review of PR 16)', () => {
     expect(p.y).toBeCloseTo(plate.top - 16, 6);
   });
 });
+
+/** Euclidean distance from a point to a box (0 inside). */
+const distToBox = (p: { x: number; y: number }, b: Box) =>
+  Math.hypot(Math.max(b.left - p.x, 0, p.x - b.right), Math.max(b.top - p.y, 0, p.y - b.bottom));
+
+describe('player target anchor at shallow angles (issue 23)', () => {
+  // A wide, short plate: a near-horizontal line crosses its top edge close to a corner.
+  const plate = box(24, 400, 400, 40);
+  const centre = { x: 224, y: 420 };
+
+  it('keeps the full gap from a wide, short plate for a near-horizontal source', () => {
+    const from = { x: centre.x + 800, y: centre.y - 100 };
+    const p = outsideAnchor(from, plate, 17);
+    expect(distToBox(p, plate)).toBeGreaterThanOrEqual(17 - 1e-6);
+  });
+
+  it('keeps the gap for every source angle around the plate', () => {
+    for (let deg = 0; deg < 360; deg += 1) {
+      const a = (deg * Math.PI) / 180;
+      const from = { x: centre.x + 1400 * Math.cos(a), y: centre.y + 1400 * Math.sin(a) };
+      const p = outsideAnchor(from, plate, 17);
+      expect(distToBox(p, plate)).toBeGreaterThanOrEqual(17 - 1e-6);
+      // Still on the segment between the source and the plate centre.
+      const cross = (p.x - from.x) * (centre.y - from.y) - (p.y - from.y) * (centre.x - from.x);
+      expect(Math.abs(cross)).toBeLessThan(1e-6 * 1400 ** 2);
+    }
+  });
+
+  it('ends at the source when the source is inside the gap', () => {
+    const from = { x: plate.right + 5, y: centre.y };
+    expect(outsideAnchor(from, plate, 17)).toEqual(from);
+  });
+});

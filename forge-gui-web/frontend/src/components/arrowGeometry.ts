@@ -31,23 +31,20 @@ export function sourceY(item: Box, scroller: Box | undefined): number | undefine
 }
 
 /**
- * End point for a line aimed at a box (a player plate): on the segment from
- * `from` to the box centre, at least `gap` outside the edge the segment
- * crosses. The line and its marker then stay off the plate's text.
+ * End point for a line aimed at a box (a player plate): where the segment
+ * from `from` to the box centre leaves the box inflated by `gap`. Every point
+ * on that inflated edge is at least `gap` from the box, at any angle, so the
+ * line and its marker stay off the plate's ring and text.
  */
 export function outsideAnchor(from: Point, box: Box, gap: number): Point {
   const cx = (box.left + box.right) / 2;
   const cy = (box.top + box.bottom) / 2;
   const dx = from.x - cx;
   const dy = from.y - cy;
-  const len = Math.hypot(dx, dy);
-  if (len === 0) return { x: cx, y: cy };
-  const tx = dx === 0 ? Infinity : (box.right - box.left) / 2 / Math.abs(dx);
-  const ty = dy === 0 ? Infinity : (box.bottom - box.top) / 2 / Math.abs(dy);
+  if (dx === 0 && dy === 0) return { x: cx, y: cy };
+  const tx = dx === 0 ? Infinity : ((box.right - box.left) / 2 + gap) / Math.abs(dx);
+  const ty = dy === 0 ? Infinity : ((box.bottom - box.top) / 2 + gap) / Math.abs(dy);
   const t = Math.min(tx, ty);
-  if (t >= 1) return from; // the source is inside the box
-  // Distance along the segment that puts the point `gap` past the crossed edge.
-  const normal = (tx < ty ? Math.abs(dx) : Math.abs(dy)) / len;
-  const s = Math.min(gap / normal, 3 * gap);
-  return { x: cx + t * dx + (s * dx) / len, y: cy + t * dy + (s * dy) / len };
+  if (t >= 1) return from; // the source is inside the inflated box
+  return { x: cx + t * dx, y: cy + t * dy };
 }

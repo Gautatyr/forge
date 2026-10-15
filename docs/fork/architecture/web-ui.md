@@ -32,7 +32,7 @@ Board interaction (cast, target, attack, block) mostly runs through "selectable"
 
 ## Bridge: per-viewer visibility (wire v2)
 Code: `forge-gui-web/src/main/java/forge/web/bridge/` (`GameStream`) and `bridge/visibility/`. Wire v1 is in [spike-report.md](spike-report.md#wire-format-v1); v2 changes:
-- One stream per viewer: `/ws?seat=N` (N = index in the game's player list) or `/ws` (spectator); `/state?seat=N` likewise. `hello.v` is 2. Every snapshot carries `"viewer":{"seat":N,"player":<player id>}` or `{"spectator":true}`; `seq` is per stream.
+- One stream per viewer: `/ws?seat=N` (N = index in the game's player list) or `/ws` (spectator); `/state?seat=N` likewise. Both also need the per-launch `token=` (see spike-report.md). `hello.v` is 2. Every snapshot carries `"viewer":{"seat":N,"player":<player id>}` or `{"spectator":true}`; `seq` is per stream.
 - Card visibility per viewer follows the engine: `CardView.canBeShownTo(player)` and `canFaceDownBeShownTo(player)` (hidden zones, face-down cards, `PlayerMayLook`, which temporary reveals, scry, surveil and `DelayedReveal` set through `tempShowCards`). A spectator gets only what every seat may see.
 - Not visible: an anonymous placeholder, props `Zone`, `Owner`, `Controller` only, no `cardState`. Face-down and face not visible: an allow-list of table state (tapped, counters, attachments, combat…), `CurrentState` `FaceDown` and only that state object. Allow-lists live in `visibility/Projection.java`; a new upstream property stays hidden until added there.
 - Such cards travel under an alias id (≥ 2^30), never their engine id. A fresh alias is issued when a card stops being fully visible to that viewer and when its zone is shuffled (`GameEventShuffle`) or reordered. `GameStream.realCardId(seat, wireId)` maps a seat's ids back to engine ids.
@@ -43,7 +43,7 @@ Code: `forge-gui-web/src/main/java/forge/web/bridge/` (`GameStream`) and `bridge
 - `Remembered` is never sent (its text can name hidden cards). The game log is sent unchanged to every viewer.
 - Reveals from a prompt (`tempShowCards` … `endTempShowCards`) reach a seat only if a flush runs while they last; flushes run at priority and end of turn, so prompts (#8) must flush before asking.
 - `--hidden full` (debug) makes every stream omniscient.
-- Scripted check: `node spike-viewer/check/ws-check.mjs --viewers spectator,0,1,2,3` (or `VIEWERS=… spike-viewer/check/measure.sh …`) validates each stream and its visibility rules after every delta.
+- Scripted check: `node spike-viewer/check/ws-check.mjs --token <token> --viewers spectator,0,1,2,3` (or `VIEWERS=… spike-viewer/check/measure.sh …`) validates each stream and its visibility rules after every delta.
 
 ## Known gotchas
 - **Java functions in prompts.** `getChoices` takes an `FSerializableFunction` that renders each choice as text. The server must pre-render labels before sending.

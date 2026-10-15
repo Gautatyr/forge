@@ -77,3 +77,20 @@ Newest last. Each entry: the decision, why, and what it implies.
 ## 2026-10-15 — Bridge: hidden information is filtered per viewer on the server
 - Each seat and the spectator get their own stream, filtered by the engine's view rules (`CardView.canBeShownTo` / `canFaceDownBeShownTo`). A spectator sees only what every player may see.
 - Cards a viewer may not see travel under per-viewer alias ids, re-issued when a card becomes hidden and when its zone is shuffled or reordered. References outside zone lists never carry a re-issued alias, so a client cannot track a once-seen card into a hidden zone or through a shuffle; only a re-hidden card's slot in a zone it stays in still places it. Details: [architecture/web-ui.md](architecture/web-ui.md#bridge-per-viewer-visibility-wire-v2).
+
+## 2026-10-15 — First playable target
+- Target for the morning of 2026-10-16: a 4-player game (1 human, 3 AIs) in the web match screen, started with `make play`. The player picks their deck and each AI's deck, including custom decks from the local Forge install.
+- The owner allows read-only access to `~/.forge/decks`. Agents never write to `~/.forge`.
+- Token budget: agent reviews of the design PRs are deferred (the owner's own test is the review); overnight review loops run with at most one round.
+
+## 2026-10-15 — Night run instructions (owner)
+1. Write down everything that must be remembered (GitHub epic #15 and its issues, `docs/fork/`), because the orchestrator's context will run out.
+2. Start with a couple of product design-and-review passes on the prototype.
+3. Once the prototype includes everything needed to play a game, implement it fully. Goal for the morning of 2026-10-16: open it and play a game in the new UI.
+4. 4 players: the owner against 3 AIs, with their own constructed decks, choosing each AI's deck like in the current Forge game. Deck selection needs no new UI now.
+5. Biggest features first; polish and small fixes only once everything is there. Don't spend tokens on nitpicks.
+6. The orchestrator works autonomously: issues, agents, product design calls (with the product agent), PRs and merges on Gautatyr/forge only.
+## 2026-10-15 — Generated wire types are committed; the build fails when they are stale
+- `forge-gui-web/frontend/src/wire/generated/wire.ts` is generated from the engine (`TrackableProperty`, `ProtocolMethod`, the bridge envelope) by `forge.web.schema.WireTypesGenerator` and committed, so the frontend builds without Java.
+- The `forge-gui-web` Maven build (`process-classes`) fails when the file is stale, and when a new property is used by no view class. **When it reports the file stale** (typically after an upstream sync): `mvn -pl forge-gui-web -am process-classes -Dwire.types=write`, then fix the TypeScript errors in `src/wire/`.
+- Only `src/wire/` may import the generated file (ESLint rule); components use the UI view-model.

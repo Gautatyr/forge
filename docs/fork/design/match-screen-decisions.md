@@ -47,6 +47,10 @@ Source: [product-decisions-pass-3.md](product-decisions-pass-3.md). The spec sta
 
 - **Keyword icon set approved** by Hugo after viewing the reference sheet (`docs/fork/design/keyword-icons.html`): 15 own icons, 6 extra keywords plus hexproof from each colour, 2 generic icons, the printed / added-by-another-card disc styles.
 
+## Ruling after the 23:30 preview (2026-10-15)
+- **No hand-holding.** Don't highlight every playable card. The screen gives information; the player counts their untapped lands and available mana and decides what they can play, like in a paper game. This overrides D2's "playable cards outlined" and the spec's "cards you can click light up".
+- Preview verdict: better, not final. Two more product design-and-review passes before full implementation.
+
 ## Language (2026-10-15)
 - The match screen is switchable between **English and French**: UI text, keyword explanations, card names and text, and card images where Scryfall has French printings.
 - Forge already ships the data: `forge-gui/res/languages/fr-FR.properties` (UI strings) and `forge-gui/res/languages/cardnames-fr-FR.txt` (card names and text).

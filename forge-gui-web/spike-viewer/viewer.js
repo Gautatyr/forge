@@ -8,9 +8,22 @@
   let log = [];
   let game = null, seq = 0;
   let renderQueued = false;
+  let socket = null;
   const meter = { msgs: 0, bytes: 0, last: Date.now(), rateMsgs: 0, rateBytes: 0 };
 
   const params = new URLSearchParams(location.search);
+  // Per-launch token: the server prints http://127.0.0.1:PORT/#token=…; kept for reloads, dropped from the address bar.
+  const token = (() => {
+    const fromHash = new URLSearchParams(location.hash.slice(1)).get('token');
+    if (fromHash) {
+      history.replaceState(null, '', location.pathname + location.search);
+      try { sessionStorage.setItem('forge-token', fromHash); } catch { /* storage blocked: this load only */ }
+      return fromHash;
+    }
+    try { return sessionStorage.getItem('forge-token'); } catch { return null; }
+  })();
+  // A new URL pasted into this tab differs only by its fragment: the browser does not reload by itself.
+  window.addEventListener('hashchange', () => { if (new URLSearchParams(location.hash.slice(1)).get('token')) location.reload(); });
   const imagesBox = $('images');
   imagesBox.checked = params.get('images') === '1';
   imagesBox.addEventListener('change', queueRender);
@@ -30,6 +43,12 @@
       return;
     }
     if (m.t !== 'delta' || m.game !== game) return;
+    if (m.seq !== seq + 1) {
+      // missed a delta: ignore deltas until the server sends a fresh snapshot
+      game = null;
+      socket?.send(JSON.stringify({ t: 'requestResync' }));
+      return;
+    }
     seq = m.seq;
     for (const o of m.new) objects.set(keyOf(o), o);
     for (const c of m.changed) {
@@ -43,18 +62,27 @@
   }
 
   function connect(attempt = 0) {
+    if (!token) { setStatus('no token: open the URL the server printed', 'down'); return; }
     // ?seat=N watches as that player (index in the game's player list); no seat = spectator
     const seat = params.get('seat');
-    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws${seat !== null ? `?seat=${encodeURIComponent(seat)}` : ''}`);
-    ws.onopen = () => { setStatus('live', 'live'); attempt = 0; };
+    const seatQuery = seat !== null ? `&seat=${encodeURIComponent(seat)}` : '';
+    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws?token=${encodeURIComponent(token)}${seatQuery}`);
+    socket = ws;
+    let opened = false;
+    ws.onopen = () => { opened = true; setStatus('live', 'live'); attempt = 0; };
     ws.onmessage = (ev) => {
       meter.msgs++; meter.bytes += ev.data.length;
       apply(JSON.parse(ev.data));
       queueRender();
     };
     ws.onclose = () => {
-      setStatus('disconnected', 'down');
-      setTimeout(() => connect(attempt + 1), Math.min(5000, 500 * 2 ** attempt));
+      const retry = () => setTimeout(() => connect(attempt + 1), Math.min(5000, 500 * 2 ** attempt));
+      if (opened) { setStatus('disconnected', 'down'); retry(); return; }
+      // Never opened: the browser hides why. A 403 here means this token is dead (each launch makes a new one): stop.
+      const restarted = 'cannot connect: if the server restarted, open the new URL it printed';
+      fetch(`/metrics?token=${encodeURIComponent(token)}`, { cache: 'no-store' })
+        .then((r) => { setStatus(restarted, 'down'); if (r.status !== 403) retry(); })
+        .catch(() => { setStatus(restarted, 'down'); retry(); });
     };
   }
   function setStatus(text, cls) { const s = $('status'); s.textContent = text; s.className = `pill ${cls}`; }

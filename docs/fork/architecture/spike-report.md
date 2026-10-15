@@ -30,14 +30,14 @@ mvn -pl forge-gui-web -am compile dependency:build-classpath -Dmdep.outputFile=t
 mvn -pl forge-gui-web -am test -Dtest=WireEncoderTest -Dsurefire.failIfNoSpecifiedTests=false
 
 # from forge-gui-web/
-./run-spike.sh                                   # 1v1, then keeps serving; open http://127.0.0.1:7655/
+./run-spike.sh                                   # 1v1, then keeps serving; open the printed URL http://127.0.0.1:7655/#token=<per-launch token>
 ./run-spike.sh --mode commander --speed fast     # 4-player Commander (C17/C20 precons)
 ./run-spike.sh --mode commander --hidden full    # no redaction (what network play sends today)
 # other flags: --games N  --decks a.dck,b.dck  --wait-client SECONDS  --exit  --port  --label
-# viewer: http://127.0.0.1:7655/?images=1 shows Scryfall art
+# viewer: http://127.0.0.1:7655/?images=1#token=<token> shows Scryfall art
 
 # scripted check against a running server (exit 0 = all checks passed)
-node spike-viewer/check/ws-check.mjs
+node spike-viewer/check/ws-check.mjs --token <token>
 # one measured run (server waits for the check, exits after the game; CPU sampled every 2 s)
 spike-viewer/check/measure.sh /tmp/runs cmd-redact-fast --mode commander --speed fast
 ```
@@ -127,8 +127,8 @@ Traps found:
 
 ## Risks
 - **Hidden information leak in today's protocol:** network play sends full `CardView`s of opponents' hands and libraries and relies on client-side `mayView`. A web client could read them from devtools. The bridge must filter per viewer on the server. The spike shows it is cheap and shrinks payloads 3.5–10×.
-- **Localhost is not private:** any web page in the user's browser can open `ws://127.0.0.1:7655`. Read-only, that leaks the game; with commands, a hostile page could play. Check `Origin` and require a per-launch token before adding any client → server message. The spike checks neither.
-- **Backpressure:** `writeAndFlush` with no writability check; a stalled tab queues unbounded memory. Drop the client's queue and resend a snapshot when the channel becomes unwritable.
+- **Localhost is not private:** any web page in the user's browser can open `ws://127.0.0.1:7655`. Read-only, that leaks the game; with commands, a hostile page could play. Check `Origin` and require a per-launch token before adding any client → server message. The spike checked neither; done since (issue 7: `forge.web.server.AccessPolicy`, `RequestGuard`).
+- **Backpressure:** the spike used `writeAndFlush` with no writability check; a stalled tab queued unbounded memory. Done since (issue 7: `forge.web.server.ChannelSink`): a bounded per-client queue, paused while the channel is unwritable; on overflow it is dropped and the client gets a fresh snapshot.
 - **Upstream churn:** the spike depends on `AbstractGuiGame` (29 overrides, most of them no-op callbacks or prompt defaults), `DeltaSyncManager.collectDeltas`, `DeltaPacket` key helpers, `TrackableTypes` constants, the `HostedMatch` spectator path and `GameView.getGame()` (marked "TODO: Remove" upstream; fallback: `HostedMatch.getGame()`). These break at compile time, not silently, and the generic encoder absorbs new properties.
 - `getNewGuiGame()` is a process-wide factory: several concurrent matches in one JVM need a per-match factory.
 - `DeltaSyncManager` logs at INFO on stdout (every flush plus periodic checksums); route `netLog` before shipping.
