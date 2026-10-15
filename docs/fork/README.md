@@ -17,6 +17,7 @@ Audience: the owner and friends, possibly the public later. Never monetised.
 | [design/match-screen-decisions.md](design/match-screen-decisions.md) | Owner's rulings on the match-screen design. Overrides the memo where they differ. |
 | [design/match-screen-memo.md](design/match-screen-memo.md) | Product discovery memo: interaction inventory, pain points, benchmarks, options. |
 | [architecture/web-ui.md](architecture/web-ui.md) | Web UI architecture: the engine/UI seam, the existing network protocol, the bridge plan. |
+| [architecture/spike-report.md](architecture/spike-report.md) | Web bridge spike: how to run it, measurements, wire format, prompt-bridging design, risks. |
 | [audit/desktop-ui.md](audit/desktop-ui.md) | Audit of the Swing desktop UI. |
 | [audit/upstream-sync.md](audit/upstream-sync.md) | Module graph, UI/engine seam, upstream churn, fork strategy options. |
 | [audit/rules-engine.md](audit/rules-engine.md) | Audit of the rules engine, rules fidelity, known defects, test workflow. |

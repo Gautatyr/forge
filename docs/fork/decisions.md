@@ -38,6 +38,12 @@ Newest last. Each entry: the decision, why, and what it implies.
 - **Later (once the direction is settled):** GitHub issues on the fork, never on upstream. One epic issue lays out the plan and tracks progress, so any agent can see what needs doing and where the work stands. Every other issue is a sub-issue of the epic. Each agent works on its own branch for its issue and opens a pull request into `develop`.
 - The fork's issue tracker is currently disabled on GitHub; enable it before switching to the issue workflow.
 
+## 2026-10-15 — Web bridge spike: go
+- The spike (`forge-gui-web`, merged into `develop`) streams live AI-vs-AI games, 1v1 and 4-player Commander, from the engine to a browser through the existing seam. Full report: [architecture/spike-report.md](architecture/spike-report.md).
+- Key numbers: about 1.3 KB per update and 2–3 KB/s at normal speed; snapshot 41–125 KB with hidden zones redacted; under 1 ms per update on the game thread; 0.5 ms average latency on localhost. Re-checked by the orchestrator: a fast 4-player Commander game, 924 updates, 0 errors.
+- The only upstream file edited is one `<module>forge-gui-web</module>` line in the root `pom.xml`.
+- **Must-fix before human play:** filter hidden information per viewer on the server (network play today sends opponents' hands and hides them only on the client); check `Origin` and use a per-launch token on the WebSocket; bound the send queue; harden prompt replies (`ReplyPool` waits forever; prompt ids come from a non-thread-safe static counter).
+
 ## 2026-10-15 — Next steps started
 - A clickable mockup of the multiplayer match screen with mock data (web).
 - A web spike: stream a live AI-vs-AI game over a WebSocket to a read-only page, to de-risk the bridge.
