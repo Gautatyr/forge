@@ -12,6 +12,10 @@ Newest last. Each entry: the decision, why, and what it implies.
 - Changes flow upstream → fork only.
 - **Implication:** every fork change to an upstream file can conflict on sync. Hot files (changes per year): `Card.java` 113, `PlayerControllerHuman` 88, `CMatchUI` 48, `AiController` 50. Keep edits to upstream files small and isolated. Prefer new files and new modules.
 
+## 2026-10-15 — No interaction with upstream at all
+- The fork never interacts with Card-Forge/forge: no issues, PRs, comments, mentions or pushes. Fetching is the only contact.
+- Guards: the `upstream` push URL is set to `DISABLED` (local git config; redo it after a fresh clone). `gh` defaults to `Gautatyr/forge`. Nothing posted to GitHub may contain `Card-Forge/forge#N` or upstream URLs (GitHub would add backlinks upstream) or @-mentions. Rules are in `CLAUDE.md`.
+
 ## 2026-10-15 — Auto-updater disabled
 - `AutoUpdater.verifyUpdateable()` returns `false` early (`UPDATES_DISABLED`, `forge-gui/src/main/java/forge/download/AutoUpdater.java`). Commit `93d826b29ea`.
 - **Why:** the updater downloads upstream builds, which would replace the fork.
