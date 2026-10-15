@@ -35,8 +35,12 @@ import forge.game.card.CardView;
 import forge.game.player.Player;
 import forge.game.zone.ZoneType;
 import forge.gui.interfaces.IGuiGame;
+import forge.gamemodes.match.input.InputSelectEntitiesFromList;
 import forge.interfaces.IGameController;
+import forge.player.LobbyPlayerHuman;
+import forge.player.PlayerControllerHuman;
 import forge.trackable.TrackableCollection;
+import forge.util.collect.FCollection;
 import forge.web.bridge.ClientSink;
 import forge.web.bridge.GameStream;
 import forge.web.bridge.GameStream.HiddenPolicy;
@@ -114,7 +118,8 @@ public class SeatSessionTest {
     }
 
     private void start(WebSeats.Timeouts timeouts) {
-        gameThread = Executors.newSingleThreadExecutor();
+        // named like the engine's game threads, so ThreadUtil.isGameThread() holds on it
+        gameThread = Executors.newSingleThreadExecutor(r -> new Thread(r, "Game-test"));
         game = TestEngine.newGame(2);
         p0 = game.getPlayers().get(0);
         p1 = game.getPlayers().get(1);
@@ -459,6 +464,39 @@ public class SeatSessionTest {
         assertEquals(refs.get(0).getAsJsonObject().get("id").getAsInt(), mine.getId());
         assertTrue(refs.get(1).getAsJsonObject().get("id").getAsInt() >= ViewerStream.ALIAS_BASE);
         assertFalse(call.toString().contains("Lightning Bolt"));
+    }
+
+    // --- an input played through actions, with a real controller ---
+
+    @Test
+    public void choosingAPlayerNamesThePlayersAndTakesSelectPlayer() throws Exception {
+        start();
+        PlayerControllerHuman pch = new PlayerControllerHuman(game, p0, new LobbyPlayerHuman("You"));
+        pch.setGui(gui);
+        gui.setOriginalGameController(p0.getView(), pch);
+        FCollection<Player> players = new FCollection<>(game.getPlayers());
+        Future<List<Player>> f = onGameThread(() -> {
+            // as PlayerControllerHuman.chooseStartingPlayer: an input over players only
+            InputSelectEntitiesFromList<Player> in = new InputSelectEntitiesFromList<>(pch, 1, 1, players);
+            in.showAndWait();
+            return new ArrayList<>(in.getSelected());
+        });
+        JsonObject targets = client.next("call");
+        while (!"setSelectableTargets".equals(targets.get("method").getAsString())) {
+            targets = client.next("call");
+        }
+        JsonArray named = targets.getAsJsonArray("args").get(0).getAsJsonArray();
+        assertEquals(named.size(), 2);
+        assertEquals(named.get(1).getAsJsonObject().get("type").getAsString(), "player");
+        assertEquals(named.get(1).getAsJsonObject().get("id").getAsInt(), p1.getId());
+
+        action("{\"t\":\"action\",\"method\":\"selectPlayer\",\"player\":" + p1.getId() + "}");
+        long end = System.currentTimeMillis() + 5000;
+        while (!f.isDone() && System.currentTimeMillis() < end) {
+            action("{\"t\":\"action\",\"method\":\"selectButtonOk\"}");
+            Thread.sleep(100);
+        }
+        assertEquals(get(f), List.of(p1));
     }
 
     // --- actions ---

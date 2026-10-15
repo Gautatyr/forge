@@ -18,7 +18,7 @@ const PLACEHOLDER = new Set(['Zone', 'Owner', 'Controller']);
 class HumanSeat extends Stream {
   constructor(seat, opts) {
     super(String(seat), opts);
-    this.buttons = null; this.message = ''; this.selectables = null; this.picked = new Set(); this.weakly = [];
+    this.buttons = null; this.message = ''; this.selectables = null; this.targets = []; this.picked = new Set(); this.weakly = [];
     this.prompts = new Map(); this.epoch = 0; this.actedEpoch = -1; this.lastMessageAt = Date.now();
     this.tried = new Set(); this.attacked = new Set(); this.sameState = 0; this.lastState = '';
     this.stats = { prompts: {}, shapes: {}, calls: {}, actions: {}, closed: {}, replyRejected: 0, actionRejected: [], callCardRefs: 0, promptCardRefs: 0, hiddenPromptRefs: 0, danglingRefs: 0 };
@@ -87,7 +87,9 @@ class HumanSeat extends Stream {
       case 'setSelectables':
         this.selectables = { cards: (a[0] ?? []).filter((r) => r?.type === 'card').map((r) => r.id), min: a[1], max: a[2] };
         this.picked = new Set(); this.epoch++; break;
-      case 'clearSelectables': this.selectables = null; this.picked = new Set(); this.epoch++; break;
+      case 'clearSelectables': this.selectables = null; this.targets = []; this.picked = new Set(); this.epoch++; break;
+      case 'setSelectableTargets':
+        this.targets = (a[0] ?? []).filter((r) => r?.type === 'player').map((r) => r.id); this.epoch++; break;
       case 'setWeaklySelectable': this.weakly = (a[0] ?? []).filter((r) => r?.type === 'card').map((r) => r.id); break;
       case 'clearWeaklySelectable': this.weakly = []; break;
       case 'finishGame': case 'afterGameEnd': this.gameEnded = true; break;
@@ -159,7 +161,8 @@ class HumanSeat extends Stream {
     const state = `${this.epoch}|${this.message}|${this.buttons.label1}|${this.buttons.label2}|${this.buttons.ok}|${this.buttons.cancel}`;
     this.sameState = state === this.lastState ? this.sameState + 1 : 0;
     this.lastState = state;
-    if (this.sameState > 200) { this.fail(`input stuck: ${state}`); return; }
+    // ~200 s without any message and nothing to do: report it and stop instead of waiting forever
+    if (this.sameState > 200) { this.fail(`input stuck: ${state}`); this.ws.close(); return; }
     const me = this.viewer?.player;
     const g = this.gameObj()?.props ?? {};
     const mine = this.objects.get(`player:${me}`)?.props ?? {};
@@ -182,6 +185,12 @@ class HumanSeat extends Stream {
       if (next !== undefined && this.picked.size < sel.max && (!this.buttons.ok || this.picked.size < sel.min)) {
         this.picked.add(next); this.act('selectCard', { card: next }); return;
       }
+    }
+    // players the input names (setSelectableTargets): opponents first, once each per input
+    if (this.targets.length && !this.buttons.ok) {
+      const order = [...this.targets.filter((id) => id !== me), ...this.targets.filter((id) => id === me)];
+      const next = order.find((id) => !this.picked.has(`p${id}`));
+      if (next !== undefined) { this.picked.add(`p${next}`); this.act('selectPlayer', { player: next }); return; }
     }
     if (this.buttons.ok) this.act('selectButtonOk');
     else if (this.buttons.cancel) this.act('selectButtonCancel');
