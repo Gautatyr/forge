@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fitBattlefield, fitRow, RATIO } from './battlefieldLayout';
+import { fitBattlefield, fitRow, rowHeight } from './battlefieldLayout';
 import { handGeometry } from './handLayout';
 
 // Hand area at 1920×1080 with 16px rem: 1920 − rail 288 − padding 32 = 1600 wide, 25vh = 270 tall.
@@ -86,34 +86,91 @@ describe('handGeometry (ruling D2)', () => {
   });
 });
 
-describe('battlefield fitting', () => {
+describe('battlefield fitting (pass-3 spec, section 4)', () => {
   const plain = (n: number, tapped = false) => Array.from({ length: n }, () => ({ tapped, attachments: 0 }));
+  const GAP = 8.8;
+  const MIN = 72;
+  const MAX = 180;
 
-  it('is limited by height when there are few cards', () => {
-    const f = fitRow(plain(2), 1000, 140, 8, 1, 400);
-    expect(f.lines).toBe(1);
-    expect(f.cw).toBeCloseTo(140 * RATIO, 5);
+  it('caps a near-empty board at the maximum size', () => {
+    const f = fitBattlefield(plain(1), plain(2), 1000, 600, GAP, MAX, MIN);
+    expect(f.creatures.cw).toBe(MAX);
+    expect(f.supportFactor).toBe(0.6);
+    expect(f.support.cw).toBeCloseTo(MAX * 0.6, 5);
   });
 
-  it('wraps onto more lines in a tall narrow seat', () => {
-    const f = fitRow(plain(8), 300, 600, 8, 1, 400);
-    expect(f.lines).toBeGreaterThan(1);
-    expect(f.perLine * f.lines).toBeGreaterThanOrEqual(8);
+  it('keeps the support row at 60 % when the creature row is width-bound', () => {
+    const f = fitBattlefield(plain(8), plain(5), 1200, 400, GAP, MAX, MIN);
+    expect(f.supportFactor).toBe(0.6);
+    expect(f.support.cw).toBeCloseTo(f.creatures.cw * 0.6, 5);
+  });
+
+  it('fills the height: creature row + gap + support row', () => {
+    const f = fitBattlefield(plain(3), plain(5), 900, 250, GAP, MAX, MIN);
+    const used = rowHeight(plain(3), f.creatures.cw, f.creatures.lines, GAP) + GAP + rowHeight(plain(5), f.support.cw, f.support.lines, GAP);
+    expect(used).toBeLessThanOrEqual(250 + 0.01);
+    // One more pixel of creature width would not fit at any support size.
+    const next = f.creatures.cw + 1;
+    expect(rowHeight(plain(3), next, 1, GAP) + GAP + rowHeight(plain(5), next * 0.45, 1, GAP)).toBeGreaterThan(250);
+  });
+
+  it('shrinks the support row before wrapping creatures', () => {
+    // Height-bound: support at 60 % would not fit at this creature size.
+    const f = fitBattlefield(plain(2), plain(4), 900, 230, GAP, MAX, MIN);
+    expect(f.creatures.lines).toBe(1);
+    expect(f.supportFactor).toBeLessThan(0.6);
+    expect(f.supportFactor).toBeGreaterThanOrEqual(0.45);
+  });
+
+  it('wraps creatures when one line would drop below the next size', () => {
+    const f = fitBattlefield(plain(12), plain(2), 520, 600, GAP, MAX, MIN);
+    expect(f.creatures.lines).toBeGreaterThan(1);
+    expect(f.creatures.overlap).toBe(0);
+  });
+
+  it('never goes below 72 px: overlaps instead, within the width', () => {
+    const n = 14;
+    const f = fitBattlefield(plain(n), plain(10), 520, 200, GAP, MAX, MIN);
+    expect(f.creatures.cw).toBe(MIN);
+    expect(f.creatures.overlap).toBeGreaterThan(0);
+    // Back cards never overlap each other: two steps >= one card width.
+    const step = f.creatures.cw + GAP - f.creatures.overlap;
+    expect(2 * step).toBeGreaterThanOrEqual(f.creatures.cw - 0.01);
+    const perLine = Math.min(n, f.creatures.perLine);
+    expect((perLine - 1) * step + f.creatures.cw).toBeLessThanOrEqual(520 + 0.01);
+    expect(f.creatures.perLine * f.creatures.lines).toBeGreaterThanOrEqual(n);
   });
 
   it('counts tapped cards as wider', () => {
-    const upright = fitRow(plain(6), 500, 400, 8, 1, 400);
-    const tapped = fitRow(plain(6, true), 500, 400, 8, 1, 400);
-    expect(tapped.cw).toBeLessThan(upright.cw);
+    const upright = fitBattlefield(plain(6), [], 500, 400, GAP, MAX, MIN);
+    const tapped = fitBattlefield(plain(6, true), [], 500, 400, GAP, MAX, MIN);
+    expect(tapped.creatures.cw).toBeLessThan(upright.creatures.cw);
   });
 
-  it('uses one row when the seat is wide and short', () => {
-    const f = fitBattlefield(plain(3), plain(3), 1500, 200, 8, 1, 400);
-    expect(f.arrangement).toBe('one-row');
+  it('keeps every line within the width', () => {
+    for (const [c, s, w, h] of [
+      [4, 5, 520, 250],
+      [1, 6, 520, 250],
+      [9, 8, 1360, 370],
+      [8, 0, 1080, 290],
+    ] as const) {
+      const f = fitBattlefield(plain(c), plain(s), w, h, GAP, MAX, MIN);
+      const line = (n: number, cw: number) => n * cw + (n - 1) * GAP;
+      expect(line(Math.min(c, f.creatures.perLine), f.creatures.cw)).toBeLessThanOrEqual(w + 0.01);
+      if (s) expect(line(Math.min(s, f.support.perLine), f.support.cw)).toBeLessThanOrEqual(w + 0.01);
+    }
   });
 
-  it('uses two rows when the seat is tall', () => {
-    const f = fitBattlefield(plain(6), plain(8), 900, 400, 8, 1, 400);
-    expect(f.arrangement).toBe('two-rows');
+  it('opponent seat in Columns at 1920x1080 gets ~118-125 px creatures', () => {
+    // Battlefield content box of a Columns seat at 1920x1080 with a one-line header.
+    const f = fitBattlefield(plain(4), plain(5), 505, 255, GAP, MAX, MIN);
+    expect(f.creatures.cw).toBeGreaterThanOrEqual(113);
+    expect(f.creatures.cw).toBeLessThanOrEqual(130);
+  });
+
+  it('fitRow (compact seats) wraps and stays within the box', () => {
+    const f = fitRow(plain(8), 300, 600, GAP, MAX, 40);
+    expect(f.lines).toBeGreaterThan(1);
+    expect(rowHeight(plain(8), f.cw, f.lines, GAP)).toBeLessThanOrEqual(600);
   });
 });

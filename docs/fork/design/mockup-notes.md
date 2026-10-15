@@ -124,3 +124,18 @@ Tests: 55 (pass 1: 17). New: spotlight (`state/stackSpotlight.test.ts`), focus a
 Verified with Playwright at 1920×1080 and 1366×768 (desktop context, device scale 1): every scenario in all three layouts with no console errors or warnings. Undo, To my turn and the auto-pass switch keep identical rects in 18 states, including targeting, attack drafts, pending blocks, passing to your turn and waiting. Rail regions scroll independently with the stack, an open graveyard and recent events all visible at 1366×768. The scale stays unchanged while dragging and applies on release and on arrow, Home and End keys. All 9 committed JPEGs were regenerated. The deuteranopia JPEG uses the Machado 2009 matrix in linear RGB (ImageMagick `-color-matrix`).
 
 Not addressed, waiting on product: at 1366×768 and 1920×1080 the compact plate of an opponent with a commander thumbnail (Theo) is still taller than its seat, and its bottom chips are clipped.
+
+## Pass 3C: readable opponent cards (issue #22)
+
+Spec: `product-decisions-pass-3.md` section 4.
+
+| Item | Change | Code |
+|---|---|---|
+| Two tiers | Creature row: creatures, planeswalkers, battles. Support row: other permanents, lands (grouped), the commander in the command zone (caption "Command zone · tax +N"), at 60 % of the creature size. | `battlefieldGroups.ts` (`inCreatureRow`), `Battlefield.tsx` |
+| Adaptive sizing | Largest creature width that fits, cap 11.25 rem (180 px at 1080p; rem follows screen height and UI scale). Fallbacks in order: support 60 → 45 %, creatures wrap (up to 4 lines), staggered overlap at 72 px × UI scale (back cards raised 13 % so their name band shows). Compact Focus seats (creatures only) have no 72 px floor. | `battlefieldLayout.ts` (`fitBattlefield`, `fitRow`) |
+| One-line header | Full and compact plates (not the vertical plate of your seat / 1v1): life, name, zones, commander damage, state tags on one wrapping line. Container queries: < 40 rem hides zone labels and commander names; < 30 rem hides tag text (icon + tooltip stay). The plate's commander thumbnail is gone (support row); compact plates show a crown chip with the tax. | `PlayerPlate.*` |
+| Name labels | Board cards narrower than 150 px: 12 px label (`--fs-xs`) over the title bar, drawn on the slot so tapped cards keep it horizontal. Display → "Name labels on small cards", on by default. | `Card.*` (`nameLabel` prop), `Battlefield.tsx`, `state/prefs.ts`, `Overlays.tsx` |
+| Display | S/M/L card size removed (pref and `?size=` dropped; old stored value deleted on load). Board split (35–55 %, default 45) kept. Columns already default. | `state/prefs.ts`, `MatchContext.tsx`, `Overlays.tsx` |
+| Focus compact seat overflow | Compact seats are stacked (header, summary, creatures) instead of a 17 rem side column. No element outside its seat in priority / blockers / stack6 at 1366 and 1920. | `Seat.*` |
+
+Measured creature widths (priority, Columns): 1920×1080 opponents 118–121 px (Mira 107: attachments peek), you 159; 1366×768 opponents 72–81; 2560×1440 opponents 143–163, you 212.

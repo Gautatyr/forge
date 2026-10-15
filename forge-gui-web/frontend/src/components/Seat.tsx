@@ -18,7 +18,7 @@ export function Seat({ player, density, orientation = 'stacked', onExpand }: Pro
   const { game } = useMatch();
   const active = game.turn.activePlayerId === player.id;
   const compact = density === 'compact';
-  const side = orientation === 'side' || compact;
+  const side = orientation === 'side' && !compact;
   const cards = player.battlefield.map((id) => game.cards[id]!);
   const lands = cards.filter((c) => isLand(c) && !isCreature(c));
   const others = cards.filter((c) => !isLand(c) && !isCreature(c));
@@ -26,11 +26,11 @@ export function Seat({ player, density, orientation = 'stacked', onExpand }: Pro
 
   return (
     <section
-      className={`${styles.seat} ${side ? styles.side : ''} ${player.isYou ? styles.you : ''} ${active ? styles.active : ''}`}
+      className={`${styles.seat} ${side ? styles.side : ''} ${compact ? styles.compact : ''} ${player.isYou ? styles.you : ''} ${active ? styles.active : ''}`}
       aria-label={player.isYou ? 'Your side' : `${player.name}'s side`}
     >
       <div className={`${styles.plateCol} ${compact ? styles.compactCol : ''}`}>
-        <PlayerPlate player={player} density={density} vertical={side && !compact} onExpand={onExpand} />
+        <PlayerPlate player={player} density={density} vertical={side} onExpand={onExpand} />
         {compact ? (
           <div className={styles.summary} data-arrow-occluder>
             <span>

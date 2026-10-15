@@ -23,6 +23,8 @@ interface Props {
   ariaExtra?: string;
   /** Show the "playable" notch under hand cards. */
   notch?: boolean;
+  /** Readable name over the title bar (small battlefield cards, pass-3 spec section 4). */
+  nameLabel?: boolean;
 }
 
 function ringClass(s: CardStatus): string | undefined {
@@ -73,7 +75,7 @@ function ptDirection(c: CardView): 'up' | 'down' | undefined {
   return undefined;
 }
 
-export function Card({ card: c, context, count = 1, groupIds, className, style, onActivate, ariaExtra, notch = true }: Props) {
+export function Card({ card: c, context, count = 1, groupIds, className, style, onActivate, ariaExtra, notch = true, nameLabel = false }: Props) {
   const { game, ui, setUi, activateCard } = useMatch();
   // Scryfall's CDN occasionally refuses a burst of requests: retry once, then show the name.
   const [failures, setFailures] = useState<{ src: string; count: number }>();
@@ -219,6 +221,11 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
           </>
         ) : null}
       </button>
+      {nameLabel ? (
+        <span className={styles.nameLabel} aria-hidden>
+          {face.name}
+        </span>
+      ) : null}
     </div>
   );
 }

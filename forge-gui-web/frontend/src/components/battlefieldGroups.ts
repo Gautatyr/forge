@@ -1,4 +1,4 @@
-import { groupKey, isLand } from '../model/selectors';
+import { groupKey, isCreature, isLand, typeLine } from '../model/selectors';
 import type { CardView, GameView } from '../model/types';
 import { cardStatus } from '../state/cardStatus';
 import type { Prefs } from '../state/prefs';
@@ -7,8 +7,15 @@ import type { UiState } from '../state/ui';
 export interface Entry {
   card: CardView;
   ids: string[];
-  /** First entry of the support group in a one-row layout: gets a wider gap. */
+  /** First entry of a new group inside a row: gets a wider gap. */
   separator?: boolean;
+  /** Caption over the card's foot (the commander in the command zone). */
+  caption?: string;
+}
+
+/** Creature row (pass-3 spec, section 4): creatures, planeswalkers and battles. */
+export function inCreatureRow(c: CardView): boolean {
+  return isCreature(c) || /\b(Planeswalker|Battle)\b/.test(typeLine(c));
 }
 
 /** Collapse identical tokens and lands into one entry with a count. */
