@@ -12,7 +12,8 @@ This repo is a fork (Gautatyr/forge) of Card-Forge/forge, a Magic: The Gathering
   - In anything posted to GitHub (issues, PRs, comments, pushed commit messages), never write `Card-Forge/forge#123` or upstream issue/PR URLs: GitHub would add a backlink on upstream. Write "upstream issue 123" in plain text instead.
   - Never @-mention anyone.
   - Pushing to the `upstream` remote is disabled (`git remote set-url --push upstream DISABLED`); never re-enable it.
-- **Push to GitHub only when the owner explicitly asks.** Local commits are fine.
+- **Pushing to the fork (`origin`, Gautatyr/forge) is allowed** without asking: feature branches, and `develop` after merges. Never force-push `develop` or `master`. `master` only ever mirrors `upstream/master`.
+- **Work process:** one GitHub issue (a sub-issue of an epic) = one branch = one PR into `develop` on Gautatyr/forge. Reference the fork issue in the PR body (`Closes #N`).
 - **New UI work goes in new modules** and plugs into the `forge-gui` interfaces (`IGuiBase`, `IGuiGame`). Do not restyle `forge-gui-desktop` in place: upstream changes it constantly.
 - **Do not delete or gut `forge-gui-desktop`:** it hosts the engine and AI tests and the headless `sim` benchmark.
 - **The auto-updater stays disabled** (`AutoUpdater.UPDATES_DISABLED`); it would replace the fork with an upstream build.

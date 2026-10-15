@@ -34,9 +34,10 @@ Newest last. Each entry: the decision, why, and what it implies.
 - This overrides the memo's "1v1 first" proposal. See [design/match-screen-decisions.md](design/match-screen-decisions.md).
 
 ## 2026-10-15 — Work process
-- **Now (exploration):** informal. Work lands on `develop` through local commits and merges. Nothing is pushed unless the owner asks.
+- **Until 2026-10-15 (exploration):** informal. Work landed on `develop` through local commits and merges.
 - **Later (once the direction is settled):** GitHub issues on the fork, never on upstream. One epic issue lays out the plan and tracks progress, so any agent can see what needs doing and where the work stands. Every other issue is a sub-issue of the epic. Each agent works on its own branch for its issue and opens a pull request into `develop`.
-- The fork's issue tracker is currently disabled on GitHub; enable it before switching to the issue workflow.
+- **Switched to the issue workflow on 2026-10-15** (owner's approval). Issues are enabled on the fork; the match-screen epic and its sub-issues track the work.
+- **Pushing:** the owner authorised pushing to the fork without asking (2026-10-15). Never force-push `develop` or `master`.
 
 ## 2026-10-15 — Web bridge spike: go
 - The spike (`forge-gui-web`, merged into `develop`) streams live AI-vs-AI games, 1v1 and 4-player Commander, from the engine to a browser through the existing seam. Full report: [architecture/spike-report.md](architecture/spike-report.md).
@@ -53,3 +54,7 @@ Newest last. Each entry: the decision, why, and what it implies.
 ## 2026-10-15 — Next steps started
 - A clickable mockup of the multiplayer match screen with mock data (web).
 - A web spike: stream a live AI-vs-AI game over a WebSocket to a read-only page, to de-risk the bridge.
+
+## 2026-10-15 — Bridge work starts in parallel with design
+- Phase 2 of the match-screen epic (the Java bridge) starts now, in parallel with the design iteration.
+- **Why (owner):** the bridge is decoupled from the visual design and it is the longest piece of work. Real games through the prototype will also surface UX problems that mock data hides.
