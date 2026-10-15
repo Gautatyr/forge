@@ -1,6 +1,9 @@
 package forge.web.server;
 
+import java.util.function.ToIntFunction;
+
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 
@@ -16,21 +19,25 @@ import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 /**
  * One WebSocket client after the handshake. Holds its current {@link ChannelSink} subscription and
  * replaces it with a fresh one (greeting + snapshot from the mirror) when the queue overflowed and
- * the channel is writable again, or when the client sends {@code {"t":"requestResync"}}.
- * All methods run on the channel's event loop.
+ * the channel is writable again, or when the client sends {@code {"t":"requestResync"}}. Any other
+ * JSON object from a seat's client (a prompt reply, a player action) goes to
+ * {@link StreamHub#clientMessage}; a spectator's are dropped. All methods run on the channel's event loop.
  */
 final class WsConnectionHandler extends SimpleChannelInboundHandler<WebSocketFrame> {
 
     private final StreamHub hub;
     private final SendLimits limits;
+    private final ToIntFunction<String> seatOfUri;
     private ChannelSink current;
     private int resyncs;
-    /** From the handshake's {@code ?seat=N}; every resync keeps it. */
+    /** Bound to the handshake's token; every resync keeps it. */
     private int seat = GameStream.SPECTATOR;
 
-    WsConnectionHandler(StreamHub hub, SendLimits limits) {
+    /** @param seatOfUri the seat the handshake URI's token opens ({@link GameStream#SPECTATOR} for none) */
+    WsConnectionHandler(StreamHub hub, SendLimits limits, ToIntFunction<String> seatOfUri) {
         this.hub = hub;
         this.limits = limits;
+        this.seatOfUri = seatOfUri;
     }
 
     ChannelSink currentSink() {
@@ -44,7 +51,7 @@ final class WsConnectionHandler extends SimpleChannelInboundHandler<WebSocketFra
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
         if (evt instanceof WebSocketServerProtocolHandler.HandshakeComplete) {
-            seat = WebServer.seatOf(((WebSocketServerProtocolHandler.HandshakeComplete) evt).requestUri());
+            seat = seatOfUri.applyAsInt(((WebSocketServerProtocolHandler.HandshakeComplete) evt).requestUri());
             subscribe(ctx.channel());
             System.out.println("[web] client connected " + ctx.channel().remoteAddress() + " (" + hub.clientCount() + " total)");
         } else {
@@ -54,10 +61,18 @@ final class WsConnectionHandler extends SimpleChannelInboundHandler<WebSocketFra
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, WebSocketFrame frame) {
-        if (current != null && frame instanceof TextWebSocketFrame && "requestResync".equals(typeOf(((TextWebSocketFrame) frame).text()))) {
-            resubscribe("client request");
+        if (current == null || !(frame instanceof TextWebSocketFrame)) {
+            return;
         }
-        // other client messages: none defined yet
+        JsonObject msg = parse(((TextWebSocketFrame) frame).text());
+        if (msg == null) {
+            return;
+        }
+        if ("requestResync".equals(typeOf(msg))) {
+            resubscribe("client request");
+        } else if (seat != GameStream.SPECTATOR) {
+            hub.clientMessage(seat, msg, current);
+        }
     }
 
     @Override
@@ -106,15 +121,17 @@ final class WsConnectionHandler extends SimpleChannelInboundHandler<WebSocketFra
         subscribe(old.channel());
     }
 
-    private static String typeOf(String text) {
+    private static JsonObject parse(String text) {
         try {
             JsonElement e = JsonParser.parseString(text);
-            if (e.isJsonObject() && e.getAsJsonObject().has("t") && e.getAsJsonObject().get("t").isJsonPrimitive()) {
-                return e.getAsJsonObject().get("t").getAsString();
-            }
+            return e.isJsonObject() ? e.getAsJsonObject() : null;
         } catch (JsonParseException | IllegalStateException ignored) {
-            // not a message we understand
+            return null; // not a message we understand
         }
-        return null;
+    }
+
+    private static String typeOf(JsonObject o) {
+        JsonElement t = o.get("t");
+        return t != null && t.isJsonPrimitive() ? t.getAsString() : null;
     }
 }
