@@ -3,13 +3,15 @@ import { commanderTax, isLand } from '../model/selectors';
 import type { CardView, GameView, PlayerView } from '../model/types';
 import { useMatch } from '../state/MatchContext';
 import { groupPermanents as group, inCreatureRow, type Entry } from './battlefieldGroups';
-import { fitBattlefield, fitRow, STAGGER_RAISE, type LayoutItem, type RowFit } from './battlefieldLayout';
+import { fitBattlefield, fitRow, RATIO, STAGGER_RAISE, type LayoutItem, type RowFit } from './battlefieldLayout';
 import { Card } from './Card';
 import { useSize } from './useSize';
 import styles from './Battlefield.module.css';
 
 /** Cards drawn narrower than this get a name label (pass-3 spec, section 4). */
 const NAME_LABEL_BELOW = 150;
+/** Width the command-zone caption ("Command zone" / "tax +N", two lines) reserves around its card. */
+const CAPTION_REM = 5.5;
 
 function shownTapped(game: GameView, c: CardView): boolean {
   // Attackers are drawn upright during combat (see Card).
@@ -19,7 +21,7 @@ function shownTapped(game: GameView, c: CardView): boolean {
   return c.tapped && !attacking;
 }
 
-function Lines({ entries, fit, label }: { entries: Entry[]; fit: RowFit; label: string }) {
+function Lines({ entries, fit, label, captionW }: { entries: Entry[]; fit: RowFit; label: string; captionW: number }) {
   const { game, prefs } = useMatch();
   const nameLabel = prefs.nameLabels && fit.cw < NAME_LABEL_BELOW;
   const chunks: Entry[][] = [];
@@ -28,7 +30,7 @@ function Lines({ entries, fit, label }: { entries: Entry[]; fit: RowFit; label: 
   const rowStyle = {
     '--cw': `${fit.cw}px`,
     '--overlap': `${fit.overlap}px`,
-    '--raise': `${(fit.cw / 0.716) * STAGGER_RAISE}px`,
+    '--raise': `${(fit.cw / RATIO) * STAGGER_RAISE}px`,
   } as CSSProperties;
   return (
     <div className={styles.row} style={rowStyle} aria-label={label}>
@@ -38,7 +40,8 @@ function Lines({ entries, fit, label }: { entries: Entry[]; fit: RowFit; label: 
             <div
               key={e.card.id}
               className={`${styles.host} ${e.separator ? styles.separator : ''}`}
-              style={{ '--host-att': Math.min(2, e.card.attachments.length) } as CSSProperties}
+              style={{ '--host-att': Math.min(2, e.card.attachments.length), '--min-w': e.caption ? `${captionW}px` : '0px' } as CSSProperties}
+              title={e.caption ? [e.caption.label, e.caption.detail].filter(Boolean).join(' · ') : undefined}
             >
               {e.card.attachments.slice(0, 2).map((aid, j) => {
                 const a = game.cards[aid];
@@ -60,11 +63,12 @@ function Lines({ entries, fit, label }: { entries: Entry[]; fit: RowFit; label: 
                 count={e.ids.length}
                 groupIds={e.ids}
                 nameLabel={nameLabel}
-                ariaExtra={e.caption}
+                ariaExtra={e.caption ? [e.caption.label, e.caption.detail].filter(Boolean).join(', ') : undefined}
               />
               {e.caption ? (
-                <span className={styles.caption} title={e.caption}>
-                  {e.caption}
+                <span className={styles.caption} aria-hidden>
+                  <span>{e.caption.label}</span>
+                  {e.caption.detail ? <span>{e.caption.detail}</span> : null}
                 </span>
               ) : null}
             </div>
@@ -96,14 +100,20 @@ export function Battlefield({ player, rows = 'all' }: Props) {
     const c = game.cards[id];
     if (!c) return [];
     const tax = commanderTax(player, id);
-    return [{ card: c, ids: [id], caption: tax > 0 ? `Command zone · tax +${tax}` : 'Command zone' }];
+    return [{ card: c, ids: [id], caption: { label: 'Command zone', detail: tax > 0 ? `tax +${tax}` : '' } }];
   });
   if (others.length && lands.length) lands[0] = { ...lands[0]!, separator: true };
   if ((others.length || lands.length) && command.length) command[0] = { ...command[0]!, separator: true };
   const support = rows === 'creatures' ? [] : [...others, ...lands, ...command];
 
-  const item = (e: Entry): LayoutItem => ({ tapped: shownTapped(game, e.card), attachments: e.card.attachments.length });
   const gap = 0.55 * size.rem;
+  const captionW = CAPTION_REM * size.rem;
+  const item = (e: Entry): LayoutItem => ({
+    tapped: shownTapped(game, e.card),
+    attachments: e.card.attachments.length,
+    separator: e.separator,
+    minW: e.caption ? captionW : undefined,
+  });
   const maxCw = MAX_CW_REM * size.rem;
   const minCw = MIN_CW_PX * prefs.uiScale;
   // Compact seats (Focus) are short by design: they fit whatever size the space allows.
@@ -115,10 +125,10 @@ export function Battlefield({ player, rows = 'all' }: Props) {
   const style = { '--nudge-dir': player.isYou ? -1 : 1, '--gap': `${gap}px` } as CSSProperties;
   let content = null;
   if (size.w > 0) {
-    const c = creatures.length ? <Lines key="c" entries={creatures} fit={fit.creatures} label="Creatures" /> : null;
+    const c = creatures.length ? <Lines key="c" entries={creatures} fit={fit.creatures} label="Creatures" captionW={captionW} /> : null;
     const s =
       fit.support && support.length ? (
-        <Lines key="s" entries={support} fit={fit.support} label="Lands and other permanents" />
+        <Lines key="s" entries={support} fit={fit.support} label="Lands and other permanents" captionW={captionW} />
       ) : null;
     content = player.isYou ? [c, s] : [s, c];
   }

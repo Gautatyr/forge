@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { fitBattlefield, fitRow, rowHeight } from './battlefieldLayout';
+import type { CardView } from '../model/types';
+import { hiddenInCompact, inCreatureRow } from './battlefieldGroups';
+import { fitBattlefield, fitRow, MAX_COVER, rowHeight, SEPARATOR_GAPS, widestLine, type LayoutItem, type RowFit } from './battlefieldLayout';
 import { handGeometry } from './handLayout';
 
 // Hand area at 1920×1080 with 16px rem: 1920 − rail 288 − padding 32 = 1600 wide, 25vh = 270 tall.
@@ -128,17 +130,60 @@ describe('battlefield fitting (pass-3 spec, section 4)', () => {
     expect(f.creatures.overlap).toBe(0);
   });
 
-  it('never goes below 72 px: overlaps instead, within the width', () => {
-    const n = 14;
-    const f = fitBattlefield(plain(n), plain(10), 520, 200, GAP, MAX, MIN);
+  /** Width and height the Battlefield component lays out for a fit (staggered lines drop separators). */
+  const laidOut = (items: LayoutItem[], r: RowFit) => {
+    const perLine = Math.min(items.length, r.perLine);
+    return {
+      w: widestLine(items, perLine, r.cw, GAP, r.overlap === 0) - (perLine - 1) * r.overlap,
+      h: rowHeight(items, r.cw, r.lines, GAP, r.overlap > 0),
+    };
+  };
+  const fitsBox = (c: LayoutItem[], s: LayoutItem[], w: number, h: number) => {
+    const f = fitBattlefield(c, s, w, h, GAP, MAX, MIN);
+    const lc = laidOut(c, f.creatures);
+    const ls = laidOut(s, f.support);
+    expect(lc.w).toBeLessThanOrEqual(w + 0.01);
+    expect(ls.w).toBeLessThanOrEqual(w + 0.01);
+    expect(lc.h + ls.h + (c.length && s.length ? GAP : 0)).toBeLessThanOrEqual(h + 0.01);
+    expect(f.creatures.perLine * f.creatures.lines).toBeGreaterThanOrEqual(c.length);
+    expect(f.support.perLine * f.support.lines).toBeGreaterThanOrEqual(s.length);
+    return f;
+  };
+
+  it('stays at 72 px and overlaps, within the width and the height', () => {
+    const f = fitsBox(plain(14), plain(10), 520, 200);
     expect(f.creatures.cw).toBe(MIN);
     expect(f.creatures.overlap).toBeGreaterThan(0);
-    // Back cards never overlap each other: two steps >= one card width.
-    const step = f.creatures.cw + GAP - f.creatures.overlap;
-    expect(2 * step).toBeGreaterThanOrEqual(f.creatures.cw - 0.01);
-    const perLine = Math.min(n, f.creatures.perLine);
-    expect((perLine - 1) * step + f.creatures.cw).toBeLessThanOrEqual(520 + 0.01);
-    expect(f.creatures.perLine * f.creatures.lines).toBeGreaterThanOrEqual(n);
+    expect(f.creatures.overlap / f.creatures.cw).toBeLessThanOrEqual(MAX_COVER);
+  });
+
+  it('fits a large ungrouped token board in the height at 72 px (review of PR 26)', () => {
+    // Columns opponent seat at 1920×1080: content box ~ 499 × 255.
+    const f = fitsBox(plain(16), plain(14), 499, 255);
+    expect(f.creatures.cw).toBe(MIN);
+    expect(f.creatures.overlap).toBeGreaterThan(0);
+  });
+
+  it('shrinks below 72 px only when even maximal overlap cannot fit the height', () => {
+    const f = fitsBox(plain(30), plain(30), 300, 110);
+    expect(f.creatures.cw).toBeLessThan(MIN);
+    expect(f.creatures.overlap / f.creatures.cw).toBeLessThanOrEqual(MAX_COVER);
+  });
+
+  it('counts group separators and the command-zone caption in the width (review of PR 26)', () => {
+    const sep = (it: LayoutItem) => ({ ...it, separator: true });
+    // Others, then lands (separator), then the commander (separator, caption 88 px).
+    const support: LayoutItem[] = [...plain(3), sep(plain(1)[0]!), ...plain(4), { ...sep(plain(1)[0]!), minW: 88 }];
+    expect(widestLine(support, support.length, 50, GAP)).toBeCloseTo(8 * 50 + 88 + 8 * GAP + 2 * SEPARATOR_GAPS * GAP, 5);
+    expect(widestLine(support, support.length, 50, GAP, false)).toBeCloseTo(8 * 50 + 88 + 8 * GAP, 5);
+    for (const [c, w, h] of [
+      [4, 714, 300],
+      [3, 536, 255],
+      [6, 499, 255],
+      [2, 360, 150],
+    ] as const) {
+      fitsBox(plain(c), support, w, h);
+    }
   });
 
   it('counts tapped cards as wider', () => {
@@ -168,9 +213,64 @@ describe('battlefield fitting (pass-3 spec, section 4)', () => {
     expect(f.creatures.cw).toBeLessThanOrEqual(130);
   });
 
+  it('fitRow (compact seats) staggers within the height when wrapping is not enough', () => {
+    const f = fitRow(plain(20), 300, 60, GAP, MAX, 32);
+    expect(laidOut(plain(20), f).w).toBeLessThanOrEqual(300 + 0.01);
+    expect(laidOut(plain(20), f).h).toBeLessThanOrEqual(60 + 0.01);
+  });
+
   it('fitRow (compact seats) wraps and stays within the box', () => {
     const f = fitRow(plain(8), 300, 600, GAP, MAX, 40);
     expect(f.lines).toBeGreaterThan(1);
     expect(rowHeight(plain(8), f.cw, f.lines, GAP)).toBeLessThanOrEqual(600);
+  });
+});
+
+const face = (typeLine: string) => ({ name: typeLine, manaCost: '', typeLine, oracleText: '' });
+function card(id: string, typeLine: string, extra: Partial<CardView> = {}): CardView {
+  return {
+    id,
+    name: typeLine,
+    front: face(typeLine),
+    ownerId: 'p',
+    controllerId: 'p',
+    zone: 'battlefield',
+    isToken: false,
+    isCommander: false,
+    tapped: false,
+    summoningSick: false,
+    counters: [],
+    damage: 0,
+    ptModifiers: [],
+    grantedKeywords: [],
+    attachments: [],
+    ...extra,
+  };
+}
+
+describe('creature row and compact seats (pass-3 spec, section 4)', () => {
+  it('puts creatures, planeswalkers, battles and land creatures in the creature row', () => {
+    expect(inCreatureRow(card('a', 'Creature — Goblin'))).toBe(true);
+    expect(inCreatureRow(card('b', 'Legendary Planeswalker — Jace'))).toBe(true);
+    expect(inCreatureRow(card('c', 'Battle — Siege'))).toBe(true);
+    expect(inCreatureRow(card('d', 'Land Creature — Forest Dryad'))).toBe(true);
+    expect(inCreatureRow(card('e', 'Basic Land — Island'))).toBe(false);
+    expect(inCreatureRow(card('f', 'Artifact'))).toBe(false);
+    expect(inCreatureRow(card('g', 'Enchantment — Aura'))).toBe(false);
+  });
+
+  it('counts only what a compact seat does not draw (review of PR 26)', () => {
+    const cards = [
+      card('goblin', 'Creature — Goblin', { attachments: ['sword'] }),
+      card('sword', 'Artifact — Equipment', { attachedTo: 'goblin' }),
+      card('jace', 'Legendary Planeswalker — Jace'),
+      card('siege', 'Battle — Siege'),
+      card('arbor', 'Land Creature — Forest Dryad'),
+      card('rock', 'Artifact'),
+      card('island', 'Basic Land — Island'),
+      card('swamp', 'Basic Land — Swamp', { tapped: true }),
+    ];
+    const all = Object.fromEntries(cards.map((c) => [c.id, c]));
+    expect(hiddenInCompact(cards, all)).toEqual({ others: 1, lands: 2, untappedLands: 1 });
   });
 });

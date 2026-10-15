@@ -7,23 +7,33 @@
  * the largest creature width that fits, up to `maxCw`. When space runs out:
  * 1. the support row shrinks, down to 45 %;
  * 2. creatures wrap onto more lines;
- * 3. cards overlap like the staggered hand (`overlap` > 0), at `minCw`.
+ * 3. cards overlap like the staggered hand (`overlap` > 0), at `minCw`, within
+ *    the height; smaller than `minCw` only when even that cannot fit.
  */
 export const RATIO = 0.716;
 /** Share of a card's height an attachment peeks out above its host. */
 export const ATTACH_PEEK = 0.17;
 /** Staggered overlap: back cards are raised by this share of the height, so their name band shows. */
 export const STAGGER_RAISE = 0.13;
+/** Extra margin before a group separator, in gaps (Battlefield.module.css `.separator`). */
+export const SEPARATOR_GAPS = 1.5;
 const TAPPED_UNITS = 1 / RATIO;
 
 /** Support row size as a share of the creature size, in the order they are tried. */
 export const SUPPORT_FACTORS = [0.6, 0.55, 0.5, 0.45] as const;
 const MAX_CREATURE_LINES = 4;
 const MAX_SUPPORT_LINES = 3;
+/** Staggered lines may cover at most this share of a card's width. */
+export const MAX_COVER = 0.85;
+const MAX_STAGGER_LINES = 8;
 
 export interface LayoutItem {
   tapped: boolean;
   attachments: number;
+  /** First entry of a new group: SEPARATOR_GAPS × gap before it (dropped in staggered lines). */
+  separator?: boolean;
+  /** Width the entry reserves even when its card is narrower (the command-zone caption), in px. */
+  minW?: number;
 }
 
 export interface RowFit {
@@ -45,26 +55,29 @@ export interface BattlefieldFit {
 
 const EMPTY: RowFit = { cw: 0, lines: 1, perLine: 1, overlap: 0 };
 
-function units(it: LayoutItem) {
-  return it.tapped ? TAPPED_UNITS : 1;
+function itemW(it: LayoutItem, cw: number) {
+  return Math.max(it.tapped ? TAPPED_UNITS * cw : cw, it.minW ?? 0);
 }
 
 function maxAtt(items: LayoutItem[]) {
   return items.length ? Math.min(2, Math.max(...items.map((i) => i.attachments))) : 0;
 }
 
-/** Height of `lines` lines of cards `cw` wide. */
-export function rowHeight(items: LayoutItem[], cw: number, lines: number, gap: number): number {
+/** Height of `lines` lines of cards `cw` wide; staggered lines add their back cards' raise. */
+export function rowHeight(items: LayoutItem[], cw: number, lines: number, gap: number, staggered = false): number {
   if (items.length === 0) return 0;
-  const line = (cw / RATIO) * (1 + ATTACH_PEEK * maxAtt(items));
+  const ch = cw / RATIO;
+  const line = ch * (1 + ATTACH_PEEK * maxAtt(items)) + (staggered ? ch * STAGGER_RAISE : 0);
   return lines * line + (lines - 1) * gap;
 }
 
-function widestLine(items: LayoutItem[], perLine: number, cw: number, gap: number) {
+/** Width of the widest line as the flex line lays it out (separators count unless staggered), before overlap. */
+export function widestLine(items: LayoutItem[], perLine: number, cw: number, gap: number, separators = true): number {
   let widest = 0;
   for (let i = 0; i < items.length; i += perLine) {
     const line = items.slice(i, i + perLine);
-    widest = Math.max(widest, line.reduce((s, it) => s + units(it) * cw, 0) + (line.length - 1) * gap);
+    const seps = separators ? line.filter((it) => it.separator).length * SEPARATOR_GAPS * gap : 0;
+    widest = Math.max(widest, line.reduce((s, it) => s + itemW(it, cw), 0) + (line.length - 1) * gap + seps);
   }
   return widest;
 }
@@ -81,19 +94,47 @@ function wrap(items: LayoutItem[], cw: number, w: number, gap: number, maxLines:
   return undefined;
 }
 
-/**
- * Staggered overlap at `cw`: as many cards per line as fit with at most half a
- * card covered (so back cards never cover each other), on as few lines as possible.
- */
-function overlapRow(items: LayoutItem[], cw: number, w: number, gap: number): RowFit {
+/** The row on at most `lines` lines at `cw`; staggered (separators dropped) when it does not fit `w` flat. */
+function staggerRow(items: LayoutItem[], cw: number, w: number, gap: number, lines: number): RowFit {
   if (items.length === 0) return { ...EMPTY, cw };
-  const wide = Math.max(...items.map((it) => units(it) * cw));
-  const maxPerLine = Math.max(1, Math.floor((w - wide) / (cw / 2)) + 1);
-  const lines = Math.ceil(items.length / maxPerLine);
   const perLine = Math.ceil(items.length / lines);
-  const natural = widestLine(items, perLine, cw, gap);
-  const overlap = perLine > 1 && natural > w ? Math.min(cw / 2 + gap, (natural - w) / (perLine - 1)) : 0;
-  return { cw, lines, perLine, overlap };
+  const fit = { cw, lines: Math.ceil(items.length / perLine), perLine, overlap: 0 };
+  if (widestLine(items, perLine, cw, gap) <= w + 0.01) return fit;
+  const flat = widestLine(items, perLine, cw, gap, false);
+  return { ...fit, overlap: perLine > 1 ? Math.max(1, (flat - w) / (perLine - 1)) : Infinity };
+}
+
+const covered = (r: RowFit) => (r.cw > 0 ? r.overlap / r.cw : 0);
+
+/**
+ * Last resort: staggered lines like the hand. Picks the line counts that fit
+ * the height with the least overlap (then the fewest lines). Only when no
+ * count fits does the size drop below `cw`: cards are never clipped.
+ */
+function stagger(creatures: LayoutItem[], support: LayoutItem[], w: number, h: number, gap: number, cw: number, f: number): BattlefieldFit {
+  const both = creatures.length > 0 && support.length > 0;
+  for (let size = Math.floor(cw); size >= 8; size--) {
+    let best: { c: RowFit; s: RowFit; score: number; lines: number } | undefined;
+    for (let cl = 1; cl <= Math.min(MAX_STAGGER_LINES, Math.max(1, creatures.length)); cl++) {
+      for (let sl = 1; sl <= Math.min(MAX_STAGGER_LINES, Math.max(1, support.length)); sl++) {
+        const c = staggerRow(creatures, size, w, gap, cl);
+        const s = staggerRow(support, size * f, w, gap, sl);
+        if (covered(c) > MAX_COVER || covered(s) > MAX_COVER) continue;
+        const height =
+          rowHeight(creatures, size, c.lines, gap, c.overlap > 0) +
+          rowHeight(support, size * f, s.lines, gap, s.overlap > 0) +
+          (both ? gap : 0);
+        if (height > h + 0.01) continue;
+        const score = Math.max(covered(c), covered(s));
+        const lines = c.lines + s.lines;
+        if (!best || score < best.score - 1e-9 || (Math.abs(score - best.score) < 1e-9 && lines < best.lines)) {
+          best = { c, s, score, lines };
+        }
+      }
+    }
+    if (best) return { creatures: best.c, support: best.s, supportFactor: f };
+  }
+  return { creatures: staggerRow(creatures, 8, w, gap, 1), support: staggerRow(support, 8 * f, w, gap, 1), supportFactor: f };
 }
 
 export function fitBattlefield(
@@ -123,13 +164,7 @@ export function fitBattlefield(
       if (height <= h + 0.01) return { creatures: c, support: s, supportFactor: f };
     }
   }
-  // Last resort: staggered lines at the minimum size.
-  const f = SUPPORT_FACTORS.at(-1)!;
-  return {
-    creatures: overlapRow(creatures, minCw, w, gap),
-    support: overlapRow(support, minCw * f, w, gap),
-    supportFactor: f,
-  };
+  return stagger(creatures, support, w, h, gap, minCw, SUPPORT_FACTORS.at(-1)!);
 }
 
 /** Creatures only (Focus layout, compact seats): largest size that fits, wrapping as needed. */
@@ -141,5 +176,5 @@ export function fitRow(items: LayoutItem[], w: number, h: number, gap: number, m
       if (r && rowHeight(items, cw, r.lines, gap) <= h + 0.01) return r;
     }
   }
-  return overlapRow(items, minCw, w, gap);
+  return stagger(items, [], w, h, gap, minCw, 1).creatures;
 }

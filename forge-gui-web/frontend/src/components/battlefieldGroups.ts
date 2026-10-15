@@ -9,13 +9,27 @@ export interface Entry {
   ids: string[];
   /** First entry of a new group inside a row: gets a wider gap. */
   separator?: boolean;
-  /** Caption over the card's foot (the commander in the command zone). */
-  caption?: string;
+  /** Two-line caption over the card's foot (the commander in the command zone); `detail` may be empty. */
+  caption?: { label: string; detail: string };
 }
 
 /** Creature row (pass-3 spec, section 4): creatures, planeswalkers and battles. */
 export function inCreatureRow(c: CardView): boolean {
   return isCreature(c) || /\b(Planeswalker|Battle)\b/.test(typeLine(c));
+}
+
+/**
+ * What a compact seat (Focus layout, creature row only) does not draw: permanents
+ * outside the creature row, except attachments drawn on a creature-row host.
+ */
+export function hiddenInCompact(cards: CardView[], all: Record<string, CardView | undefined>) {
+  const hidden = cards.filter((c) => {
+    if (inCreatureRow(c)) return false;
+    const host = c.attachedTo ? all[c.attachedTo] : undefined;
+    return !(host && inCreatureRow(host));
+  });
+  const lands = hidden.filter(isLand);
+  return { others: hidden.length - lands.length, lands: lands.length, untappedLands: lands.filter((c) => !c.tapped).length };
 }
 
 /** Collapse identical tokens and lands into one entry with a count. */

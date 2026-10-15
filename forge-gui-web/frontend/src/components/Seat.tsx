@@ -1,7 +1,7 @@
-import { isCreature, isLand } from '../model/selectors';
 import type { PlayerView } from '../model/types';
 import { useMatch } from '../state/MatchContext';
 import { Battlefield } from './Battlefield';
+import { hiddenInCompact } from './battlefieldGroups';
 import { PlayerPlate } from './PlayerPlate';
 import styles from './Seat.module.css';
 
@@ -19,10 +19,10 @@ export function Seat({ player, density, orientation = 'stacked', onExpand }: Pro
   const active = game.turn.activePlayerId === player.id;
   const compact = density === 'compact';
   const side = orientation === 'side' && !compact;
-  const cards = player.battlefield.map((id) => game.cards[id]!);
-  const lands = cards.filter((c) => isLand(c) && !isCreature(c));
-  const others = cards.filter((c) => !isLand(c) && !isCreature(c));
-  const untappedLands = lands.filter((c) => !c.tapped).length;
+  const hidden = hiddenInCompact(
+    player.battlefield.map((id) => game.cards[id]!),
+    game.cards,
+  );
 
   return (
     <section
@@ -34,7 +34,7 @@ export function Seat({ player, density, orientation = 'stacked', onExpand }: Pro
         {compact ? (
           <div className={styles.summary} data-arrow-occluder>
             <span>
-              Hidden here: {others.length} other permanent{others.length === 1 ? '' : 's'}, {lands.length} lands ({untappedLands}{' '}
+              Hidden here: {hidden.others} other permanent{hidden.others === 1 ? '' : 's'}, {hidden.lands} lands ({hidden.untappedLands}{' '}
               untapped)
             </span>
           </div>
