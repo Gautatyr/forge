@@ -4,6 +4,8 @@ import type { CardFace } from '../model/types';
 import { useMatch } from '../state/MatchContext';
 import { Card } from './Card';
 import { Icon } from './Icon';
+import { KeywordBadge } from './KeywordIcons';
+import { grantedText, keywordLine } from './keywordCatalog';
 import { ManaCost } from './ManaCost';
 import styles from './Inspector.module.css';
 
@@ -60,6 +62,28 @@ export function Inspector() {
             </section>
           ))}
 
+          {c.keywords.length ? (
+            <section>
+              <h3>Keywords</h3>
+              <ul className={styles.keywords}>
+                {c.keywords.map((k, i) => {
+                  const line = keywordLine(k);
+                  const granted = grantedText(k);
+                  return (
+                    <li key={i} className={styles.keyword}>
+                      <KeywordBadge keyword={k} />
+                      <div>
+                        <p className={styles.kwName}>{k.label}</p>
+                        {line ? <p className={styles.kwLine}>{line}</p> : null}
+                        {granted ? <p className={styles.kwGranted}>{granted}</p> : null}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ) : null}
+
           {isCreature(c) && c.zone === 'battlefield' && c.power !== undefined ? (
             <section>
               <h3>Power / toughness</h3>
@@ -108,7 +132,6 @@ export function Inspector() {
                   {k.count} × {k.kind} counter
                 </li>
               ))}
-              {c.grantedKeywords.length ? <li>Gained: {c.grantedKeywords.join(', ')}</li> : null}
             </ul>
           </section>
 

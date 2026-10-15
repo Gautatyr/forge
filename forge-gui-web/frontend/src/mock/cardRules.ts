@@ -39,10 +39,12 @@ export const RULES: Record<string, CardRule> = {
   'Goblin Chieftain': {
     anthem: { power: 1, toughness: 1, keywords: ['Haste'], applies: (c) => /Goblin/.test(c.front.typeLine) },
   },
+  'Avacyn, Angel of Hope': { anthem: { power: 0, toughness: 0, keywords: ['Indestructible'], applies: () => true } },
   'Sol Ring': { mana: 2 },
   'Arcane Signet': { mana: 1 },
   'Elvish Mystic': { mana: 1 },
   'Llanowar Elves': { mana: 1 },
+  'Noble Hierarch': { mana: 1 },
 };
 
 export function rule(c: CardView): CardRule {

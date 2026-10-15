@@ -3,7 +3,10 @@ import { currentFace, isCreature } from '../model/selectors';
 import type { CardView } from '../model/types';
 import { cardStatus, type CardStatus } from '../state/cardStatus';
 import { useMatch } from '../state/MatchContext';
+import { useOverlayKey } from '../state/overlayKey';
 import { Icon, type IconName } from './Icon';
+import { KeywordIcons, KW_AVOID_ATTR, type CardActions } from './KeywordIcons';
+import { iconKeywords } from './keywordCatalog';
 import styles from './Card.module.css';
 
 export type CardContext = 'board' | 'hand' | 'thumb';
@@ -75,6 +78,7 @@ function ptDirection(c: CardView): 'up' | 'down' | undefined {
 
 export function Card({ card: c, context, count = 1, groupIds, className, style, onActivate, ariaExtra, notch = true }: Props) {
   const { game, ui, setUi, activateCard } = useMatch();
+  const words = useOverlayKey();
   // Scryfall's CDN occasionally refuses a burst of requests: retry once, then show the name.
   const [failures, setFailures] = useState<{ src: string; count: number }>();
   const s = cardStatus(game, ui, c.id);
@@ -86,6 +90,7 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
   const dir = ptDirection(c);
   // Attackers stay upright during combat so they remain readable (Arena does the same).
   const showTapped = c.tapped && onBoard && !s.attacking;
+  const hasIcons = onBoard && c.zone === 'battlefield' && iconKeywords(c.keywords).length > 0;
 
   const hover = (e: MouseEvent | FocusEvent) => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -93,6 +98,11 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
     setUi((u) => (u.hover?.cardId === c.id && u.hover.side === side ? u : { ...u, hover: { cardId: c.id, side } }));
   };
   const unhover = () => setUi((u) => (u.hover?.cardId === c.id ? { ...u, hover: undefined } : u));
+  const actions: CardActions = {
+    activate: () => (onActivate ? onActivate() : activateCard(groupIds?.[0] ?? c.id)),
+    inspect: () => setUi({ inspectId: c.id, hover: undefined }),
+  };
+  const avoid = { [KW_AVOID_ATTR]: '' };
 
   const label = [
     face.name,
@@ -100,6 +110,7 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
     c.tapped ? 'tapped' : '',
     c.power !== undefined ? `${c.power}/${c.toughness}` : '',
     s.playable ? 'playable' : '',
+    onBoard ? c.keywords.map((k) => k.label).join(', ') : '',
     ariaExtra ?? '',
   ]
     .filter(Boolean)
@@ -122,10 +133,10 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
         type="button"
         className={`${styles.card} ${ring ?? ''}`}
         aria-label={label}
-        onClick={() => (onActivate ? onActivate() : activateCard(groupIds?.[0] ?? c.id))}
+        onClick={actions.activate}
         onContextMenu={(e) => {
           e.preventDefault();
-          setUi({ inspectId: c.id, hover: undefined });
+          actions.inspect();
         }}
         onPointerEnter={hover}
         onPointerLeave={unhover}
@@ -162,27 +173,27 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
           <>
             <span className={styles.badges}>
               {badges(c, s).map((b) => (
-                <span key={b.label} className={`${styles.badge} ${b.cls}`} title={b.label}>
+                <span key={b.label} className={`${styles.badge} ${b.cls}`} title={b.label} {...avoid}>
                   <Icon name={b.icon} />
                 </span>
               ))}
             </span>
 
             {s.attacking && onBoard ? (
-              <span className={`${styles.combatStrip} ${styles.stripAttack}`} data-arrow-occluder>
+              <span className={`${styles.combatStrip} ${styles.stripAttack}`} data-arrow-occluder {...avoid}>
                 <Icon name="sword" />
                 <span>{s.attacking.defender}</span>
               </span>
             ) : null}
             {s.blocking && onBoard ? (
-              <span className={`${styles.combatStrip} ${styles.stripBlock}`} data-arrow-occluder>
+              <span className={`${styles.combatStrip} ${styles.stripBlock}`} data-arrow-occluder {...avoid}>
                 <Icon name="shield" />
                 <span>{s.blocking.attacker}</span>
               </span>
             ) : null}
 
             {onBoard && c.counters.length > 0 ? (
-              <span className={styles.counters} data-arrow-occluder>
+              <span className={styles.counters} data-arrow-occluder {...avoid}>
                 {c.counters.map((k) => (
                   <span key={k.kind} className={styles.counter} title={`${k.count} ${k.kind} counter(s)`}>
                     {k.kind === '+1/+1' ? `+${k.count}` : `${k.kind} ${k.count}`}
@@ -192,21 +203,25 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
             ) : null}
 
             {onBoard && c.damage > 0 ? (
-              <span className={styles.damage} title={`${c.damage} damage marked`} data-arrow-occluder>
+              <span className={styles.damage} title={`${c.damage} damage marked`} data-arrow-occluder {...avoid}>
                 <Icon name="burst" />
                 {c.damage}
               </span>
             ) : null}
 
             {onBoard && c.power !== undefined ? (
-              <span className={`${styles.pt} ${dir === 'up' ? styles.ptUp : dir === 'down' ? styles.ptDown : ''}`} data-arrow-occluder>
+              <span
+                className={`${styles.pt} ${dir === 'up' ? styles.ptUp : dir === 'down' ? styles.ptDown : ''}`}
+                data-arrow-occluder
+                {...avoid}
+              >
                 {dir ? <Icon name={dir} /> : null}
                 {c.power}/{c.toughness}
               </span>
             ) : null}
 
             {count > 1 ? (
-              <span className={styles.count} data-arrow-occluder>
+              <span className={`${styles.count} ${hasIcons ? styles.countLeft : ''}`} data-arrow-occluder {...avoid}>
                 ×{count}
               </span>
             ) : null}
@@ -219,6 +234,17 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
           </>
         ) : null}
       </button>
+      {onBoard && c.zone === 'battlefield' ? (
+        <span key={words ? 'words' : 'icons'} className={words ? styles.kwWords : styles.kw}>
+          <KeywordIcons
+            keywords={c.keywords}
+            tapped={showTapped}
+            above={s.attacking || s.blocking ? 'strip' : c.damage > 0 ? 'damage' : c.power !== undefined ? 'pt' : 'none'}
+            words={words}
+            card={actions}
+          />
+        </span>
+      ) : null}
     </div>
   );
 }

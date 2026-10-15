@@ -1,0 +1,199 @@
+/* Mana font 1.18.0 (SIL OFL 1.1), Arena ability symbols. Loaded only when an icon renders. */
+@font-face {
+  font-family: 'Mana';
+  src: url('mana-font/fonts/mana.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+/* Same box as the card (the parent frame rotates with tapped cards). Its width
+   picks how many icons fit: 3 from 110 px, 2 from 72 px, 1 from 3.25rem (52 px at 1080p); none on
+   smaller cards (no room beside the state badges and group count). */
+.frame {
+  position: absolute;
+  inset: 0;
+  container-type: inline-size;
+  pointer-events: none;
+}
+
+.column {
+  position: absolute;
+  right: 4%;
+  bottom: 4%;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: var(--kw-gap);
+}
+
+/* The P/T box is 1.05em of mono text plus padding, 4% from the bottom; the damage badge sits on it. */
+.abovePt {
+  bottom: calc(4% + 1.75em);
+}
+
+.aboveDamage {
+  bottom: calc(4% + 3.4em);
+}
+
+.aboveStrip {
+  /* The attack / block strip sits at 58 % from the top. */
+  bottom: calc(42% + var(--kw-gap));
+}
+
+.upright > * {
+  rotate: -90deg;
+}
+
+@container (width >= 110px) {
+  .hideL {
+    display: none !important;
+  }
+}
+
+@container (72px <= width < 110px) {
+  .hideM {
+    display: none !important;
+  }
+}
+
+@container (width < 72px) {
+  .hideS {
+    display: none !important;
+  }
+}
+
+@container (width < 3.25rem) {
+  .column {
+    display: none;
+  }
+}
+
+/* --- Disc: light glyph on a dark disc with a light rim; added = reversed ----- */
+.disc {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  min-width: var(--kw-disc);
+  height: var(--kw-disc);
+  border-radius: var(--r-pill);
+  background: var(--c-kw-disc);
+  color: var(--c-kw-glyph);
+  box-shadow: 0 0 0 1px var(--c-kw-rim);
+  pointer-events: auto;
+  cursor: help;
+}
+
+/* 24 px hit area around the 20 px disc. */
+.disc::before {
+  content: '';
+  position: absolute;
+  inset: calc((var(--kw-disc) - var(--kw-hit)) / 2);
+  border-radius: var(--r-pill);
+}
+
+.disc.granted {
+  background: var(--c-kw-granted-disc);
+  color: var(--c-kw-granted-glyph);
+  box-shadow: 0 0 0 1px var(--c-kw-granted-rim);
+}
+
+.glyph {
+  font-family: var(--font-mana);
+  font-size: var(--kw-glyph);
+  font-style: normal;
+  font-weight: normal;
+  line-height: 1;
+  speak: never;
+}
+
+.badge {
+  pointer-events: none;
+  cursor: default;
+}
+
+.more {
+  padding-inline: calc(var(--kw-gap) * 0.75);
+  font-family: var(--font-mono);
+  font-size: var(--kw-chip-fs);
+  font-weight: var(--fw-bold);
+  line-height: 1;
+}
+
+/* --- Tooltip ------------------------------------------------------------------- */
+.tip {
+  position: fixed;
+  z-index: var(--z-popover);
+  max-width: var(--kw-tip-w);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--c-panel-raised);
+  border: 1px solid var(--c-line-strong);
+  box-shadow: var(--shadow-float);
+  visibility: hidden;
+  display: grid;
+  gap: var(--sp-0);
+}
+
+.tip p {
+  margin: 0;
+}
+
+.tipName {
+  font-family: var(--font-display);
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-md);
+  color: var(--c-text);
+}
+
+.tipLine {
+  font-size: var(--fs-sm);
+  color: var(--c-text-2);
+}
+
+.tipGranted {
+  font-size: var(--fs-sm);
+  color: var(--c-text-3);
+}
+
+/* --- Word chips (overlay key held) ------------------------------------------------ */
+/* The region the chips may use; WordChips sets each chip's `bottom` so it covers
+   no overlay marked data-kw-avoid (row-gap is read as the gap between chips). */
+.words {
+  position: absolute;
+  inset: 4%;
+  row-gap: var(--sp-0);
+  pointer-events: none;
+}
+
+.word {
+  position: absolute;
+  right: 0;
+  max-width: 100%;
+  padding: 0.05em 0.45em;
+  border-radius: var(--r-pill);
+  background: var(--c-kw-disc);
+  color: var(--c-kw-glyph);
+  box-shadow: 0 0 0 1px var(--c-kw-rim);
+  font-size: var(--kw-chip-fs);
+  font-weight: var(--fw-bold);
+  line-height: 1.3;
+  /* Hover shows the full text when it is truncated (title). */
+  pointer-events: auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: none;
+}
+
+.wordMore {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.word.granted {
+  background: var(--c-kw-granted-disc);
+  color: var(--c-kw-granted-glyph);
+  box-shadow: 0 0 0 1px var(--c-kw-granted-rim);
+}

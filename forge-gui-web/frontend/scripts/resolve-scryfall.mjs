@@ -40,6 +40,10 @@ const CARDS = [
   // 1v1
   'Steel Leaf Champion', 'Questing Beast', 'Old-Growth Troll', 'Ram Through', 'Primeval Titan',
   'Monastery Swiftspear', 'Eidolon of the Great Revel', 'Heartfire Hero', 'Bonecrusher Giant',
+  // Keyword icons (pass 3): Commander table additions and the `keywords` scenario
+  'Vampire Nighthawk', 'Tolarian Terror', 'Run Amok', 'Fencing Ace', 'Giant Spider', 'Wall of Omens',
+  'Noble Hierarch', 'Avacyn, Angel of Hope', 'Silver Knight', 'Knight of Grace', "Ulamog's Crusher",
+  'Bloated Contaminator', 'Boggart Brute',
   // Tokens
   { key: 'Angel token', query: '!"Angel" t:token pow=4 tou=4 o:flying c=w' },
   { key: 'Goblin token', query: '!"Goblin" t:token pow=1 tou=1 c=r' },

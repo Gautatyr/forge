@@ -23,6 +23,7 @@
   transform: translate(-50%, -50%);
   border-radius: var(--r-card);
   font-size: var(--ofs);
+  container: card / inline-size;
   transition:
     transform var(--dur-med) var(--ease-out),
     translate var(--dur-med) var(--ease-out),
@@ -127,9 +128,46 @@
 }
 
 .dimmed .face,
-.dimmed .badges {
+.dimmed .badges,
+.dimmed .kw,
+.dimmed .kwWords {
   opacity: 0.32;
   filter: grayscale(0.75);
+}
+
+/* Keyword icons: a frame over the card box that turns and moves with it
+   (KeywordIcons turns each icon back upright). */
+.kw {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--cw);
+  height: var(--ch);
+  transform: translate(-50%, -50%);
+  font-size: var(--ofs);
+  pointer-events: none;
+  transition:
+    transform var(--dur-med) var(--ease-out),
+    translate var(--dur-med) var(--ease-out),
+    opacity var(--dur-med);
+}
+
+.tapped .kw {
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+/* Word chips (overlay key held) stay level: they use the slot, which is the
+   turned box on a tapped card. */
+.kwWords {
+  position: absolute;
+  inset: 0;
+  font-size: var(--ofs);
+  pointer-events: none;
+}
+
+.nudged .kw,
+.nudged .kwWords {
+  translate: 0 calc(var(--nudge-dir, -1) * 7%);
 }
 
 /* --- Overlays ------------------------------------------------------------------ */
@@ -297,6 +335,20 @@
   font-weight: var(--fw-bold);
   font-size: 1.25em;
   pointer-events: none;
+}
+
+.countLeft {
+  /* Keyword icons hold the right edge: the group count moves to the left. */
+  left: 4%;
+  transform: none;
+}
+
+/* No keyword icon shows on a card this narrow (KeywordIcons.module.css): the count stays centred. */
+@container card (width < 3.25rem) {
+  .countLeft {
+    left: 50%;
+    transform: translateX(-50%);
+  }
 }
 
 .playNotch {

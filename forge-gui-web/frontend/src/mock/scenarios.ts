@@ -81,6 +81,7 @@ function commanderTable(b: GameBuilder, opts: { sythisInCommand?: boolean } = {}
   b.card('Sol Ring', 'theo', 'battlefield');
   b.card('Arcane Signet', 'theo', 'battlefield');
   b.many(2, 'Drake token', 'theo', 'battlefield', { token: true });
+  b.card('Tolarian Terror', 'theo', 'battlefield');
   b.many(6, 'Island', 'theo', 'battlefield');
   b.card('Mystic Sanctuary', 'theo', 'battlefield');
   b.card('Counterspell', 'theo', 'graveyard');
@@ -93,6 +94,7 @@ function commanderTable(b: GameBuilder, opts: { sythisInCommand?: boolean } = {}
   b.card('Sakura-Tribe Elder', 'ana', 'battlefield');
   b.card('Eternal Witness', 'ana', 'battlefield', { sick: true });
   b.card('Viscera Seer', 'ana', 'battlefield');
+  b.card('Vampire Nighthawk', 'ana', 'battlefield');
   b.card('Phyrexian Arena', 'ana', 'battlefield');
   b.many(4, 'Swamp', 'ana', 'battlefield');
   b.many(3, 'Forest', 'ana', 'battlefield', { tapped: true });
@@ -294,7 +296,13 @@ export const SCENARIOS: Scenario[] = [
       );
       b.g.cards[ids.spirit]!.summoningSick = false;
       b.g.decision = { kind: 'declareBlockers', candidates, attackers, draft: [] };
-      b.log('Mira attacks Hugo with 4 creatures and Theo with 1.', 'mira', 10);
+      const runAmok = b.card('Run Amok', 'mira', 'graveyard');
+      b.g.eotEffects[ids.krenko] = [{ sourceId: runAmok, sourceName: 'Run Amok', power: 3, toughness: 3, keywords: ['Trample'] }];
+      b.log('Mira attacks Hugo with 4 creatures and Theo with 1.', 'mira', 10).log(
+        `Mira casts ${ref(runAmok)} on ${ref(ids.krenko)}: +3/+3 and trample until end of turn.`,
+        'mira',
+        10,
+      );
       return b.done();
     },
   },
@@ -382,6 +390,42 @@ export const SCENARIOS: Scenario[] = [
       yourHand(b, ['Ram Through', 'Primeval Titan', 'Forest', 'Beast Within', 'Cultivate']);
       b.turn(6, 'you', 'main1', 'you');
       b.log(`Forge AI attacks with ${ref(hero)}; Hugo takes 3 damage.`, 'ai', 5).log('Hugo draws a card.', 'you');
+      return b.done();
+    },
+  },
+  {
+    id: 'keywords',
+    label: '4b · 1v1: keyword icons',
+    description:
+      'Every kind of keyword icon: printed and added by another card (Swiftfoot Boots, Avacyn), the generic icons, +N chips, a tapped card. Hold Alt for words.',
+    build: () => {
+      const b = new GameBuilder('keywords', 'constructed');
+      b.player('you', 'Hugo', 18, { libraryCount: 44, isAi: false }).player('ai', 'Forge AI', 15, {
+        libraryCount: 45,
+        handCount: 4,
+      });
+      const hawk = b.card('Vampire Nighthawk', 'you', 'battlefield');
+      b.card('Swiftfoot Boots', 'you', 'battlefield', { attachTo: hawk });
+      b.card('Questing Beast', 'you', 'battlefield');
+      b.card('Fencing Ace', 'you', 'battlefield', { tapped: true });
+      b.card('Giant Spider', 'you', 'battlefield');
+      b.card('Wall of Omens', 'you', 'battlefield');
+      b.card('Noble Hierarch', 'you', 'battlefield', { tapped: true });
+      b.card('Monastery Swiftspear', 'you', 'battlefield', { sick: true });
+      b.many(3, 'Forest', 'you', 'battlefield');
+      b.many(2, 'Plains', 'you', 'battlefield', { tapped: true });
+      b.card('Avacyn, Angel of Hope', 'ai', 'battlefield');
+      b.card('Silver Knight', 'ai', 'battlefield');
+      b.card('Knight of Grace', 'ai', 'battlefield', { damage: 1 });
+      b.card('Tolarian Terror', 'ai', 'battlefield');
+      b.card("Ulamog's Crusher", 'ai', 'battlefield', { tapped: true });
+      b.card('Bloated Contaminator', 'ai', 'battlefield');
+      b.card('Boggart Brute', 'ai', 'battlefield');
+      b.many(3, 'Plains', 'ai', 'battlefield');
+      b.many(3, 'Island', 'ai', 'battlefield', { tapped: true });
+      yourHand(b, ['Path to Exile', 'Heroic Intervention', 'Forest', 'Beast Within']);
+      b.turn(7, 'you', 'main1', 'you');
+      b.log('Hugo draws a card.', 'you');
       return b.done();
     },
   },
