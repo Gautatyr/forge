@@ -22,6 +22,8 @@
     }
     try { return sessionStorage.getItem('forge-token'); } catch { return null; }
   })();
+  // A new URL pasted into this tab differs only by its fragment: the browser does not reload by itself.
+  window.addEventListener('hashchange', () => { if (new URLSearchParams(location.hash.slice(1)).get('token')) location.reload(); });
   const imagesBox = $('images');
   imagesBox.checked = params.get('images') === '1';
   imagesBox.addEventListener('change', queueRender);
@@ -63,15 +65,21 @@
     if (!token) { setStatus('no token: open the URL the server printed', 'down'); return; }
     const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws?token=${encodeURIComponent(token)}`);
     socket = ws;
-    ws.onopen = () => { setStatus('live', 'live'); attempt = 0; };
+    let opened = false;
+    ws.onopen = () => { opened = true; setStatus('live', 'live'); attempt = 0; };
     ws.onmessage = (ev) => {
       meter.msgs++; meter.bytes += ev.data.length;
       apply(JSON.parse(ev.data));
       queueRender();
     };
     ws.onclose = () => {
-      setStatus('disconnected', 'down');
-      setTimeout(() => connect(attempt + 1), Math.min(5000, 500 * 2 ** attempt));
+      const retry = () => setTimeout(() => connect(attempt + 1), Math.min(5000, 500 * 2 ** attempt));
+      if (opened) { setStatus('disconnected', 'down'); retry(); return; }
+      // Never opened: the browser hides why. A 403 here means this token is dead (each launch makes a new one): stop.
+      const restarted = 'cannot connect: if the server restarted, open the new URL it printed';
+      fetch(`/metrics?token=${encodeURIComponent(token)}`, { cache: 'no-store' })
+        .then((r) => { setStatus(restarted, 'down'); if (r.status !== 403) retry(); })
+        .catch(() => { setStatus(restarted, 'down'); retry(); });
     };
   }
   function setStatus(text, cls) { const s = $('status'); s.textContent = text; s.className = `pill ${cls}`; }

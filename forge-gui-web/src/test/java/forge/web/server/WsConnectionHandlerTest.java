@@ -49,8 +49,9 @@ public class WsConnectionHandlerTest {
         for (int i = 0; i < 100_000; i++) {
             hub.broadcast("delta " + i + pad);
             ChannelSink sink = handler.currentSink();
-            assertTrue(sink.queuedMessages() <= LIMITS.maxMessages(), "queue messages " + sink.queuedMessages());
-            assertTrue(sink.queuedChars() <= LIMITS.maxChars(), "queue chars " + sink.queuedChars());
+            assertTrue(sink.backlogMessages() <= LIMITS.maxMessages(), "backlog messages " + sink.backlogMessages());
+            assertTrue(sink.backlogChars() <= LIMITS.maxChars(), "backlog chars " + sink.backlogChars());
+            assertTrue(sink.queuedMessages() <= LIMITS.maxMessages() + 2, "queue messages " + sink.queuedMessages());
         }
         ch.runPendingTasks();
         assertTrue(handler.currentSink().isStale());
@@ -99,6 +100,57 @@ public class WsConnectionHandlerTest {
         assertEquals(out.size(), 2);
         assertTrue(out.get(1).startsWith("snapshot 0"));
         assertEquals(handler.resyncCount(), 0);
+    }
+
+    @Test
+    public void deltasQueuedBehindOversizedSnapshotBeforeFirstDrainAreDelivered() {
+        hub = new FakeHub();
+        hub.padSnapshots(5_000);
+        handler = new WsConnectionHandler(hub, LIMITS);
+        ch = new EmbeddedChannel(handler);
+        ch.pipeline().fireUserEventTriggered(
+                new WebSocketServerProtocolHandler.HandshakeComplete("/ws?token=t", EmptyHttpHeaders.INSTANCE, null));
+        // the game thread publishes before the event loop's first drain: the greeting is not backlog
+        List<String> deltas = new ArrayList<>();
+        for (int i = 0; i < LIMITS.maxMessages(); i++) {
+            hub.broadcast("delta " + i);
+            deltas.add("delta " + i);
+        }
+        assertEquals(handler.currentSink().backlogMessages(), LIMITS.maxMessages());
+        List<String> out = written();
+        assertEquals(out.size(), 2 + deltas.size(), String.valueOf(out));
+        assertEquals(out.get(0), "hello");
+        assertTrue(out.get(1).startsWith("snapshot 0"));
+        assertEquals(out.subList(2, out.size()), deltas);
+        assertEquals(handler.resyncCount(), 0);
+        assertEquals(hub.adds.get(), 1);
+    }
+
+    @Test
+    public void publishFromAnotherThreadWhileSubscribingIsBounded() {
+        hub = new FakeHub();
+        // GameStream releases its lock before prime() returns: a game-thread publish can land in that window
+        hub.afterNextAdd(() -> {
+            Thread game = new Thread(() -> {
+                for (int i = 0; i < 20; i++) {
+                    hub.broadcast("delta " + i);
+                }
+            });
+            game.start();
+            try {
+                game.join();
+            } catch (InterruptedException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+        handler = new WsConnectionHandler(hub, LIMITS);
+        ch = new EmbeddedChannel(handler);
+        ch.pipeline().fireUserEventTriggered(
+                new WebSocketServerProtocolHandler.HandshakeComplete("/ws?token=t", EmptyHttpHeaders.INSTANCE, null));
+        assertTrue(handler.currentSink().isStale(), "the game thread's deltas count against the limit");
+        assertEquals(written(), List.of("hello", "snapshot 1"));
+        assertEquals(handler.resyncCount(), 1);
+        assertEquals(hub.clientCount(), 1);
     }
 
     @Test

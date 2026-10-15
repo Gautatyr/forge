@@ -49,8 +49,10 @@ public class StalledClientTest {
                 hub.broadcast("delta " + i + " " + pad);
                 for (ClientSink c : hub.clients) {
                     ChannelSink sink = (ChannelSink) c;
-                    assertTrue(sink.queuedMessages() <= limits.maxMessages());
-                    assertTrue(sink.queuedChars() <= limits.maxChars());
+                    assertTrue(sink.backlogMessages() <= limits.maxMessages());
+                    assertTrue(sink.backlogChars() <= limits.maxChars());
+                    // plus at most the greeting and snapshot of the current subscription
+                    assertTrue(sink.queuedMessages() <= limits.maxMessages() + 2);
                 }
             }
             // the game keeps publishing at its own pace: the paused queue fills and the subscription goes stale

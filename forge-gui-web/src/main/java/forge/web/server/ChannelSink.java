@@ -11,21 +11,29 @@ import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 /**
  * One subscription of a WebSocket client to the stream, with a bounded send queue.
  *
- * <p>{@link #send} runs on the game thread and never blocks: it queues and schedules a drain on the
- * channel's event loop. The drain writes only while the channel is writable, so a stalled client
- * leaves messages here, not in Netty. When the queue would exceed {@link SendLimits}, it is dropped,
- * the subscription goes stale (later messages are dropped too) and {@code onOverflow} runs on the
- * event loop; the owner then replaces this subscription with a fresh one, which starts with a snapshot.
- * Messages sent while {@link #prime priming} (the greeting and snapshot) are never counted as overflow.
+ * <p>{@link #send} never blocks: it queues and schedules a drain on the channel's event loop. The
+ * drain writes only while the channel is writable, so a stalled client leaves messages here, not in
+ * Netty. When the backlog would exceed {@link SendLimits}, the queue is dropped, the subscription
+ * goes stale (later messages are dropped too) and {@code onOverflow} runs on the event loop; the
+ * owner then replaces this subscription with a fresh one, which starts with a snapshot.
+ *
+ * <p>The greeting and snapshot, sent from inside {@link #prime} on the thread running it, are queued
+ * but are not backlog: they never overflow, and later messages are checked against the backlog
+ * only. Every other send counts, including one from the game thread while priming.
  */
 final class ChannelSink implements ClientSink {
+
+    private record Entry(String json, boolean backlog) {
+    }
 
     private final Channel ch;
     private final SendLimits limits;
     private final Consumer<ChannelSink> onOverflow;
-    private final ArrayDeque<String> queue = new ArrayDeque<>();
+    private final ArrayDeque<Entry> queue = new ArrayDeque<>();
     private long queuedChars;
-    private boolean priming;
+    private int backlogMessages;
+    private long backlogChars;
+    private Thread primingThread;
     private boolean stale;
     private boolean closed;
     private boolean drainScheduled;
@@ -48,14 +56,19 @@ final class ChannelSink implements ClientSink {
             if (stale || closed) {
                 return;
             }
-            if (!priming && !queue.isEmpty()
-                    && (queue.size() >= limits.maxMessages() || queuedChars + json.length() > limits.maxChars())) {
+            boolean backlog = primingThread != Thread.currentThread();
+            if (backlog && backlogMessages > 0
+                    && (backlogMessages >= limits.maxMessages() || backlogChars + json.length() > limits.maxChars())) {
                 dropQueue();
                 stale = true;
                 overflow = true;
             } else {
-                queue.addLast(json);
+                queue.addLast(new Entry(json, backlog));
                 queuedChars += json.length();
+                if (backlog) {
+                    backlogMessages++;
+                    backlogChars += json.length();
+                }
                 schedule = !drainScheduled;
                 drainScheduled = true;
             }
@@ -71,16 +84,16 @@ final class ChannelSink implements ClientSink {
         }
     }
 
-    /** Runs {@code subscribe}, during which sent messages bypass the queue limits. */
+    /** Runs {@code subscribe}; what it sends on the calling thread is exempt from the queue limits. */
     void prime(Runnable subscribe) {
         synchronized (this) {
-            priming = true;
+            primingThread = Thread.currentThread();
         }
         try {
             subscribe.run();
         } finally {
             synchronized (this) {
-                priming = false;
+                primingThread = null;
             }
         }
     }
@@ -106,12 +119,22 @@ final class ChannelSink implements ClientSink {
         return stale;
     }
 
+    /** Everything queued, greeting and snapshot included. */
     synchronized int queuedMessages() {
         return queue.size();
     }
 
     synchronized long queuedChars() {
         return queuedChars;
+    }
+
+    /** Queued messages that count against {@link SendLimits}. */
+    synchronized int backlogMessages() {
+        return backlogMessages;
+    }
+
+    synchronized long backlogChars() {
+        return backlogChars;
     }
 
     private void drain() {
@@ -123,8 +146,13 @@ final class ChannelSink implements ClientSink {
                     drainScheduled = false;
                     break;
                 }
-                next = queue.pollFirst();
+                Entry e = queue.pollFirst();
+                next = e.json();
                 queuedChars -= next.length();
+                if (e.backlog()) {
+                    backlogMessages--;
+                    backlogChars -= next.length();
+                }
             }
             ch.write(new TextWebSocketFrame(next));
             wrote = true;
@@ -137,5 +165,7 @@ final class ChannelSink implements ClientSink {
     private void dropQueue() {
         queue.clear();
         queuedChars = 0;
+        backlogMessages = 0;
+        backlogChars = 0;
     }
 }

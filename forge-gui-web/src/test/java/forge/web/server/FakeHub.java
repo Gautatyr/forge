@@ -12,17 +12,31 @@ final class FakeHub implements StreamHub {
     final AtomicInteger adds = new AtomicInteger();
     private int snapshots;
     private String snapshotPadding = "";
+    private Runnable afterNextAdd;
 
     synchronized void padSnapshots(int chars) {
         snapshotPadding = "x".repeat(chars);
     }
 
+    /** Runs once, at the end of the next {@link #addClient}, after the hub lock is released (as GameStream does). */
+    synchronized void afterNextAdd(Runnable r) {
+        afterNextAdd = r;
+    }
+
     @Override
-    public synchronized void addClient(ClientSink c) {
-        c.send("hello");
-        c.send("snapshot " + snapshots++ + snapshotPadding);
-        clients.add(c);
-        adds.incrementAndGet();
+    public void addClient(ClientSink c) {
+        Runnable after;
+        synchronized (this) {
+            c.send("hello");
+            c.send("snapshot " + snapshots++ + snapshotPadding);
+            clients.add(c);
+            adds.incrementAndGet();
+            after = afterNextAdd;
+            afterNextAdd = null;
+        }
+        if (after != null) {
+            after.run();
+        }
     }
 
     @Override
