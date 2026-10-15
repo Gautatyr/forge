@@ -38,6 +38,11 @@ Source: [mockup-review-1.md](mockup-review-1.md).
 - **Open, delegated to product:** how to show the turn sequence and phase stops (the current dots are unclear); where manual mana payment and floating mana go.
 - **Open, from the orchestrator's review:** opponents' cards are too small to read; space is underused.
 
+## Language (2026-10-15)
+- The match screen is switchable between **English and French**: UI text, keyword explanations, card names and text, and card images where Scryfall has French printings.
+- Forge already ships the data: `forge-gui/res/languages/fr-FR.properties` (UI strings) and `forge-gui/res/languages/cardnames-fr-FR.txt` (card names and text).
+- Layouts and copy must leave room for French, which runs longer than English.
+
 ## Facts checked in the code (2026-10-15)
 - The engine's 13 prompt messages that need an answer fit 5 shapes: choose N from a list (min/max), yes/no, order (including moving between two lists), distribute an amount, type a text or number (`showInputDialog`). One generic choice tray can render them all. See [../architecture/web-ui.md](../architecture/web-ui.md).
 - Sideboarding between games uses the generic two-list order dialog on desktop (`forge-gui-desktop/src/main/java/forge/gui/GuiChoose.java:227`), so the choice tray covers it.
