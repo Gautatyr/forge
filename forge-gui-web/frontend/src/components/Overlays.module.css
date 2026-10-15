@@ -249,7 +249,8 @@
 .devToggle {
   position: fixed;
   left: var(--sp-1);
-  top: 0.15rem;
+  /* Bottom-left corner: the top-left one holds whose turn it is. */
+  bottom: 0.15rem;
   z-index: var(--z-popover);
   padding: 0 var(--sp-1);
   line-height: 1.3;

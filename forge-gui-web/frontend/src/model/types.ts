@@ -159,12 +159,6 @@ export interface CombatState {
   blocks: Block[];
 }
 
-/** One step of the turn the player stops at, per whose turn it is. */
-export interface PhaseStops {
-  yourTurn: StepId[];
-  opponentsTurn: StepId[];
-}
-
 /* ---------------------------------------------------------------------------
  * Prompts. The engine's 13 answer-needing messages fit five shapes; one
  * generic choice tray renders them all.
@@ -267,7 +261,6 @@ export interface GameView {
   turn: TurnState;
   combat?: CombatState;
   decision: Decision;
-  stops: PhaseStops;
   /** Pass priority automatically when you have no possible action. Off by default (D4). */
   autoPass: boolean;
   /** Honour per-ability auto-yields set on stack items. Off by default (D4). */

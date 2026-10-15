@@ -12,7 +12,7 @@ import styles from './ActionPanel.module.css';
  */
 export function ActionPanel() {
   const { game, ui, prefs, send, setUi, canUndo } = useMatch();
-  const action = primaryAction(game, ui);
+  const action = primaryAction(game, ui, prefs.stops);
   const prompt = promptText(game);
   const d = game.decision;
   const canCancel =
@@ -73,9 +73,13 @@ export function ActionPanel() {
             {action.tone === 'attack' ? <Icon name="sword" /> : action.tone === 'block' ? <Icon name="shield" /> : null}
             {!action.enabled && d.kind === 'waiting' ? <Icon name="hourglass" /> : null}
             {action.label}
+            {action.enabled ? <kbd className={styles.key}>Space</kbd> : null}
           </span>
-          {action.detail ? <span className={styles.primaryDetail}>{action.detail}</span> : null}
-          {action.enabled ? <kbd className={styles.key}>Space</kbd> : null}
+          {action.detail ? (
+            <span className={styles.primaryDetail} title={action.detail}>
+              {action.detail}
+            </span>
+          ) : null}
         </button>
       </div>
 
