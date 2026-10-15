@@ -15,13 +15,13 @@ export default tseslint.config(
     },
   },
   {
-    // Generated wire types are for the adapter in src/wire/ only; everything else uses the UI view-model.
+    // Generated wire types are for the adapter (src/wire/, src/adapter/) only; everything else uses the UI view-model.
     files: ['**/*.{ts,tsx}'],
-    ignores: ['src/wire/**'],
+    ignores: ['src/wire/**', 'src/adapter/**'],
     rules: {
       'no-restricted-imports': [
         'error',
-        { patterns: [{ group: ['**/wire/generated', '**/wire/generated/**'], message: 'Only src/wire/ may import the generated wire types.' }] },
+        { patterns: [{ group: ['**/wire/generated', '**/wire/generated/**'], message: 'Only src/wire/ and src/adapter/ may import the generated wire types.' }] },
       ],
     },
   },

@@ -104,3 +104,10 @@ Newest last. Each entry: the decision, why, and what it implies.
 - Stops live in the match screen's prefs (`prefs.stops`), not in the view-model: `GameView.stops` and the `setStop` intent are removed. This follows Forge, where the GUI owns stops and the engine asks `IGuiGame.isUiSetToSkipPhase(turnPlayer, phase)`.
 - The bridge (#11) must answer `isUiSetToSkipPhase` from stops the client sends; the message for that is not designed yet.
 - Defaults are Forge's (`ForgePreferences` PHASE_HUMAN_* / PHASE_AI_*). Shared rows persist; per-opponent rows last one match.
+## 2026-10-16 — Live adapter (issue #11)
+- `forge-gui-web/frontend/src/adapter/` maps the bridge stream to the UI view-model and may import the generated wire types (ESLint allows `src/wire/` and `src/adapter/`). Components still see only `src/model/`.
+- The page picks its source from the URL: mock scenarios (default), `?live=…` (bridge), `?replay=…` (recorded stream in `src/adapter/fixtures/`). The Mock panel switches back to mock scenarios.
+- Prompt/reply and call shapes the client expects from #8: `src/adapter/protocol.ts`. Client commands are `{"t":"<IGameController method>","args":[…]}`, like the existing `requestResync`.
+- Forge inputs are inferred from calls (`showPromptMessage`, `updateButtons`, selectables) plus phase: OK + End Turn/Undo = priority; attack/block steps = declare decisions; selectables = targets; any other two-button input (mulligan, pay mana) = a yes/no tray answered with selectButtonOk/Cancel.
+- Until #10 serves images, live card images resolve through Scryfall `cards/collection` in batches (per-card `cards/named` redirects hit Scryfall's rate limit on a full board).
+- Not done: client stops for `isUiSetToSkipPhase` (entry above) and yield settings (`sendYieldUpdate`): no wire form yet.
