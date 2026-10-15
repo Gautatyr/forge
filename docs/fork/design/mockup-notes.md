@@ -100,3 +100,27 @@ Every battlefield picks its own arrangement (creatures and lands in two rows, or
 `forge-gui-web/frontend/docs/screenshots/` holds 9 committed JPEGs (about 3 MB): the three 4-player layouts, blockers, scry, 1v1, a 12-card hand, the inspector, and a deuteranopia simulation.
 
 The full PNG set (34 views at 1366, 1920 and 2560 px, plus 5 colour-blind simulations, about 53 MB) is kept out of git: `*.png` in that folder is ignored. It exists only on the machine where it was taken; regenerate it with the Playwright browser tools when needed.
+
+## Pass 2 (2026-10-15)
+Clear-cut rulings from [mockup-review-1.md](mockup-review-1.md). Product decisions (phase stops, mana payment, keyword icons, opponents' card size) are not in this pass.
+
+| Ruling | Change | Code |
+|---|---|---|
+| Target highlights follow the stack | One stack item is in the spotlight: the top one by default, or the hovered one. Only its targets get the purple ring, the target badge and the dashed line; targeted players get a ring and a "Targeted" tag. Other items show nothing until hovered. Default spotlight is off while you choose targets (legal-target rings win). Hover text still names every item targeting a card. The stack list scrolls; the line start is clamped inside it. | `state/cardStatus.ts` (`spotlightItem`, `playerTargetSpot`), `Arrows.tsx`, `Rail.tsx`, `PlayerPlate.tsx` |
+| Side panel scrolling | Every rail region (stack, combat, open zone, recent) keeps its header and scrolls its own body. Regions size to content and share the shortfall; floors keep each header and a few lines visible; the rail scrolls as a last resort. Recent shows the last 20 events, newest first. | `Rail.module.css`, `CombatPanel.module.css` |
+| UI scale slider | Dragging previews the value ("release to apply"); the scale applies on the native `change` event (pointer release, or each keyboard step). | `Overlays.tsx` (`ScaleSlider`) |
+| Stable controls | Action panel, bottom up: auto-pass switch; fixed two-column row Undo / To my turn (Stop passing in the same slot); main button with a fixed minimum height; a reserved one-row slot for contextual buttons (Attack all, Cancel). Cancel moved out of the Undo row. The prompt text may use the empty slot. "Attack with all (N)" is now "Attack all (N)". | `ActionPanel.tsx`, `ActionPanel.module.css` |
+| Focus layout default | Focus is screen state, no longer a saved preference. An opponent's turn starts: focus them. Your turn: keep the current focus (first load: the opponent who played before you). Attacking an opponent (attacker toggle, Attack all, defender pick) focuses them. "Show board" overrides until the next of these. The button moved into the compact plate's name row, so a short seat can no longer clip it. | `state/focus.ts`, `MatchContext.tsx`, `Board.tsx`, `PlayerPlate.tsx` |
+| Board split configurable | Display → "Board height for opponents": 35 / 40 / 45 / 50 / 55 %, default 45. Applies to Columns, Focus and Table (Table's top row was 42 %, now follows the setting). 1v1 stays 50 / 50. | `state/prefs.ts` (`opponentShare`), `Board.tsx`, `Overlays.tsx` |
+| Hand beyond 9 cards | 10+ cards stagger at full size at once (pass 1 shrank to 85 % first). They stay flat only if all fit at full size with no overlap. Cards shrink only when back cards would collide. Measured at 1920×1080 with 2 other-zone cards: 9 → 135 px (flat), 10 and 12 → 161 px, 15 → 158 px. | `handLayout.ts` |
+| No per-colour untapped mana for opponents | Confirmed none exists. Compact seats show only a land count with the number untapped. | — |
+
+New scenarios: `stack6` (six-item stack, three players, card and player targets), `hand10`, `hand15`. The Focus scenario at load now focuses Ana (played before you) instead of Mira.
+
+The mock engine now resolves abilities and triggers without moving their source (Goblin Bombardment deals 1 damage; other abilities log their text).
+
+Tests: 34 (pass 1: 17). New: spotlight (`state/stackSpotlight.test.ts`), focus (`state/focus.test.ts`), hand 10/12/15 and 10 + 2 (`components/layout.test.ts`). The auto-pass/auto-yield default test now covers every scenario.
+
+Verified with Playwright at 1920×1080 and 1366×768 (desktop context, device scale 1): every scenario in all three layouts with no console errors or warnings. Undo, To my turn and the auto-pass switch keep identical rects in 18 states, including targeting, attack drafts, pending blocks, passing to your turn and waiting. Rail regions scroll independently with the stack, an open graveyard and recent events all visible at 1366×768. The scale stays unchanged while dragging and applies on release and on arrow, Home and End keys. All 9 committed JPEGs were regenerated. The deuteranopia JPEG uses the Machado 2009 matrix in linear RGB (ImageMagick `-color-matrix`).
+
+Not addressed, waiting on product: at 1366×768 the compact plate of an opponent with a commander thumbnail (Theo) is still taller than its seat, and its bottom chips are clipped.
