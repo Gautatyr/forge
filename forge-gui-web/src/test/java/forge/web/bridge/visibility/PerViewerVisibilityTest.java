@@ -384,6 +384,28 @@ public class PerViewerVisibilityTest {
     }
 
     @Test
+    public void wholeCardFollowsTheLiveViewNotAnotherInstanceInThePacket() {
+        start(2);
+        Card bears = TestEngine.add("Grizzly Bears", p0, ZoneType.Battlefield);
+        bears.turnFaceDown(true);
+        // seen in AI Commander games: a card cast face down is new in the packet as another instance
+        // with its id that is not face down, while the live (zone) instance is
+        JsonObject other = new JsonObject();
+        other.addProperty("Zone", "Stack");
+        other.addProperty("Owner", p0.getId());
+        other.addProperty("Controller", p0.getId());
+        other.addProperty("GamePieceType", "CARD");
+        other.addProperty("Sickness", true);
+        Flush f = new Flush(LiveCards.of(game.getView()),
+                List.of(new Flush.Entry(new ObjRef("card", bears.getId(), null), other)), List.of(), Set.of());
+        ViewerStream vs = new ViewerStream(Viewer.seat(1, List.of(p0.getView(), p1.getView())));
+        JsonObject sent = vs.apply(f).news().stream().filter(o -> "card".equals(o.type())).findFirst().orElseThrow().props();
+        assertTrue(sent.has("Facedown") && sent.get("Facedown").getAsBoolean(), "sent " + sent);
+        assertEquals(sent.get("CurrentState").getAsString(), "FaceDown");
+        assertEquals(sent.get("Zone").getAsString(), "Battlefield");
+    }
+
+    @Test
     public void ownLibraryCardIsVisibleOnlyWhileLookedAt() {
         start(2);
         Card top = TestEngine.add("Lightning Bolt", p0, ZoneType.Library);

@@ -80,31 +80,24 @@ public final class Flush {
         return packetCards.containsKey(cardId);
     }
 
-    /** All properties of a card: the packet's if it sent the card whole, else the live view's; null if unknown. */
+    /**
+     * All properties of a card: the live view's, the instance its visibility is decided on; the
+     * packet's only if no live view has the id (the packet can hold another instance with the
+     * same id, e.g. a card cast face down that is not face down there). Null if unknown.
+     */
     public JsonObject cardProps(int id) {
-        JsonObject p = packetCards.get(id);
-        if (p != null) {
-            return p;
-        }
         CardView cv = live.get(id);
         if (cv == null) {
-            return null;
+            return packetCards.get(id);
         }
         return liveCardCache.computeIfAbsent(id, k -> WireEncoder.encodeProps(cv.getProps()));
     }
 
-    /** {@code state name -> properties} of a card's states: live ones, overridden by the packet's whole ones. */
+    /** {@code state name -> properties} of a card's states, from the same instance as {@link #cardProps}. */
     public Map<String, JsonObject> cardStates(int id) {
-        Map<String, JsonObject> out = new LinkedHashMap<>();
         CardView cv = live.get(id);
-        if (cv != null) {
-            out.putAll(liveStateCache.computeIfAbsent(id, k -> encodeStates(cv)));
-        }
-        Map<String, JsonObject> fromPacket = packetStates.get(id);
-        if (fromPacket != null) {
-            out.putAll(fromPacket);
-        }
-        return out;
+        Map<String, JsonObject> states = cv != null ? liveStateCache.computeIfAbsent(id, k -> encodeStates(cv)) : packetStates.get(id);
+        return states == null ? new LinkedHashMap<>() : new LinkedHashMap<>(states);
     }
 
     private static Map<String, JsonObject> encodeStates(CardView cv) {
