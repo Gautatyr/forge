@@ -34,6 +34,31 @@ describe('handGeometry (ruling D2)', () => {
     expect(g.cardH + g.raise).toBeLessThanOrEqual(H);
   });
 
+  // Ruling from mockup review 1: beyond 9 cards, stagger right away; no shrinking step first.
+  const full = handGeometry(1, 0, W, H, REM).cardW;
+  for (const n of [10, 12, 15]) {
+    it(`staggers ${n} cards at full size`, () => {
+      const g = handGeometry(n, 0, W, H, REM);
+      expect(g.stagger).toBe(true);
+      expect(g.cardW).toBeCloseTo(full, 5);
+      expect((n - 1) * g.step + g.cardW).toBeLessThanOrEqual(W + 0.01);
+      expect(2 * g.step).toBeGreaterThanOrEqual(g.cardW - 0.01);
+    });
+  }
+
+  it('staggers 10 cards plus 2 castable from other zones at full size', () => {
+    const g = handGeometry(10, 2, W, H, REM);
+    expect(g.stagger).toBe(true);
+    expect(g.cardW).toBeCloseTo(full, 5);
+  });
+
+  it('keeps 10+ cards flat only when they fit at full size with no overlap', () => {
+    const g = handGeometry(10, 0, 4000, H, REM);
+    expect(g.stagger).toBe(false);
+    expect(g.cardW).toBeCloseTo(full, 5);
+    expect(g.step).toBeGreaterThanOrEqual(g.cardW);
+  });
+
   it('fits 20 cards in the width', () => {
     const g = handGeometry(20, 0, W, H, REM);
     expect(19 * g.step + g.cardW).toBeLessThanOrEqual(W + 0.01);

@@ -22,7 +22,7 @@ export function CombatPanel() {
           <Icon name="sword" /> Declare attackers
         </h2>
         <p className={styles.hint}>Click your creatures to attack. New attackers go at:</p>
-        <div className={styles.defenders} role="radiogroup" aria-label="Player to attack">
+        <div className={styles.defenders} role="radiogroup" aria-label="Player to attack" data-scroll-region>
           {d.defenders.map((id) => {
             const p = player(game, id);
             const n = attacks.filter((a) => a.defenderId === id).length;
@@ -34,7 +34,7 @@ export function CombatPanel() {
                 role="radio"
                 aria-checked={on}
                 className={`${styles.defender} ${on ? styles.on : ''}`}
-                onClick={() => setUi({ attackDefender: id })}
+                onClick={() => setUi({ attackDefender: id, focusOpponentId: id })}
               >
                 {on ? <Icon name="check" /> : <SeatGlyph seat={p.seat} />}
                 {p.name}
@@ -69,7 +69,7 @@ export function CombatPanel() {
           <Icon name="check" /> {pendingAttacker.name}: now click your creature that blocks it.
         </p>
       ) : null}
-      <ul className={styles.list}>
+      <ul className={styles.list} data-scroll-region>
         {attacks.map((a) => {
           const att = game.cards[a.attackerId];
           const def = player(game, a.defenderId);

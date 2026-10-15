@@ -20,17 +20,34 @@ export function ActionPanel() {
         {promptText(game)}
       </p>
 
-      {d.kind === 'declareAttackers' ? (
-        <button
-          type="button"
-          className={styles.secondary}
-          onClick={() => send({ type: 'attackWithAll', defenderId: ui.attackDefender ?? d.defenders[0]! })}
-        >
-          <Icon name="sword" />
-          Attack with all ({d.candidates.length})
-          <kbd>A</kbd>
-        </button>
-      ) : null}
+      {/* Reserved slot for contextual buttons: always takes its height, so
+          nothing below it moves when they come and go (mockup review 1). */}
+      <div className={styles.contextual}>
+        {d.kind === 'declareAttackers' ? (
+          <button
+            type="button"
+            className={styles.secondary}
+            onClick={() => send({ type: 'attackWithAll', defenderId: ui.attackDefender ?? d.defenders[0]! })}
+          >
+            <Icon name="sword" />
+            Attack all ({d.candidates.length})
+            <kbd>A</kbd>
+          </button>
+        ) : null}
+        {canCancel ? (
+          <button
+            type="button"
+            className={styles.small}
+            onClick={() => {
+              send({ type: 'cancel' });
+              setUi({ pendingAttacker: undefined, pendingBlocker: undefined });
+            }}
+          >
+            <Icon name="close" />
+            Cancel <kbd>Esc</kbd>
+          </button>
+        ) : null}
+      </div>
 
       <div className={styles.mainRow}>
         <button
@@ -49,20 +66,8 @@ export function ActionPanel() {
         </button>
       </div>
 
-      <div className={styles.row}>
-        {canCancel ? (
-          <button
-            type="button"
-            className={styles.small}
-            onClick={() => {
-              send({ type: 'cancel' });
-              setUi({ pendingAttacker: undefined, pendingBlocker: undefined });
-            }}
-          >
-            <Icon name="close" />
-            Cancel <kbd>Esc</kbd>
-          </button>
-        ) : null}
+      {/* Persistent controls: fixed slots, never reordered or wrapped. */}
+      <div className={styles.persistent}>
         <button type="button" className={styles.small} disabled={!canUndo} onClick={() => send({ type: 'undo' })}>
           <Icon name="undo" />
           Undo <kbd>Z</kbd>

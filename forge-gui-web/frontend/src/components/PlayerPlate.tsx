@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import { commanderTax } from '../model/selectors';
 import type { PlayerView } from '../model/types';
+import { playerTargetSpot, spotlightItem } from '../state/cardStatus';
 import { useMatch } from '../state/MatchContext';
 import type { ViewableZone } from '../state/ui';
 import { Card } from './Card';
@@ -12,9 +13,11 @@ interface Props {
   density: 'full' | 'compact';
   /** Life on top, details below: used when the plate sits left of the battlefield. */
   vertical?: boolean;
+  /** Focus layout, compact seats: expand this opponent. Lives in the name row so a short seat never clips it. */
+  onExpand?: () => void;
 }
 
-export function PlayerPlate({ player: p, density, vertical = false }: Props) {
+export function PlayerPlate({ player: p, density, vertical = false, onExpand }: Props) {
   const { game, ui, setUi, activatePlayer } = useMatch();
   const d = game.decision;
   const active = game.turn.activePlayerId === p.id;
@@ -26,6 +29,8 @@ export function PlayerPlate({ player: p, density, vertical = false }: Props) {
   const incoming = game.combat?.attacks.filter((a) => a.defenderId === p.id).length ?? 0;
   const draftIncoming = d.kind === 'declareAttackers' ? d.draft.filter((a) => a.defenderId === p.id).length : 0;
   const clickable = legalTarget || defenderPick;
+  const stackSpot = playerTargetSpot(game, ui, p.id);
+  const spotSource = stackSpot ? game.cards[spotlightItem(game, ui)?.sourceCardId ?? '']?.name : undefined;
 
   const zoneChip = (zone: ViewableZone | 'hand' | 'library', icon: IconName, label: string, n: number) => {
     const viewable = zone === 'graveyard' || zone === 'exile';
@@ -64,7 +69,11 @@ export function PlayerPlate({ player: p, density, vertical = false }: Props) {
       ? styles.ringDefender
       : legalTarget || defenderPick
         ? styles.ringActionable
-        : '';
+        : stackSpot === 'hover'
+          ? styles.ringTargetedStrong
+          : stackSpot === 'top'
+            ? styles.ringTargeted
+            : '';
 
   return (
     <div
@@ -93,6 +102,21 @@ export function PlayerPlate({ player: p, density, vertical = false }: Props) {
             <SeatGlyph seat={p.seat} />
           </span>
           <span className={styles.name}>{p.isYou ? `${p.name} (you)` : p.name}</span>
+          {onExpand ? (
+            <button
+              type="button"
+              className={styles.expand}
+              onClick={(e) => {
+                e.stopPropagation();
+                onExpand();
+              }}
+              aria-label={`Show ${p.name}'s whole board`}
+              title="Show whole board"
+            >
+              <Icon name="eye" />
+              Show board
+            </button>
+          ) : null}
           {active ? (
             <span className={`${styles.tag} ${styles.tagTurn}`}>
               <Icon name="play" />
@@ -115,6 +139,12 @@ export function PlayerPlate({ player: p, density, vertical = false }: Props) {
             <span className={`${styles.tag} ${styles.tagAttacked}`}>
               <Icon name="sword" />
               {draftIncoming} from you
+            </span>
+          ) : null}
+          {stackSpot ? (
+            <span className={`${styles.tag} ${styles.tagTargeted}`} title={`Targeted by ${spotSource ?? 'a stack item'}`}>
+              <Icon name="target" />
+              Targeted
             </span>
           ) : null}
           {legalTarget && !chosenTarget ? (

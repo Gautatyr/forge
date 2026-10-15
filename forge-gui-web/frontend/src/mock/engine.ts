@@ -313,13 +313,11 @@ function resolveTop(g: MockGame) {
     return;
   }
   const t = liveTargets[0];
-  switch (item.kind === 'trigger' ? `trigger:${src.name}` : src.name) {
-    case 'trigger:Sigil of the Empty Throne': {
-      const angel = newCard(g, 'Angel token', caster.id, 'battlefield', true);
-      caster.battlefield.push(angel.id);
-      log(g, `${ref(src.id)} creates a 4/4 Angel token.`, caster.id);
-      return;
-    }
+  if (item.kind !== 'spell') {
+    resolveAbility(g, item, src, t);
+    return;
+  }
+  switch (src.name) {
     case 'Lightning Bolt':
       if (t?.kind === 'card') {
         const tc = g.cards[t.id]!;
@@ -365,6 +363,34 @@ function resolveTop(g: MockGame) {
       log(g, `${ref(src.id)} resolves.`, caster.id);
   }
   if (src.zone === 'stack') moveCard2(g, src, 'graveyard');
+}
+
+/** Abilities and triggers: the source stays where it is. */
+function resolveAbility(g: MockGame, item: StackItem, src: CardView, t: TargetRef | undefined) {
+  const caster = player(g, item.controllerId);
+  switch (src.name) {
+    case 'Sigil of the Empty Throne': {
+      const angel = newCard(g, 'Angel token', caster.id, 'battlefield', true);
+      caster.battlefield.push(angel.id);
+      log(g, `${ref(src.id)} creates a 4/4 Angel token.`, caster.id);
+      return;
+    }
+    case 'Goblin Bombardment':
+      if (t?.kind === 'player') {
+        const p = player(g, t.id);
+        p.life -= 1;
+        log(g, `${ref(src.id)} deals 1 damage to ${p.name}.`, caster.id);
+      } else if (t?.kind === 'card') {
+        const tc = g.cards[t.id]!;
+        tc.damage += 1;
+        log(g, `${ref(src.id)} deals 1 damage to ${ref(tc.id)}.`, caster.id);
+        recompute(g);
+        if (tc.toughness !== undefined && tc.damage >= tc.toughness) destroy(g, tc.id, 'dies');
+      }
+      return;
+    default:
+      log(g, `${ref(src.id)}: ${item.text}`, caster.id);
+  }
 }
 
 /** Move a card that is on the stack (no zone list holds it). */

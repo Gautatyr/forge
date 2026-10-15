@@ -13,6 +13,8 @@ export interface UiState {
   /** Defender that newly toggled attackers will attack. */
   attackDefender?: PlayerId;
   hoveredStackItem?: StackItemId;
+  /** Focus layout: the expanded opponent (see focus.ts for when it changes). */
+  focusOpponentId?: PlayerId;
   /** Choice tray collapsed to peek at the board. */
   trayPeek: boolean;
   logOpen: boolean;

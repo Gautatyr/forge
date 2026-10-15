@@ -29,11 +29,12 @@ function ringClass(s: CardStatus): string | undefined {
   if (s.selected) return styles.ringSelected;
   if (s.attacking) return styles.ringAttack;
   if (s.blocking) return styles.ringBlock;
-  if (s.targetHighlight) return styles.ringTargetedStrong;
+  // While you choose targets, legal targets keep their own ring.
   if (s.actionable && s.actionKind === 'target') return styles.ringTarget;
+  if (s.targetSpot === 'hover') return styles.ringTargetedStrong;
+  if (s.targetSpot === 'top') return styles.ringTargeted;
   if (s.actionable && s.actionKind === 'blockTarget') return styles.ringIncoming;
   if (s.actionable) return styles.ringActionable;
-  if (s.targetedBy.length) return styles.ringTargeted;
   return undefined;
 }
 
@@ -54,7 +55,7 @@ function badges(c: CardView, s: CardStatus): Badge[] {
     out.push({ icon: 'shield', cls: styles.bActionable!, label: 'Can block' });
   if (s.actionable && s.actionKind === 'attack' && !s.attacking)
     out.push({ icon: 'sword', cls: styles.bActionable!, label: 'Can attack' });
-  if (s.targetedBy.length)
+  if (s.targetSpot)
     out.push({ icon: 'target', cls: styles.bTargeted!, label: `Targeted by ${s.targetedBy.join(', ')}` });
   if (c.isCommander) out.push({ icon: 'crown', cls: styles.bNeutral!, label: 'Commander' });
   if (c.summoningSick && isCreature(c) && c.zone === 'battlefield')

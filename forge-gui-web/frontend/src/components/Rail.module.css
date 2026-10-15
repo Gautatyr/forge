@@ -5,7 +5,8 @@
   gap: var(--sp-2);
   padding: var(--sp-2);
   min-height: 0;
-  overflow: hidden;
+  /* Last resort only: each region below scrolls its own body first. */
+  overflow-y: auto;
   border-left: 1px solid var(--c-line);
   background: var(--c-bg);
 }
@@ -19,23 +20,36 @@
   background: var(--c-panel);
   border: 1px solid var(--c-line);
   min-height: 0;
+  overflow: hidden;
 }
 
+/* Header and hint stay put; the body scrolls. */
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-line-strong) transparent;
+}
+
+/* Regions size to their content and share the shortfall in proportion;
+   the floors keep every header and a few lines of each region visible. */
 .stack {
   border-color: var(--c-priority);
-  flex: none;
-  max-height: 60%;
-  overflow-y: auto;
+  flex: 0 1 auto;
+  max-height: 50%;
+  min-height: min(10.5rem, 50%);
 }
 
 .zone {
-  flex: 1 1 auto;
-  overflow-y: auto;
+  flex: 0 1 auto;
+  min-height: 9rem;
 }
 
 .recent {
-  flex: 1 1 0;
-  overflow: hidden;
+  flex: 1 1 auto;
+  min-height: 8.5rem;
 }
 
 .head {
@@ -69,7 +83,8 @@
 .items {
   list-style: none;
   margin: 0;
-  padding: 0;
+  /* Room for the order pills that sit over the item corner. */
+  padding: 0.5rem 0 0 0.35rem;
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
@@ -85,7 +100,7 @@
   border: 1px solid transparent;
 }
 
-.itemHover {
+.itemSpot {
   border-color: var(--c-targeted);
 }
 

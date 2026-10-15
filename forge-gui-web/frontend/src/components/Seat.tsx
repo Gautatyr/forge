@@ -2,7 +2,6 @@ import { isCreature, isLand } from '../model/selectors';
 import type { PlayerView } from '../model/types';
 import { useMatch } from '../state/MatchContext';
 import { Battlefield } from './Battlefield';
-import { Icon } from './Icon';
 import { PlayerPlate } from './PlayerPlate';
 import styles from './Seat.module.css';
 
@@ -31,19 +30,13 @@ export function Seat({ player, density, orientation = 'stacked', onExpand }: Pro
       aria-label={player.isYou ? 'Your side' : `${player.name}'s side`}
     >
       <div className={`${styles.plateCol} ${compact ? styles.compactCol : ''}`}>
-        <PlayerPlate player={player} density={density} vertical={side && !compact} />
+        <PlayerPlate player={player} density={density} vertical={side && !compact} onExpand={onExpand} />
         {compact ? (
           <div className={styles.summary}>
             <span>
               Hidden here: {others.length} other permanent{others.length === 1 ? '' : 's'}, {lands.length} lands ({untappedLands}{' '}
               untapped)
             </span>
-            {onExpand ? (
-              <button type="button" className={styles.expand} onClick={onExpand}>
-                <Icon name="eye" />
-                Show whole board
-              </button>
-            ) : null}
           </div>
         ) : null}
       </div>

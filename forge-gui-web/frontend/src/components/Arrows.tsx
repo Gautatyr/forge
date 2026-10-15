@@ -1,4 +1,5 @@
 import { useLayoutEffect, useMemo, useState } from 'react';
+import { spotlightItem } from '../state/cardStatus';
 import { useMatch } from '../state/MatchContext';
 import styles from './Arrows.module.css';
 
@@ -29,22 +30,28 @@ function rectOf(selector: string): DOMRect | undefined {
   return best;
 }
 
+/** Keep a line's start inside the scroll region that holds it (the stack list scrolls). */
+function clampToScroller(selector: string, y: number): number {
+  const box = document.querySelector(selector)?.closest('[data-scroll-region]')?.getBoundingClientRect();
+  return box ? Math.min(Math.max(y, box.top + 8), box.bottom - 8) : y;
+}
+
 /**
  * Lines between things on the board: blocks (solid, shield marker) and the
- * targets of the hovered stack item (dashed, target marker). Shape and dash
+ * targets of the stack item in the spotlight, the top one unless another is
+ * hovered (dashed, target marker). Shape and dash
  * pattern differ, not only colour.
  */
 export function Arrows() {
   const { game, ui } = useMatch();
   const d = game.decision;
-  const hovered = ui.hoveredStackItem;
+  const item = spotlightItem(game, ui);
 
   const specs = useMemo<Spec[]>(() => {
     const out: Spec[] = [];
     const blocks = [...(game.combat?.blocks ?? []), ...(d.kind === 'declareBlockers' ? d.draft : [])];
     for (const b of blocks)
       out.push({ key: `b-${b.blockerId}`, from: `[data-card-id="${b.blockerId}"]`, to: `[data-card-id="${b.attackerId}"]`, kind: 'block' });
-    const item = game.stack.find((s) => s.id === hovered);
     for (const t of item?.targets ?? [])
       out.push({
         key: `t-${item!.id}-${t.id}`,
@@ -53,7 +60,7 @@ export function Arrows() {
         kind: 'target',
       });
     return out;
-  }, [game.combat, d, game.stack, hovered]);
+  }, [game.combat, d, item]);
 
   const [lines, setLines] = useState<Line[]>([]);
   const specKey = specs.map((s) => s.key).join(',');
@@ -67,17 +74,21 @@ export function Arrows() {
         if (!a || !b) continue;
         // Stack items start from their left edge so the line does not cross the rail text.
         const x1 = s.kind === 'target' ? a.left : a.left + a.width / 2;
-        next.push({ ...s, x1, y1: a.top + a.height / 2, x2: b.left + b.width / 2, y2: b.top + b.height / 2 });
+        const y1 = s.kind === 'target' ? clampToScroller(s.from, a.top + a.height / 2) : a.top + a.height / 2;
+        next.push({ ...s, x1, y1, x2: b.left + b.width / 2, y2: b.top + b.height / 2 });
       }
       setLines(next);
     };
     const raf = requestAnimationFrame(measure);
     const late = window.setTimeout(measure, 280); // after card transitions settle
     window.addEventListener('resize', measure);
+    // Side-panel regions scroll on their own; follow them.
+    window.addEventListener('scroll', measure, true);
     return () => {
       cancelAnimationFrame(raf);
       window.clearTimeout(late);
       window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', measure, true);
     };
     // specKey captures every change that moves an endpoint.
     // eslint-disable-next-line react-hooks/exhaustive-deps
