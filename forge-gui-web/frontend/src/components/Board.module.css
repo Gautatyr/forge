@@ -5,6 +5,7 @@
   min-height: 0;
   min-width: 0;
   padding: var(--sp-2) 0 var(--sp-2) var(--sp-2);
+  /* Multiplayer layouts set the rows inline from the Display options (default 45 / 55). */
   grid-template-rows: minmax(0, 45fr) minmax(0, 55fr);
 }
 
@@ -41,7 +42,7 @@
 /* Table: seats around you in turn order (clockwise: left, top, right). */
 .table {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.75fr) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 42fr) minmax(0, 58fr);
+  grid-template-rows: minmax(0, 45fr) minmax(0, 55fr);
   grid-template-areas:
     'left top right'
     'left me right';

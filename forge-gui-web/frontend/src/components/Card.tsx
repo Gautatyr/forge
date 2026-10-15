@@ -29,11 +29,12 @@ function ringClass(s: CardStatus): string | undefined {
   if (s.selected) return styles.ringSelected;
   if (s.attacking) return styles.ringAttack;
   if (s.blocking) return styles.ringBlock;
-  if (s.targetHighlight) return styles.ringTargetedStrong;
+  // While you choose targets, legal targets keep their own ring.
   if (s.actionable && s.actionKind === 'target') return styles.ringTarget;
+  if (s.targetSpot === 'hover') return styles.ringTargetedStrong;
+  if (s.targetSpot === 'top') return styles.ringTargeted;
   if (s.actionable && s.actionKind === 'blockTarget') return styles.ringIncoming;
   if (s.actionable) return styles.ringActionable;
-  if (s.targetedBy.length) return styles.ringTargeted;
   return undefined;
 }
 
@@ -54,7 +55,7 @@ function badges(c: CardView, s: CardStatus): Badge[] {
     out.push({ icon: 'shield', cls: styles.bActionable!, label: 'Can block' });
   if (s.actionable && s.actionKind === 'attack' && !s.attacking)
     out.push({ icon: 'sword', cls: styles.bActionable!, label: 'Can attack' });
-  if (s.targetedBy.length)
+  if (s.targetSpot)
     out.push({ icon: 'target', cls: styles.bTargeted!, label: `Targeted by ${s.targetedBy.join(', ')}` });
   if (c.isCommander) out.push({ icon: 'crown', cls: styles.bNeutral!, label: 'Commander' });
   if (c.summoningSick && isCreature(c) && c.zone === 'battlefield')
@@ -168,20 +169,20 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
             </span>
 
             {s.attacking && onBoard ? (
-              <span className={`${styles.combatStrip} ${styles.stripAttack}`}>
+              <span className={`${styles.combatStrip} ${styles.stripAttack}`} data-arrow-occluder>
                 <Icon name="sword" />
                 <span>{s.attacking.defender}</span>
               </span>
             ) : null}
             {s.blocking && onBoard ? (
-              <span className={`${styles.combatStrip} ${styles.stripBlock}`}>
+              <span className={`${styles.combatStrip} ${styles.stripBlock}`} data-arrow-occluder>
                 <Icon name="shield" />
                 <span>{s.blocking.attacker}</span>
               </span>
             ) : null}
 
             {onBoard && c.counters.length > 0 ? (
-              <span className={styles.counters}>
+              <span className={styles.counters} data-arrow-occluder>
                 {c.counters.map((k) => (
                   <span key={k.kind} className={styles.counter} title={`${k.count} ${k.kind} counter(s)`}>
                     {k.kind === '+1/+1' ? `+${k.count}` : `${k.kind} ${k.count}`}
@@ -191,20 +192,24 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
             ) : null}
 
             {onBoard && c.damage > 0 ? (
-              <span className={styles.damage} title={`${c.damage} damage marked`}>
+              <span className={styles.damage} title={`${c.damage} damage marked`} data-arrow-occluder>
                 <Icon name="burst" />
                 {c.damage}
               </span>
             ) : null}
 
             {onBoard && c.power !== undefined ? (
-              <span className={`${styles.pt} ${dir === 'up' ? styles.ptUp : dir === 'down' ? styles.ptDown : ''}`}>
+              <span className={`${styles.pt} ${dir === 'up' ? styles.ptUp : dir === 'down' ? styles.ptDown : ''}`} data-arrow-occluder>
                 {dir ? <Icon name={dir} /> : null}
                 {c.power}/{c.toughness}
               </span>
             ) : null}
 
-            {count > 1 ? <span className={styles.count}>×{count}</span> : null}
+            {count > 1 ? (
+              <span className={styles.count} data-arrow-occluder>
+                ×{count}
+              </span>
+            ) : null}
 
             {s.playable && context === 'hand' && notch ? (
               <span className={styles.playNotch} aria-hidden>

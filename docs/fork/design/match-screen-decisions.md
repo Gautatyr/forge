@@ -38,6 +38,15 @@ Source: [mockup-review-1.md](mockup-review-1.md).
 - **Open, delegated to product:** how to show the turn sequence and phase stops (the current dots are unclear); where manual mana payment and floating mana go.
 - **Open, from the orchestrator's review:** opponents' cards are too small to read; space is underused.
 
+## Rulings on the pass-3 product decisions (2026-10-15)
+Source: [product-decisions-pass-3.md](product-decisions-pass-3.md). The spec stands except where overridden here.
+- **Default opponent layout: Columns** ("ok lets try"). Table and Focus remain options.
+- **Keyword icon source:** use the Mana font's Arena ability symbols **only if they cover exactly the keywords we need**. If coverage would be a patchwork, use **Forge's existing keyword icons** instead (`FSkinProp.iconsFromCardState`). Drawing our own set may come later.
+  - **Checked 2026-10-15: the Mana font is used.** Its Arena ability set (SIL OFL 1.1 font, MIT stylesheets; the symbols are Wizards of the Coast designs) has all 15 keywords that get their own icon, plus prowess, exalted, flash, and the generic "static ability" and "triggered ability" icons for the long tail. Protection, shroud and infect exist only in another section of the font; the spec gives them the generic icon anyway, so the set stays consistent.
+- **Mana payment: manual payment is the default; auto-pay is a toggle (off by default).** This overrides the spec's "auto-pay on cast" default. Tapping sources before casting still adds mana to the pool; the "Taps: …" preview still shows what auto-pay would tap.
+
+- **Keyword icon set approved** by Hugo after viewing the reference sheet (`docs/fork/design/keyword-icons.html`): 15 own icons, 6 extra keywords plus hexproof from each colour, 2 generic icons, the printed / added-by-another-card disc styles.
+
 ## Language (2026-10-15)
 - The match screen is switchable between **English and French**: UI text, keyword explanations, card names and text, and card images where Scryfall has French printings.
 - Forge already ships the data: `forge-gui/res/languages/fr-FR.properties` (UI strings) and `forge-gui/res/languages/cardnames-fr-FR.txt` (card names and text).

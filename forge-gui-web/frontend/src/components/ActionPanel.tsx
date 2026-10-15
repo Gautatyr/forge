@@ -1,12 +1,37 @@
+import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { currentDefender } from '../state/focus';
 import { useMatch } from '../state/MatchContext';
 import { primaryAction, promptText } from '../state/primaryAction';
 import { Icon } from './Icon';
 import styles from './ActionPanel.module.css';
 
+/**
+ * How many whole lines fit in an element whose height the layout sets (the
+ * prompt takes what the buttons leave). Clamping to that count ends the text
+ * on a whole line with an ellipsis instead of slicing a line in half.
+ */
+function useWholeLines<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const [lines, setLines] = useState(4);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      const lh = parseFloat(getComputedStyle(el).lineHeight);
+      if (!(lh > 0)) return;
+      setLines(Math.max(1, Math.min(4, Math.floor((el.clientHeight + 0.5) / lh))));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, lines] as const;
+}
+
 /** Bottom-right, beside the hand: what the game wants, and the one button that answers it. */
 export function ActionPanel() {
-  const { game, ui, send, setUi, canUndo } = useMatch();
+  const { game, ui, prefs, send, setUi, canUndo } = useMatch();
   const action = primaryAction(game, ui);
+  const [promptRef, promptLines] = useWholeLines<HTMLParagraphElement>();
   const d = game.decision;
   const canCancel =
     d.kind === 'chooseTargets' ||
@@ -16,21 +41,40 @@ export function ActionPanel() {
 
   return (
     <section className={styles.panel} aria-label="Your decision">
-      <p className={styles.prompt} aria-live="polite">
-        {promptText(game)}
+      <p ref={promptRef} className={styles.prompt} aria-live="polite">
+        <span className={styles.promptText} style={{ WebkitLineClamp: promptLines } as CSSProperties}>
+          {promptText(game)}
+        </span>
       </p>
 
-      {d.kind === 'declareAttackers' ? (
-        <button
-          type="button"
-          className={styles.secondary}
-          onClick={() => send({ type: 'attackWithAll', defenderId: ui.attackDefender ?? d.defenders[0]! })}
-        >
-          <Icon name="sword" />
-          Attack with all ({d.candidates.length})
-          <kbd>A</kbd>
-        </button>
-      ) : null}
+      {/* Reserved slot for contextual buttons: always takes its height, so
+          nothing below it moves when they come and go (mockup review 1). */}
+      <div className={styles.contextual}>
+        {d.kind === 'declareAttackers' ? (
+          <button
+            type="button"
+            className={styles.secondary}
+            onClick={() => send({ type: 'attackWithAll', defenderId: currentDefender(game, ui, prefs.layout)! })}
+          >
+            <Icon name="sword" />
+            Attack all ({d.candidates.length})
+            <kbd>A</kbd>
+          </button>
+        ) : null}
+        {canCancel ? (
+          <button
+            type="button"
+            className={styles.small}
+            onClick={() => {
+              send({ type: 'cancel' });
+              setUi({ pendingAttacker: undefined, pendingBlocker: undefined });
+            }}
+          >
+            <Icon name="close" />
+            Cancel <kbd>Esc</kbd>
+          </button>
+        ) : null}
+      </div>
 
       <div className={styles.mainRow}>
         <button
@@ -49,20 +93,8 @@ export function ActionPanel() {
         </button>
       </div>
 
-      <div className={styles.row}>
-        {canCancel ? (
-          <button
-            type="button"
-            className={styles.small}
-            onClick={() => {
-              send({ type: 'cancel' });
-              setUi({ pendingAttacker: undefined, pendingBlocker: undefined });
-            }}
-          >
-            <Icon name="close" />
-            Cancel <kbd>Esc</kbd>
-          </button>
-        ) : null}
+      {/* Persistent controls: fixed slots, never reordered or wrapped. */}
+      <div className={styles.persistent}>
         <button type="button" className={styles.small} disabled={!canUndo} onClick={() => send({ type: 'undo' })}>
           <Icon name="undo" />
           Undo <kbd>Z</kbd>

@@ -15,9 +15,10 @@ export interface HandGeometry {
 }
 
 /**
- * Pure layout maths, exported for tests: flat row while it fits (always up
- * to 9 cards), then a two-level stagger where back cards show their whole
- * name band above the front ones, so overlap only ever covers art and text.
+ * Pure layout maths, exported for tests: flat row up to 9 cards, then a
+ * full-size two-level stagger where back cards show their whole name band
+ * above the front ones, so overlap only ever covers art and text. Cards
+ * shrink only when back cards would otherwise collide.
  */
 export function handGeometry(n: number, extra: number, w: number, h: number, rem: number): HandGeometry {
   const gap = 0.6 * rem;
@@ -28,7 +29,10 @@ export function handGeometry(n: number, extra: number, w: number, h: number, rem
   const slots = n + extra;
   const gaps = Math.max(0, n - 1) * gap + Math.max(0, extra - 1) * gap + groupGap;
   const fit = slots > 0 ? (w - gaps) / slots : cardW;
-  if (n <= NO_OVERLAP_UP_TO || fit >= cardW * 0.85) {
+  // Up to 9: always flat, shrinking if needed. Beyond 9: flat only while every
+  // card fits at full size; otherwise stagger right away, with no shrinking
+  // step first (ruling from mockup review 1).
+  if (n <= NO_OVERLAP_UP_TO || fit >= cardW) {
     cardW = Math.min(cardW, fit);
     cardH = cardW / RATIO;
     return { cardW, cardH, step: cardW + gap, stagger: false, raise: cardH * NAME_BAND, groupGap, gap };
@@ -37,8 +41,10 @@ export function handGeometry(n: number, extra: number, w: number, h: number, rem
   const handW = (wHand: number) => w - (extra > 0 ? extra * wHand + (extra - 1) * gap + groupGap : 0);
   let step = (handW(cardW) - cardW) / (n - 1);
   if (step < cardW / 2) {
-    // Shrink until back cards sit edge to edge (step = half a card).
-    cardW = w / ((n - 1) / 2 + 1 + extra + (extra > 0 ? groupGap / cardW : 0));
+    // Shrink until back cards sit edge to edge (step = half a card):
+    // (n−1)·cardW/2 + cardW + groupGap + extra·cardW + (extra−1)·gap = w.
+    const fixed = extra > 0 ? groupGap + (extra - 1) * gap : 0;
+    cardW = (w - fixed) / ((n - 1) / 2 + 1 + extra);
     step = cardW / 2;
   }
   step = Math.min(step, cardW + gap);
