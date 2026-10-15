@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import forge.web.bridge.WireSchema.Kind;
 
@@ -84,13 +85,13 @@ public final class WireTypesGenerator {
         o.section("Properties (TrackableProperty), absent = engine default");
         List<String> kinds = new ArrayList<>();
         for (Kind k : Kind.values()) {
-            kinds.add(k.name().toLowerCase());
+            kinds.add(k.name().toLowerCase(Locale.ROOT));
         }
         o.union("export type WireKind =", kinds);
         o.line("/** Wire kind of every property; the runtime hello.schema should be equal. */");
         List<String> kindLines = new ArrayList<>();
         for (WireModel.Property p : m.properties()) {
-            kindLines.add(p.name() + ": '" + p.kind().name().toLowerCase() + "',");
+            kindLines.add(p.name() + ": '" + p.kind().name().toLowerCase(Locale.ROOT) + "',");
         }
         o.block("export const PROPERTY_KINDS =", kindLines, " as const satisfies Record<string, WireKind>;");
         o.line("export type PropertyName = keyof typeof PROPERTY_KINDS;");

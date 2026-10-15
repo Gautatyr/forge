@@ -6,12 +6,16 @@ import static org.testng.Assert.assertNotEquals;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import org.testng.annotations.Test;
 
@@ -30,8 +34,28 @@ public class WireTypesGeneratorTest {
         String kinds = block(TS, "export const PROPERTY_KINDS = {");
         for (TrackableProperty p : TrackableProperty.values()) {
             assertTrue(all.contains("\n  " + p.name() + "?: "), p.name());
-            assertTrue(kinds.contains("\n  " + p.name() + ": '" + WireSchema.kindOf(p).name().toLowerCase() + "',"), p.name());
+            assertTrue(kinds.contains("\n  " + p.name() + ": '" + WireSchema.kindOf(p).name().toLowerCase(Locale.ROOT) + "',"), p.name());
         }
+    }
+
+    @Test
+    public void outputDoesNotDependOnTheDefaultLocale() {
+        Locale saved = Locale.getDefault();
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+            assertEquals(WireTypesGenerator.render(WireModel.fromEngine()), TS);
+        } finally {
+            Locale.setDefault(saved);
+        }
+    }
+
+    @Test
+    public void enumsAreReadOnlyAndNotSharedWithDerivedModels() {
+        WireModel m = WireModel.fromEngine();
+        WireModel derived = m.withProperty(new WireModel.Property("FooBar", WireSchema.Kind.INT, null, List.of("card")));
+        assertThrows(UnsupportedOperationException.class, () -> m.enums().clear());
+        assertThrows(UnsupportedOperationException.class, () -> derived.enums().remove("ZoneType"));
+        assertEquals(List.copyOf(derived.enums().keySet()), List.copyOf(m.enums().keySet()));
     }
 
     @Test
@@ -137,6 +161,15 @@ public class WireTypesGeneratorTest {
     @Test
     public void checkModeFailsOnAStaleFileAndWriteModeFixesIt() throws Exception {
         Path dir = Files.createTempDirectory("wire-types");
+        try {
+            staleCheckThenWrite(dir);
+        } finally {
+            deleteTree(dir);
+        }
+        assertFalse(Files.exists(dir));
+    }
+
+    private static void staleCheckThenWrite(Path dir) throws Exception {
         Path committed = dir.resolve("wire.ts");
         Path fresh = dir.resolve("fresh/wire.ts");
         Files.writeString(committed, "// stale\n");
@@ -152,6 +185,14 @@ public class WireTypesGeneratorTest {
         Files.writeString(committed, TS.replace("\n", "\r\n"));
         WireTypesGenerator.run("check", committed, fresh);
         assertThrows(IllegalArgumentException.class, () -> WireTypesGenerator.run("bogus", committed, fresh));
+    }
+
+    private static void deleteTree(Path dir) throws IOException {
+        try (Stream<Path> paths = Files.walk(dir)) {
+            for (Path p : paths.sorted(Comparator.reverseOrder()).toList()) {
+                Files.delete(p);
+            }
+        }
     }
 
     private static IllegalStateException expectThrows(org.testng.Assert.ThrowingRunnable r) {
