@@ -78,3 +78,11 @@ Newest last. Each entry: the decision, why, and what it implies.
 - Target for the morning of 2026-10-16: a 4-player game (1 human, 3 AIs) in the web match screen, started with `make play`. The player picks their deck and each AI's deck, including custom decks from the local Forge install.
 - The owner allows read-only access to `~/.forge/decks`. Agents never write to `~/.forge`.
 - Token budget: agent reviews of the design PRs are deferred (the owner's own test is the review); overnight review loops run with at most one round.
+
+## 2026-10-15 — Night run instructions (owner)
+1. Write down everything that must be remembered (GitHub epic #15 and its issues, `docs/fork/`), because the orchestrator's context will run out.
+2. Start with a couple of product design-and-review passes on the prototype.
+3. Once the prototype includes everything needed to play a game, implement it fully. Goal for the morning of 2026-10-16: open it and play a game in the new UI.
+4. 4 players: the owner against 3 AIs, with their own constructed decks, choosing each AI's deck like in the current Forge game. Deck selection needs no new UI now.
+5. Biggest features first; polish and small fixes only once everything is there. Don't spend tokens on nitpicks.
+6. The orchestrator works autonomously: issues, agents, product design calls (with the product agent), PRs and merges on Gautatyr/forge only.
