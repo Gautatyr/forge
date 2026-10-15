@@ -1,7 +1,7 @@
 import { useEffect, useEffectEvent } from 'react';
 import { currentDefender } from '../state/focus';
 import { useMatch } from '../state/MatchContext';
-import { draftFor, primaryAction } from '../state/primaryAction';
+import { primaryAction } from '../state/primaryAction';
 import { Arrows } from './Arrows';
 import { Board } from './Board';
 import { ChoiceTray } from './ChoiceTray';
@@ -78,10 +78,8 @@ export function MatchScreen() {
           if (defenderId) send({ type: 'attackWithAll', defenderId });
         }
         return;
-      case 'v':
-        if (d.kind === 'choice') setUi((u) => ({ ...u, trayPeek: !u.trayPeek }));
-        return;
     }
+    // A dual land's mana chooser: live only while paying or holding priority, so never alongside the tray.
     if (/^[1-9]$/.test(key) && manaChoice) {
       const colour = manaChoice.colours[Number(key) - 1];
       if (colour) {
@@ -90,15 +88,7 @@ export function MatchScreen() {
       }
       return;
     }
-    if (/^[1-9]$/.test(key) && d.kind === 'choice' && d.prompt.shape === 'chooseN') {
-      const opt = d.prompt.options[Number(key) - 1];
-      if (!opt) return;
-      const draft = draftFor(d.prompt, ui.choiceDraft);
-      const has = draft.selected.includes(opt.id);
-      let selected = has ? draft.selected.filter((x) => x !== opt.id) : [...draft.selected, opt.id];
-      if (d.prompt.max === 1 && !has) selected = [opt.id];
-      if (selected.length <= d.prompt.max) setUi({ choiceDraft: { ...draft, selected } });
-    }
+    // A prompt's own keys (1–9, V, Y/N, Space, Esc in the ability menu) are handled by ChoiceTray.
   });
 
   useEffect(() => {

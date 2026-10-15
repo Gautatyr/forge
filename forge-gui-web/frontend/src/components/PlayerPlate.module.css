@@ -131,6 +131,11 @@
   background: var(--c-targeted);
   color: var(--c-text-on-accent);
 }
+/* Chosen in an in-place choice (choice tray §2.2): the card selected state's colour and ✓. */
+.tagChosen {
+  background: var(--c-selected);
+  color: var(--c-text-on-accent);
+}
 
 .chips {
   display: flex;

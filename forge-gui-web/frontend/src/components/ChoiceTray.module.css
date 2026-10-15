@@ -5,7 +5,8 @@
   transform: translateX(-50%);
   z-index: var(--z-tray);
   width: min(62rem, calc(100% - 2rem));
-  max-height: 54%;
+  /* Up to the height of your board (--tray-max, set from the board split). */
+  max-height: calc(var(--tray-max, 55%) - 2 * var(--sp-2));
   display: flex;
   flex-direction: column;
   border-radius: var(--r-lg);
@@ -246,4 +247,171 @@
 .confirm:disabled {
   background: var(--c-panel-raised);
   color: var(--c-text-3);
+}
+
+/* --- Design pass 4 §2.2 ---------------------------------------------------- */
+
+/* One-line bar while options are chosen in place on the board. */
+.bar {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--sp-4);
+  width: auto;
+  max-width: calc(100% - 2rem);
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4);
+}
+
+.barTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.bar .status {
+  white-space: nowrap;
+}
+
+.bar .confirm {
+  white-space: nowrap;
+}
+
+.byGlyph {
+  display: inline-flex;
+  margin-right: var(--sp-2);
+  vertical-align: -0.1em;
+}
+
+.filter {
+  padding: var(--sp-2) var(--sp-4) 0;
+}
+
+.filter input {
+  width: min(24rem, 100%);
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--c-line-strong);
+  background: var(--c-bg);
+  color: var(--c-text);
+  font: inherit;
+  font-size: var(--fs-sm);
+}
+
+.filter input::placeholder {
+  color: var(--c-text-3);
+}
+
+/* Text options (modes, types, colours): never truncated, they wrap. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.chip {
+  max-width: 100%;
+  min-width: 0;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  text-align: left;
+  padding: var(--sp-2) var(--sp-3);
+}
+
+.chipText {
+  display: flex;
+  flex-direction: column;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Cards at the size of your hand's cards (same maths as handLayout.ts). */
+.handSize {
+  --cw: calc(min((var(--hand-h) - 0.9rem) / 1.13, 22rem) * var(--card-ratio));
+}
+
+.yesNo {
+  align-items: center;
+}
+
+.yesNoButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  justify-content: center;
+}
+
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--r-md);
+  border: 1px solid var(--c-line-strong);
+  background: var(--c-panel-raised);
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-md);
+}
+
+.secondary:hover {
+  background: var(--c-panel-hover);
+}
+
+/* Single-list order: one column, first item at the top. */
+.column h3 {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-md);
+}
+
+.column h3 span {
+  font-weight: var(--fw-regular);
+  font-size: var(--fs-xs);
+  color: var(--c-text-3);
+  margin-left: var(--sp-2);
+}
+
+.columnItems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-0) var(--sp-2);
+  border-radius: var(--r-md);
+  border: 1px solid var(--c-line-strong);
+  background: var(--c-panel-raised);
+}
+
+.row:focus-within {
+  outline: var(--outline-w) solid var(--c-actionable);
+  outline-offset: 1px;
+}
+
+.rowIndex {
+  min-width: 1.5em;
+  text-align: center;
+  font-weight: var(--fw-bold);
+  color: var(--c-text-2);
+}
+
+.rowText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  white-space: normal;
+}
+
+.row .orderControls button {
+  padding: var(--sp-0) var(--sp-3);
+  font-size: var(--fs-md);
 }

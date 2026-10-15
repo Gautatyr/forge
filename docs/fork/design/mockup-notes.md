@@ -195,6 +195,22 @@ Spec: `product-decisions-pass-3.md` section 4.
 
 Measured creature widths (priority, Columns): 1920×1080 opponents 118–121 px (Mira 107: width-bound, a tapped Krenko plus 3 creatures in 499 px), you 159; 1366×768 opponents 72–79; 2560×1440 opponents 143–163 (Mira 143, same cause), you 212.
 
+## Pass 4: choice tray core and ability menu (issue #30)
+Spec: [product-decisions-pass-4.md](product-decisions-pass-4.md) §2.2 and P2 (menu rendering only; clicking a permanent to activate it is #24).
+
+| What | Code |
+|---|---|
+| Model: `ChoiceOption.playerId / symbol / cost`, `PromptBase.byPlayerId` (seat shape before the title), `ChooseNPrompt.abilityMenu`, `YesNoPrompt.defaultAnswer / cardId`. A reveal / look is a choose-N with `max` 0 (Forge's own reveal is a choice list with nothing to pick); its answer is an empty list. Single-list order: item 0 resolves first. Ability menu: empty answer = cancel (engine's null). | `model/types.ts` |
+| Three presentations: tray (choose N, yes/no, order, reveal); one-line bar (title, counter, confirm) when every option is a battlefield card, a card in your hand or a player; ability menu anchored to `sourceCardId` (right of the card, else left, else above/below; follows the card every frame). Number shapes (`distribute`, `input`) render a placeholder: one dispatch line in `TrayBody.tsx` for #31. | `ChoiceTray.tsx`, `tray/*` |
+| Choose N: counter "1 chosen · up to 2" / "Choose exactly 1" / "2 chosen · 1–3"; confirm "Confirm (1)", disabled label "Choose 1 more"; card grid, chips for text options (wrap, never truncate), colour symbols with names; > 12 options: filter box (name or type line, results sorted by name), body scrolls; tray max height = your board share. | `tray/trayLogic.ts`, `tray/ChooseN.tsx` |
+| In place: options lit (actionable ring), chosen = selected ring + ✓ (cards) / selected ring + "Chosen" tag (plates); other permanents dimmed; non-option clicks do nothing. Bar starts bottom-centre of your board and moves to the corner of your board that covers the fewest options. | `tray/inPlace.ts`, `tray/useInPlacePick.ts`, `Card.tsx`, `battlefieldGroups.ts`, `PlayerPlate.*` |
+| Yes/no: engine labels, default primary; Y / N answer, Space = default (the draft is seeded with the default so the main button answers it too). Commander moving zones shows the card at hand size. Reveal / look: cards at hand size with hover preview, OK (Space). Order, one list: column "Resolves first", ↑/↓ per row, Alt+↑/↓ on the focused row (a moved row is scrolled into view; 1.5 rem thumbs so 4 rows fit at 1366×768); two lists: scry layout kept. | `tray/YesNo.tsx`, `tray/Reveal.tsx`, `tray/Order.tsx` |
+| Keys: the prompt's keys run in a capture-phase listener in `ChoiceTray` (1–9, V, Y/N, Space, Esc in the menu); `MatchScreen` lost its 1–9 and V branches. `?` overlay lists Y/N and Alt+↑/↓. | `ChoiceTray.tsx`, `MatchScreen.tsx`, `state/keymap.ts` |
+| Mock: scenarios 3c–3m (sacrifice in place, choose an opponent, modes, colour, 16-land filter, optional trigger, commander moving zones, trigger order, Mira reveals, look at top 3, Krosan Verge ability menu); Emeria's Call face choice now uses the ability menu (Esc keeps it in hand). | `mock/scenarios.ts`, `mock/engine.ts` (`answerTrayPrompt`) |
+
+Contrast (WCAG): "Chosen" tag 14.1:1 (`--c-text-on-accent` on `--c-selected`); counter / filter placeholder 5.8:1 / 7.2:1.
+
+Known gaps: the main button (`primaryAction`, #24) keeps `confirmLabel` as its label: no "(1)" count and no "Choose 1 more" (enablement and answer match the tray; a test checks every choice scenario). At 1366×768 the hand-size cards of a reveal / look are taller than the tray body, which scrolls.
 ## Pass 4: manual payment and no hand-holding (issue #24)
 
 Spec: `product-decisions-pass-4.md` §2.1 and P1.

@@ -1,3 +1,5 @@
+import { isCreature } from '../model/selectors';
+import type { ChoicePrompt } from '../model/types';
 import { GameBuilder, ref } from './builder';
 import type { CardKey } from './cardDb';
 import { applyIntent, cultivatePrompt, type MockGame } from './engine';
@@ -150,6 +152,240 @@ function handScenario(id: string, label: string, description: string, keys: Card
     },
   };
 }
+
+/**
+ * Choice-tray scenarios (design pass 4 §2.2, issue #30): the shared table,
+ * your turn 9 main 1 unless `open` changes it, with a prompt open.
+ */
+function trayScenario(
+  id: string,
+  label: string,
+  description: string,
+  open: (b: GameBuilder, ids: CommanderIds) => ChoicePrompt,
+): Scenario {
+  return {
+    id,
+    label,
+    description,
+    build: () => {
+      const b = new GameBuilder(id, 'commander');
+      const ids = commanderTable(b);
+      yourHand(b, HAND_7);
+      b.turn(9, 'you', 'main1', 'you');
+      b.g.decision = { kind: 'choice', prompt: open(b, ids) };
+      return b.done();
+    },
+  };
+}
+
+const TRAY_SCENARIOS: Scenario[] = [
+  trayScenario(
+    'sacrifice',
+    '3c · Choose in place: sacrifice a creature',
+    "Ana's Fleshbag Marauder: you pick one of your creatures on the board. The tray is a one-line bar.",
+    (b) => {
+      b.turn(9, 'ana', 'main1', 'ana');
+      const fleshbag = b.card('Fleshbag Marauder', 'ana', 'battlefield', { sick: true });
+      b.log(`Ana casts ${ref(fleshbag)}.`, 'ana');
+      const creatures = b.p('you').battlefield.filter((id) => isCreature(b.g.cards[id]!));
+      return {
+        id: 'sacrifice',
+        shape: 'chooseN',
+        title: 'Choose a creature to sacrifice',
+        instruction: 'Fleshbag Marauder: each player sacrifices a creature.',
+        sourceCardId: fleshbag,
+        confirmLabel: 'Sacrifice',
+        min: 1,
+        max: 1,
+        options: creatures.map((id) => ({ id, label: b.g.cards[id]!.name, cardId: id })),
+      };
+    },
+  ),
+  trayScenario(
+    'choose-player',
+    '3d · Choose in place: an opponent',
+    'Choose a player: their plates light up and take the selected state.',
+    (b) => ({
+      id: 'choose-player',
+      shape: 'chooseN',
+      title: 'Choose an opponent',
+      instruction: 'The chosen opponent draws a card, and so do you.',
+      confirmLabel: 'Choose',
+      min: 1,
+      max: 1,
+      options: ['mira', 'theo', 'ana'].map((id) => ({ id, label: b.p(id).name, playerId: id })),
+    }),
+  ),
+  trayScenario('modes', '3e · Choose one: modes as chips', "Knight of Autumn's enter trigger: three modes as text chips.", (_b, ids) => ({
+    id: 'modes',
+    shape: 'chooseN',
+    title: 'Choose one — Knight of Autumn',
+    instruction: 'When this creature enters, choose one.',
+    sourceCardId: ids.knight,
+    confirmLabel: 'Choose',
+    min: 1,
+    max: 1,
+    options: [
+      { id: 'counters', label: 'Put two +1/+1 counters on this creature.' },
+      { id: 'destroy', label: 'Destroy target artifact or enchantment.' },
+      { id: 'life', label: 'You gain 4 life.' },
+    ],
+  })),
+  trayScenario('colour', '3f · Choose a colour', 'Sanctum Weaver adds mana of any one colour: five symbols with their names.', (b) => {
+    const weaver = b.card('Sanctum Weaver', 'you', 'battlefield', { tapped: true });
+    const colours: [string, string][] = [
+      ['W', 'White'],
+      ['U', 'Blue'],
+      ['B', 'Black'],
+      ['R', 'Red'],
+      ['G', 'Green'],
+    ];
+    return {
+      id: 'colour',
+      shape: 'chooseN',
+      title: 'Choose a color',
+      instruction: 'Sanctum Weaver: add X mana of any one color, where X is the number of enchantments you control.',
+      sourceCardId: weaver,
+      confirmLabel: 'Choose',
+      min: 1,
+      max: 1,
+      options: colours.map(([s, name]) => ({ id: s, label: name, symbol: `{${s}}` })),
+    };
+  }),
+  trayScenario('tutor', '3g · Choose from a long list (filter)', "Primeval Titan: 16 land cards, so the tray gets a filter box and scrolls.", (b) => {
+    const titan = b.card('Primeval Titan', 'you', 'battlefield', { sick: true });
+    const keys: CardKey[] = [
+      'Forest', 'Forest', 'Forest', 'Plains', 'Plains', 'Temple Garden', 'Command Tower', 'Krosan Verge', 'Overgrown Tomb',
+      'Mystic Sanctuary', 'Snow-Covered Forest', 'Snow-Covered Plains', 'Temple of Plenty', 'Island', 'Swamp', 'Mountain',
+    ];
+    const lands = keys.map((k) => b.card(k, 'you', 'library'));
+    b.log(`Hugo casts ${ref(titan)}.`, 'you');
+    return {
+      id: 'tutor',
+      shape: 'chooseN',
+      title: 'Choose up to 2 land cards',
+      instruction: 'Primeval Titan: search your library for up to two land cards, put them onto the battlefield tapped, then shuffle.',
+      sourceCardId: titan,
+      confirmLabel: 'Put onto the battlefield',
+      min: 0,
+      max: 2,
+      options: lands.map((id) => ({ id, label: b.g.cards[id]!.name, cardId: id })),
+    };
+  }),
+  trayScenario('optional', '3h · Yes / no: optional trigger', 'The source card is in the tray header; Y, N, Space.', (b) => {
+    const sigil = b.p('you').battlefield.find((id) => b.g.cards[id]!.name === 'Sigil of the Empty Throne')!;
+    return {
+      id: 'optional',
+      shape: 'yesNo',
+      title: "Use Sigil of the Empty Throne's ability?",
+      instruction: 'Create a 4/4 white Angel creature token with flying.',
+      sourceCardId: sigil,
+      confirmLabel: 'Yes',
+      yesLabel: 'Yes',
+      noLabel: 'No',
+    };
+  }),
+  trayScenario(
+    'commander-zone',
+    '3i · Yes / no: commander moving zones',
+    "Ana's Beast Within destroys Sythis: move it to the command zone (default) or leave it in the graveyard.",
+    (b, ids) => {
+      // Sythis is between zones while the game asks: off the battlefield, Boots unattached.
+      const you = b.p('you');
+      you.battlefield.splice(you.battlefield.indexOf(ids.sythis), 1);
+      const sythis = b.g.cards[ids.sythis]!;
+      for (const a of sythis.attachments) b.g.cards[a]!.attachedTo = undefined;
+      sythis.attachments = [];
+      sythis.zone = 'stack';
+      const beast = b.card('Beast Within', 'ana', 'graveyard');
+      b.log(`Ana casts ${ref(beast)} targeting ${ref(ids.sythis)}.`, 'ana');
+      return {
+        id: `commander-zone:${ids.sythis}`,
+        shape: 'yesNo',
+        title: "Sythis, Harvest's Hand would go to your graveyard.",
+        instruction: 'Your commander can go to the command zone instead.',
+        confirmLabel: 'Move to command zone',
+        yesLabel: 'Move to command zone',
+        noLabel: 'Leave it in the graveyard',
+        defaultAnswer: 'yes',
+        cardId: ids.sythis,
+      };
+    },
+  ),
+  trayScenario('triggers', '3j · Order: simultaneous triggers', 'Four of your abilities trigger at once: one column, the top resolves first.', (b, ids) => {
+    const sigil = b.p('you').battlefield.find((id) => b.g.cards[id]!.name === 'Sigil of the Empty Throne')!;
+    const presence = b.card("Enchantress's Presence", 'you', 'graveyard');
+    b.log(`Hugo casts ${ref(presence)}.`, 'you');
+    const items = [
+      { id: 't-eidolon', label: 'Eidolon of Blossoms: draw a card.', cardId: ids.eidolon },
+      { id: 't-champion', label: 'Setessan Champion: put a +1/+1 counter on it and draw a card.', cardId: ids.champion },
+      { id: 't-sythis', label: "Sythis, Harvest's Hand: gain 1 life and draw a card.", cardId: ids.sythis },
+      { id: 't-sigil', label: 'Sigil of the Empty Throne: create a 4/4 white Angel token with flying.', cardId: sigil },
+    ];
+    return {
+      id: 'triggers',
+      shape: 'order',
+      title: 'Order your triggers',
+      instruction: 'Your abilities triggered at the same time. Put them in the order they resolve.',
+      confirmLabel: 'Put on the stack',
+      lists: [{ id: 'stack', label: 'Resolves first', hint: '', items }],
+    };
+  }),
+  trayScenario('reveal', '3k · Reveal: Mira reveals', "Mira's Goblin Matron finds a Goblin: one card at hand size, OK (Space). Also logged in Recent.", (b) => {
+    b.turn(10, 'mira', 'main1', 'mira');
+    const matron = b.card('Goblin Matron', 'mira', 'battlefield', { sick: true });
+    const found = b.card('Goblin Chieftain', 'mira', 'library');
+    b.log(`Mira casts ${ref(matron)}.`, 'mira').log(`Mira reveals ${ref(found)}.`, 'mira');
+    return {
+      id: 'reveal',
+      shape: 'chooseN',
+      title: 'Mira reveals',
+      instruction: 'Goblin Matron: Mira searches her library for a Goblin card and puts it into her hand.',
+      sourceCardId: matron,
+      byPlayerId: 'mira',
+      confirmLabel: 'OK',
+      min: 0,
+      max: 0,
+      options: [{ id: found, label: 'Goblin Chieftain', cardId: found }],
+    };
+  }),
+  trayScenario('look', '3l · Look: top 3 of your library', 'Three cards at hand size with hover previews; OK (Space).', (b) => {
+    const top = (['Doubling Season', 'Plains', 'Mesa Enchantress'] as CardKey[]).map((k) => b.card(k, 'you', 'library'));
+    b.log('Hugo looks at the top 3 cards of their library.', 'you');
+    return {
+      id: 'look',
+      shape: 'chooseN',
+      title: 'You look at the top 3 cards of your library',
+      instruction: 'They stay on top in this order.',
+      confirmLabel: 'OK',
+      min: 0,
+      max: 0,
+      options: top.map((id) => ({ id, label: b.g.cards[id]!.name, cardId: id })),
+    };
+  }),
+  trayScenario('ability-menu', '3m · Ability menu: Krosan Verge', 'The engine asks which ability: a menu anchored to the card, keys 1–2, Esc.', (b) => {
+    const verge = b.p('you').battlefield.find((id) => b.g.cards[id]!.name === 'Krosan Verge')!;
+    return {
+      id: `ability:${verge}`,
+      shape: 'chooseN',
+      title: 'Choose an ability to activate',
+      instruction: 'Krosan Verge has two abilities. Choose one.',
+      sourceCardId: verge,
+      confirmLabel: 'Choose an ability',
+      min: 1,
+      max: 1,
+      abilityMenu: true,
+      options: [
+        { id: 'mana', cost: '{T}', label: 'Add {C}.' },
+        {
+          id: 'search',
+          cost: '{2}{T}',
+          label: 'Sacrifice this land: Search your library for a Forest card and a Plains card, put them onto the battlefield tapped, then shuffle.',
+        },
+      ],
+    };
+  }),
+];
 
 export const SCENARIOS: Scenario[] = [
   {
@@ -361,6 +597,7 @@ export const SCENARIOS: Scenario[] = [
       return b.done();
     },
   },
+  ...TRAY_SCENARIOS,
   {
     id: 'duel',
     label: '4 · 1v1: your main phase',
