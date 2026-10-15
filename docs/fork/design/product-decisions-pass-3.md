@@ -227,3 +227,27 @@ The main risk is the size calculation with long French names and very large toke
 Sources:
 - [Mana font icon list and license](https://mana.andrewgioia.com/icons.html)
 - [MagicArena Wiki: Abilities (Arena depicts abilities as icons)](https://magicarena.fandom.com/wiki/Abilities)
+
+---
+
+## Engine facts answering the three questions (checked 2026-10-15)
+1. **Default stops and priority.**
+   - Forge's defaults (`ForgePreferences.java:243-267`):
+     - On your turn, it stops at Main 1, Declare blockers and Main 2.
+     - On opponents' turns, it stops at Beginning of combat, Declare attackers, Declare blockers and End step.
+   - A step set to "Pass" only skips your prompt when the stack is empty. If anything is on the stack, you are prompted, unless its top item is an ability you chose to auto-yield (`PlayerControllerHuman.java:3918-3927`).
+   - Stops are keyed to whose turn it is (`CMatchUI.java:1423-1474`).
+   - Use these defaults in the Stops editor. Its help line can promise: "You always get to respond when something is on the stack."
+2. **Auto-pay.**
+   - Forge does not auto-pay on cast today: the payment input opens and the player presses "Auto" (`InputPayMana.onOk`, `:376-386`).
+   - Floating mana is spent first (`ComputerUtilMana.java:651-656`).
+   - A preview without tapping exists. `ComputerUtilMana.getManaSourcesToPayCost` runs a test mode, and `InputPayMana.getAutoTapPreviewViews` (`:455-465`) already highlights the sources Auto would tap.
+   - So "auto-pay on cast" needs no engine change: the client answers the payment input with Auto right away unless the auto-pay switch is off. The "Taps: …" preview is feasible.
+3. **Keyword data in the view.**
+   - `CardStateView.getKeywords()` gives each keyword's enum, title and English reminder text.
+   - It does **not** expose: printed vs granted, the granting source, the duration, or keywords removed by an effect. The engine knows some of this (`KeywordInstance.isIntrinsic`), but `KeywordInterface.getView` drops it.
+   - Showing granted keywords differently therefore needs extra work on the bridge side. Two options:
+     - enrich the data from engine objects in the bridge;
+     - make a small edit to an upstream file. That must be recorded in `docs/fork/decisions.md`.
+   - **No keyword reminder text is translated to French** in Forge. Our French lines for the icon keywords must be written by us; the long tail falls back to English or needs translating.
+   - Forge already draws its own keyword icons (`FSkinProp.iconsFromCardState`, `:807`), covering about 24 keywords (flying, first/double strike, deathtouch, defender, haste, lifelink, menace, reach, trample, vigilance, ward, hexproof and protection variants, …). That is an alternative icon source to the Mana font.
