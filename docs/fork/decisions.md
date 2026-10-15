@@ -86,3 +86,7 @@ Newest last. Each entry: the decision, why, and what it implies.
 4. 4 players: the owner against 3 AIs, with their own constructed decks, choosing each AI's deck like in the current Forge game. Deck selection needs no new UI now.
 5. Biggest features first; polish and small fixes only once everything is there. Don't spend tokens on nitpicks.
 6. The orchestrator works autonomously: issues, agents, product design calls (with the product agent), PRs and merges on Gautatyr/forge only.
+## 2026-10-15 — Generated wire types are committed; the build fails when they are stale
+- `forge-gui-web/frontend/src/wire/generated/wire.ts` is generated from the engine (`TrackableProperty`, `ProtocolMethod`, the bridge envelope) by `forge.web.schema.WireTypesGenerator` and committed, so the frontend builds without Java.
+- The `forge-gui-web` Maven build (`process-classes`) fails when the file is stale, and when a new property is used by no view class. **When it reports the file stale** (typically after an upstream sync): `mvn -pl forge-gui-web -am process-classes -Dwire.types=write`, then fix the TypeScript errors in `src/wire/`.
+- Only `src/wire/` may import the generated file (ESLint rule); components use the UI view-model.

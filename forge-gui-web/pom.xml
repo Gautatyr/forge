@@ -13,6 +13,12 @@
     <artifactId>forge-gui-web</artifactId>
     <name>Forge Gui Web</name>
 
+    <properties>
+        <!-- TypeScript wire types (forge.web.schema.WireTypesGenerator): "check" fails the build when
+             frontend/src/wire/generated/wire.ts is stale; -Dwire.types=write regenerates it. -->
+        <wire.types>check</wire.types>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>forge</groupId>
@@ -31,5 +37,32 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>wire-types</id>
+                        <phase>process-classes</phase>
+                        <goals>
+                            <goal>java</goal>
+                        </goals>
+                        <configuration>
+                            <mainClass>forge.web.schema.WireTypesGenerator</mainClass>
+                            <arguments>
+                                <argument>${wire.types}</argument>
+                                <argument>${project.basedir}/frontend/src/wire/generated/wire.ts</argument>
+                                <argument>${project.build.directory}/wire-types/wire.ts</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 
 </project>
