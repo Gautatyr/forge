@@ -1,4 +1,4 @@
-import type { CardId, PlayerId, StackItemId } from '../model/types';
+import type { CardId, ManaColour, PlayerId, StackItemId } from '../model/types';
 
 export type Overlay = 'shortcuts' | 'display' | 'dev' | 'menu' | 'stops';
 export type ViewableZone = 'graveyard' | 'exile' | 'command';
@@ -22,6 +22,10 @@ export interface UiState {
   zoneView?: { playerId: PlayerId; zone: ViewableZone };
   /** Answer being built in the choice tray. */
   choiceDraft?: ChoiceDraft;
+  /** Neutral note shown in the prompt line for 3 s ("You can't play … right now."); `id` restarts the timer. */
+  promptNote?: { id: number; text: string };
+  /** Chooser at a mana source that adds two or more kinds ("Add {G} · Add {W}"). */
+  manaChoice?: { cardId: CardId; colours: ManaColour[] };
 }
 
 export interface ChoiceDraft {

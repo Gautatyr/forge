@@ -1,0 +1,69 @@
+import { useCallback } from 'react';
+import type { Intent } from '../model/intents';
+import type { CardId, GameView, ManaColour, ManaSource } from '../model/types';
+import { useMatch } from './MatchContext';
+
+/** What a click on a card means while you hold priority or pay a cost (design pass 4, §2.1 and P1–P2). */
+export type CardClick =
+  | { kind: 'intent'; intent: Intent }
+  /** A source that adds two or more kinds: the chooser at the card asks which. */
+  | { kind: 'chooseMana'; cardId: CardId; colours: ManaColour[] }
+  /** A short neutral note in the prompt line (3 s). */
+  | { kind: 'note'; text: string }
+  | { kind: 'none' }
+  /** Not ours to answer: targets, combat and choices go through the match context. */
+  | { kind: 'default' };
+
+function tap(source: ManaSource): CardClick {
+  return source.colours.length > 1
+    ? { kind: 'chooseMana', cardId: source.cardId, colours: source.colours }
+    : { kind: 'intent', intent: { type: 'tapForMana', cardId: source.cardId } };
+}
+
+export function cardClick(game: GameView, id: CardId): CardClick {
+  const d = game.decision;
+  const c = game.cards[id];
+  if (!c) return { kind: 'none' };
+  if (d.kind === 'payMana') {
+    const source = d.sources.find((s) => s.cardId === id);
+    return source ? tap(source) : { kind: 'none' };
+  }
+  if (d.kind !== 'priority' && d.kind !== 'waiting') return { kind: 'default' };
+
+  if (c.zone !== 'battlefield') {
+    if (c.ownerId !== game.youId || c.zone === 'stack' || c.zone === 'library') return { kind: 'none' };
+    if (d.kind === 'priority' && d.playable.includes(id)) return { kind: 'intent', intent: { type: 'play', cardId: id } };
+    return { kind: 'note', text: `You can't play ${c.name} right now.` };
+  }
+  if (d.kind !== 'priority' || c.controllerId !== game.youId) return { kind: 'none' };
+  const source = d.manaSources?.find((s) => s.cardId === id);
+  if (source) return tap(source);
+  return { kind: 'intent', intent: { type: 'activate', cardId: id } };
+}
+
+/** Click handler for cards: priority and payment clicks here, everything else to `activateCard`. */
+export function useCardClick(): (id: CardId) => void {
+  const { game, send, setUi, activateCard } = useMatch();
+  return useCallback(
+    (id: CardId) => {
+      const r = cardClick(game, id);
+      switch (r.kind) {
+        case 'intent':
+          setUi({ manaChoice: undefined });
+          send(r.intent);
+          return;
+        case 'chooseMana':
+          setUi({ manaChoice: { cardId: r.cardId, colours: r.colours } });
+          return;
+        case 'note':
+          setUi((u) => ({ ...u, promptNote: { id: (u.promptNote?.id ?? 0) + 1, text: r.text } }));
+          return;
+        case 'none':
+          return;
+        case 'default':
+          activateCard(id);
+      }
+    },
+    [game, send, setUi, activateCard],
+  );
+}

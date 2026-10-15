@@ -1,4 +1,4 @@
-import type { CardId, PlayerId, TargetRef } from './types';
+import type { CardId, ManaColour, PlayerId, TargetRef } from './types';
 
 /**
  * What the player asks the game to do. The mock engine answers these with
@@ -14,13 +14,26 @@ export type PromptAnswer =
   | { shape: 'input'; value: string };
 
 export type Intent =
-  /** Click a playable card: land, spell or ability. */
+  /** Click a playable card in hand or another zone: land or spell. */
   | { type: 'play'; cardId: CardId }
+  /** Click a permanent of yours that is not tapped for mana: activate its ability (the engine asks which when there are several). */
+  | { type: 'activate'; cardId: CardId }
+  /**
+   * Tap a mana source for one kind of mana (`colour` may be omitted when it adds
+   * one kind). With priority the mana goes to your pool; while paying it pays.
+   */
+  | { type: 'tapForMana'; cardId: CardId; colour?: ManaColour }
+  /** While paying: spend one floating mana of this kind. */
+  | { type: 'spendPool'; colour: ManaColour }
+  /** While paying: pay the rest automatically (floating mana first, then untapped sources). */
+  | { type: 'payAuto' }
+  /** While paying: undo the last tap or pool spend (Z). */
+  | { type: 'undoTap' }
   /** Toggle a target while the decision is chooseTargets. */
   | { type: 'toggleTarget'; target: TargetRef }
   /** Main action button: pass, confirm targets, attackers, blockers. */
   | { type: 'primary' }
-  /** Cancel a half-cast spell or clear an attack/block draft. */
+  /** Cancel a half-cast spell (targets or payment: its sources untap) or clear an attack/block draft. */
   | { type: 'cancel' }
   | { type: 'toggleAttacker'; cardId: CardId; defenderId: PlayerId }
   | { type: 'attackWithAll'; defenderId: PlayerId }
@@ -32,5 +45,6 @@ export type Intent =
   | { type: 'cancelPassUntilYourTurn' }
   | { type: 'setAutoPass'; on: boolean }
   | { type: 'setAutoYield'; on: boolean }
+  | { type: 'setAutoPay'; on: boolean }
   | { type: 'toggleAutoYieldTo'; key: string }
   | { type: 'undo' };
