@@ -58,3 +58,8 @@ Newest last. Each entry: the decision, why, and what it implies.
 ## 2026-10-15 — Bridge work starts in parallel with design
 - Phase 2 of the match-screen epic (the Java bridge) starts now, in parallel with the design iteration.
 - **Why (owner):** the bridge is decoupled from the visual design and it is the longest piece of work. Real games through the prototype will also surface UX problems that mock data hides.
+
+## 2026-10-15 — Generated wire types are committed; the build fails when they are stale
+- `forge-gui-web/frontend/src/wire/generated/wire.ts` is generated from the engine (`TrackableProperty`, `ProtocolMethod`, the bridge envelope) by `forge.web.schema.WireTypesGenerator` and committed, so the frontend builds without Java.
+- The `forge-gui-web` Maven build (`process-classes`) fails when the file is stale, and when a new property is used by no view class. **When it reports the file stale** (typically after an upstream sync): `mvn -pl forge-gui-web -am process-classes -Dwire.types=write`, then fix the TypeScript errors in `src/wire/`.
+- Only `src/wire/` may import the generated file (ESLint rule); components use the UI view-model.
