@@ -29,6 +29,11 @@ Newest last. Each entry: the decision, why, and what it implies.
 - **Why:** Commander is the main way the owner's group plays.
 - This overrides the memo's "1v1 first" proposal. See [design/match-screen-decisions.md](design/match-screen-decisions.md).
 
+## 2026-10-15 — Work process
+- **Now (exploration):** informal. Work lands on `develop` through local commits and merges. Nothing is pushed unless the owner asks.
+- **Later (once the direction is settled):** GitHub issues on the fork, never on upstream. One epic issue lays out the plan and tracks progress, so any agent can see what needs doing and where the work stands. Every other issue is a sub-issue of the epic. Each agent works on its own branch for its issue and opens a pull request into `develop`.
+- The fork's issue tracker is currently disabled on GitHub; enable it before switching to the issue workflow.
+
 ## 2026-10-15 — Next steps started
 - A clickable mockup of the multiplayer match screen with mock data (web).
 - A web spike: stream a live AI-vs-AI game over a WebSocket to a read-only page, to de-risk the bridge.
