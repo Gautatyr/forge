@@ -32,14 +32,14 @@
   flex: none;
 }
 
-.compactCol {
-  width: 17rem;
-  justify-content: flex-start;
-  overflow: hidden;
+/* Focus layout, compact seats: header on top, creatures below, so the plate
+   never overflows a short seat (issue #2 note). */
+.compact {
+  gap: var(--sp-1);
+  padding: var(--sp-1);
 }
-
-.compactCol > :first-child {
-  flex: none;
+.compactCol {
+  gap: var(--sp-1);
 }
 
 .field {
@@ -50,6 +50,7 @@
 
 .summary {
   min-height: 0;
+  padding: 0 var(--sp-2);
   display: flex;
   flex-direction: column;
   align-items: flex-start;

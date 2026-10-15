@@ -303,3 +303,66 @@
 .expand:hover {
   background: var(--c-panel-hover);
 }
+
+/* One-line header (pass-3 spec, section 4): life, name, zones, commander
+   damage, then the state tags; wraps to two lines when it does not fit. */
+.inline {
+  container-type: inline-size;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+}
+.inline .lifeBox {
+  flex-direction: row;
+  align-items: baseline;
+  gap: var(--sp-1);
+  min-width: 0;
+  padding-right: var(--sp-2);
+}
+.inline .life {
+  font-size: var(--fs-xl);
+}
+.inline .main {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
+}
+.inline .nameRow {
+  display: contents;
+}
+.inline .name {
+  font-size: var(--fs-md);
+}
+.inline .chips {
+  order: 1;
+  margin-right: auto;
+}
+.inline .cmdGroup {
+  order: 2;
+  margin-left: 0;
+}
+.inline .cmdLabel {
+  display: none;
+}
+.inline .tag {
+  order: 3;
+}
+
+/* Narrow headers (Columns at 1366, Focus side seats): zones and commander
+   damage keep their icon and number; the full text is in the tooltip. */
+@container (max-width: 40rem) {
+  .inline .zoneLabel,
+  .inline .cmdName,
+  .inline .of21 {
+    display: none;
+  }
+}
+@container (max-width: 30rem) {
+  .inline .tagText {
+    display: none;
+  }
+  .inline .tag {
+    padding: 0.05rem var(--sp-1);
+  }
+}

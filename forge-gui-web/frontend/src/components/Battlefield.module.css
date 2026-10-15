@@ -29,7 +29,29 @@
   position: relative;
   display: flex;
   align-items: flex-end;
+  justify-content: center;
+  /* The command-zone caption reserves its width (counted in the fit). */
+  min-width: var(--min-w, 0);
   padding-top: calc(var(--cw) / var(--card-ratio) * 0.17 * var(--host-att));
+}
+
+/* Last resort when even 72 px cards do not fit: staggered like the hand. Back
+   cards (even children) are raised so their name band shows above the front ones. */
+.stagger {
+  padding-top: var(--raise);
+}
+/* Group separators are dropped in staggered lines (the fit leaves them out). */
+.stagger > .host {
+  margin-left: calc(-1 * var(--overlap));
+}
+.stagger > .host:first-child {
+  margin-left: 0;
+}
+.stagger > .host:nth-child(odd) {
+  z-index: 1;
+}
+.stagger > .host:nth-child(even) {
+  translate: 0 calc(-1 * var(--raise));
 }
 
 .separator {
@@ -42,4 +64,27 @@
   position: absolute;
   left: 0;
   bottom: calc(var(--ch) * 0.17 * var(--j));
+}
+
+/* The commander in the command zone, in the support row: two lines over its
+   foot, within the width its host reserves (never past the row). */
+.caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--sp-1);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 var(--sp-1);
+  border-radius: var(--r-sm);
+  background: var(--c-label-band);
+  color: var(--c-text);
+  font-size: var(--fs-2xs);
+  line-height: 1.25;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
 }

@@ -16,6 +16,8 @@
   --c-line: #2c434d;
   --c-line-strong: #4a6773;
   --c-scrim: rgb(6 10 12 / 0.62);
+  /* Dark band behind name labels laid over card art. */
+  --c-label-band: rgb(13 20 23 / 0.88);
 
   /* --- Text ------------------------------------------------------------- */
   --c-text: #eef3f2;

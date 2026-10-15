@@ -3,7 +3,6 @@ import type { PlayerId, StepId } from '../model/types';
 
 /** How opponents are arranged in multiplayer. 1v1 always uses one full-width seat. */
 export type OpponentLayout = 'columns' | 'table' | 'focus';
-export type CardSize = 's' | 'm' | 'l';
 
 /**
  * Where the game waits for you when the stack is empty (a step set to "Pass"
@@ -29,7 +28,8 @@ export const DEFAULT_STOPS: StopPrefs = {
 /** Light board customisation (not a docking workspace). */
 export interface Prefs {
   layout: OpponentLayout;
-  cardSize: CardSize;
+  /** Name label over the title bar of battlefield cards drawn narrower than 150 px. */
+  nameLabels: boolean;
   groupLands: boolean;
   groupTokens: boolean;
   /** 0.75–2, multiplies the root font size. */
@@ -44,7 +44,7 @@ export type OpponentShare = (typeof OPPONENT_SHARES)[number];
 
 export const DEFAULT_PREFS: Prefs = {
   layout: 'columns',
-  cardSize: 'm',
+  nameLabels: true,
   groupLands: true,
   groupTokens: true,
   uiScale: 1,
@@ -76,6 +76,8 @@ export function parsePrefs(raw: string): Prefs {
     const p = { ...DEFAULT_PREFS, ...stored, stops: parseStops(stored.stops) };
     // Pass 1 stored the Focus pick as a preference; it is screen state now.
     delete p.focusedOpponentId;
+    // Pass 3 replaced the S/M/L card size with adaptive sizing.
+    delete (p as { cardSize?: unknown }).cardSize;
     if (!OPPONENT_SHARES.includes(p.opponentShare)) p.opponentShare = DEFAULT_PREFS.opponentShare;
     return p;
   } catch {
@@ -100,5 +102,3 @@ export function savePrefs(p: Prefs) {
     /* ignore */
   }
 }
-
-export const CARD_SCALE: Record<CardSize, number> = { s: 0.78, m: 0.9, l: 1 };

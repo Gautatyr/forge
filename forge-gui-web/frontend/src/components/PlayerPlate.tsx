@@ -1,11 +1,9 @@
-import type { CSSProperties } from 'react';
 import { commanderTax } from '../model/selectors';
 import type { PlayerView } from '../model/types';
 import { playerTargetSpot, spotlightItem } from '../state/cardStatus';
 import { currentDefender } from '../state/focus';
 import { useMatch } from '../state/MatchContext';
 import type { ViewableZone } from '../state/ui';
-import { Card } from './Card';
 import { Icon, SeatGlyph, type IconName } from './Icon';
 import styles from './PlayerPlate.module.css';
 
@@ -78,7 +76,7 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
 
   return (
     <div
-      className={`${styles.plate} ${styles[density]} ${vertical ? styles.vertical : ''} ${active ? styles.active : ''} ${ring}`}
+      className={`${styles.plate} ${styles[density]} ${vertical ? styles.vertical : styles.inline} ${active ? styles.active : ''} ${ring}`}
       data-player-id={p.id}
       data-arrow-occluder
       role={clickable ? 'button' : undefined}
@@ -120,39 +118,41 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
             </button>
           ) : null}
           {active ? (
-            <span className={`${styles.tag} ${styles.tagTurn}`}>
+            <span className={`${styles.tag} ${styles.tagTurn}`} title={p.isYou ? 'Your turn' : 'Their turn'}>
               <Icon name="play" />
-              {p.isYou ? 'Your turn' : 'Their turn'}
+              <span className={styles.tagText}>{p.isYou ? 'Your turn' : 'Their turn'}</span>
             </span>
           ) : null}
           {priority ? (
-            <span className={`${styles.tag} ${styles.tagPriority}`}>
+            <span className={`${styles.tag} ${styles.tagPriority}`} title="Priority">
               <Icon name="hourglass" />
-              Priority
+              <span className={styles.tagText}>Priority</span>
             </span>
           ) : null}
           {incoming > 0 ? (
-            <span className={`${styles.tag} ${styles.tagAttacked}`}>
+            <span className={`${styles.tag} ${styles.tagAttacked}`} title={`${incoming} attacking`}>
               <Icon name="sword" />
-              {incoming} attacking
+              {incoming}
+              <span className={styles.tagText}> attacking</span>
             </span>
           ) : null}
           {draftIncoming > 0 ? (
-            <span className={`${styles.tag} ${styles.tagAttacked}`}>
+            <span className={`${styles.tag} ${styles.tagAttacked}`} title={`${draftIncoming} from you`}>
               <Icon name="sword" />
-              {draftIncoming} from you
+              {draftIncoming}
+              <span className={styles.tagText}> from you</span>
             </span>
           ) : null}
           {stackSpot ? (
             <span className={`${styles.tag} ${styles.tagTargeted}`} title={`Targeted by ${spotSource ?? 'a stack item'}`}>
               <Icon name="target" />
-              Targeted
+              <span className={styles.tagText}>Targeted</span>
             </span>
           ) : null}
           {legalTarget && !chosenTarget ? (
-            <span className={`${styles.tag} ${styles.tagTarget}`}>
+            <span className={`${styles.tag} ${styles.tagTarget}`} title="Target">
               <Icon name="target" />
-              Target
+              <span className={styles.tagText}>Target</span>
             </span>
           ) : null}
           {cmdDamage.length > 0 ? (
@@ -168,7 +168,7 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
                     title={`${x.amount} of 21 commander damage from ${src?.name ?? 'a commander'}`}
                   >
                     <Icon name={danger ? 'burst' : 'crown'} />
-                    {src?.name.split(',')[0]}
+                    <span className={styles.cmdName}>{src?.name.split(',')[0]}</span>
                     <b>{x.amount}</b>
                     <span className={styles.of21}>/21</span>
                   </span>
@@ -200,17 +200,18 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
 
       </div>
 
-      {p.command.length > 0 ? (
+      {/* Full seats show the commander in the battlefield's support row; compact seats keep a chip. */}
+      {p.command.length > 0 && density === 'compact' ? (
         <div className={styles.command} aria-label="Command zone">
           {p.command.map((id) => {
             const c = game.cards[id];
             if (!c) return null;
             const tax = commanderTax(p, id);
             return (
-              <div key={id} className={styles.commandCard}>
-                <Card card={c} context="thumb" style={{ '--cw': density === 'full' ? '2.9rem' : '1.9rem' } as CSSProperties} />
-                <span className={styles.commandLabel}>{tax > 0 ? `Tax +${tax}` : 'Command'}</span>
-              </div>
+              <span key={id} className={styles.zone} title={`${c.name} in the command zone, tax +${tax}`}>
+                <Icon name="crown" />
+                <span className={styles.zoneCount}>+{tax}</span>
+              </span>
             );
           })}
         </div>

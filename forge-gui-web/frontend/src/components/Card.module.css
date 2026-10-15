@@ -374,3 +374,36 @@
 .thumb .face {
   box-shadow: none;
 }
+
+/* Name label over the printed title bar of small battlefield cards. Drawn on
+   the slot, not the card, so it stays horizontal on tapped cards. */
+.nameLabel {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: calc(var(--ch) * 0.035);
+  z-index: 1;
+  padding: 0 var(--sp-1);
+  border-radius: var(--r-sm);
+  background: var(--c-label-band);
+  color: var(--c-text);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.tapped .nameLabel {
+  top: var(--sp-1);
+}
+/* State badges move below the label. Upright: down the card. Tapped: the card is
+   turned, so its left edge is the top of the slot. */
+.labelled .badges {
+  top: max(13%, calc(var(--ch) * 0.035 + var(--fs-xs) * 1.3 + var(--sp-0)));
+}
+.labelled.tapped .badges {
+  top: 13%;
+  left: max(5%, calc(var(--sp-1) + var(--fs-xs) * 1.3 + var(--sp-0)));
+}

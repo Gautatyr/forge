@@ -11,8 +11,8 @@ pnpm check                    # tsc + eslint + vitest (17 tests)
 pnpm build                    # production build into dist/
 pnpm resolve-cards            # only when the mock card list changes (calls Scryfall)
 ```
-- Scenario picker: the small **Mock** tag at the top-left, or the `` ` `` key. URL parameters also work: `?scenario=blockers&layout=table&size=l`.
-- Scenario ids: `priority`, `blockers`, `scry`, `search`, `duel`, `hand9`, `hand12`. Layout ids: `columns`, `table`, `focus`. Sizes: `s`, `m`, `l`.
+- Scenario picker: the small **Mock** tag at the top-left, or the `` ` `` key. URL parameters also work: `?scenario=blockers&layout=table`.
+- Scenario ids: `priority`, `blockers`, `scry`, `search`, `duel`, `hand9`, `hand12`. Layout ids: `columns`, `table`, `focus`.
 - Display options persist in `localStorage` (`forge.match.prefs.v1`); URL parameters override them.
 
 ## Stack
@@ -180,3 +180,17 @@ Verified (Playwright, 1920×1080 and 1366×768, desktop context): in every scena
 Mock targeting: "Hexproof from <colour>" blocks only opponents' spells of that colour (from the source's mana cost); plain Hexproof blocks all.
 
 Known gaps: at 1366×768 Columns, opponents' creatures are 47 px wide, so one 20 px disc covers a large part of the card (opponents' card size is item 4 of the spec). Committed JPEGs in `forge-gui-web/frontend/docs/screenshots/` were not regenerated (the turn-strip issue changes the same views in parallel).
+## Pass 3C: readable opponent cards (issue #22)
+
+Spec: `product-decisions-pass-3.md` section 4.
+
+| Item | Change | Code |
+|---|---|---|
+| Two tiers | Creature row: creatures, planeswalkers, battles. Support row: other permanents, lands (grouped), the commander in the command zone (two-line caption "Command zone" / "tax +N" over its foot; its host reserves 5.5 rem so the caption stays in the row), at 60 % of the creature size. | `battlefieldGroups.ts` (`inCreatureRow`), `Battlefield.tsx` |
+| Adaptive sizing | Largest creature width that fits, cap 11.25 rem (180 px at 1080p; rem follows screen height and UI scale). Fallbacks in order: support 60 → 45 %, creatures wrap (up to 4 lines), staggered overlap at 72 px × UI scale (back cards raised 13 % so their name band shows): the line counts that fit the height with the least overlap (≤ 85 % of a card covered); below 72 px only if even that cannot fit. Widths count group separators (1.5 × gap) and the caption's reserved width. Compact Focus seats (creatures only) have no 72 px floor. | `battlefieldLayout.ts` (`fitBattlefield`, `fitRow`) |
+| One-line header | Full and compact plates (not the vertical plate of your seat / 1v1): life, name, zones, commander damage, state tags on one wrapping line. Container queries: < 40 rem hides zone labels and commander names; < 30 rem hides tag text (icon + tooltip stay). The plate's commander thumbnail is gone (support row); compact plates show a crown chip with the tax. | `PlayerPlate.*` |
+| Name labels | Board cards narrower than 150 px: 12 px label (`--fs-xs`) over the title bar, drawn on the slot so tapped cards keep it horizontal. State badges move below the label. Display → "Name labels on small cards", on by default. | `Card.*` (`nameLabel` prop), `Battlefield.tsx`, `state/prefs.ts`, `Overlays.tsx` |
+| Display | S/M/L card size removed (pref and `?size=` dropped; old stored value deleted on load). Board split (35–55 %, default 45) kept. Columns already default. | `state/prefs.ts`, `MatchContext.tsx`, `Overlays.tsx` |
+| Focus compact seat overflow | Compact seats are stacked (header, summary, creatures) instead of a 17 rem side column. No element outside its seat in priority / blockers / stack6 at 1366 and 1920. "Hidden here" counts only what the seat does not draw (`hiddenInCompact`). | `Seat.*` |
+
+Measured creature widths (priority, Columns): 1920×1080 opponents 118–121 px (Mira 107: width-bound, a tapped Krenko plus 3 creatures in 499 px), you 159; 1366×768 opponents 72–79; 2560×1440 opponents 143–163 (Mira 143, same cause), you 212.
