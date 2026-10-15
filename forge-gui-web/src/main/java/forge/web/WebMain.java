@@ -43,7 +43,7 @@ import forge.web.server.WebServer;
  * --hidden redact|full    redact: each seat sees what the engine lets that player see, the
  *                         spectator what every player may see (default); full: omniscient, debug only
  * --port 7655  --assets forge-gui/  --home &lt;dir&gt;  --viewer &lt;dir&gt;
- * --image-cache &lt;dir&gt;    card image cache (default: the desktop app's, e.g. ~/.cache/forge/pics)
+ * --image-cache &lt;dir&gt;    card image cache (default: the desktop app's, e.g. ~/.cache/forge/pics; ignored on Windows)
  * --wait-client SECONDS   wait for a WebSocket client before the first game
  *                         (open the URL printed as "[web] serving ...": it carries the per-launch token)
  * --exit                  stop the server after the last game
@@ -73,9 +73,10 @@ public final class WebMain {
         Path home = Paths.get(opt.getOrDefault("home", moduleDir.resolve("target/forge-home").toString())).toAbsolutePath();
         Files.createDirectories(home);
         // ...except the card image cache, shared with the desktop app (override: --image-cache <pics dir>)
+        String os = System.getProperty("os.name");
         Path pics = opt.containsKey("image-cache") ? Paths.get(opt.get("image-cache")).toAbsolutePath()
-                : DesktopImageCache.desktopPics(System.getProperty("user.home"), System.getProperty("os.name"));
-        System.out.println("[web] " + DesktopImageCache.link(home, pics));
+                : DesktopImageCache.desktopPics(System.getProperty("user.home"), os);
+        System.out.println("[web] " + DesktopImageCache.link(home, pics, os));
         System.setProperty("user.home", home.toString());
         System.setProperty("java.awt.headless", "true");
         System.setProperty("java.util.Arrays.useLegacyMergeSort", "true");
