@@ -1,4 +1,4 @@
-import type { CardId, PlayerId, StepId, TargetRef } from './types';
+import type { CardId, PlayerId, TargetRef } from './types';
 
 /**
  * What the player asks the game to do. The mock engine answers these with
@@ -30,7 +30,6 @@ export type Intent =
   | { type: 'answer'; promptId: string; answer: PromptAnswer }
   | { type: 'passUntilYourTurn' }
   | { type: 'cancelPassUntilYourTurn' }
-  | { type: 'setStop'; whose: 'yourTurn' | 'opponentsTurn'; step: StepId; on: boolean }
   | { type: 'setAutoPass'; on: boolean }
   | { type: 'setAutoYield'; on: boolean }
   | { type: 'toggleAutoYieldTo'; key: string }

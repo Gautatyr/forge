@@ -43,7 +43,7 @@ function historyReducer(h: History, a: HistoryAction): History {
   const next = applyIntent(h.game, a.intent);
   if (next === h.game) return h;
   // Only real game actions are undoable, not settings toggles.
-  const undoable = !['setStop', 'setAutoPass', 'setAutoYield', 'toggleAutoYieldTo'].includes(a.intent.type);
+  const undoable = !['setAutoPass', 'setAutoYield', 'toggleAutoYieldTo'].includes(a.intent.type);
   return { ...h, game: next, past: undoable ? [...h.past, h.game].slice(-30) : h.past };
 }
 

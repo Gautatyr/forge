@@ -1,0 +1,274 @@
+/* Drops over the opponents' area; the board stays usable (no scrim). */
+.panel {
+  position: absolute;
+  top: var(--sp-2);
+  /* StopsPanel overrides `left` to line the columns up with the strip. Its
+     padding-left (sp-3) is part of that sum. */
+  left: var(--sp-3);
+  z-index: var(--z-popover);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  max-width: calc(100% - 2 * var(--sp-3));
+  max-height: calc(100% - 2 * var(--sp-2));
+  overflow: auto;
+  padding: var(--sp-3);
+  border-radius: var(--r-lg);
+  background: var(--c-panel);
+  border: 1px solid var(--c-line-strong);
+  box-shadow: var(--shadow-float);
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+
+.titles h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+}
+
+.help {
+  margin: var(--sp-0) 0 0;
+  font-size: var(--fs-xs);
+  color: var(--c-text-2);
+}
+
+.done {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0.3rem var(--sp-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--c-line-strong);
+  background: var(--c-panel-raised);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  color: var(--c-text);
+}
+
+.done:hover {
+  background: var(--c-panel-hover);
+}
+
+.done kbd,
+.foot kbd {
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-regular);
+  padding: 0 0.3rem;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-line-strong);
+  color: var(--c-text-3);
+}
+
+/* One column per step, the label column first. StopsPanel sets the widths
+   from the strip when it can; otherwise every column takes its content. */
+.grid {
+  display: grid;
+  grid-template-columns: max-content repeat(10, max-content);
+  row-gap: var(--sp-1);
+}
+
+.row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+}
+
+.rowLabel {
+  padding-right: var(--sp-3);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--c-text);
+  line-height: 1.2;
+}
+
+.rowLabel svg {
+  vertical-align: -0.125em;
+  color: var(--c-text-2);
+}
+
+/* "Set per opponent" rows: indented, lighter. */
+.sub .rowLabel {
+  padding-left: var(--sp-3);
+  font-weight: var(--fw-regular);
+  color: var(--c-text-2);
+}
+
+.cell {
+  display: flex;
+  align-self: stretch;
+  align-items: center;
+  min-width: 0;
+}
+
+/* Without strip widths the cells need their own breathing room. */
+.grid:not([data-aligned]) .cell {
+  padding: 0 0.15rem;
+}
+
+.separator {
+  border-left: 1px solid var(--c-line-strong);
+}
+
+.cellBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+
+.grid:not([data-aligned]) .cellBox {
+  min-width: 3.4rem;
+}
+
+.heads .cell {
+  align-items: flex-end;
+}
+
+.caption {
+  min-height: 0.9rem;
+  font-size: var(--fs-2xs);
+  line-height: 0.9rem;
+  color: var(--c-text-3);
+  white-space: nowrap;
+}
+
+.stepName {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--c-text-2);
+  white-space: nowrap;
+}
+
+/* A cell is a word: a filled "Stop" chip, a plain faint "Pass", or a dashed "Mixed". */
+.toggle {
+  min-width: 3.1rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--r-pill);
+  border: 1px solid transparent;
+  font-size: var(--fs-sm);
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.stop {
+  background: var(--c-text-2);
+  border-color: var(--c-text-2);
+  color: var(--c-text-on-accent);
+  font-weight: var(--fw-bold);
+}
+
+.stop:hover {
+  background: var(--c-text);
+  border-color: var(--c-text);
+}
+
+.pass {
+  color: var(--c-text-3);
+}
+
+.pass:hover {
+  border-color: var(--c-line-strong);
+  color: var(--c-text);
+}
+
+.mixed {
+  border: 1px dashed var(--c-line-strong);
+  color: var(--c-text-2);
+  font-style: italic;
+}
+
+.mixed:hover {
+  color: var(--c-text);
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-4);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--c-line);
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem var(--sp-2);
+  border-radius: var(--r-md);
+  font-size: var(--fs-sm);
+  color: var(--c-text-2);
+}
+
+.link:hover,
+.link[aria-expanded='true'] {
+  background: var(--c-panel-raised);
+  color: var(--c-text);
+}
+
+.switchRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: auto;
+  font-size: var(--fs-sm);
+  color: var(--c-text-2);
+  cursor: pointer;
+}
+
+.switchRow b {
+  color: var(--c-text);
+}
+
+.switchRow input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.switch {
+  position: relative;
+  flex: none;
+  width: 2.1rem;
+  height: 1.15rem;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--c-line-strong);
+  background: var(--c-bg);
+}
+
+.knob {
+  position: absolute;
+  top: 50%;
+  left: 0.15rem;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 50%;
+  background: var(--c-text-3);
+  transform: translateY(-50%);
+  transition: left var(--dur-fast);
+}
+
+.switchRow input:checked + .switch {
+  background: var(--c-priority);
+  border-color: var(--c-priority);
+}
+
+.switchRow input:checked + .switch .knob {
+  left: 1.1rem;
+  background: var(--c-text-on-accent);
+}
+
+.switchRow input:focus-visible + .switch {
+  outline: 2px solid var(--c-selected);
+  outline-offset: 2px;
+}

@@ -100,3 +100,7 @@ Newest last. Each entry: the decision, why, and what it implies.
 - Starting a game: Forge's existing desktop lobby sets up the match and picks every deck (including the owner's custom decks); pressing Start opens the match in the new web screen in the browser. A preference "Use the new match screen" switches back to the Swing game screen.
 - Format for the morning test: **Commander, 4 players (1v1v1v1: owner vs 3 AIs), 40 life.**
 - The orchestrator works autonomously until done; the owner is away.
+## 2026-10-15 — Phase stops are a client setting (issue #20)
+- Stops live in the match screen's prefs (`prefs.stops`), not in the view-model: `GameView.stops` and the `setStop` intent are removed. This follows Forge, where the GUI owns stops and the engine asks `IGuiGame.isUiSetToSkipPhase(turnPlayer, phase)`.
+- The bridge (#11) must answer `isUiSetToSkipPhase` from stops the client sends; the message for that is not designed yet.
+- Defaults are Forge's (`ForgePreferences` PHASE_HUMAN_* / PHASE_AI_*). Shared rows persist; per-opponent rows last one match.

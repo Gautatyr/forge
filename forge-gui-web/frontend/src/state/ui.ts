@@ -1,6 +1,6 @@
 import type { CardId, PlayerId, StackItemId } from '../model/types';
 
-export type Overlay = 'shortcuts' | 'display' | 'dev' | 'menu';
+export type Overlay = 'shortcuts' | 'display' | 'dev' | 'menu' | 'stops';
 export type ViewableZone = 'graveyard' | 'exile' | 'command';
 
 /** Screen-only state: never sent to the engine. */

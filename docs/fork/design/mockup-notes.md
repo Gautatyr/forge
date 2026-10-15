@@ -138,3 +138,21 @@ Spec: [product-decisions-pass-3.md](product-decisions-pass-3.md), section 4 "Rig
 Above the action block, the regions scroll as a last resort (at 200 % UI scale with a stack and an open zone); the action block never scrolls.
 
 Measured with Playwright (desktop context, scale 1): at 1366×768 and 1920×1080, 100 %, every scenario in all three layouts and in states (zone open, passing to your turn, attack declaration, attack draft with Cancel), the only space below the last region is the column padding; Recent shows ≥ 3 whole events whenever the log has 3; Undo, To my turn and the switch keep identical rects; the prompt sits one `--sp-2` gap above the next control. At 200 % the prompt is 55 px (1366) / 70 px (1920) tall and never clipped. Stack6, every layout, 1366/1920/2560: player-target marker centre 17 px or more from the plate.
+
+## Pass 3A: turn strip and Stops panel (issue #20)
+Spec section 1 of [product-decisions-pass-3.md](product-decisions-pass-3.md), defaults from its "Engine facts".
+
+| Change | Code |
+|---|---|
+| Top bar left: "<shape> <name>'s turn" / "Your turn", "Turn N · next: <shape> <name>" (skips players who lost), chip "⌛ Waiting for you" (orange) or "⌛ Waiting for <shape> <name>" (neutral). Waited-for player = the `waiting` decision's player, else you. An AI's chip appears after 400 ms (slot kept). | `TopBar.tsx`, `state/turnStrip.ts` |
+| Strip: Upkeep, Draw, Main 1, Start, Attack, Block, Damage, End, Main 2, End step; captions "Beginning" (Upkeep, Draw) and "Combat". Untap and Cleanup dropped; "Begin" → "Start". Current step = filled pill with ▶; earlier steps faint. No stop marks. Hover: on whose turns the game stops there; click (or **Stops**) opens the editor. | `PhaseTrack.tsx`, `model/phases.ts` (`PRIORITY_STEPS`, `STEP_RUNS`, `stopName`) |
+| Fit: from natural widths (`fitLevel`), tool buttons drop their words first (icon + key letter + tooltip), then the combat steps fold into one "Combat" pill outside combat; the turn block truncates with "…" last. English fits at level 0 down to 1000×768 at UI scale 100 %; the levels engage at 1366 px from UI scale 150 %. | `TopBar.tsx` (`useFit`), `state/turnStrip.ts` |
+| Main button names the next stop with an empty stack: "Pass priority" / "End turn" · "Next stop: Theo's Attack step" / "your Main 1" (`nextStop`: rest of this turn, then each following turn, per-opponent rows included). The Space key moved onto the label line so the detail line gets the full width. | `state/primaryAction.ts`, `state/stops.ts`, `ActionPanel.*` |
+| Stops editor: non-modal panel over the opponents' area (no scrim), Done or Esc. Rows "On my turn", "On opponents' turns" ("On opponent's turns" in 1v1); cells are words: filled "Stop", faint "Pass", dashed "Mixed". "Set per opponent ▸" (multiplayer) adds a row per opponent; the shared row shows "Mixed" when they differ, and a shared click sets every opponent. "Reset to defaults", the auto-pass switch, help line "You always get to respond when something is on the stack." Columns line up under the strip's steps (measured, within 3 px); when the strip folds, the grid sizes itself. | `StopsPanel.tsx` |
+| Stops are a client setting in prefs (`prefs.stops`), Forge's defaults: your turn Main 1, Declare blockers, Main 2; opponents' turns Beginning of combat, Declare attackers, Declare blockers, End step. Shared rows persist; per-opponent rows last one match (dropped on load). `GameView.stops` and the `setStop` intent are gone; the bridge (#11) answers `isUiSetToSkipPhase(turnPlayer, phase)` from the client's stops. | `state/prefs.ts`, `state/stops.ts` |
+
+Dev "Mock" tag moved to the bottom-left corner (it covered the turn block).
+
+Measured contrast: "Stop" chip 10.5:1, "Pass" 5.8:1, "Mixed" 8.5:1 (on `--c-panel`); neutral chip 7.3:1; captions 7.2:1 on the bar, 5.8:1 on the combat run.
+
+Not done: the player plate's "Priority" tag is unchanged (no 400 ms delay, no "Waiting for" wording). At 1366 px with UI scale ≥ 175 % during combat (no fold), the top bar still overflows and clips the tool buttons; the spec gives no third fallback. Committed JPEGs in `forge-gui-web/frontend/docs/screenshots/` still show the pass-2 top bar.

@@ -710,11 +710,6 @@ export function applyIntent(prev: MockGame, intent: Intent): MockGame {
     case 'cancelPassUntilYourTurn':
       g.passingUntilYourTurn = false;
       return g;
-    case 'setStop': {
-      const list = g.stops[intent.whose];
-      g.stops[intent.whose] = intent.on ? [...new Set([...list, intent.step])] : list.filter((s) => s !== intent.step);
-      return g;
-    }
     case 'setAutoPass':
       g.autoPass = intent.on;
       return g;

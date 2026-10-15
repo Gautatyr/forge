@@ -13,13 +13,13 @@ import styles from './ChoiceTray.module.css';
  * board" folds it away until you bring it back.
  */
 export function ChoiceTray() {
-  const { game, ui, setUi, send } = useMatch();
+  const { game, ui, prefs, setUi, send } = useMatch();
   const d = game.decision;
   if (d.kind !== 'choice') return null;
   const prompt = d.prompt;
   const draft = draftFor(prompt, ui.choiceDraft);
   const setDraft = (next: ChoiceDraft) => setUi({ choiceDraft: next });
-  const action = primaryAction(game, ui);
+  const action = primaryAction(game, ui, prefs.stops);
   const source = prompt.sourceCardId ? game.cards[prompt.sourceCardId] : undefined;
 
   if (ui.trayPeek) {

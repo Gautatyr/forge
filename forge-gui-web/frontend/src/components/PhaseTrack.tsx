@@ -1,71 +1,102 @@
-import { STEPS } from '../model/phases';
+import type { Ref } from 'react';
+import { GROUP_CAPTIONS, STEPS, STEP_RUNS, type StepInfo, type StepRun } from '../model/phases';
 import { useMatch } from '../state/MatchContext';
+import { stepHint } from '../state/stops';
 import { Icon } from './Icon';
 import styles from './PhaseTrack.module.css';
 
+interface Props {
+  /** Too narrow (1366 px, French): outside combat, the combat steps fold into one "Combat" pill. */
+  foldCombat: boolean;
+  ref?: Ref<HTMLElement>;
+}
+
 /**
- * Labelled steps of the turn, with the current one marked. Under each step,
- * two stop toggles: left = stop there on your turns, right = on opponents'
- * turns. Filled octagon = stop, hollow = pass through.
+ * The turn strip: the steps of the turn being played, in words, with the
+ * current one as a ▶ pill. Stops are not shown here: the main button names
+ * the next stop, and clicking a step (or Stops) opens the Stops editor.
+ * Untap and Cleanup are left out: nobody gets priority there.
  */
-export function PhaseTrack() {
-  const { game, send } = useMatch();
-  const current = game.turn.step;
-  const currentIndex = STEPS.findIndex((s) => s.id === current);
-  const yours = game.turn.activePlayerId === game.youId;
+export function PhaseTrack({ foldCombat, ref }: Props) {
+  const { game, ui, prefs, setUi } = useMatch();
+  const currentIndex = STEPS.findIndex((s) => s.id === game.turn.step);
+  const stopsOpen = ui.overlay === 'stops';
+  const openStops = () => setUi({ overlay: 'stops' });
+  const fold = foldCombat && !STEPS[currentIndex]?.combat;
+  const combatPast = currentIndex > STEPS.findLastIndex((s) => s.combat);
+
+  const step = (s: StepInfo) => {
+    const i = STEPS.indexOf(s);
+    const isCurrent = i === currentIndex;
+    return (
+      <button
+        key={s.id}
+        type="button"
+        data-strip-step={s.id}
+        className={`${styles.step} ${isCurrent ? styles.current : i < currentIndex ? styles.past : ''}`}
+        aria-current={isCurrent ? 'step' : undefined}
+        title={stepHint(game, prefs.stops, s.id)}
+        onClick={openStops}
+      >
+        {isCurrent ? <Icon name="play" /> : null}
+        {s.label}
+      </button>
+    );
+  };
+
+  const run = (r: StepRun, measureOnly = false) => (
+    <div
+      key={r.steps[0]!.id}
+      className={`${styles.run} ${r.group === 'combat' ? styles.combat : ''} ${measureOnly ? styles.measureOnly : ''}`}
+      data-combat-run={r.group === 'combat' ? (measureOnly ? 'measure' : 'full') : undefined}
+      inert={measureOnly}
+      aria-hidden={measureOnly || undefined}
+    >
+      <span className={styles.caption} aria-hidden>
+        {r.group ? GROUP_CAPTIONS[r.group] : ''}
+      </span>
+      <span className={styles.steps}>{r.steps.map(step)}</span>
+    </div>
+  );
 
   return (
-    <nav className={styles.track} aria-label="Turn steps and stops">
-      <div className={styles.legend} aria-hidden>
-        <span className={styles.legendTitle}>Step</span>
-        <span>
-          Stop on: <b>your</b> · <b>their</b> turns
-        </span>
-      </div>
-      {STEPS.map((s, i) => {
-        const isCurrent = s.id === current;
-        const youStop = game.stops.yourTurn.includes(s.id);
-        const oppStop = game.stops.opponentsTurn.includes(s.id);
-        const relevantStop = yours ? youStop : oppStop;
-        return (
-          <div
-            key={s.id}
-            className={`${styles.step} ${s.combat ? styles.combat : ''} ${isCurrent ? styles.current : ''} ${i < currentIndex ? styles.past : ''} ${s.combat && STEPS[i - 1]?.combat !== true ? styles.combatStart : ''} ${s.combat && STEPS[i + 1]?.combat !== true ? styles.combatEnd : ''}`}
-            title={`${s.longLabel}${isCurrent ? ' (now)' : ''}${relevantStop && !s.noPriority ? ' · you will stop here this turn' : ''}`}
-          >
-            <span className={styles.label} aria-current={isCurrent ? 'step' : undefined}>
-              {isCurrent ? <Icon name="play" /> : null}
-              {s.label}
-            </span>
-            {s.noPriority ? (
-              <span className={styles.pips} />
-            ) : (
-              <span className={styles.pips}>
+    <nav ref={ref} className={styles.track} aria-label="Turn steps">
+      {STEP_RUNS.map((r) =>
+        r.group === 'combat' && fold ? (
+          <div key="combat" className={styles.foldWrap}>
+            {run(r, true)}
+            <div className={`${styles.run} ${styles.combat}`} data-combat-run="fold">
+              <span className={styles.caption} aria-hidden />
+              <span className={styles.steps}>
                 <button
                   type="button"
-                  className={`${styles.pip} ${youStop ? styles.on : ''}`}
-                  aria-pressed={youStop}
-                  aria-label={`Stop at ${s.longLabel} on your turns`}
-                  title={`Stop at ${s.longLabel} on your turns: ${youStop ? 'on' : 'off'}`}
-                  onClick={() => send({ type: 'setStop', whose: 'yourTurn', step: s.id, on: !youStop })}
+                  className={`${styles.step} ${combatPast ? styles.past : ''}`}
+                  title="Combat: Start, Attack, Block, Damage, End. Click to change stops."
+                  onClick={openStops}
                 >
-                  <Icon name={youStop ? 'stop' : 'stopOff'} />
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.pip} ${oppStop ? styles.on : ''}`}
-                  aria-pressed={oppStop}
-                  aria-label={`Stop at ${s.longLabel} on opponents' turns`}
-                  title={`Stop at ${s.longLabel} on opponents' turns: ${oppStop ? 'on' : 'off'}`}
-                  onClick={() => send({ type: 'setStop', whose: 'opponentsTurn', step: s.id, on: !oppStop })}
-                >
-                  <Icon name={oppStop ? 'stop' : 'stopOff'} />
+                  Combat
                 </button>
               </span>
-            )}
+            </div>
           </div>
-        );
-      })}
+        ) : (
+          run(r)
+        ),
+      )}
+      <span className={styles.stopsSlot}>
+        <span className={styles.caption} aria-hidden />
+        <button
+          type="button"
+          className={styles.stopsButton}
+          aria-pressed={stopsOpen}
+          aria-haspopup="dialog"
+          title="Stops: where the game waits for you"
+          onClick={() => setUi({ overlay: stopsOpen ? undefined : 'stops' })}
+        >
+          <Icon name="stop" />
+          Stops
+        </button>
+      </span>
     </nav>
   );
 }

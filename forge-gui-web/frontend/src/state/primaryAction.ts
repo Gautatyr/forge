@@ -1,7 +1,9 @@
 import type { Intent, PromptAnswer } from '../model/intents';
-import { stepInfo, nextStep } from '../model/phases';
+import { stepInfo } from '../model/phases';
 import { player } from '../model/selectors';
 import type { ChoicePrompt, GameView } from '../model/types';
+import type { StopPrefs } from './prefs';
+import { nextStopLabel } from './stops';
 import type { ChoiceDraft, UiState } from './ui';
 
 export type Tone = 'priority' | 'attack' | 'block' | 'neutral';
@@ -40,7 +42,13 @@ export function answerFromDraft(prompt: ChoicePrompt, draft: ChoiceDraft): Promp
   }
 }
 
-export function primaryAction(game: GameView, ui: UiState): PrimaryAction {
+/** Detail line of a pass with an empty stack: where the game will next wait for you. */
+function nextStopDetail(game: GameView, stops: StopPrefs): string {
+  const at = nextStopLabel(game, stops);
+  return at ? `Next stop: ${at}` : 'No stops set: you act again when something is on the stack';
+}
+
+export function primaryAction(game: GameView, ui: UiState, stops: StopPrefs): PrimaryAction {
   const d = game.decision;
   switch (d.kind) {
     case 'waiting': {
@@ -62,13 +70,11 @@ export function primaryAction(game: GameView, ui: UiState): PrimaryAction {
       const yours = game.turn.activePlayerId === game.youId;
       if (yours && game.turn.step === 'main1')
         return { label: 'Go to combat', detail: 'Pass priority with an empty stack', enabled: true, tone: 'priority', intent: { type: 'primary' } };
-      if (yours && game.turn.step === 'main2') {
-        const next = game.players[1];
-        return { label: 'End turn', detail: next ? `${next.name} plays next` : undefined, enabled: true, tone: 'priority', intent: { type: 'primary' } };
-      }
+      if (yours && game.turn.step === 'main2')
+        return { label: 'End turn', detail: nextStopDetail(game, stops), enabled: true, tone: 'priority', intent: { type: 'primary' } };
       return {
         label: 'Pass priority',
-        detail: `Move on to ${stepInfo(nextStep(game.turn.step)).longLabel.toLowerCase()}`,
+        detail: nextStopDetail(game, stops),
         enabled: true,
         tone: 'priority',
         intent: { type: 'primary' },

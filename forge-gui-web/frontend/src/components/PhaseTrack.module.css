@@ -1,98 +1,112 @@
 .track {
+  position: relative;
   display: flex;
   align-items: stretch;
-  gap: 0.125rem;
-  min-width: 0;
+  gap: var(--sp-1);
+  flex: none;
 }
 
-.legend {
+/* A run of steps: its group caption ("Beginning", "Combat") over the steps. */
+.run {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  align-items: flex-end;
-  padding: 0.35rem var(--sp-2) 0.3rem 0;
-  font-size: var(--fs-2xs);
-  white-space: nowrap;
-  color: var(--c-text-3);
-  line-height: 1.1;
-}
-
-.legend b {
-  font-weight: var(--fw-medium);
-  color: var(--c-text-2);
-}
-
-.legendTitle {
-  visibility: hidden;
-}
-
-.step {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.15rem;
-  padding: 0.2rem 0.25rem;
-  min-width: 3.6rem;
+  justify-content: center;
+  gap: 0.1rem;
+  padding: 0.15rem 0.2rem;
   border-radius: var(--r-md);
 }
 
 .combat {
   background: var(--c-panel);
-  border-radius: 0;
-}
-.combatStart {
-  border-top-left-radius: var(--r-md);
-  border-bottom-left-radius: var(--r-md);
-}
-.combatEnd {
-  border-top-right-radius: var(--r-md);
-  border-bottom-right-radius: var(--r-md);
 }
 
-.label {
+.caption {
+  min-height: 0.9rem;
+  padding-left: 0.45rem;
+  font-size: var(--fs-2xs);
+  line-height: 0.9rem;
+  color: var(--c-text-3);
+  white-space: nowrap;
+}
+
+.steps {
+  display: flex;
+  gap: 0.1rem;
+}
+
+.step {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.2rem;
-  padding: 0.05rem 0.45rem;
+  /* Room for the Stops editor's "Stop" / "Mixed" chip under each step. */
+  min-width: 3.4rem;
+  padding: 0.1rem 0.45rem;
   border-radius: var(--r-pill);
   font-size: var(--fs-sm);
   font-weight: var(--fw-medium);
+  line-height: 1.25;
   color: var(--c-text-2);
   white-space: nowrap;
 }
 
-.past .label {
+.step:hover {
+  background: var(--c-panel-hover);
+  color: var(--c-text);
+}
+
+/* Earlier steps of this turn: faint. Later ones keep normal text. */
+.past {
   color: var(--c-text-3);
 }
 
-.current .label {
+/* The current step: a filled pill with ▶. The shape carries it, not the colour. */
+.current,
+.current:hover {
   background: var(--c-text);
   color: var(--c-text-on-accent);
   font-weight: var(--fw-bold);
 }
 
-.pips {
+/* Folded combat: the full run stays laid out (hidden, out of flow) so the top bar can measure it. */
+.foldWrap {
+  position: relative;
   display: flex;
-  gap: 0.2rem;
-  min-height: 1rem;
 }
 
-.pip {
-  display: grid;
-  place-items: center;
-  width: 1.05rem;
-  height: 1.05rem;
-  border-radius: var(--r-sm);
-  color: var(--c-text-3);
-  font-size: 0.85rem;
+.measureOnly {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
-.pip:hover {
-  background: var(--c-panel-hover);
+.stopsSlot {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.1rem;
+  padding: 0.15rem 0;
+  margin-left: var(--sp-2);
+}
+
+.stopsButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem var(--sp-2);
+  border-radius: var(--r-md);
+  border: 1px solid var(--c-line-strong);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  line-height: 1.25;
+  color: var(--c-text-2);
+  white-space: nowrap;
+}
+
+.stopsButton:hover,
+.stopsButton[aria-pressed='true'] {
+  background: var(--c-panel-raised);
   color: var(--c-text);
-}
-
-.on {
-  color: var(--c-priority);
 }
