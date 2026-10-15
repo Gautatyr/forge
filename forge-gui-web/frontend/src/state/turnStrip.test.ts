@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { scenarioById } from '../mock/scenarios';
 import { PRIORITY_STEPS, STEP_RUNS } from '../model/phases';
-import { fitLevel, nextPlayer, waitingOn, type FitWidths } from './turnStrip';
+import { AI_CHIP_DELAY_MS, fitLevel, nextPlayer, SettleGate, waitingOn, type FitWidths } from './turnStrip';
 
 describe('turn strip steps', () => {
   it('drops Untap and Cleanup and renames Begin to Start', () => {
@@ -62,5 +62,81 @@ describe('top bar fit (1366 px and French)', () => {
   it('then folds the combat steps', () => {
     expect(fitLevel({ ...w, available: 879 })).toBe(2);
     expect(fitLevel({ ...w, available: 500 })).toBe(2);
+  });
+});
+
+describe('"Waiting for <AI>" chip delay', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  const delay = (key: string) => (key === 'you' ? 0 : AI_CHIP_DELAY_MS);
+  /** One TopBar render with `key` waited for: read during render, then the effect. */
+  const render = (gate: SettleGate, key: string) => {
+    const shown = gate.shown(key, delay(key));
+    gate.set(key, delay(key));
+    return shown;
+  };
+
+  it('hides an AI chip for 400 ms on every pass to that AI, not only the first', () => {
+    let changes = 0;
+    const gate = new SettleGate(() => changes++);
+    for (let pass = 0; pass < 3; pass++) {
+      expect(render(gate, 'you')).toBe(true);
+      expect(gate.shown('you', 0)).toBe(true);
+
+      expect(render(gate, 'theo')).toBe(false);
+      vi.advanceTimersByTime(80);
+      expect(gate.shown('theo', AI_CHIP_DELAY_MS)).toBe(false);
+      vi.advanceTimersByTime(AI_CHIP_DELAY_MS - 81);
+      expect(gate.shown('theo', AI_CHIP_DELAY_MS)).toBe(false);
+      vi.advanceTimersByTime(1);
+      expect(gate.shown('theo', AI_CHIP_DELAY_MS)).toBe(true);
+      expect(changes).toBe(pass + 1);
+    }
+  });
+
+  it('restarts the delay when the wait moves from one AI to another', () => {
+    const gate = new SettleGate(() => {});
+    render(gate, 'theo');
+    vi.advanceTimersByTime(AI_CHIP_DELAY_MS);
+    expect(gate.shown('theo', AI_CHIP_DELAY_MS)).toBe(true);
+    expect(render(gate, 'mira')).toBe(false);
+    vi.advanceTimersByTime(AI_CHIP_DELAY_MS - 1);
+    expect(gate.shown('mira', AI_CHIP_DELAY_MS)).toBe(false);
+    vi.advanceTimersByTime(1);
+    expect(gate.shown('mira', AI_CHIP_DELAY_MS)).toBe(true);
+  });
+
+  it('keeps a settled chip shown while the same AI stays waited for', () => {
+    const gate = new SettleGate(() => {});
+    render(gate, 'theo');
+    vi.advanceTimersByTime(AI_CHIP_DELAY_MS);
+    expect(render(gate, 'theo')).toBe(true);
+    expect(render(gate, 'theo')).toBe(true);
+  });
+
+  it('cancels a pending timer when the wait moves away or the bar unmounts', () => {
+    let changes = 0;
+    const gate = new SettleGate(() => changes++);
+    render(gate, 'theo');
+    render(gate, 'you');
+    vi.advanceTimersByTime(AI_CHIP_DELAY_MS * 2);
+    expect(changes).toBe(0);
+    render(gate, 'theo');
+    gate.dispose();
+    vi.advanceTimersByTime(AI_CHIP_DELAY_MS * 2);
+    expect(changes).toBe(0);
+  });
+
+  it('starts over when set again after dispose (StrictMode re-runs effects)', () => {
+    let changes = 0;
+    const gate = new SettleGate(() => changes++);
+    render(gate, 'theo');
+    gate.dispose();
+    gate.set('theo', AI_CHIP_DELAY_MS);
+    expect(gate.shown('theo', AI_CHIP_DELAY_MS)).toBe(false);
+    vi.advanceTimersByTime(AI_CHIP_DELAY_MS);
+    expect(gate.shown('theo', AI_CHIP_DELAY_MS)).toBe(true);
+    expect(changes).toBe(1);
   });
 });

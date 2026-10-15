@@ -1,24 +1,23 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import { player } from '../model/selectors';
 import { useMatch } from '../state/MatchContext';
-import { AI_CHIP_DELAY_MS, fitLevel, nextPlayer, waitingOn } from '../state/turnStrip';
+import { AI_CHIP_DELAY_MS, fitLevel, nextPlayer, SettleGate, waitingOn } from '../state/turnStrip';
 import type { Overlay } from '../state/ui';
 import { Icon, SeatGlyph, type IconName } from './Icon';
 import { PhaseTrack } from './PhaseTrack';
 import styles from './TopBar.module.css';
 
 /**
- * True once `key` has stayed the same for `delayMs` (0: at once). The "Waiting
- * for <AI>" chip uses it: AI opponents pass in a blink, so it would flicker.
+ * True once `key` has stayed the same for `delayMs` (0: at once), see
+ * `SettleGate`. The "Waiting for <AI>" chip uses it: AI opponents pass in a
+ * blink, so it would flicker.
  */
 function useSettled(key: string, delayMs: number): boolean {
-  const [settled, setSettled] = useState<string>();
-  useEffect(() => {
-    if (delayMs <= 0) return;
-    const t = setTimeout(() => setSettled(key), delayMs);
-    return () => clearTimeout(t);
-  }, [key, delayMs]);
-  return delayMs <= 0 || settled === key;
+  const [, rerender] = useReducer((n: number) => n + 1, 0);
+  const [gate] = useState(() => new SettleGate(rerender));
+  useEffect(() => gate.set(key, delayMs), [gate, key, delayMs]);
+  useEffect(() => () => gate.dispose(), [gate]);
+  return gate.shown(key, delayMs);
 }
 
 /** Width of a one-line block's content, even while it is cut with "…". */
