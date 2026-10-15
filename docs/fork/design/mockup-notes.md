@@ -125,6 +125,20 @@ Verified with Playwright at 1920×1080 and 1366×768 (desktop context, device sc
 
 Not addressed, waiting on product: at 1366×768 and 1920×1080 the compact plate of an opponent with a commander thumbnail (Theo) is still taller than its seat, and its bottom chips are clipped.
 
+## Pass 3D: right panel (issue 23)
+Spec: [product-decisions-pass-3.md](product-decisions-pass-3.md), section 4 "Right panel".
+
+| Change | Code |
+|---|---|
+| The right panel is one full-height column (grid area `rail` spans the board and hand rows), same place in every layout. Top: stack, combat, open zone (when present); then Recent, which takes the height left (floor: header + three two-line events). Bottom: the action block. | `MatchScreen.module.css`, `Rail.tsx`, `Rail.module.css` |
+| Action block, top to bottom: floating-mana slot (`data-slot="floating-mana"`, hidden while empty; issue 24 fills it), prompt, contextual row (Attack all, Cancel; present only while one shows), main button, Undo / To my turn, auto-pass switch. It is content-sized and bottom-anchored, so whatever comes and goes above the main button takes its height from Recent and the controls below never move. | `ActionPanel.tsx`, `ActionPanel.module.css` |
+| Prompt: content-sized, at most 4 whole lines (`-webkit-line-clamp`), full text in the hover title. Fixes the 0 px prompt at 200 % UI scale, and the one-frame cut (the measured line count and its ResizeObserver are gone). | `ActionPanel.*` |
+| Player-target anchor: the segment to the plate centre is intersected with the plate box inflated by the gap, no cap; the marker centre is always ≥ gap (17 px) from the plate. | `arrowGeometry.ts` (+ tests) |
+
+Above the action block, the regions scroll as a last resort (at 200 % UI scale with a stack and an open zone); the action block never scrolls.
+
+Measured with Playwright (desktop context, scale 1): at 1366×768 and 1920×1080, 100 %, every scenario in all three layouts and in states (zone open, passing to your turn, attack declaration, attack draft with Cancel), the only space below the last region is the column padding; Recent shows ≥ 3 whole events whenever the log has 3; Undo, To my turn and the switch keep identical rects; the prompt sits one `--sp-2` gap above the next control. At 200 % the prompt is 55 px (1366) / 70 px (1920) tall and never clipped. Stack6, every layout, 1366/1920/2560: player-target marker centre 17 px or more from the plate.
+
 ## Pass 3A: turn strip and Stops panel (issue #20)
 Spec section 1 of [product-decisions-pass-3.md](product-decisions-pass-3.md), defaults from its "Engine facts".
 

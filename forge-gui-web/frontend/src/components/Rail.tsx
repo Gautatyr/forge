@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import { player, targetName } from '../model/selectors';
 import { spotlightItem } from '../state/cardStatus';
 import { useMatch } from '../state/MatchContext';
+import { ActionPanel } from './ActionPanel';
 import { Card } from './Card';
 import { CombatPanel } from './CombatPanel';
 import { Icon, SeatGlyph } from './Icon';
@@ -9,17 +10,23 @@ import { LogText } from './LogText';
 import styles from './Rail.module.css';
 
 /**
- * Right column: the stack (only when not empty), combat, an open zone, recent
- * events. Each region keeps its header in view and scrolls its own body, so
- * an open zone never pushes the log out of reach.
+ * Right panel, full height and in the same place in every layout. Top: the
+ * regions that come and go (stack when not empty, combat, an open zone), then
+ * Recent, which takes the height left. Bottom: the action block, sized to its
+ * content and anchored to the bottom edge, so its persistent controls never
+ * move. Each region keeps its header in view and scrolls its own body, so an
+ * open zone never pushes the log out of reach.
  */
 export function Rail() {
   return (
     <aside className={styles.rail}>
-      <StackPanel />
-      <CombatPanel />
-      <ZoneViewer />
-      <RecentEvents />
+      <div className={styles.regions}>
+        <StackPanel />
+        <CombatPanel />
+        <ZoneViewer />
+        <RecentEvents />
+      </div>
+      <ActionPanel />
     </aside>
   );
 }

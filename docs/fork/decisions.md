@@ -74,6 +74,11 @@ Newest last. Each entry: the decision, why, and what it implies.
 - Blocking: real defects (correctness, security, hidden information, threading, tests, acceptance criteria, owner rulings) and polish a user would notice in normal use. Non-blocking: slight polish and nitpicks. Reviewers approve when only non-blocking notes remain.
 - Written in `.claude/skills/project-review-gate/SKILL.md` (preloaded by the reviewer agent); the orchestrator applies it when deciding merges.
 
+## 2026-10-15 — First playable target
+- Target for the morning of 2026-10-16: a 4-player game (1 human, 3 AIs) in the web match screen, started with `make play`. The player picks their deck and each AI's deck, including custom decks from the local Forge install.
+- The owner allows read-only access to `~/.forge/decks`. Agents never write to `~/.forge`.
+- Token budget: agent reviews of the design PRs are deferred (the owner's own test is the review); overnight review loops run with at most one round.
+
 ## 2026-10-15 — Phase stops are a client setting (issue #20)
 - Stops live in the match screen's prefs (`prefs.stops`), not in the view-model: `GameView.stops` and the `setStop` intent are removed. This follows Forge, where the GUI owns stops and the engine asks `IGuiGame.isUiSetToSkipPhase(turnPlayer, phase)`.
 - The bridge (#11) must answer `isUiSetToSkipPhase` from stops the client sends; the message for that is not designed yet.

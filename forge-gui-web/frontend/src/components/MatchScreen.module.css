@@ -7,7 +7,7 @@
   grid-template-areas:
     'top top'
     'board rail'
-    'hand action';
+    'hand rail';
   background: radial-gradient(120% 90% at 45% 60%, var(--c-table) 0%, var(--c-bg) 75%);
 }
 
