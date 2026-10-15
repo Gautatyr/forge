@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent } from 'react';
+import { currentDefender } from '../state/focus';
 import { useMatch } from '../state/MatchContext';
 import { draftFor, primaryAction } from '../state/primaryAction';
 import { ActionPanel } from './ActionPanel';
@@ -68,8 +69,10 @@ export function MatchScreen() {
       case 'z':
         return send({ type: 'undo' });
       case 'a':
-        if (d.kind === 'declareAttackers' && d.defenders[0])
-          send({ type: 'attackWithAll', defenderId: ui.attackDefender ?? d.defenders[0] });
+        if (d.kind === 'declareAttackers') {
+          const defenderId = currentDefender(game, ui, prefs.layout);
+          if (defenderId) send({ type: 'attackWithAll', defenderId });
+        }
         return;
       case 'v':
         if (d.kind === 'choice') setUi((u) => ({ ...u, trayPeek: !u.trayPeek }));

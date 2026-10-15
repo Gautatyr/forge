@@ -1,9 +1,9 @@
-import type { ReactNode } from 'react';
+import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react';
 import { player } from '../model/selectors';
 import { SCENARIOS } from '../mock/scenarios';
 import { SHORTCUTS } from '../state/keymap';
 import { useMatch } from '../state/MatchContext';
-import type { CardSize, OpponentLayout } from '../state/prefs';
+import { OPPONENT_SHARES, type CardSize, type OpponentLayout, type OpponentShare } from '../state/prefs';
 import { Icon, SeatGlyph } from './Icon';
 import { LogText } from './LogText';
 import styles from './Overlays.module.css';
@@ -58,7 +58,19 @@ export function DisplaySettings() {
             ? 'All opponents side by side across the top, same size.'
             : prefs.layout === 'table'
               ? 'Seats around you in turn order: next player on your left.'
-              : 'One opponent large, the others compact. Click “Show whole board” to switch.'}
+              : 'One opponent large, the others compact. Click “Show board” on a small seat to switch.'}
+        </span>
+      </div>
+      <div className={styles.field}>
+        <span className={styles.fieldLabel}>Board height for opponents {multiplayer ? '' : '(multiplayer only)'}</span>
+        <Segmented<string>
+          label="Board split"
+          value={String(prefs.opponentShare)}
+          onChange={(v) => setPrefs({ opponentShare: Number(v) as OpponentShare })}
+          options={OPPONENT_SHARES.map((n) => [String(n), `${n}%`])}
+        />
+        <span className={styles.help}>
+          Opponents {prefs.opponentShare}%, you {100 - prefs.opponentShare}%. Default 45%.
         </span>
       </div>
       <div className={styles.field}>
@@ -82,21 +94,51 @@ export function DisplaySettings() {
         <input type="checkbox" checked={prefs.groupTokens} onChange={(e) => setPrefs({ groupTokens: e.target.checked })} />
         Group identical tokens
       </label>
-      <div className={styles.field}>
-        <span className={styles.fieldLabel}>
-          Interface scale <b>{Math.round(prefs.uiScale * 100)}%</b>
-        </span>
-        <input
-          type="range"
-          min={75}
-          max={200}
-          step={5}
-          value={Math.round(prefs.uiScale * 100)}
-          onChange={(e) => setPrefs({ uiScale: Number(e.target.value) / 100 })}
-          aria-label="Interface scale"
-        />
-      </div>
+      <ScaleSlider value={prefs.uiScale} onCommit={(uiScale) => setPrefs({ uiScale })} />
     </Popover>
+  );
+}
+
+/**
+ * Interface scale. Dragging only previews the number; the scale applies when
+ * the thumb is released, so the layout does not reflow under the pointer
+ * (mockup review 1). Arrow keys, Page Up/Down and Home/End apply each step:
+ * the browser fires `change` on release and on every keyboard step.
+ */
+function ScaleSlider({ value, onCommit }: { value: number; onCommit: (v: number) => void }) {
+  const [draft, setDraft] = useState<number>();
+  const ref = useRef<HTMLInputElement>(null);
+  const commit = useEffectEvent((v: number) => {
+    setDraft(undefined);
+    if (v !== value) onCommit(v);
+  });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const h = () => commit(Number(el.value) / 100);
+    el.addEventListener('change', h);
+    return () => el.removeEventListener('change', h);
+  }, []);
+  const shown = draft ?? value;
+  const pending = draft !== undefined && draft !== value;
+  return (
+    <div className={styles.field}>
+      <span className={styles.fieldLabel}>
+        Interface scale <b>{Math.round(shown * 100)}%</b>
+        {pending ? <span className={styles.help}> · release to apply</span> : null}
+      </span>
+      <input
+        ref={ref}
+        type="range"
+        min={75}
+        max={200}
+        step={5}
+        value={Math.round(shown * 100)}
+        onChange={(e) => setDraft(Number(e.target.value) / 100)}
+        aria-label="Interface scale"
+        aria-valuetext={`${Math.round(shown * 100)}%`}
+      />
+    </div>
   );
 }
 

@@ -130,7 +130,24 @@ const HAND_7: CardKey[] = [
   "Emeria's Call",
 ];
 const HAND_9: CardKey[] = [...HAND_7, 'Smothering Tithe', 'Sanctum Weaver'];
+const HAND_10: CardKey[] = [...HAND_9, "Mirari's Wake"];
 const HAND_12: CardKey[] = [...HAND_9, "Mirari's Wake", 'Generous Gift', 'Destiny Spinner'];
+const HAND_15: CardKey[] = [...HAND_12, 'Doubling Season', 'Mesa Enchantress', 'Plains'];
+
+function handScenario(id: string, label: string, description: string, keys: CardKey[]): Scenario {
+  return {
+    id,
+    label,
+    description,
+    build: () => {
+      const b = new GameBuilder(id, 'commander');
+      commanderTable(b, { sythisInCommand: true });
+      yourHand(b, keys);
+      b.turn(9, 'you', 'main1', 'you');
+      return b.done();
+    },
+  };
+}
 
 export const SCENARIOS: Scenario[] = [
   {
@@ -174,6 +191,83 @@ export const SCENARIOS: Scenario[] = [
       b.p('you').landsPlayedThisTurn = 1;
       b.log(`Hugo casts ${ref(swords)} targeting ${ref(ids.meren)}.`, 'you')
         .log(`Mira casts ${ref(bolt)} targeting ${ref(ids.eidolon)}.`, 'mira');
+      return b.done();
+    },
+  },
+  {
+    id: 'stack6',
+    label: '1b · Commander: a 6-item stack',
+    description: 'Six items on the stack, three players responding. Only the top item lights its targets; hover another to see its own.',
+    build: () => {
+      const b = new GameBuilder('stack6', 'commander');
+      const ids = commanderTable(b);
+      yourHand(b, HAND_7);
+      b.turn(9, 'you', 'main1', 'you');
+      const onBattlefield = (owner: string, name: string) =>
+        b.p(owner).battlefield.find((id) => b.g.cards[id]!.name === name)!;
+      const bombardment = onBattlefield('mira', 'Goblin Bombardment');
+      const rhystic = onBattlefield('theo', 'Rhystic Study');
+      const sigil = onBattlefield('you', 'Sigil of the Empty Throne');
+      const swords = b.card('Swords to Plowshares', 'you', 'stack');
+      const bolt = b.card('Lightning Bolt', 'mira', 'stack');
+      const beast = b.card('Beast Within', 'ana', 'stack');
+      b.g.stack = [
+        {
+          id: 's1',
+          sourceCardId: swords,
+          controllerId: 'you',
+          kind: 'spell',
+          text: 'Exile target creature. Its controller gains life equal to its power.',
+          targets: [{ kind: 'card', id: ids.meren }],
+        },
+        {
+          id: 's2',
+          sourceCardId: bolt,
+          controllerId: 'mira',
+          kind: 'spell',
+          text: 'Lightning Bolt deals 3 damage to any target.',
+          targets: [{ kind: 'card', id: ids.eidolon }],
+        },
+        {
+          id: 's3',
+          sourceCardId: rhystic,
+          controllerId: 'theo',
+          kind: 'trigger',
+          text: 'Theo may draw a card unless Mira pays {1}.',
+          targets: [],
+        },
+        {
+          id: 's4',
+          sourceCardId: bombardment,
+          controllerId: 'mira',
+          kind: 'ability',
+          text: 'Goblin Bombardment deals 1 damage to Theo.',
+          targets: [{ kind: 'player', id: 'theo' }],
+        },
+        {
+          id: 's5',
+          sourceCardId: beast,
+          controllerId: 'ana',
+          kind: 'spell',
+          text: 'Destroy target permanent. Its controller creates a 3/3 green Beast creature token.',
+          targets: [{ kind: 'card', id: sigil }],
+        },
+        {
+          id: 's6',
+          sourceCardId: bombardment,
+          controllerId: 'mira',
+          kind: 'ability',
+          text: 'Goblin Bombardment deals 1 damage to Hugo.',
+          targets: [{ kind: 'player', id: 'you' }],
+        },
+      ];
+      b.p('you').landsPlayedThisTurn = 1;
+      b.log(`Hugo casts ${ref(swords)} targeting ${ref(ids.meren)}.`, 'you')
+        .log(`Mira casts ${ref(bolt)} targeting ${ref(ids.eidolon)}.`, 'mira')
+        .log(`${ref(rhystic)} triggers for Theo.`, 'theo')
+        .log(`Mira sacrifices a Goblin: ${ref(bombardment)} targets Theo.`, 'mira')
+        .log(`Ana casts ${ref(beast)} targeting ${ref(sigil)}.`, 'ana')
+        .log(`Mira sacrifices a Goblin: ${ref(bombardment)} targets Hugo.`, 'mira');
       return b.done();
     },
   },
@@ -303,18 +397,19 @@ export const SCENARIOS: Scenario[] = [
       return b.done();
     },
   },
-  {
-    id: 'hand12',
-    label: '5b · Hand of 12 (overflow)',
-    description: 'Twelve cards: the hand staggers so every name and cost stays visible; overlap falls on the art only.',
-    build: () => {
-      const b = new GameBuilder('hand12', 'commander');
-      commanderTable(b, { sythisInCommand: true });
-      yourHand(b, HAND_12);
-      b.turn(9, 'you', 'main1', 'you');
-      return b.done();
-    },
-  },
+  handScenario(
+    'hand10',
+    '5b · Hand of 10 (overflow starts)',
+    'Ten cards: beyond nine the hand staggers right away at full size, with no shrinking step first.',
+    HAND_10,
+  ),
+  handScenario(
+    'hand12',
+    '5c · Hand of 12 (overflow)',
+    'Twelve cards: the hand staggers so every name and cost stays visible; overlap falls on the art only.',
+    HAND_12,
+  ),
+  handScenario('hand15', '5d · Hand of 15 (overflow)', 'Fifteen cards, still staggered at full size.', HAND_15),
 ];
 
 export function scenarioById(id: string): Scenario {

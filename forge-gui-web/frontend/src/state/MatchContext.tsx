@@ -3,6 +3,7 @@ import type { Intent } from '../model/intents';
 import type { CardId, GameView, PlayerId } from '../model/types';
 import { applyIntent, type MockGame } from '../mock/engine';
 import { blockClick } from './blockClick';
+import { currentDefender, focusForIntent, focusOnTurnChange } from './focus';
 import { scenarioById } from '../mock/scenarios';
 import { loadPrefs, savePrefs, type Prefs } from './prefs';
 import { INITIAL_UI, type UiState } from './ui';
@@ -87,6 +88,8 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     if (['primary', 'cancel', 'undo', 'answer', 'play'].includes(intent.type)) {
       setUiState((u) => ({ ...u, pendingAttacker: undefined, pendingBlocker: undefined, trayPeek: false }));
     }
+    const focus = focusForIntent(intent);
+    if (focus) setUiState((u) => ({ ...u, focusOpponentId: focus }));
   }, []);
 
   const loadScenario = useCallback((id: string) => {
@@ -98,6 +101,15 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const game = h.game;
+
+  // Focus layout: when the turn passes, focus follows it (see focus.ts).
+  // Adjusting state during render is React's pattern for "state derived from a change".
+  const turnKey = `${h.scenarioId}|${game.turn.number}|${game.turn.activePlayerId}`;
+  const [seenTurnKey, setSeenTurnKey] = useState(turnKey);
+  if (seenTurnKey !== turnKey) {
+    setSeenTurnKey(turnKey);
+    setUiState((u) => ({ ...u, focusOpponentId: focusOnTurnChange(game, u.focusOpponentId) }));
+  }
 
   const activateCard = useCallback(
     (id: CardId) => {
@@ -111,7 +123,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
           return;
         case 'declareAttackers': {
           if (!d.candidates.includes(id)) return;
-          const defender = ui.attackDefender ?? d.defenders[0];
+          const defender = currentDefender(game, ui, prefs.layout);
           if (defender) send({ type: 'toggleAttacker', cardId: id, defenderId: defender });
           return;
         }
@@ -125,14 +137,14 @@ export function MatchProvider({ children }: { children: ReactNode }) {
           return;
       }
     },
-    [game.decision, send, setUi, ui.attackDefender, ui.pendingAttacker, ui.pendingBlocker],
+    [game, ui, prefs.layout, send, setUi],
   );
 
   const activatePlayer = useCallback(
     (id: PlayerId) => {
       const d = game.decision;
       if (d.kind === 'chooseTargets') send({ type: 'toggleTarget', target: { kind: 'player', id } });
-      if (d.kind === 'declareAttackers' && d.defenders.includes(id)) setUi({ attackDefender: id });
+      if (d.kind === 'declareAttackers' && d.defenders.includes(id)) setUi({ attackDefender: id, focusOpponentId: id });
     },
     [game.decision, send, setUi],
   );

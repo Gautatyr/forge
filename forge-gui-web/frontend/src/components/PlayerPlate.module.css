@@ -31,6 +31,16 @@
   outline: var(--outline-w-strong) solid var(--c-selected);
   outline-offset: 2px;
 }
+/* Targeted by the stack item in the spotlight (same shapes as on cards). */
+.ringTargeted {
+  outline: var(--outline-w-strong) dotted var(--c-targeted);
+  outline-offset: 2px;
+}
+.ringTargetedStrong {
+  outline: var(--outline-w-strong) solid var(--c-targeted);
+  outline-offset: 2px;
+  box-shadow: 0 0 18px rgb(204 121 167 / 0.7);
+}
 
 .lifeBox {
   display: flex;
@@ -115,6 +125,10 @@
 }
 .tagTarget {
   background: var(--c-actionable);
+  color: var(--c-text-on-accent);
+}
+.tagTargeted {
+  background: var(--c-targeted);
   color: var(--c-text-on-accent);
 }
 
@@ -271,4 +285,21 @@
   position: absolute;
   top: var(--sp-2);
   right: var(--sp-2);
+}
+
+/* Focus layout: expand a compact opponent. */
+.expand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 0.05rem var(--sp-2);
+  border-radius: var(--r-md);
+  border: 1px solid var(--c-line-strong);
+  color: var(--c-text);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.expand:hover {
+  background: var(--c-panel-hover);
 }

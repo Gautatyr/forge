@@ -13,18 +13,46 @@
 
 .prompt {
   margin: 0;
+  min-height: 0;
   font-size: var(--fs-sm);
   line-height: 1.35;
   color: var(--c-text-2);
   flex: 1;
   overflow: hidden;
+}
+
+/* Clamped to the whole lines that fit in .prompt (ActionPanel sets the count),
+   so a line is never cut in half. */
+.promptText {
   display: -webkit-box;
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Contextual buttons (Attack all, Cancel) appear here. The slot always
+   keeps one row's height, so the persistent controls below never move. */
+.contextual {
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  gap: var(--sp-1);
+  height: 2.25rem;
+}
+
+.contextual > * {
+  min-width: 0;
+}
+
+/* While the slot is empty the prompt text may use its room; the slot itself
+   keeps its height, so the controls below still do not move. */
+.panel:has(.contextual:empty) .prompt {
+  margin-bottom: calc(-2.25rem - var(--sp-2));
 }
 
 .mainRow {
   display: flex;
+  flex: none;
 }
 
 .primary {
@@ -32,7 +60,10 @@
   flex: 1;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   align-items: flex-start;
+  /* Label + detail line: the same height with or without the detail. */
+  min-height: 3.6rem;
   gap: 0.1rem;
   padding: var(--sp-2) var(--sp-3);
   padding-right: 4.2rem;
@@ -101,10 +132,14 @@
 }
 
 .secondary {
+  flex: 1;
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-3);
+  gap: var(--sp-1);
+  padding: 0 var(--sp-2);
+  white-space: nowrap;
+  overflow: hidden;
+  font-size: var(--fs-sm);
   border-radius: var(--r-md);
   border: 2px solid var(--c-attack);
   color: var(--c-text);
@@ -120,16 +155,19 @@
   margin-left: auto;
 }
 
-.row {
-  display: flex;
+/* Undo always first, To my turn / Stop passing always second: fixed columns. */
+.persistent {
+  flex: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr);
   gap: var(--sp-1);
-  flex-wrap: wrap;
 }
 
 .small {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
+  white-space: nowrap;
   padding: 0.25rem var(--sp-2);
   border-radius: var(--r-md);
   border: 1px solid var(--c-line);

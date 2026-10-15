@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyIntent } from '../mock/engine';
-import { scenarioById } from '../mock/scenarios';
+import { SCENARIOS, scenarioById } from '../mock/scenarios';
 import { primaryAction } from './primaryAction';
 import { INITIAL_UI } from './ui';
 
@@ -24,7 +24,7 @@ describe('primary button says what it will do', () => {
   });
 
   it('defaults auto-pass and auto-yield to off (ruling D4)', () => {
-    for (const id of ['priority', 'blockers', 'scry', 'search', 'duel', 'hand9', 'hand12']) {
+    for (const { id } of SCENARIOS) {
       const g = scenarioById(id).build();
       expect(g.autoPass).toBe(false);
       expect(g.autoYield).toBe(false);

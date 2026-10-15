@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import { player, targetName } from '../model/selectors';
+import { spotlightItem } from '../state/cardStatus';
 import { useMatch } from '../state/MatchContext';
 import { Card } from './Card';
 import { CombatPanel } from './CombatPanel';
@@ -7,7 +8,11 @@ import { Icon, SeatGlyph } from './Icon';
 import { LogText } from './LogText';
 import styles from './Rail.module.css';
 
-/** Right column: the stack (only when not empty), an open zone, recent events. */
+/**
+ * Right column: the stack (only when not empty), combat, an open zone, recent
+ * events. Each region keeps its header in view and scrolls its own body, so
+ * an open zone never pushes the log out of reach.
+ */
 export function Rail() {
   return (
     <aside className={styles.rail}>
@@ -23,6 +28,7 @@ function StackPanel() {
   const { game, ui, setUi, send } = useMatch();
   if (game.stack.length === 0) return null;
   const items = [...game.stack].reverse();
+  const spot = spotlightItem(game, ui);
   return (
     <section className={`${styles.block} ${styles.stack}`} aria-label="The stack">
       <header className={styles.head}>
@@ -34,8 +40,8 @@ function StackPanel() {
           Auto-yield {game.autoYield ? 'on' : 'off'}
         </label>
       </header>
-      <p className={styles.hint}>Top resolves first. Hover an item to light its targets.</p>
-      <ol className={styles.items}>
+      <p className={styles.hint}>Top resolves first; its targets are lit. Hover another item to see its targets.</p>
+      <ol className={`${styles.body} ${styles.items}`} data-scroll-region>
         {items.map((item, i) => {
           const src = game.cards[item.sourceCardId];
           const ctrl = player(game, item.controllerId);
@@ -44,7 +50,7 @@ function StackPanel() {
           return (
             <li
               key={item.id}
-              className={`${styles.item} ${ui.hoveredStackItem === item.id ? styles.itemHover : ''}`}
+              className={`${styles.item} ${spot?.id === item.id ? styles.itemSpot : ''}`}
               onPointerEnter={() => setUi({ hoveredStackItem: item.id })}
               onPointerLeave={() => setUi({ hoveredStackItem: undefined })}
               data-stack-id={item.id}
@@ -105,7 +111,7 @@ function ZoneViewer() {
         </button>
       </header>
       {ids.length === 0 ? <p className={styles.hint}>Nothing here yet.</p> : null}
-      <div className={styles.zoneGrid}>
+      <div className={`${styles.body} ${styles.zoneGrid}`} data-scroll-region>
         {[...ids].reverse().map((id) => {
           const c = game.cards[id];
           return c ? <Card key={id} card={c} context="thumb" style={{ '--cw': '7.3rem' } as CSSProperties} /> : null;
@@ -115,9 +121,12 @@ function ZoneViewer() {
   );
 }
 
+/** Newest first; older ones scroll. The drawer (L) has the whole game. */
+const RECENT_EVENTS = 20;
+
 function RecentEvents() {
   const { game, setUi } = useMatch();
-  const recent = game.log.slice(-5).reverse();
+  const recent = game.log.slice(-RECENT_EVENTS).reverse();
   return (
     <section className={`${styles.block} ${styles.recent}`} aria-label="Recent events">
       <header className={styles.head}>
@@ -126,7 +135,7 @@ function RecentEvents() {
           Full log <kbd>L</kbd>
         </button>
       </header>
-      <ol className={styles.events}>
+      <ol className={`${styles.body} ${styles.events}`} data-scroll-region>
         {recent.map((e) => (
           <li key={e.id}>
             {e.playerId ? (
