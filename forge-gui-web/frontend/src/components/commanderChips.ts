@@ -1,0 +1,44 @@
+import type { CardId, GameView, PlayerView } from '../model/types';
+import { seatChar } from './seatChar';
+
+/** Commander damage that eliminates a player. */
+export const COMMANDER_LETHAL = 21;
+/** From this amount a chip takes the burst style. */
+export const COMMANDER_DANGER = 15;
+
+export interface CommanderChip {
+  commanderId: CardId;
+  /** Name before the comma: "Krenko". */
+  shortName: string;
+  /** Seat of the commander's controller (its shape on the chip). */
+  seat: number;
+  amount: number;
+  danger: boolean;
+  /** "Krenko, Mob Boss (▲ Mira) has dealt Theo 3 commander damage. 21 eliminates." */
+  title: string;
+}
+
+/**
+ * One chip per source commander that has dealt `p` damage (design pass 4, P5).
+ * Partners are two commanders, so two chips. The shape is the commander's owner:
+ * the player whose commander it is.
+ */
+export function commanderChips(game: GameView, p: PlayerView): CommanderChip[] {
+  return p.commanderDamageTaken
+    .filter((x) => x.amount > 0)
+    .map((x) => {
+      const card = game.cards[x.commanderId];
+      const ctrl = card ? game.players.find((q) => q.id === card.ownerId) : undefined;
+      const name = card?.name ?? 'A commander';
+      const seat = ctrl?.seat ?? 0;
+      const by = ctrl ? ` (${seatChar(seat)} ${ctrl.isYou ? 'you' : ctrl.name})` : '';
+      return {
+        commanderId: x.commanderId,
+        shortName: name.split(',')[0]!,
+        seat,
+        amount: x.amount,
+        danger: x.amount >= COMMANDER_DANGER,
+        title: `${name}${by} has dealt ${p.isYou ? 'you' : p.name} ${x.amount} commander damage. ${COMMANDER_LETHAL} eliminates.`,
+      };
+    });
+}

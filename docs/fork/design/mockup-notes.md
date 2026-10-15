@@ -230,3 +230,22 @@ Spec: `product-decisions-pass-4.md` §2.1 and P1.
 Contrast (WCAG, on `--c-bg`): unpaid glyphs 8.6–15.7:1 (B lowest); filled pips dark glyph 8.6–15.7:1; ✓ badge 16.6:1; "Floating" text-2 10.5:1, "empties at end of step" text-3 7.2:1; the note uses the existing text colour.
 
 Known gaps: the tray does not draw the `input` shape yet (§2.3), so the X prompt shows the tray's placeholder and its confirm takes the largest X. The engine's "which ability" menu (P2) is #30. Opponents' floating mana is not shown (not in §2.1).
+
+## Pass 4: board and cards, P3–P6 (issue #33)
+
+Spec: `product-decisions-pass-4.md` P3, P4, P5, P6.
+
+| Item | Change | Code |
+|---|---|---|
+| P3 | Your commander in the command zone shows only in the group beside the hand; opponents' stay at the end of their support row (`commandEntries`). | `battlefieldGroups.ts`, `Battlefield.tsx` |
+| P4 | Group beside the hand = your command zone + `PlayerView.otherZoneCasts` (`{cardId, via: flashback/escape/foretell/adventure/other}`), independent of mana and timing. Captions "Command zone · tax +2", "Graveyard · flashback", "Exile · adventure"; `other` shows the zone only. Mock: graveyard cards with flashback, refreshed after every intent. | `model/types.ts`, `otherZoneGroup.ts`, `Hand.tsx`, `mock/engine.ts` (`refreshOtherZoneCasts`) |
+| P5 | One chip per source commander (partners: two): crown/burst + controller's seat shape + amount; "Krenko … /21" where the header has room. Hover: "Krenko, Mob Boss (▲ Mira) has dealt Theo 3 commander damage. 21 eliminates." Burst from 15. The shape is the commander's owner. | `commanderChips.ts`, `seatChar.ts`, `PlayerPlate.tsx` |
+| P6 Recent | Divider above each turn's entries ("▲ Mira's turn 10"; "Turn 8" when `LogEntry.turnPlayerId` is absent). `LogEntry.youLost: 'life' \| 'permanent'` → bold line. Mock stamps both (life lost: Bolt, Bombardment, combat; permanent: destroy, exile, sacrifice). | `recentRows.ts`, `Rail.*`, `mock/engine.ts`, `mock/builder.ts` |
+| P6 plates | Life change "▼−3" / "▲+4" for 4 s in the "life" label's slot (sized for "▼−12", so the header never moves); changes within the 4 s add up; reset on scenario switch. Tokens `--c-life-loss` / `--c-life-gain`. | `lifeMarker.ts`, `PlayerPlate.*`, `styles/tokens.css` |
+| Floating mana | An opponent's pool on their header ("Floating" + pips) only while not empty. | `PlayerPlate.tsx` |
+| Fix | Plate class list no longer contains a literal `undefined` (`styles[density]` had no `full` class). | `PlayerPlate.tsx` |
+| Mock | Scenario `board` (5e): Mira's turn 10, her Bolt at you on the stack (Space: you take 3, plate shows ▼−3), every land of yours tapped (Sythis and Moment's Peace still beside the hand), Theo at 16 from Krenko (burst), Mira {R}{R} floating, Recent across turns 8–10 with bold lines. | `mock/scenarios.ts` |
+
+Contrast (WCAG): loss text on `--c-bg` 8.9:1, gain 9.6:1; divider text (`--c-text-3` on `--c-panel`) 5.8:1; bold lines `--c-text` on `--c-panel` 13.3:1.
+
+Known gaps: no partner pair in the mock card DB (two chips per partner are unit-tested only). The live adapter (#11) does not fill `otherZoneCasts`, `turnPlayerId` or `youLost` yet: without them the group shows only the command zone, dividers read "Turn N" and no line is bold.

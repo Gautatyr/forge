@@ -45,6 +45,9 @@
   --c-block-text: #3fd1a6;
   --c-targeted-text: #e4a6c9;
   --c-actionable-text: #7cc7f0;
+  /* Life change beside a plate's total (pass 4, P6), always with ▼ / ▲. */
+  --c-life-loss: var(--c-attack-text);
+  --c-life-gain: var(--c-block-text);
 
   /* Mana pips (always drawn with their letter). */
   --c-mana-w: #f3ecd2;

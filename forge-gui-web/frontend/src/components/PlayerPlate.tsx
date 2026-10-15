@@ -1,3 +1,4 @@
+import { poolEntries } from '../model/mana';
 import { commanderTax } from '../model/selectors';
 import type { PlayerView } from '../model/types';
 import { playerTargetSpot, spotlightItem } from '../state/cardStatus';
@@ -6,7 +7,10 @@ import { useMatch } from '../state/MatchContext';
 import { playerChoice } from './tray/inPlace';
 import { useInPlacePick } from './tray/useInPlacePick';
 import type { ViewableZone } from '../state/ui';
+import { commanderChips, COMMANDER_LETHAL } from './commanderChips';
 import { Icon, SeatGlyph, type IconName } from './Icon';
+import { useLifeChange } from './lifeMarker';
+import { ManaSymbol, manaName } from './ManaSymbol';
 import styles from './PlayerPlate.module.css';
 
 interface Props {
@@ -66,7 +70,10 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
     );
   };
 
-  const cmdDamage = p.commanderDamageTaken.filter((x) => x.amount > 0);
+  const cmdDamage = commanderChips(game, p);
+  const lifeChange = useLifeChange(p.life, game.id);
+  // An opponent's floating mana, only while their pool is not empty (yours sits above the prompt).
+  const floating = p.isYou ? [] : poolEntries(p.manaPool);
   const ring = chosenTarget || choice?.chosen
     ? styles.ringSelected
     : isDefender
@@ -81,7 +88,9 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
 
   return (
     <div
-      className={`${styles.plate} ${styles[density]} ${vertical ? styles.vertical : styles.inline} ${active ? styles.active : ''} ${ring}`}
+      className={[styles.plate, density === 'compact' && styles.compact, vertical ? styles.vertical : styles.inline, active && styles.active, ring]
+        .filter(Boolean)
+        .join(' ')}
       data-player-id={p.id}
       data-arrow-occluder
       role={clickable ? 'button' : undefined}
@@ -101,7 +110,24 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
     >
       <div className={styles.lifeBox} title={`${p.name}: ${p.life} life`}>
         <span className={styles.life}>{p.life}</span>
-        <span className={styles.lifeLabel}>life</span>
+        {/* Life change for 4 s (design pass 4, P6): ▼ loss / ▲ gain, never colour alone.
+            It takes the "life" label's place, whose slot is sized for it, so nothing moves. */}
+        <span className={styles.lifeTag} role="status">
+          <span className={styles.lifeLabel} style={lifeChange !== 0 ? { visibility: 'hidden' } : undefined}>
+            life
+          </span>
+          {lifeChange !== 0 ? (
+            <span
+              key={`${lifeChange}`}
+              className={`${styles.lifeChange} ${lifeChange < 0 ? styles.lifeLoss : styles.lifeGain}`}
+              aria-label={`${p.isYou ? 'You' : p.name} ${lifeChange < 0 ? 'lost' : 'gained'} ${Math.abs(lifeChange)} life`}
+            >
+              <span aria-hidden>{lifeChange < 0 ? '▼' : '▲'}</span>
+              {lifeChange < 0 ? '−' : '+'}
+              {Math.abs(lifeChange)}
+            </span>
+          ) : null}
+        </span>
       </div>
 
       <div className={styles.main}>
@@ -172,22 +198,23 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
           {cmdDamage.length > 0 ? (
             <span className={styles.cmdGroup}>
               <span className={styles.cmdLabel}>Commander damage taken</span>
-              {cmdDamage.map((x) => {
-                const src = game.cards[x.commanderId];
-                const danger = x.amount >= 15;
-                return (
-                  <span
-                    key={x.commanderId}
-                    className={`${styles.cmd} ${danger ? styles.warn : ''}`}
-                    title={`${x.amount} of 21 commander damage from ${src?.name ?? 'a commander'}`}
-                  >
-                    <Icon name={danger ? 'burst' : 'crown'} />
-                    <span className={styles.cmdName}>{src?.name.split(',')[0]}</span>
-                    <b>{x.amount}</b>
-                    <span className={styles.of21}>/21</span>
+              {cmdDamage.map((x) => (
+                <span
+                  key={x.commanderId}
+                  className={`${styles.cmd} ${x.danger ? styles.warn : ''}`}
+                  title={x.title}
+                  aria-label={x.title}
+                  role="img"
+                >
+                  <Icon name={x.danger ? 'burst' : 'crown'} />
+                  <span className={styles.cmdSeat}>
+                    <SeatGlyph seat={x.seat} />
                   </span>
-                );
-              })}
+                  <span className={styles.cmdName}>{x.shortName}</span>
+                  <b>{x.amount}</b>
+                  <span className={styles.of21}>/{COMMANDER_LETHAL}</span>
+                </span>
+              ))}
             </span>
           ) : null}
         </div>
@@ -210,6 +237,15 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
               <span className={styles.zoneCount}>{k.count}</span>
             </span>
           ))}
+          {floating.length > 0 ? (
+            <span
+              className={`${styles.zone} ${styles.floating}`}
+              title={`${p.name}'s floating mana: ${floating.map(([c, n]) => `${n} ${manaName(c)}`).join(', ')}`}
+            >
+              <span className={styles.zoneLabel}>Floating</span>
+              {floating.flatMap(([c, n]) => Array.from({ length: n }, (_, i) => <ManaSymbol key={`${c}${i}`} symbol={c} />))}
+            </span>
+          ) : null}
         </div>
 
       </div>

@@ -43,6 +43,7 @@
 }
 
 .lifeBox {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -67,6 +68,54 @@
   color: var(--c-text-3);
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+/* The "life" label's slot; the life change (design pass 4, P6) takes its place
+   for 4 s. Sized for "▼−12" so the header never moves. */
+.lifeTag {
+  display: inline-grid;
+  justify-items: center;
+  align-items: center;
+  min-width: 2.9rem;
+}
+.lifeTag > * {
+  grid-area: 1 / 1;
+}
+.vertical .lifeTag,
+.inline .lifeTag {
+  justify-items: start;
+}
+.lifeChange {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0 var(--sp-1);
+  border-radius: var(--r-pill);
+  border: 1px solid currentColor;
+  background: var(--c-bg);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  line-height: 1.3;
+  white-space: nowrap;
+  animation: life-change-in var(--dur-med) var(--ease-out);
+}
+.lifeLoss {
+  color: var(--c-life-loss);
+}
+.lifeGain {
+  color: var(--c-life-gain);
+}
+@keyframes life-change-in {
+  from {
+    opacity: 0;
+    transform: translateY(30%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lifeChange {
+    animation: none;
+  }
 }
 
 .main {
@@ -198,6 +247,13 @@
   background: var(--c-panel-raised);
 }
 
+/* The source commander's controller (design pass 4, P5). */
+.cmdSeat {
+  display: inline-grid;
+  place-items: center;
+  color: var(--c-text);
+}
+
 .cmd b {
   font-family: var(--font-mono);
   color: var(--c-text);
@@ -206,6 +262,18 @@
 .of21 {
   color: var(--c-text-3);
   margin-left: -0.25rem;
+}
+
+/* An opponent's floating mana, only while not empty. */
+.floating {
+  border-color: var(--c-line);
+  gap: var(--sp-0);
+}
+.floating .zoneLabel {
+  margin-right: var(--sp-1);
+}
+.floating > [role='img'] {
+  --pip: 1.15rem;
 }
 
 .warn {

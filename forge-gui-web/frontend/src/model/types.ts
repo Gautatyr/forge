@@ -128,6 +128,21 @@ export interface PlayerView {
   hasLost: boolean;
   /** Floating mana; absent or all zero when empty. */
   manaPool?: ManaPool;
+  /**
+   * Yours only: cards outside your hand and command zone you have permission to cast
+   * (flashback, escape, foretell, an adventure in exile), whatever you can afford or
+   * the timing (design pass 4, P4). Your commanders in the command zone are not
+   * repeated here: the hand always shows them.
+   */
+  otherZoneCasts?: OtherZoneCast[];
+}
+
+/** Why a card outside your hand is castable; `other` covers permissions without a caption of their own. */
+export type OtherZoneCastVia = 'flashback' | 'escape' | 'foretell' | 'adventure' | 'other';
+
+export interface OtherZoneCast {
+  cardId: CardId;
+  via: OtherZoneCastVia;
 }
 
 /** One kind of mana: the five colours and colourless ({C}). */
@@ -337,6 +352,10 @@ export interface LogEntry {
   playerId?: PlayerId;
   /** Text with card references as {card:<id>} tokens so names are hoverable. */
   text: string;
+  /** Player whose turn it was: Recent draws a divider per turn (design pass 4, P6). */
+  turnPlayerId?: PlayerId;
+  /** The event made you lose life or a permanent: drawn bold in Recent (design pass 4, P6). */
+  youLost?: 'life' | 'permanent';
 }
 
 export interface GameView {
