@@ -3,7 +3,8 @@ package forge.web.schema;
 import java.util.List;
 
 /**
- * The server-to-client envelope (wire format v1, see docs/fork/architecture/spike-report.md "Wire format (v1)").
+ * The server-to-client envelope (wire format v2: docs/fork/architecture/spike-report.md "Wire format (v1)" plus
+ * the v2 changes in docs/fork/architecture/web-ui.md "Bridge: per-viewer visibility (wire v2)").
  * {@code GameStream} builds these messages field by field; this is the one description the TypeScript
  * types are generated from. {@code WireEnvelopeContractTest} checks {@code hello} and {@code snapshot}
  * against what {@code GameStream} actually sends; {@code delta} needs a running game and is not checked.
@@ -11,7 +12,7 @@ import java.util.List;
 public final class WireEnvelope {
 
     /** {@code hello.v}. */
-    public static final int VERSION = 1;
+    public static final int VERSION = 2;
 
     public record Field(String name, String ts, boolean optional, String doc) { }
 
@@ -28,6 +29,8 @@ public final class WireEnvelope {
                     field("game", "number", "Game number in this server run."),
                     field("seq", "number", "The next delta has seq + 1."),
                     field("label", "string", null),
+                    field("viewer", "{ seat: number; player: number; omniscient?: true } | { spectator: true; omniscient?: true }",
+                            "Whose stream this is (Viewer.toJson); omniscient = debug FULL policy."),
                     field("objects", "WireObject[]", null),
                     field("log", "LogEntry[]", "Tail of the game log, oldest first."))),
             new Message("delta", "DeltaMessage",

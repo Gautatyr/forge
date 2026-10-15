@@ -7,58 +7,62 @@ import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.LinkedHashMap;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 
 import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import forge.game.GameLog;
 import forge.game.GameLogEntry;
 import forge.game.GameView;
-import forge.game.card.CardView;
-import forge.game.card.CardView.CardStateView;
 import forge.game.event.GameEvent;
+import forge.game.event.GameEventShuffle;
 import forge.game.player.PlayerView;
-import forge.game.spellability.StackItemView;
 import forge.game.zone.ZoneType;
 import forge.gamemodes.net.DeltaPacket;
 import forge.gamemodes.net.server.DeltaSyncManager;
 import forge.trackable.TrackableProperty;
-import forge.web.bridge.WireEncoder.ObjRef;
+import forge.web.bridge.visibility.Flush;
+import forge.web.bridge.visibility.LiveCards;
+import forge.web.bridge.visibility.Viewer;
+import forge.web.bridge.visibility.ViewerStream;
+import forge.web.bridge.visibility.ZoneOrder;
+import forge.web.schema.WireEnvelope;
 
 /**
- * Turns one game's view graph into a JSON stream: a snapshot for each connecting client, then
- * deltas. Delta collection reuses network play's {@link DeltaSyncManager} unchanged; this class
- * only encodes its packets, applies the viewer's visibility policy and keeps a {@link StateMirror}
- * of what clients hold.
+ * Turns one game's view graph into one JSON stream per viewer: each seat (player) and the
+ * spectator get a snapshot when they connect, then deltas, holding only what that viewer may know
+ * (see {@link Viewer} and {@link ViewerStream}). Delta collection reuses network play's
+ * {@link DeltaSyncManager} unchanged, once per flush for all viewers; the packet is encoded once,
+ * then filtered per viewer.
  *
  * <p>Threads: {@link #publish} runs on the game thread (the trackable graph is single-mutator);
- * {@link #addClient} runs on a transport thread and reads only the mirror. Both hold {@link #lock},
- * so a client's snapshot is always followed by exactly the deltas after it.
+ * {@link #addClient} runs on a transport thread and reads only the viewer's mirror. Both hold
+ * {@link #lock}, so a client's snapshot is always followed by exactly the deltas after it.
  */
 public final class GameStream {
 
-    /** What a viewer may see of hidden zones. */
+    /** What viewers may see. */
     public enum HiddenPolicy {
-        /** Cards in Library and Hand are sent as {Zone, Owner, Controller} only: a public spectator. */
+        /** Per viewer, by the engine's view rules (default). */
         REDACT,
-        /** Everything the engine tracks, as network play sends it today. */
+        /** Debug only: every viewer sees everything, as network play sends it. Never for a real match. */
         FULL
     }
 
-    private static final Set<String> HIDDEN_CARD_WHITELIST = Set.of(
-            TrackableProperty.Zone.name(), TrackableProperty.Owner.name(), TrackableProperty.Controller.name());
+    /** Seat index of a spectator. */
+    public static final int SPECTATOR = -1;
     private static final int LOG_TAIL = 400;
 
     private final Object lock = new Object();
-    private final Set<ClientSink> clients = new CopyOnWriteArraySet<>();
-    private final StateMirror mirror = new StateMirror();
+    /** Connected clients and the seat each asked for ({@link #SPECTATOR} for none). */
+    private final Map<ClientSink, Integer> clients = new ConcurrentHashMap<>();
     private final Deque<JsonObject> logTail = new ArrayDeque<>();
     private final HiddenPolicy policy;
     private final Path metricsDir;
@@ -69,17 +73,21 @@ public final class GameStream {
     private DeltaSyncManager dsm;
     private StreamMetrics metrics;
     private int gameNumber;
-    private long seq;
     private int logIndex;
     private int lastSampledTurn = -1;
+    private ViewerStream spectator;
+    private List<ViewerStream> seats = List.of();
+    /** Last known card order of every zone, {@code playerId:Zone -> ids}, to detect shuffles. */
+    private Map<String, List<Integer>> zoneOrders = new HashMap<>();
     private volatile CountDownLatch gameOver = new CountDownLatch(1);
 
     public GameStream(HiddenPolicy policy, Path metricsDir) {
         this.policy = policy;
         this.metricsDir = metricsDir;
+        this.spectator = new ViewerStream(viewer(SPECTATOR, List.of()));
         hello = new JsonObject();
         hello.addProperty("t", "hello");
-        hello.addProperty("v", 1);
+        hello.addProperty("v", WireEnvelope.VERSION);
         hello.addProperty("hidden", policy.name());
         hello.add("schema", WireSchema.schemaJson());
     }
@@ -88,22 +96,34 @@ public final class GameStream {
         this.label = label;
     }
 
+    private Viewer viewer(int seat, List<PlayerView> players) {
+        if (policy == HiddenPolicy.FULL) {
+            return Viewer.omniscient(seat, players);
+        }
+        return seat == SPECTATOR ? Viewer.spectator(players) : Viewer.seat(seat, players);
+    }
+
     /** Binds a new game. Called from the spectator GUI's openView, before the game thread starts. */
     public void startGame(GameView gv) {
         synchronized (lock) {
             gameView = gv;
             dsm = new DeltaSyncManager();
-            mirror.clear();
+            List<PlayerView> players = gv.getPlayers() == null ? List.of() : new ArrayList<>(gv.getPlayers());
+            spectator = new ViewerStream(viewer(SPECTATOR, players));
+            List<ViewerStream> s = new ArrayList<>();
+            for (int i = 0; i < players.size(); i++) {
+                s.add(new ViewerStream(viewer(i, players)));
+            }
+            seats = s;
+            zoneOrders = new HashMap<>();
             logTail.clear();
-            seq = 0;
             logIndex = 0;
             lastSampledTurn = -1;
             gameNumber++;
             metrics = new StreamMetrics(label + "-game" + gameNumber);
             gameOver = new CountDownLatch(1);
-            String snap = snapshotJson();
-            for (ClientSink c : clients) {
-                c.send(snap);
+            for (Map.Entry<ClientSink, Integer> c : clients.entrySet()) {
+                c.getKey().send(snapshotJson(streamFor(c.getValue())));
             }
         }
     }
@@ -112,15 +132,24 @@ public final class GameStream {
         return gameOver;
     }
 
+    /** A spectator client: sees no hidden information. */
     public void addClient(ClientSink c) {
+        addClient(c, SPECTATOR);
+    }
+
+    /**
+     * A client for one seat (index in the game's player list, {@link #SPECTATOR} for none). A seat
+     * the current game does not have gets the spectator stream; the seat is re-bound at each game.
+     */
+    public void addClient(ClientSink c, int seat) {
         synchronized (lock) {
             c.send(hello.toString());
-            String snap = snapshotJson();
+            String snap = snapshotJson(streamFor(seat));
             c.send(snap);
             if (metrics != null) {
                 metrics.recordClientSnapshot(StreamMetrics.utf8(snap).length);
             }
-            clients.add(c);
+            clients.put(c, seat);
         }
     }
 
@@ -132,10 +161,28 @@ public final class GameStream {
         return clients.size();
     }
 
-    /** Current snapshot as served to a new client. Thread-safe. */
+    /** The spectator's current snapshot. Thread-safe. */
     public String snapshot() {
+        return snapshot(SPECTATOR);
+    }
+
+    /** One seat's current snapshot, as served to a new client of that seat. Thread-safe. */
+    public String snapshot(int seat) {
         synchronized (lock) {
-            return snapshotJson();
+            return snapshotJson(streamFor(seat));
+        }
+    }
+
+    /**
+     * The engine card id behind an id a seat was sent (aliases included), or -1 if that seat holds
+     * no card under that id. For resolving client commands.
+     */
+    public int realCardId(int seat, int wireId) {
+        synchronized (lock) {
+            if (seat < 0 || seat >= seats.size()) {
+                return -1;
+            }
+            return seats.get(seat).realCardId(wireId);
         }
     }
 
@@ -145,14 +192,19 @@ public final class GameStream {
         }
     }
 
-    private String snapshotJson() {
+    private ViewerStream streamFor(int seat) {
+        return seat >= 0 && seat < seats.size() ? seats.get(seat) : spectator;
+    }
+
+    private String snapshotJson(ViewerStream vs) {
         long t0 = System.nanoTime();
         JsonObject o = new JsonObject();
         o.addProperty("t", "snapshot");
         o.addProperty("game", gameNumber);
-        o.addProperty("seq", seq);
+        o.addProperty("seq", vs.seq());
         o.addProperty("label", label);
-        o.add("objects", mirror.toJsonObjects());
+        o.add("viewer", vs.viewer().toJson());
+        o.add("objects", vs.mirror().toJsonObjects());
         JsonArray log = new JsonArray();
         logTail.forEach(log::add);
         o.add("log", log);
@@ -163,7 +215,7 @@ public final class GameStream {
         return s;
     }
 
-    /** Game thread. Collects what changed since the last call and sends it as one delta. */
+    /** Game thread. Collects what changed since the last call and sends each viewer its share as one delta. */
     public void publish(List<GameEvent> events, boolean final0) {
         synchronized (lock) {
             if (gameView == null || dsm == null) {
@@ -171,82 +223,51 @@ public final class GameStream {
             }
             long t0 = System.nanoTime();
             DeltaPacket packet = dsm.collectDeltas(gameView);
-
-            Map<String, StateMirror.Obj> news = new LinkedHashMap<>();
-            Map<String, JsonObject> changes = new LinkedHashMap<>();
+            List<Flush.Entry> news = new ArrayList<>();
             for (Map.Entry<Integer, Map<TrackableProperty, Object>> e : packet.getNewObjects().entrySet()) {
-                ObjRef ref = WireEncoder.decodeKey(e.getKey());
-                acceptNew(ref, WireEncoder.encodeProps(e.getValue()), news);
+                news.add(new Flush.Entry(WireEncoder.decodeKey(e.getKey()), WireEncoder.encodeProps(e.getValue())));
             }
+            List<Flush.Entry> changes = new ArrayList<>();
             for (Map.Entry<Integer, Map<TrackableProperty, Object>> e : packet.getObjectDeltas().entrySet()) {
-                ObjRef ref = WireEncoder.decodeKey(e.getKey());
-                acceptChange(ref, WireEncoder.encodeProps(e.getValue()), news, changes);
+                changes.add(new Flush.Entry(WireEncoder.decodeKey(e.getKey()), WireEncoder.encodeProps(e.getValue())));
             }
-
-            // apply to the mirror first: removals are computed against the post-delta state
-            for (StateMirror.Obj o : news.values()) {
-                mirror.putNew(o);
-                if ("game".equals(o.type())) {
-                    mirror.setRoot(o.key());
-                }
-            }
-            for (Map.Entry<String, JsonObject> e : changes.entrySet()) {
-                mirror.merge(e.getKey(), e.getValue());
-            }
-            List<String> removed = mirror.prune();
+            LiveCards live = LiveCards.of(gameView);
+            Flush flush = new Flush(live, news, changes, reorderedCards(live, events));
             JsonArray newLog = drainLog();
+            JsonArray eventNames = eventNames(events);
 
-            if (news.isEmpty() && changes.isEmpty() && removed.isEmpty() && newLog.isEmpty() && !final0) {
-                return;
-            }
-            seq++;
-            JsonObject msg = new JsonObject();
-            msg.addProperty("t", "delta");
-            msg.addProperty("game", gameNumber);
-            msg.addProperty("seq", seq);
-            msg.addProperty("ts", System.currentTimeMillis());
-            JsonArray n = new JsonArray();
-            news.values().forEach(o -> n.add(o.toJson()));
-            msg.add("new", n);
-            JsonArray c = new JsonArray();
-            for (Map.Entry<String, JsonObject> e : changes.entrySet()) {
-                StateMirror.Obj o = mirror.get(e.getKey());
-                if (o == null) {
+            List<ViewerStream> all = new ArrayList<>(seats.size() + 1);
+            all.add(spectator);
+            all.addAll(seats);
+            long seatBytes = 0;
+            for (ViewerStream vs : all) {
+                ViewerStream.Delta d = vs.apply(flush);
+                if (d.isEmpty() && newLog.isEmpty() && !final0) {
                     continue;
                 }
-                JsonObject co = new JsonObject();
-                co.addProperty("type", o.type());
-                co.addProperty("id", o.id());
-                if (o.state() != null) {
-                    co.addProperty("state", o.state());
+                String text = deltaJson(vs, d, newLog, eventNames, final0);
+                for (Map.Entry<ClientSink, Integer> c : clients.entrySet()) {
+                    if (streamFor(c.getValue()) == vs) {
+                        c.getKey().send(text);
+                    }
                 }
-                co.add("props", e.getValue());
-                c.add(co);
+                byte[] bytes = StreamMetrics.utf8(text);
+                if (vs == spectator) {
+                    metrics.recordDelta(bytes.length, StreamMetrics.deflatedSize(bytes));
+                } else {
+                    seatBytes += bytes.length;
+                }
             }
-            msg.add("changed", c);
-            JsonArray r = new JsonArray();
-            removed.forEach(r::add);
-            msg.add("removed", r);
-            msg.add("log", newLog);
-            msg.add("events", eventNames(events));
-            if (final0) {
-                msg.addProperty("final", true);
-            }
-            String text = msg.toString();
-            long encodeNanos = System.nanoTime() - t0;
-            for (ClientSink client : clients) {
-                client.send(text);
-            }
+            metrics.recordFlush(System.nanoTime() - t0, seatBytes);
 
-            byte[] bytes = StreamMetrics.utf8(text);
-            String full = snapshotJson();
-            metrics.recordDelta(bytes.length, StreamMetrics.deflatedSize(bytes), encodeNanos, StreamMetrics.utf8(full).length);
             int turn = gameView.getTurn();
             if (turn != lastSampledTurn || final0) {
+                // once per turn, not per flush: the snapshot is serialised for the measurement only
                 lastSampledTurn = turn;
-                byte[] fb = StreamMetrics.utf8(full);
-                int objectsOnly = StreamMetrics.utf8(mirror.toJsonObjects().toString()).length;
-                metrics.recordSnapshotSample(turn, String.valueOf(gameView.getPhase()), mirror.size(), fb.length, StreamMetrics.deflatedSize(fb), objectsOnly);
+                byte[] fb = StreamMetrics.utf8(snapshotJson(spectator));
+                int objectsOnly = StreamMetrics.utf8(spectator.mirror().toJsonObjects().toString()).length;
+                metrics.recordSnapshotSample(turn, String.valueOf(gameView.getPhase()), spectator.mirror().size(),
+                        fb.length, StreamMetrics.deflatedSize(fb), objectsOnly);
             }
             if (final0) {
                 writeMetrics();
@@ -255,120 +276,62 @@ public final class GameStream {
         }
     }
 
-    private void acceptNew(ObjRef ref, JsonObject props, Map<String, StateMirror.Obj> news) {
-        if (policy == HiddenPolicy.REDACT) {
-            if ("card".equals(ref.type()) && isHiddenZone(props.get(TrackableProperty.Zone.name()))) {
-                news.put(ref.key(), new StateMirror.Obj(ref.type(), ref.id(), null, whitelist(props), true));
-                return;
+    private String deltaJson(ViewerStream vs, ViewerStream.Delta d, JsonArray newLog, JsonArray eventNames, boolean final0) {
+        JsonObject msg = new JsonObject();
+        msg.addProperty("t", "delta");
+        msg.addProperty("game", gameNumber);
+        msg.addProperty("seq", vs.nextSeq());
+        msg.addProperty("ts", System.currentTimeMillis());
+        JsonArray n = new JsonArray();
+        d.news().forEach(o -> n.add(o.toJson()));
+        msg.add("new", n);
+        JsonArray c = new JsonArray();
+        for (Map.Entry<String, JsonObject> e : d.changes().entrySet()) {
+            StateMirror.Obj o = vs.mirror().get(e.getKey());
+            if (o == null) {
+                continue;
             }
-            if ("cardState".equals(ref.type()) && parentHidden(ref.id(), news)) {
-                return;
+            JsonObject co = new JsonObject();
+            co.addProperty("type", o.type());
+            co.addProperty("id", o.id());
+            if (o.state() != null) {
+                co.addProperty("state", o.state());
             }
+            co.add("props", e.getValue());
+            c.add(co);
         }
-        news.put(ref.key(), new StateMirror.Obj(ref.type(), ref.id(), ref.state(), props, false));
+        msg.add("changed", c);
+        JsonArray r = new JsonArray();
+        d.removed().forEach(r::add);
+        msg.add("removed", r);
+        msg.add("log", newLog);
+        msg.add("events", eventNames);
+        if (final0) {
+            msg.addProperty("final", true);
+        }
+        return msg.toString();
     }
 
-    private void acceptChange(ObjRef ref, JsonObject props, Map<String, StateMirror.Obj> news, Map<String, JsonObject> changes) {
-        if (news.containsKey(ref.key())) {
-            return; // already sent whole in this delta
-        }
-        if (policy == HiddenPolicy.REDACT) {
-            if ("cardState".equals(ref.type())) {
-                if (parentHidden(ref.id(), news) || news.containsKey("card:" + ref.id())) {
-                    return; // hidden, or the parent was just re-sent whole with its states
-                }
-            } else if ("card".equals(ref.type())) {
-                StateMirror.Obj known = mirror.get(ref.key());
-                JsonElement zone = props.has(TrackableProperty.Zone.name()) ? props.get(TrackableProperty.Zone.name())
-                        : known == null ? null : known.props().get(TrackableProperty.Zone.name());
-                boolean hidden = isHiddenZone(zone);
-                if (hidden && known != null && !known.redacted()) {
-                    // public -> hidden on the same instance: replace with the redacted form
-                    JsonObject redacted = whitelist(known.props());
-                    for (Map.Entry<String, JsonElement> e : whitelist(props).entrySet()) {
-                        redacted.add(e.getKey(), e.getValue());
-                    }
-                    news.put(ref.key(), new StateMirror.Obj("card", ref.id(), null, redacted, true));
-                    return;
-                }
-                if (hidden) {
-                    JsonObject w = whitelist(props);
-                    if (!w.isEmpty()) {
-                        changes.put(ref.key(), w);
-                    }
-                    return;
-                }
-                if (known == null || known.redacted()) {
-                    // hidden -> public on the same instance: the client has nothing, send it whole
-                    CardView live = findLiveCard(ref.id());
-                    if (live != null) {
-                        resendWhole(live, news);
-                        return;
-                    }
-                }
+    /** Cards in zones shuffled (event) or reordered (relative order of the cards that stayed) since the last flush. */
+    private Set<Integer> reorderedCards(LiveCards live, List<GameEvent> events) {
+        Set<Integer> out = new HashSet<>();
+        Map<String, List<Integer>> current = live.zones();
+        for (Map.Entry<String, List<Integer>> e : current.entrySet()) {
+            List<Integer> before = zoneOrders.get(e.getKey());
+            if (before != null && ZoneOrder.reordered(before, e.getValue())) {
+                out.addAll(e.getValue());
             }
         }
-        changes.put(ref.key(), props);
-    }
-
-    private void resendWhole(CardView live, Map<String, StateMirror.Obj> news) {
-        Map<TrackableProperty, Object> props = live.getProps();
-        news.put("card:" + live.getId(), new StateMirror.Obj("card", live.getId(), null, WireEncoder.encodeProps(props), false));
-        for (CardStateView csv : new CardStateView[] {live.getCurrentState(), live.getAlternateState(),
-                live.getLeftSplitState(), live.getRightSplitState()}) {
-            if (csv != null) {
-                Map<TrackableProperty, Object> sp = csv.getProps();
-                StateMirror.Obj o = new StateMirror.Obj("cardState", live.getId(), csv.getState().name(), WireEncoder.encodeProps(sp), false);
-                news.put(o.key(), o);
-            }
-        }
-    }
-
-    private CardView findLiveCard(int id) {
-        for (PlayerView p : gameView.getPlayers()) {
-            for (ZoneType z : ZoneType.values()) {
-                if (z.getTrackableProperty() == null) {
-                    continue;
-                }
-                for (CardView c : p.getCards(z)) {
-                    if (c.getId() == id) {
-                        return c;
-                    }
+        for (GameEvent ev : events) {
+            if (ev instanceof GameEventShuffle s && s.player() != null) {
+                List<Integer> lib = current.get(LiveCards.zoneKey(s.player().getId(), ZoneType.Library));
+                if (lib != null) {
+                    out.addAll(lib);
                 }
             }
         }
-        for (StackItemView si : gameView.getStack()) {
-            if (si.getSourceCard() != null && si.getSourceCard().getId() == id) {
-                return si.getSourceCard();
-            }
-        }
-        return null;
-    }
-
-    private boolean parentHidden(int cardId, Map<String, StateMirror.Obj> news) {
-        StateMirror.Obj parent = news.get("card:" + cardId);
-        if (parent == null) {
-            parent = mirror.get("card:" + cardId);
-        }
-        return parent != null && parent.redacted();
-    }
-
-    private static boolean isHiddenZone(JsonElement zone) {
-        if (zone == null || zone.isJsonNull()) {
-            return false;
-        }
-        String z = zone.getAsString();
-        return ZoneType.Library.name().equals(z) || ZoneType.Hand.name().equals(z);
-    }
-
-    private static JsonObject whitelist(JsonObject props) {
-        JsonObject w = new JsonObject();
-        for (Map.Entry<String, JsonElement> e : props.entrySet()) {
-            if (HIDDEN_CARD_WHITELIST.contains(e.getKey())) {
-                w.add(e.getKey(), e.getValue());
-            }
-        }
-        return w;
+        zoneOrders = new HashMap<>(current);
+        return out;
     }
 
     private JsonArray drainLog() {

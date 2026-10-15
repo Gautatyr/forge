@@ -13,6 +13,7 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -49,6 +50,7 @@ public class WebServerSecurityTest {
     public void reset() {
         hub.clients.clear();
         hub.adds.set(0);
+        hub.seats.clear();
     }
 
     @Test
@@ -108,6 +110,20 @@ public class WebServerSecurityTest {
         assertEquals(get("/metrics?token=wrong", self), 403);
         assertEquals(get("/state?token=" + TOKEN, self), 200);
         assertEquals(get("/metrics?token=" + TOKEN, self), 200);
+    }
+
+    @Test
+    public void seatStreamsNeedTheTokenAndReachTheHubWithTheirSeat() throws Exception {
+        String origin = "http://" + self;
+        assertEquals(handshake("/ws?seat=0", self, origin).status, 403);
+        assertEquals(get("/state?seat=0", self), 403);
+        assertEquals(get("/state?seat=1&token=wrong", self), 403);
+        assertEquals(hub.seats, List.of(), "refused requests never reach the hub");
+        assertEquals(handshake("/ws?token=" + TOKEN + "&seat=1", self, origin).status, 101);
+        assertEquals(handshake("/ws?seat=0&token=" + TOKEN, self, origin).status, 101);
+        assertEquals(get("/state?token=" + TOKEN + "&seat=1", self), 200);
+        assertEquals(get("/state?token=" + TOKEN, self), 200);
+        assertEquals(hub.seats, List.of(1, 0, 1, -1));
     }
 
     @Test

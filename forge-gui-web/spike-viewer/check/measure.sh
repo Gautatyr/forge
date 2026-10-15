@@ -2,6 +2,7 @@
 # One measured run: start the server (waits for a client, exits after the game), attach ws-check.mjs
 # from the first message, sample the server's CPU every 2 s. Usage from forge-gui-web/:
 #   spike-viewer/check/measure.sh <outdir> <label> [server args...]
+# VIEWERS=spectator,0,1 (default spectator) checks those streams at once.
 # Writes <outdir>/<label>.{server.log,check.json,cpu.txt}; metrics land in target/spike-metrics/<label>-game1.json.
 set -uo pipefail
 cd "$(dirname "$0")/../.."
@@ -24,7 +25,7 @@ java_pid=$(pgrep -P "$srv" java || echo "$srv")
     prev=$t; sleep 2
   done
 ) > "$out/$label.cpu.txt" &
-node spike-viewer/check/ws-check.mjs --token "$token" --timeout 3000 > "$out/$label.check.json"
+node spike-viewer/check/ws-check.mjs --token "$token" --timeout 3000 --viewers "${VIEWERS:-spectator}" > "$out/$label.check.json"
 rc=$?
 wait "$srv"
 echo "check exit=$rc"

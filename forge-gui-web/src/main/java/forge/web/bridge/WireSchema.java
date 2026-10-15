@@ -1,7 +1,10 @@
 package forge.web.bridge;
 
 import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import com.google.gson.JsonObject;
 
@@ -23,9 +26,17 @@ public final class WireSchema {
     }
 
     private static final Map<TrackableProperty, Kind> KINDS = new EnumMap<>(TrackableProperty.class);
+    /** Property name -> kind, for the reference kinds only (hot path: mirror pruning and id rewriting). */
+    private static final Map<String, Kind> REF_KINDS = new HashMap<>();
+    private static final Set<Kind> REFS = EnumSet.of(Kind.CARD, Kind.CARDS, Kind.PLAYER, Kind.PLAYERS,
+            Kind.STACK_ITEM, Kind.STACK_ITEMS, Kind.ENTITY, Kind.CARD_STATE, Kind.COMBAT);
     static {
         for (TrackableProperty p : TrackableProperty.values()) {
-            KINDS.put(p, compute(p.getType()));
+            Kind k = compute(p.getType());
+            KINDS.put(p, k);
+            if (REFS.contains(k)) {
+                REF_KINDS.put(p.name(), k);
+            }
         }
     }
 
@@ -33,6 +44,11 @@ public final class WireSchema {
 
     public static Kind kindOf(TrackableProperty p) {
         return KINDS.get(p);
+    }
+
+    /** The kind of a property given by name if it holds references (ids), else null. */
+    public static Kind refKindOf(String propName) {
+        return REF_KINDS.get(propName);
     }
 
     private static Kind compute(TrackableType<?> t) {

@@ -6,24 +6,25 @@ import forge.web.bridge.GameStream;
 /**
  * What the server needs from a game stream. {@link #addClient} must send the client its greeting
  * and a full snapshot, then subscribe it to deltas, atomically with respect to publishing.
+ * A seat is an index in the game's player list, {@link GameStream#SPECTATOR} for none.
  */
 public interface StreamHub {
-    void addClient(ClientSink c);
+    void addClient(ClientSink c, int seat);
 
     void removeClient(ClientSink c);
 
     int clientCount();
 
-    /** Full snapshot as JSON, for {@code /state}. */
-    String snapshot();
+    /** That seat's full snapshot as JSON, for {@code /state}. */
+    String snapshot(int seat);
 
     String metricsJson();
 
     static StreamHub of(GameStream stream) {
         return new StreamHub() {
             @Override
-            public void addClient(ClientSink c) {
-                stream.addClient(c);
+            public void addClient(ClientSink c, int seat) {
+                stream.addClient(c, seat);
             }
 
             @Override
@@ -37,8 +38,8 @@ public interface StreamHub {
             }
 
             @Override
-            public String snapshot() {
-                return stream.snapshot();
+            public String snapshot(int seat) {
+                return stream.snapshot(seat);
             }
 
             @Override

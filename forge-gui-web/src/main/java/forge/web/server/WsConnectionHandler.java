@@ -4,6 +4,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 
+import forge.web.bridge.GameStream;
+
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -23,6 +25,8 @@ final class WsConnectionHandler extends SimpleChannelInboundHandler<WebSocketFra
     private final SendLimits limits;
     private ChannelSink current;
     private int resyncs;
+    /** From the handshake's {@code ?seat=N}; every resync keeps it. */
+    private int seat = GameStream.SPECTATOR;
 
     WsConnectionHandler(StreamHub hub, SendLimits limits) {
         this.hub = hub;
@@ -40,6 +44,7 @@ final class WsConnectionHandler extends SimpleChannelInboundHandler<WebSocketFra
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
         if (evt instanceof WebSocketServerProtocolHandler.HandshakeComplete) {
+            seat = WebServer.seatOf(((WebSocketServerProtocolHandler.HandshakeComplete) evt).requestUri());
             subscribe(ctx.channel());
             System.out.println("[web] client connected " + ctx.channel().remoteAddress() + " (" + hub.clientCount() + " total)");
         } else {
@@ -79,7 +84,7 @@ final class WsConnectionHandler extends SimpleChannelInboundHandler<WebSocketFra
     private void subscribe(Channel ch) {
         ChannelSink sink = new ChannelSink(ch, limits, this::onOverflow);
         current = sink;
-        sink.prime(() -> hub.addClient(sink));
+        sink.prime(() -> hub.addClient(sink, seat));
     }
 
     private void onOverflow(ChannelSink sink) {

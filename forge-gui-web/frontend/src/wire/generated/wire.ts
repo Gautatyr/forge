@@ -2,7 +2,7 @@
 // Regenerate: mvn -pl forge-gui-web -am process-classes -Dwire.types=write
 // Import only from src/wire/ (the adapter); components use the UI view-model.
 
-export const WIRE_VERSION = 1;
+export const WIRE_VERSION = 2;
 
 // ---- References: ids of wire objects ----
 
@@ -1430,7 +1430,7 @@ export interface LogEntry {
 export interface HelloMessage {
   t: 'hello';
   /** Wire format version (WIRE_VERSION). */
-  v: 1;
+  v: 2;
   hidden: HiddenPolicy;
   /** Runtime kind of every property; compare with PROPERTY_KINDS. */
   schema: Record<string, WireKind>;
@@ -1444,6 +1444,8 @@ export interface SnapshotMessage {
   /** The next delta has seq + 1. */
   seq: number;
   label: string;
+  /** Whose stream this is (Viewer.toJson); omniscient = debug FULL policy. */
+  viewer: { seat: number; player: number; omniscient?: true } | { spectator: true; omniscient?: true };
   objects: WireObject[];
   /** Tail of the game log, oldest first. */
   log: LogEntry[];

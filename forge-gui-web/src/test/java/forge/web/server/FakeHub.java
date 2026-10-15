@@ -10,6 +10,8 @@ import forge.web.bridge.ClientSink;
 final class FakeHub implements StreamHub {
     final List<ClientSink> clients = new CopyOnWriteArrayList<>();
     final AtomicInteger adds = new AtomicInteger();
+    /** The seat of every {@link #addClient} and {@link #snapshot} call, in order. */
+    final List<Integer> seats = new CopyOnWriteArrayList<>();
     private int snapshots;
     private String snapshotPadding = "";
     private Runnable afterNextAdd;
@@ -24,9 +26,10 @@ final class FakeHub implements StreamHub {
     }
 
     @Override
-    public void addClient(ClientSink c) {
+    public void addClient(ClientSink c, int seat) {
         Runnable after;
         synchronized (this) {
+            seats.add(seat);
             c.send("hello");
             c.send("snapshot " + snapshots++ + snapshotPadding);
             clients.add(c);
@@ -56,7 +59,8 @@ final class FakeHub implements StreamHub {
     }
 
     @Override
-    public String snapshot() {
+    public String snapshot(int seat) {
+        seats.add(seat);
         return "{\"t\":\"snapshot\"}";
     }
 

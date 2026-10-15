@@ -7,6 +7,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 
+import forge.web.bridge.GameStream;
+
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
@@ -131,6 +133,19 @@ public final class WebServer {
         }
     }
 
+    /** {@code ?seat=N} picks a player's stream (index in the game's player list); anything else is a spectator. */
+    static int seatOf(String uri) {
+        java.util.List<String> v = new QueryStringDecoder(uri).parameters().get("seat");
+        if (v == null || v.isEmpty()) {
+            return GameStream.SPECTATOR;
+        }
+        try {
+            return Math.max(GameStream.SPECTATOR, Integer.parseInt(v.get(0)));
+        } catch (NumberFormatException e) {
+            return GameStream.SPECTATOR;
+        }
+    }
+
     private final class HttpHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
         @Override
         protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest req) throws IOException {
@@ -140,7 +155,7 @@ public final class WebServer {
             }
             String path = new QueryStringDecoder(req.uri()).path();
             if ("/state".equals(path)) {
-                send(ctx, HttpResponseStatus.OK, TYPES.get("json"), stream.snapshot().getBytes(StandardCharsets.UTF_8));
+                send(ctx, HttpResponseStatus.OK, TYPES.get("json"), stream.snapshot(seatOf(req.uri())).getBytes(StandardCharsets.UTF_8));
                 return;
             }
             if ("/metrics".equals(path)) {

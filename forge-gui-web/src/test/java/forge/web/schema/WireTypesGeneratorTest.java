@@ -129,7 +129,8 @@ public class WireTypesGeneratorTest {
     public void envelopeIsRendered() {
         String hello = block(TS, "export interface HelloMessage {");
         assertTrue(hello.contains("\n  t: 'hello';"));
-        assertTrue(hello.contains("\n  v: 1;"));
+        assertTrue(hello.contains("\n  v: 2;"));
+        assertTrue(block(TS, "export interface SnapshotMessage {").contains("\n  viewer: { seat: number; player: number;"));
         String delta = block(TS, "export interface DeltaMessage {");
         assertTrue(delta.contains("\n  changed: WireObjectPatch[];"));
         assertTrue(delta.contains("\n  final?: true;"));

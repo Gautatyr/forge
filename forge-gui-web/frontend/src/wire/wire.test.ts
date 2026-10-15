@@ -11,12 +11,13 @@ import {
 } from './generated/wire';
 import { hasDrift, schemaDrift } from './schemaDrift';
 
-// Shapes from docs/fork/architecture/spike-report.md "Wire format (v1)"; `satisfies` makes tsc check them.
+// Shapes from docs/fork/architecture/spike-report.md "Wire format (v1)" + web-ui.md wire v2; `satisfies` makes tsc check them.
 const snapshot = {
   t: 'snapshot',
   game: 1,
   seq: 0,
   label: 'game',
+  viewer: { seat: 0, player: 1 },
   objects: [
     { type: 'game', id: 1, props: { Players: [1, 2], Turn: 3, Phase: 'MAIN1', PlayerTurn: 1 } },
     { type: 'player', id: 1, props: { Life: 18, Battlefield: [10], Hand: [11], Counters: { POISON: 1 } } },
@@ -44,10 +45,10 @@ const delta = {
 } satisfies DeltaMessage;
 
 describe('generated wire types', () => {
-  it('describe the v1 messages', () => {
+  it('describe the v2 messages', () => {
     const messages: ServerMessage[] = [snapshot, delta];
     expect(messages.map((m) => m.t)).toEqual(['snapshot', 'delta']);
-    expect(WIRE_VERSION).toBe(1);
+    expect(WIRE_VERSION).toBe(2);
   });
 
   it('reject properties of another object type and wrong value types', () => {

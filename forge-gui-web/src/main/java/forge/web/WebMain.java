@@ -38,7 +38,8 @@ import forge.web.server.WebServer;
  * --decks a.dck,b.dck     deck files (duel: geneticaidecks, commander: quest/commanderprecons)
  * --games N               games to play in sequence (default 1)
  * --speed normal|fast     playback pauses (fast = 10x shorter)
- * --hidden redact|full    what viewers see of Library/Hand (default redact)
+ * --hidden redact|full    redact: each seat sees what the engine lets that player see, the
+ *                         spectator what every player may see (default); full: omniscient, debug only
  * --port 7655  --assets forge-gui/  --home &lt;dir&gt;  --viewer &lt;dir&gt;
  * --wait-client SECONDS   wait for a WebSocket client before the first game
  *                         (open the URL printed as "[web] serving ...": it carries the per-launch token)

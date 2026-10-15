@@ -9,15 +9,19 @@ import java.util.zip.Deflater;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
-/** Per-game wire measurements. Guarded by the owning {@link GameStream}'s lock. */
+/**
+ * Per-game wire measurements. Delta sizes are the spectator stream's; seat streams add up in
+ * {@code seatDeltaBytes}; encode time covers every viewer. Guarded by the owning {@link GameStream}'s lock.
+ */
 public final class StreamMetrics {
     private final String label;
     private final long startMs = System.currentTimeMillis();
+    private int flushes;
     private int deltas;
     private long deltaBytes;
     private long deltaDeflatedBytes;
     private long maxDeltaBytes;
-    private long fullIfSnapshotBytes;
+    private long seatDeltaBytes;
     private long encodeNanos;
     private long maxEncodeNanos;
     private long snapshotSerializeNanos;
@@ -48,14 +52,20 @@ public final class StreamMetrics {
         return total;
     }
 
-    void recordDelta(int bytes, int deflated, long nanos, int fullSnapshotBytes) {
+    /** One flush: collect, encode, filter and send, for every viewer. */
+    void recordFlush(long nanos, long seatBytes) {
+        flushes++;
+        encodeNanos += nanos;
+        maxEncodeNanos = Math.max(maxEncodeNanos, nanos);
+        seatDeltaBytes += seatBytes;
+    }
+
+    /** One spectator delta. */
+    void recordDelta(int bytes, int deflated) {
         deltas++;
         deltaBytes += bytes;
         deltaDeflatedBytes += deflated;
         maxDeltaBytes = Math.max(maxDeltaBytes, bytes);
-        fullIfSnapshotBytes += fullSnapshotBytes;
-        encodeNanos += nanos;
-        maxEncodeNanos = Math.max(maxEncodeNanos, nanos);
         long sec = (System.currentTimeMillis() - startMs) / 1000;
         long[] b = perSecond.computeIfAbsent(sec, k -> new long[2]);
         b[0]++;
@@ -89,6 +99,7 @@ public final class StreamMetrics {
         JsonObject o = new JsonObject();
         o.addProperty("label", label);
         o.addProperty("durationMs", durMs);
+        o.addProperty("flushes", flushes);
         o.addProperty("deltas", deltas);
         o.addProperty("deltaBytes", deltaBytes);
         o.addProperty("deltaDeflatedBytes", deltaDeflatedBytes);
@@ -96,9 +107,8 @@ public final class StreamMetrics {
         o.addProperty("maxDeltaBytes", maxDeltaBytes);
         o.addProperty("deltasPerSecond", deltas * 1000.0 / durMs);
         o.addProperty("deltaBytesPerSecond", deltaBytes * 1000.0 / durMs);
-        o.addProperty("fullSnapshotPerFlushBytes", fullIfSnapshotBytes);
-        o.addProperty("fullSnapshotPerFlushBytesPerSecond", fullIfSnapshotBytes * 1000.0 / durMs);
-        o.addProperty("avgEncodeMicros", deltas == 0 ? 0 : encodeNanos / deltas / 1000);
+        o.addProperty("seatDeltaBytes", seatDeltaBytes);
+        o.addProperty("avgEncodeMicros", flushes == 0 ? 0 : encodeNanos / flushes / 1000);
         o.addProperty("maxEncodeMicros", maxEncodeNanos / 1000);
         o.addProperty("avgSnapshotSerializeMicros", snapshotSerializeCount == 0 ? 0 : snapshotSerializeNanos / snapshotSerializeCount / 1000);
         o.addProperty("clientSnapshotsSent", clientSnapshotsSent);

@@ -44,6 +44,8 @@ spike-viewer/check/measure.sh /tmp/runs cmd-redact-fast --mode commander --speed
 Decks: 1v1 uses `res/geneticaidecks` (Burn vs Merfolk); Commander uses `res/quest/commanderprecons` (Draconic Domination, Feline Ferocity, Arcane Maelstrom, Enhanced Evolution). Metrics JSON per game: `forge-gui-web/target/spike-metrics/<label>-game1.json`.
 
 ## Wire format (v1)
+Superseded by v2 (per-viewer visibility): see [web-ui.md](web-ui.md#bridge-per-viewer-visibility-wire-v2). v1 as built by the spike:
+
 JSON text frames, server → client only.
 - `{"t":"hello","v":1,"hidden":"REDACT|FULL","schema":{"<TrackableProperty>":"<kind>",…}}` once per connection. Kinds: `card cards player players stack_item stack_items entity card_state combat bool int float string enum mana_cost colors card_type counters keywords paper_card string_list string_set string_map int_set int_map mana_map generic_map object`.
 - `{"t":"snapshot","game":N,"seq":S,"label":…,"objects":[…],"log":[…last 400]}` on connect and at each new game.

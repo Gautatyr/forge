@@ -154,6 +154,21 @@ public class WsConnectionHandlerTest {
     }
 
     @Test
+    public void seatFromHandshakeIsKeptAcrossResyncs() {
+        assertEquals(hub.seats, List.of(-1), "no seat: spectator");
+        hub = new FakeHub();
+        handler = new WsConnectionHandler(hub, LIMITS);
+        ch = new EmbeddedChannel(handler);
+        ch.pipeline().fireUserEventTriggered(
+                new WebSocketServerProtocolHandler.HandshakeComplete("/ws?token=t&seat=1", EmptyHttpHeaders.INSTANCE, null));
+        written();
+        ch.writeInbound(new TextWebSocketFrame("{\"t\":\"requestResync\"}"));
+        written();
+        assertEquals(hub.seats, List.of(1, 1));
+        assertEquals(handler.resyncCount(), 1);
+    }
+
+    @Test
     public void requestResyncSendsFreshSnapshot() {
         written();
         ch.writeInbound(new TextWebSocketFrame("{\"t\":\"requestResync\"}"));
