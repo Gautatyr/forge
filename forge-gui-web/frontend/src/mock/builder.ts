@@ -39,7 +39,7 @@ export class GameBuilder {
       autoYieldTo: [],
       passingUntilYourTurn: false,
       log: [],
-      eotKeywords: {},
+      eotEffects: {},
       seq: 1000,
     };
   }
@@ -92,7 +92,7 @@ export class GameBuilder {
       counters: o.counters ?? [],
       damage: o.damage ?? 0,
       ptModifiers: [],
-      grantedKeywords: [],
+      keywords: [],
       attachments: [],
     };
     this.g.cards[id] = c;

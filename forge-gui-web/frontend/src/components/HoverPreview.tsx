@@ -20,7 +20,8 @@ export function HoverPreview() {
   if (c.summoningSick && c.zone === 'battlefield') notes.push('Summoning sick: can’t attack or tap this turn');
   for (const k of c.counters) notes.push(`${k.count} × ${k.kind} counter`);
   if (c.damage) notes.push(`${c.damage} damage marked`);
-  if (c.grantedKeywords.length) notes.push(`Has ${c.grantedKeywords.join(', ')}`);
+  const added = c.keywords.filter((k) => k.grantedBy).map((k) => k.label);
+  if (added.length) notes.push(`Has ${added.join(', ')}`);
   if (s.targetedBy.length) notes.push(`Targeted by ${s.targetedBy.join(', ')}`);
   if (c.attachments.length) notes.push(`Attached: ${c.attachments.map((a) => game.cards[a]?.name).join(', ')}`);
 

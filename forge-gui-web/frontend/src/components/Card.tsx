@@ -3,7 +3,9 @@ import { currentFace, isCreature } from '../model/selectors';
 import type { CardView } from '../model/types';
 import { cardStatus, type CardStatus } from '../state/cardStatus';
 import { useMatch } from '../state/MatchContext';
+import { useOverlayKey } from '../state/overlayKey';
 import { Icon, type IconName } from './Icon';
+import { KeywordIcons } from './KeywordIcons';
 import styles from './Card.module.css';
 
 export type CardContext = 'board' | 'hand' | 'thumb';
@@ -75,6 +77,7 @@ function ptDirection(c: CardView): 'up' | 'down' | undefined {
 
 export function Card({ card: c, context, count = 1, groupIds, className, style, onActivate, ariaExtra, notch = true }: Props) {
   const { game, ui, setUi, activateCard } = useMatch();
+  const words = useOverlayKey();
   // Scryfall's CDN occasionally refuses a burst of requests: retry once, then show the name.
   const [failures, setFailures] = useState<{ src: string; count: number }>();
   const s = cardStatus(game, ui, c.id);
@@ -100,6 +103,7 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
     c.tapped ? 'tapped' : '',
     c.power !== undefined ? `${c.power}/${c.toughness}` : '',
     s.playable ? 'playable' : '',
+    onBoard ? c.keywords.map((k) => k.label).join(', ') : '',
     ariaExtra ?? '',
   ]
     .filter(Boolean)
@@ -206,7 +210,7 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
             ) : null}
 
             {count > 1 ? (
-              <span className={styles.count} data-arrow-occluder>
+              <span className={`${styles.count} ${onBoard && c.keywords.length ? styles.countLeft : ''}`} data-arrow-occluder>
                 ×{count}
               </span>
             ) : null}
@@ -219,6 +223,16 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
           </>
         ) : null}
       </button>
+      {onBoard && c.zone === 'battlefield' ? (
+        <span key={words ? 'words' : 'icons'} className={words ? styles.kwWords : styles.kw}>
+          <KeywordIcons
+            keywords={c.keywords}
+            tapped={showTapped}
+            above={s.attacking || s.blocking ? 'strip' : c.damage > 0 ? 'damage' : c.power !== undefined ? 'pt' : 'none'}
+            words={words}
+          />
+        </span>
+      ) : null}
     </div>
   );
 }
