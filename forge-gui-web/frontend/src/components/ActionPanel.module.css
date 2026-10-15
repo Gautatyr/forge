@@ -1,37 +1,33 @@
+/* Bottom of the rail (Rail.module.css): content-sized, never squeezed. */
 .panel {
-  grid-area: action;
+  flex: none;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
   gap: var(--sp-2);
   padding: var(--sp-3);
   background: var(--c-bg);
   border-top: 1px solid var(--c-line);
-  border-left: 1px solid var(--c-line);
-  min-height: 0;
 }
 
+/* Issue 24 fills it with the floating mana; takes no room while empty. */
+.floatingMana:empty {
+  display: none;
+}
+
+/* Whole lines only, at most 4; the full text is in the hover title. */
 .prompt {
   margin: 0;
-  min-height: 0;
   font-size: var(--fs-sm);
   line-height: 1.35;
   color: var(--c-text-2);
-  flex: 1;
-  overflow: hidden;
-}
-
-/* Clamped to the whole lines that fit in .prompt (ActionPanel sets the count),
-   so a line is never cut in half. */
-.promptText {
   display: -webkit-box;
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-/* Contextual buttons (Attack all, Cancel) appear here. The slot always
-   keeps one row's height, so the persistent controls below never move. */
+/* Contextual buttons (Attack all, Cancel). The row is there only while one
+   shows; it sits above the main button, so the controls below never move. */
 .contextual {
   flex: none;
   display: flex;
@@ -40,14 +36,12 @@
   height: 2.25rem;
 }
 
-.contextual > * {
-  min-width: 0;
+.contextual:empty {
+  display: none;
 }
 
-/* While the slot is empty the prompt text may use its room; the slot itself
-   keeps its height, so the controls below still do not move. */
-.panel:has(.contextual:empty) .prompt {
-  margin-bottom: calc(-2.25rem - var(--sp-2));
+.contextual > * {
+  min-width: 0;
 }
 
 .mainRow {

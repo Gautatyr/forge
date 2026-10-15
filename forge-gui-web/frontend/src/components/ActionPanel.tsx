@@ -1,4 +1,3 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { currentDefender } from '../state/focus';
 import { useMatch } from '../state/MatchContext';
 import { primaryAction, promptText } from '../state/primaryAction';
@@ -6,32 +5,15 @@ import { Icon } from './Icon';
 import styles from './ActionPanel.module.css';
 
 /**
- * How many whole lines fit in an element whose height the layout sets (the
- * prompt takes what the buttons leave). Clamping to that count ends the text
- * on a whole line with an ellipsis instead of slicing a line in half.
+ * Bottom of the right panel: what the game wants, and the one button that
+ * answers it. Sized to its content and anchored to the bottom edge, so the
+ * persistent controls (Undo row, switches) keep their place whatever shows
+ * above them; anything that comes and goes takes its height from Recent.
  */
-function useWholeLines<T extends HTMLElement>() {
-  const ref = useRef<T>(null);
-  const [lines, setLines] = useState(4);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => {
-      const lh = parseFloat(getComputedStyle(el).lineHeight);
-      if (!(lh > 0)) return;
-      setLines(Math.max(1, Math.min(4, Math.floor((el.clientHeight + 0.5) / lh))));
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  return [ref, lines] as const;
-}
-
-/** Bottom-right, beside the hand: what the game wants, and the one button that answers it. */
 export function ActionPanel() {
   const { game, ui, prefs, send, setUi, canUndo } = useMatch();
   const action = primaryAction(game, ui);
-  const [promptRef, promptLines] = useWholeLines<HTMLParagraphElement>();
+  const prompt = promptText(game);
   const d = game.decision;
   const canCancel =
     d.kind === 'chooseTargets' ||
@@ -41,14 +23,18 @@ export function ActionPanel() {
 
   return (
     <section className={styles.panel} aria-label="Your decision">
-      <p ref={promptRef} className={styles.prompt} aria-live="polite">
-        <span className={styles.promptText} style={{ WebkitLineClamp: promptLines } as CSSProperties}>
-          {promptText(game)}
-        </span>
+      {/* Floating mana (issue 24): shown only while the pool is not empty,
+          directly above the prompt. Hidden while empty. */}
+      <div className={styles.floatingMana} data-slot="floating-mana" />
+
+      {/* Content-sized (at most 4 lines, full text on hover), so it always
+          shows and sits directly on the buttons, at any UI scale. */}
+      <p className={styles.prompt} aria-live="polite" title={prompt}>
+        {prompt}
       </p>
 
-      {/* Reserved slot for contextual buttons: always takes its height, so
-          nothing below it moves when they come and go (mockup review 1). */}
+      {/* Contextual buttons that answer the prompt; the row exists only while
+          one shows. It sits above the main button, so nothing below moves. */}
       <div className={styles.contextual}>
         {d.kind === 'declareAttackers' ? (
           <button
