@@ -169,3 +169,25 @@ Dev "Mock" tag moved to the bottom-left corner (it covered the turn block).
 Measured contrast: "Stop" chip 10.5:1, "Pass" 5.8:1, "Mixed" 8.5:1 (on `--c-panel`); neutral chip 7.3:1; captions 7.2:1 on the bar, 5.8:1 on the combat run.
 
 Not done: the player plate's "Priority" tag is unchanged (no 400 ms delay, no "Waiting for" wording). At 1366 px with UI scale ≥ 175 % during combat (no fold), the top bar still overflows and clips the tool buttons; the spec gives no third fallback. Committed JPEGs in `forge-gui-web/frontend/docs/screenshots/` still show the pass-2 top bar.
+## Pass 3B: keyword icons (issue #21)
+Spec: [product-decisions-pass-3.md](product-decisions-pass-3.md) §3. Icon set and one-line texts: [keyword-icons.html](keyword-icons.html) (a test checks glyphs and lines against it, and codepoints against `mana-font/css/mana.css`).
+
+| What | Code |
+|---|---|
+| Model: `CardView.keywords: CardKeyword[]` (`name`, `label` with value, engine `reminder`, `grantedBy {cardId, name, untilEndOfTurn}`) replaces `grantedKeywords`. The bridge must fill printed vs added and the source (engine gap: `KeywordInterface.getView` drops them). | `model/types.ts` |
+| Catalogue: own icons, 6 extra + hexproof from each colour, generic static / triggered, no-icon list (flash, cycling, kicker, flashback, cascade, convoke, enchant, equip), display order (added first, then evasion, combat, protection, rest), "+N" slot plan. | `components/keywordCatalog.ts` |
+| Icons, "+N" chip, tooltip (300 ms hover, focus, click; hoverable; Escape closes), word chips. Font: `mana-font@1.18.0` `fonts/mana.woff2` (187 KB, loaded only when an icon renders; no stylesheet from the package). | `components/KeywordIcons.tsx` |
+| Placement: frame over the card box, rotated with tapped cards; each icon turned back upright, so on a tapped card they run along the bottom edge from the P/T box. Column starts above P/T, above the damage badge, or above the attack/block strip (58 %). On grouped cards with icons the "×N" count moves to the left edge. | `Card.tsx`, `Card.module.css` |
+| Inspector lists every keyword (no-icon ones too) with disc, line and "Granted by …". | `Inspector.tsx` |
+| Overlay key (D7): **hold Alt**. Icons become word chips (added ones reversed); truncated chips show the full text on hover. Listed in the `?` overlay. | `state/overlayKey.ts`, `state/keymap.ts` |
+| Mock: printed keywords parsed from oracle text; added ones from attachments, anthems (Avacyn added) and end-of-turn effects (`eotEffects`, with P/T). New cards: Vampire Nighthawk (Ana), Tolarian Terror (Theo), Run Amok on Krenko in `blockers`, and scenario `keywords` (1v1, every icon kind, +N, tapped cards). | `mock/keywords.ts`, `mock/engine.ts`, `mock/scenarios.ts` |
+
+Sizes and choices beyond the spec:
+- Disc `max(20px, 1.25rem)`: 20 px at 1080p and 1366×768, grows with larger screens and UI scale. Glyph 0.7 × disc (as the sheet), hit area 24 px, gap 4 px.
+- Slots by card width (container queries): 3 from 110 px, 2 from 72 px, 1 below that, none below 3.25rem (52 px at 1080p, 41 px at 768p): no room beside the state badges and the group count. Below 72 px with 2+ keywords the one slot is "+N" (spec gives no rule there).
+- Tooltip: max width 20rem (320 px at 1080p), three content rows (name, line, granted); the line wraps instead of truncating (approved lines run to 95 characters).
+- Contrast (WCAG): tooltip name 11.6:1, line 7.3:1, granted 5.0:1 on `--c-panel-raised`; disc glyph 16.6:1 either way; inspector line 10.5:1, granted 7.2:1 on `--c-bg`.
+
+Verified (Playwright, 1920×1080 and 1366×768, desktop context): in every scenario and layout, no disc leaves its card or overlaps the P/T box, damage badge, counters, combat strip, state badges or group count; visible icons never exceed the slot rule; hover after 300 ms, focus, Tab order (card, then its icons), Escape, pointer onto the tooltip; tooltips stay on screen; Alt shows word chips and release restores icons; no console errors.
+
+Known gaps: at 1366×768 Columns, opponents' creatures are 47 px wide, so one 20 px disc covers a large part of the card (opponents' card size is item 4 of the spec). Committed JPEGs in `forge-gui-web/frontend/docs/screenshots/` were not regenerated (the turn-strip issue changes the same views in parallel).

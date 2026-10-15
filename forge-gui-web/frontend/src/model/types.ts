@@ -44,6 +44,25 @@ export interface PtModifier {
   toughness: number;
 }
 
+/** The card that added a keyword to another card. */
+export interface KeywordSource {
+  cardId: CardId;
+  name: string;
+  untilEndOfTurn: boolean;
+}
+
+/** One keyword ability on a card, e.g. Flying, Ward {2}, Protection from red. */
+export interface CardKeyword {
+  /** The keyword without its value, as the engine names it: "Flying", "Ward", "Protection", "Hexproof". */
+  name: string;
+  /** Full name with its value: "Ward {2}", "Protection from red", "Hexproof from black". */
+  label: string;
+  /** The engine's English reminder text; shown when we have no line of our own. */
+  reminder?: string;
+  /** Set when another card added it; absent when the card has it printed. */
+  grantedBy?: KeywordSource;
+}
+
 export interface CardView {
   id: CardId;
   /** Name of the face currently shown. */
@@ -69,8 +88,8 @@ export interface CardView {
   toughness?: number;
   /** Explains how current P/T differs from the printed one. */
   ptModifiers: PtModifier[];
-  /** Keywords granted by effects (printed ones are in the oracle text). */
-  grantedKeywords: string[];
+  /** Every keyword the card has now, printed and added by other cards, in engine order. */
+  keywords: CardKeyword[];
   attachedTo?: CardId;
   attachments: CardId[];
 }

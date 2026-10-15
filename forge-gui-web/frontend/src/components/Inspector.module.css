@@ -142,3 +142,35 @@
   gap: var(--sp-1);
   font-size: var(--fs-sm);
 }
+
+.keywords {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.keyword {
+  display: grid;
+  grid-template-columns: var(--kw-disc) 1fr;
+  align-items: start;
+  gap: var(--sp-2);
+}
+
+.details .kwName {
+  margin: 0;
+  font-weight: var(--fw-bold);
+}
+
+.details .kwLine {
+  margin: 0;
+  color: var(--c-text-2);
+  font-size: var(--fs-sm);
+}
+
+.details .kwGranted {
+  margin: 0;
+  color: var(--c-text-3);
+  font-size: var(--fs-sm);
+}

@@ -17,6 +17,7 @@ import {
 } from '../model/selectors';
 import type {
   CardId,
+  CardKeyword,
   CardView,
   Decision,
   GameView,
@@ -27,12 +28,21 @@ import type {
 } from '../model/types';
 import { lookup, type CardKey } from './cardDb';
 import { producesMana, rule, type TargetSpec } from './cardRules';
+import { keyword, printedKeywords } from './keywords';
 
 export interface MockGame extends GameView {
-  /** Keywords granted until end of turn (Heroic Intervention…). */
-  eotKeywords: Record<CardId, string[]>;
+  /** Effects that last until end of turn (Heroic Intervention, Run Amok…), by affected card. */
+  eotEffects: Record<CardId, EotEffect[]>;
   /** Counter for new ids. */
   seq: number;
+}
+
+export interface EotEffect {
+  sourceId: CardId;
+  sourceName: string;
+  power: number;
+  toughness: number;
+  keywords: string[];
 }
 
 const ref = (id: CardId) => `{card:${id}}`;
@@ -82,7 +92,7 @@ function moveCard(g: MockGame, id: CardId, to: CardView['zone']) {
     c.damage = 0;
     c.counters = [];
     c.transformed = false;
-    g.eotKeywords[id] = [];
+    g.eotEffects[id] = [];
   }
   if (c.isToken && to !== 'battlefield') {
     // Tokens cease to exist outside the battlefield.
@@ -97,24 +107,38 @@ function moveCard(g: MockGame, id: CardId, to: CardView['zone']) {
   if (to === 'hand') owner.handCount = owner.hand.length;
 }
 
-/** Recompute P/T and granted keywords from counters, attachments and anthems. */
+/** Recompute P/T and keywords from printed text, counters, attachments, anthems and end-of-turn effects. */
 export function recompute(g: MockGame) {
+  for (const c of Object.values(g.cards)) {
+    if (c.zone !== 'battlefield') c.keywords = printedKeywords(currentFace(c).oracleText);
+  }
   const onBf = g.players.flatMap((p) => p.battlefield.map((id) => g.cards[id]!));
   for (const c of onBf) {
     c.ptModifiers = [];
-    c.grantedKeywords = [...(g.eotKeywords[c.id] ?? [])];
+    c.keywords = printedKeywords(currentFace(c).oracleText);
+    const grant = (labels: string[], source: CardView, untilEndOfTurn: boolean) => {
+      for (const label of labels) {
+        if (c.keywords.some((k) => k.label === label)) continue;
+        const k: CardKeyword = { ...keyword(label), grantedBy: { cardId: source.id, name: source.name, untilEndOfTurn } };
+        c.keywords.push(k);
+      }
+    };
     for (const a of c.attachments) {
       const bonus = rule(g.cards[a]!).attachBonus;
       if (!bonus) continue;
       if (bonus.power || bonus.toughness)
         c.ptModifiers.push({ source: g.cards[a]!.name, power: bonus.power, toughness: bonus.toughness });
-      c.grantedKeywords.push(...bonus.keywords);
+      grant(bonus.keywords, g.cards[a]!, false);
     }
     for (const src of onBf) {
       const an = rule(src).anthem;
       if (!an || src.id === c.id || src.controllerId !== c.controllerId || !an.applies(c)) continue;
-      c.ptModifiers.push({ source: src.name, power: an.power, toughness: an.toughness });
-      c.grantedKeywords.push(...an.keywords);
+      if (an.power || an.toughness) c.ptModifiers.push({ source: src.name, power: an.power, toughness: an.toughness });
+      grant(an.keywords, src, false);
+    }
+    for (const e of g.eotEffects[c.id] ?? []) {
+      if (e.power || e.toughness) c.ptModifiers.push({ source: e.sourceName, power: e.power, toughness: e.toughness });
+      grant(e.keywords, g.cards[e.sourceId] ?? ({ id: e.sourceId, name: e.sourceName } as CardView), true);
     }
     const plus = c.counters.find((x) => x.kind === '+1/+1');
     if (plus) c.ptModifiers.push({ source: `+1/+1 counters ×${plus.count}`, power: plus.count, toughness: plus.count });
@@ -128,12 +152,11 @@ export function recompute(g: MockGame) {
       c.power = undefined;
       c.toughness = undefined;
     }
-    c.grantedKeywords = [...new Set(c.grantedKeywords)];
   }
 }
 
 function hasKeyword(c: CardView, kw: string) {
-  return c.grantedKeywords.includes(kw) || new RegExp(`\\b${kw}\\b`).test(currentFace(c).oracleText.split('\n')[0] ?? '');
+  return c.keywords.some((k) => k.name === kw);
 }
 
 function availableMana(g: MockGame, pid: PlayerId): number {
@@ -241,7 +264,7 @@ function newCard(g: MockGame, key: CardKey, ownerId: PlayerId, zone: CardView['z
     counters: [],
     damage: 0,
     ptModifiers: [],
-    grantedKeywords: [],
+    keywords: [],
     attachments: [],
   };
   g.cards[c.id] = c;
@@ -287,7 +310,7 @@ function castFromZone(g: MockGame, c: CardView, targets: TargetRef[]) {
 function destroy(g: MockGame, id: CardId, verb = 'is destroyed') {
   const c = g.cards[id];
   if (!c) return;
-  if (g.eotKeywords[id]?.includes('Indestructible')) {
+  if (hasKeyword(c, 'Indestructible')) {
     log(g, `${ref(id)} is indestructible and survives.`);
     return;
   }
@@ -344,7 +367,10 @@ function resolveTop(g: MockGame) {
       if (t?.kind === 'card') destroy(g, t.id);
       break;
     case 'Heroic Intervention':
-      for (const id of caster.battlefield) g.eotKeywords[id] = ['Hexproof', 'Indestructible'];
+      for (const id of caster.battlefield) {
+        const e = { sourceId: src.id, sourceName: src.name, power: 0, toughness: 0, keywords: ['Hexproof', 'Indestructible'] };
+        g.eotEffects[id] = [...(g.eotEffects[id] ?? []), e];
+      }
       log(g, `Your permanents gain hexproof and indestructible until end of turn.`, caster.id);
       break;
     case "Moment's Peace":
@@ -626,6 +652,8 @@ export function applyIntent(prev: MockGame, intent: Intent): MockGame {
           goToStep(g, 'end');
           log(g, `You end your turn. ${next.name}'s turn begins.`, you.id);
           g.turn = { number: g.turn.number + 1, activePlayerId: next.id, step: 'upkeep', priorityPlayerId: next.id };
+          g.eotEffects = {};
+          recompute(g);
           g.decision = { kind: 'waiting', forPlayerId: next.id, what: `${next.name} is taking their turn` };
           return g;
         }

@@ -1542,6 +1542,301 @@
    }
   }
  },
+ "Vampire Nighthawk": {
+  "key": "Vampire Nighthawk",
+  "scryfallId": "7aff07f9-9528-4149-9af0-f4e3c66c9dc5",
+  "set": "fdn",
+  "collectorNumber": "757",
+  "artist": "Jason Chan",
+  "layout": "normal",
+  "colors": [
+   "B"
+  ],
+  "front": {
+   "name": "Vampire Nighthawk",
+   "manaCost": "{1}{B}{B}",
+   "typeLine": "Creature — Vampire Shaman",
+   "oracleText": "Flying\nDeathtouch (Any amount of damage this deals to a creature is enough to destroy it.)\nLifelink (Damage dealt by this creature also causes you to gain that much life.)",
+   "power": "2",
+   "toughness": "3",
+   "image": {
+    "normal": "https://cards.scryfall.io/normal/front/7/a/7aff07f9-9528-4149-9af0-f4e3c66c9dc5.jpg?1787562825",
+    "large": "https://cards.scryfall.io/large/front/7/a/7aff07f9-9528-4149-9af0-f4e3c66c9dc5.jpg?1787562825"
+   }
+  }
+ },
+ "Tolarian Terror": {
+  "key": "Tolarian Terror",
+  "scryfallId": "2569d4f3-55ed-4f99-9592-34c7df0aab72",
+  "set": "fdn",
+  "collectorNumber": "167",
+  "artist": "Vincent Christiaens",
+  "layout": "normal",
+  "colors": [
+   "U"
+  ],
+  "front": {
+   "name": "Tolarian Terror",
+   "manaCost": "{6}{U}",
+   "typeLine": "Creature — Serpent",
+   "oracleText": "This spell costs {1} less to cast for each instant and sorcery card in your graveyard.\nWard {2} (Whenever this creature becomes the target of a spell or ability an opponent controls, counter it unless that player pays {2}.)",
+   "power": "5",
+   "toughness": "5",
+   "image": {
+    "normal": "https://cards.scryfall.io/normal/front/2/5/2569d4f3-55ed-4f99-9592-34c7df0aab72.jpg?1783909076",
+    "large": "https://cards.scryfall.io/large/front/2/5/2569d4f3-55ed-4f99-9592-34c7df0aab72.jpg?1783909076"
+   }
+  }
+ },
+ "Run Amok": {
+  "key": "Run Amok",
+  "scryfallId": "b18e1c55-29bc-434f-85b7-765d7ba71ff3",
+  "set": "trc",
+  "collectorNumber": "582",
+  "artist": "Carlos C Diaz",
+  "layout": "normal",
+  "colors": [
+   "R"
+  ],
+  "front": {
+   "name": "Run Amok",
+   "manaCost": "{1}{R}",
+   "typeLine": "Instant",
+   "oracleText": "Target attacking creature gets +3/+3 and gains trample until end of turn.",
+   "image": {
+    "normal": "https://cards.scryfall.io/normal/front/b/1/b18e1c55-29bc-434f-85b7-765d7ba71ff3.jpg?1786005592",
+    "large": "https://cards.scryfall.io/large/front/b/1/b18e1c55-29bc-434f-85b7-765d7ba71ff3.jpg?1786005592"
+   }
+  }
+ },
+ "Fencing Ace": {
+  "key": "Fencing Ace",
+  "scryfallId": "994094f8-e175-4e2e-aa39-c096f0ed9e6a",
+  "set": "cmm",
+  "collectorNumber": "23",
+  "artist": "David Rapoza",
+  "layout": "normal",
+  "colors": [
+   "W"
+  ],
+  "front": {
+   "name": "Fencing Ace",
+   "manaCost": "{1}{W}",
+   "typeLine": "Creature — Human Soldier",
+   "oracleText": "Double strike (This creature deals both first-strike and regular combat damage.)",
+   "power": "1",
+   "toughness": "1",
+   "image": {
+    "normal": "https://cards.scryfall.io/normal/front/9/9/994094f8-e175-4e2e-aa39-c096f0ed9e6a.jpg?1783915723",
+    "large": "https://cards.scryfall.io/large/front/9/9/994094f8-e175-4e2e-aa39-c096f0ed9e6a.jpg?1783915723"
+   }
+  }
+ },
+ "Giant Spider": {
+  "key": "Giant Spider",
+  "scryfallId": "213c9202-b6f4-43ab-b57f-b97a1da5e263",
+  "set": "dmr",
+  "collectorNumber": "163",
+  "artist": "Randy Gallegos",
+  "layout": "normal",
+  "colors": [
+   "G"
+  ],
+  "front": {
+   "name": "Giant Spider",
+   "manaCost": "{3}{G}",
+   "typeLine": "Creature — Spider",
+   "oracleText": "Reach (This creature can block creatures with flying.)",
+   "power": "2",
+   "toughness": "4",
+   "image": {
+    "normal": "https://cards.scryfall.io/normal/front/2/1/213c9202-b6f4-43ab-b57f-b97a1da5e263.jpg?1783918443",
+    "large": "https://cards.scryfall.io/large/front/2/1/213c9202-b6f4-43ab-b57f-b97a1da5e263.jpg?1783918443"
+   }
+  }
+ },
+ "Wall of Omens": {
+  "key": "Wall of Omens",
+  "scryfallId": "3d134bb2-17ec-4e65-976e-f06fa983f3fb",
+  "set": "tdc",
+  "collectorNumber": "138",
+  "artist": "James Paick",
+  "layout": "normal",
+  "colors": [
+   "W"
+  ],
+  "front": {
+   "name": "Wall of Omens",
+   "manaCost": "{1}{W}",
+   "typeLine": "Creature — Wall",
+   "oracleText": "Defender\nWhen this creature enters, draw a card.",
+   "power": "0",
+   "toughness": "4",
+   "image": {
+    "normal": "https://cards.scryfall.io/normal/front/3/d/3d134bb2-17ec-4e65-976e-f06fa983f3fb.jpg?1783907116",
+    "large": "https://cards.scryfall.io/large/front/3/d/3d134bb2-17ec-4e65-976e-f06fa983f3fb.jpg?1783907116"
+   }
+  }
+ },
+ "Noble Hierarch": {
+  "key": "Noble Hierarch",
+  "scryfallId": "400382a4-aea2-4827-b06a-1b0b3745908b",
+  "set": "2xm",
+  "collectorNumber": "177",
+  "artist": "Mark Zug",
+  "layout": "normal",
+  "colors": [
+   "G"
+  ],
+  "front": {
+   "name": "Noble Hierarch",
+   "manaCost": "{G}",
+   "typeLine": "Creature — Human Druid",
+   "oracleText": "Exalted (Whenever a creature you control attacks alone, that creature gets +1/+1 until end of turn.)\n{T}: Add {G}, {W}, or {U}.",
+   "power": "0",
+   "toughness": "1",
+   "image": {
+    "normal": "https://cards.scryfall.io/normal/front/4/0/400382a4-aea2-4827-b06a-1b0b3745908b.jpg?1783930143",
+    "large": "https://cards.scryfall.io/large/front/4/0/400382a4-aea2-4827-b06a-1b0b3745908b.jpg?1783930143"
+   }
+  }
+ },
+ "Avacyn, Angel of Hope": {
+  "key": "Avacyn, Angel of Hope",
+  "scryfallId": "74e5dcec-ef1d-4461-bb23-61d98ff082dd",
+  "set": "inr",
+  "collectorNumber": "477",
+  "artist": "Jason Chan",
+  "layout": "normal",
+  "colors": [
+   "W"
+  ],
+  "front": {
+   "name": "Avacyn, Angel of Hope",
+   "manaCost": "{5}{W}{W}{W}",
+   "typeLine": "Legendary Creature — Angel",
+   "oracleText": "Flying, vigilance, indestructible\nOther permanents you control have indestructible.",
+   "power": "8",
+   "toughness": "8",
+   "image": {
+    "normal": "https://cards.scryfall.io/normal/front/7/4/74e5dcec-ef1d-4461-bb23-61d98ff082dd.jpg?1783907976",
+    "large": "https://cards.scryfall.io/large/front/7/4/74e5dcec-ef1d-4461-bb23-61d98ff082dd.jpg?1783907976"
+   }
+  }
+ },
+ "Silver Knight": {
+  "key": "Silver Knight",
+  "scryfallId": "297316bd-e91b-4b18-9d13-31dd51c92cce",
+  "set": "ddg",
+  "collectorNumber": "8",
+  "artist": "Steve Prescott",
+  "layout": "normal",
+  "colors": [
+   "W"
+  ],
+  "front": {
+   "name": "Silver Knight",
+   "manaCost": "{W}{W}",
+   "typeLine": "Creature — Human Knight",
+   "oracleText": "First strike, protection from red",
+   "power": "2",
+   "toughness": "2",
+   "image": {
+    "normal": "https://cards.scryfall.io/normal/front/2/9/297316bd-e91b-4b18-9d13-31dd51c92cce.jpg?1783941350",
+    "large": "https://cards.scryfall.io/large/front/2/9/297316bd-e91b-4b18-9d13-31dd51c92cce.jpg?1783941350"
+   }
+  }
+ },
+ "Knight of Grace": {
+  "key": "Knight of Grace",
+  "scryfallId": "4efb8633-0a70-4ddc-80af-42508ec75cff",
+  "set": "fdn",
+  "collectorNumber": "576",
+  "artist": "Sidharth Chaturvedi",
+  "layout": "normal",
+  "colors": [
+   "W"
+  ],
+  "front": {
+   "name": "Knight of Grace",
+   "manaCost": "{1}{W}",
+   "typeLine": "Creature — Human Knight",
+   "oracleText": "First strike (This creature deals combat damage before creatures without first strike.)\nHexproof from black (This creature can't be the target of black spells or abilities your opponents control.)\nThis creature gets +1/+0 as long as any player controls a black permanent.",
+   "power": "2",
+   "toughness": "2",
+   "image": {
+    "normal": "https://cards.scryfall.io/normal/front/4/e/4efb8633-0a70-4ddc-80af-42508ec75cff.jpg?1783908938",
+    "large": "https://cards.scryfall.io/large/front/4/e/4efb8633-0a70-4ddc-80af-42508ec75cff.jpg?1783908938"
+   }
+  }
+ },
+ "Ulamog's Crusher": {
+  "key": "Ulamog's Crusher",
+  "scryfallId": "699c0f6f-b26b-4741-8140-8a6030cad127",
+  "set": "cmm",
+  "collectorNumber": "6",
+  "artist": "Todd Lockwood",
+  "layout": "normal",
+  "colors": [],
+  "front": {
+   "name": "Ulamog's Crusher",
+   "manaCost": "{8}",
+   "typeLine": "Creature — Eldrazi",
+   "oracleText": "Annihilator 2 (Whenever this creature attacks, defending player sacrifices two permanents of their choice.)\nThis creature attacks each combat if able.",
+   "power": "8",
+   "toughness": "8",
+   "image": {
+    "normal": "https://cards.scryfall.io/normal/front/6/9/699c0f6f-b26b-4741-8140-8a6030cad127.jpg?1783915730",
+    "large": "https://cards.scryfall.io/large/front/6/9/699c0f6f-b26b-4741-8140-8a6030cad127.jpg?1783915730"
+   }
+  }
+ },
+ "Bloated Contaminator": {
+  "key": "Bloated Contaminator",
+  "scryfallId": "411bda96-6c65-475d-9850-0a9b3eefa553",
+  "set": "one",
+  "collectorNumber": "159",
+  "artist": "Johann Bodin",
+  "layout": "normal",
+  "colors": [
+   "G"
+  ],
+  "front": {
+   "name": "Bloated Contaminator",
+   "manaCost": "{2}{G}",
+   "typeLine": "Creature — Phyrexian Beast",
+   "oracleText": "Trample\nToxic 1 (Players dealt combat damage by this creature also get a poison counter.)\nWhenever this creature deals combat damage to a player, proliferate. (Choose any number of permanents and/or players, then give each another counter of each kind already there.)",
+   "power": "4",
+   "toughness": "4",
+   "image": {
+    "normal": "https://cards.scryfall.io/normal/front/4/1/411bda96-6c65-475d-9850-0a9b3eefa553.jpg?1783918018",
+    "large": "https://cards.scryfall.io/large/front/4/1/411bda96-6c65-475d-9850-0a9b3eefa553.jpg?1783918018"
+   }
+  }
+ },
+ "Boggart Brute": {
+  "key": "Boggart Brute",
+  "scryfallId": "3d6de3a7-30a7-49d7-8e39-494355c6edae",
+  "set": "jmp",
+  "collectorNumber": "299",
+  "artist": "Igor Kieryluk",
+  "layout": "normal",
+  "colors": [
+   "R"
+  ],
+  "front": {
+   "name": "Boggart Brute",
+   "manaCost": "{2}{R}",
+   "typeLine": "Creature — Goblin Warrior",
+   "oracleText": "Menace (This creature can't be blocked except by two or more creatures.)",
+   "power": "3",
+   "toughness": "2",
+   "image": {
+    "normal": "https://cards.scryfall.io/normal/front/3/d/3d6de3a7-30a7-49d7-8e39-494355c6edae.jpg?1783930402",
+    "large": "https://cards.scryfall.io/large/front/3/d/3d6de3a7-30a7-49d7-8e39-494355c6edae.jpg?1783930402"
+   }
+  }
+ },
  "Angel token": {
   "key": "Angel token",
   "scryfallId": "1159d02c-0291-42de-91e6-e9a49d5ed968",

@@ -15,6 +15,7 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: '1 – 9', action: 'Pick an option in the choice tray', group: 'Play' },
   { keys: 'I', action: 'Inspect the hovered card (or right-click it)', group: 'Look' },
   { keys: 'V', action: 'Peek at the board while a choice is open', group: 'Look' },
+  { keys: 'Hold Alt', action: 'Show keywords on permanents in words', group: 'Look' },
   { keys: 'L', action: 'Full game log', group: 'Look' },
   { keys: 'D', action: 'Display options: layout, card size, grouping, scale', group: 'Screen' },
   { keys: '?', action: 'This list', group: 'Screen' },

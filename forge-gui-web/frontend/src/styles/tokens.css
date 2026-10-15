@@ -54,10 +54,22 @@
   --c-mana-g: #9fd0a6;
   --c-mana-c: #cfd4d6;
 
+  /* Keyword icons (pass 3): printed = light glyph on a dark disc with a light rim;
+     added by another card = reversed. The difference is lightness, so it survives colour blindness. */
+  --c-kw-disc: var(--c-bg);
+  --c-kw-glyph: var(--c-text);
+  --c-kw-rim: var(--c-text);
+  --c-kw-granted-disc: var(--c-text);
+  --c-kw-granted-glyph: var(--c-bg);
+  --c-kw-granted-rim: var(--c-bg);
+
   /* --- Typography ------------------------------------------------------------ */
   --font-display: 'Bricolage Grotesque Variable', 'Segoe UI', system-ui, sans-serif;
   --font-body: 'Atkinson Hyperlegible Next Variable', 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'Atkinson Hyperlegible Mono Variable', ui-monospace, monospace;
+
+  /* Mana font (mana-font 1.18.0): Arena ability symbols for keyword icons. */
+  --font-mana: 'Mana';
 
   --fs-2xs: 0.6875rem;
   --fs-xs: 0.75rem;
@@ -98,6 +110,16 @@
   --topbar-h: 3.75rem;
   --rail-w: 18rem;
   --hand-h: clamp(9.5rem, 25vh, 40rem);
+
+  /* --- Keyword icons ------------------------------------------------------- */
+  /* A 20 px disc at 1080p, never smaller (1366×768 has a 12.5 px rem); the glyph and
+     chip text scale with it. The hit area is 24 px; icons sit one gap apart. */
+  --kw-disc: max(20px, 1.25rem);
+  --kw-glyph: calc(var(--kw-disc) * 0.7);
+  --kw-gap: calc(var(--kw-disc) * 0.2);
+  --kw-hit: calc(var(--kw-disc) * 1.2);
+  --kw-chip-fs: calc(var(--kw-disc) * 0.55);
+  --kw-tip-w: 20rem;
 
   /* --- Elevation & motion -------------------------------------------------- */
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.5), 0 2px 8px rgb(0 0 0 / 0.35);
