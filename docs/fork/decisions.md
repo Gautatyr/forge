@@ -90,3 +90,9 @@ Newest last. Each entry: the decision, why, and what it implies.
 - `forge-gui-web/frontend/src/wire/generated/wire.ts` is generated from the engine (`TrackableProperty`, `ProtocolMethod`, the bridge envelope) by `forge.web.schema.WireTypesGenerator` and committed, so the frontend builds without Java.
 - The `forge-gui-web` Maven build (`process-classes`) fails when the file is stale, and when a new property is used by no view class. **When it reports the file stale** (typically after an upstream sync): `mvn -pl forge-gui-web -am process-classes -Dwire.types=write`, then fix the TypeScript errors in `src/wire/`.
 - Only `src/wire/` may import the generated file (ESLint rule); components use the UI view-model.
+
+## 2026-10-15 — Owner answers before the night run (final, no further questions)
+- Keep highlights only when the game asks for a choice (legal targets, possible blockers/attackers during declaration, cards to pick); no "you could play this" highlights.
+- Starting a game: Forge's existing desktop lobby sets up the match and picks every deck (including the owner's custom decks); pressing Start opens the match in the new web screen in the browser. A preference "Use the new match screen" switches back to the Swing game screen.
+- Format for the morning test: **Commander, 4 players (1v1v1v1: owner vs 3 AIs), 40 life.**
+- The orchestrator works autonomously until done; the owner is away.
