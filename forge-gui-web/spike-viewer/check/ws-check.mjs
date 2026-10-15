@@ -2,13 +2,15 @@
 // Connects to the spike server, validates every message's shape, rebuilds the state from the
 // snapshot + deltas, checks referential integrity and hidden-zone redaction after every delta,
 // and at the end of the game compares the rebuilt state with the server's /state.
-// Usage: node ws-check.mjs [--url ws://127.0.0.1:7655/ws] [--min-deltas 20] [--timeout 1800]
+// Usage: node ws-check.mjs --token <per-launch token> [--url ws://127.0.0.1:7655/ws] [--min-deltas 20] [--timeout 1800]
+// The token is in the URL the server prints: "[web] serving http://127.0.0.1:PORT/#token=<token>".
 const args = Object.fromEntries(process.argv.slice(2).reduce((a, v, i, all) =>
   v.startsWith('--') ? [...a, [v.slice(2), all[i + 1]]] : a, []));
 const url = args.url ?? 'ws://127.0.0.1:7655/ws';
 const minDeltas = Number(args['min-deltas'] ?? 20);
 const timeoutS = Number(args.timeout ?? 1800);
 const httpBase = url.replace(/^ws/, 'http').replace(/\/ws$/, '');
+const token = encodeURIComponent(args.token ?? '');
 
 const errors = [];
 const fail = (m) => { if (errors.length < 50) errors.push(m); };
@@ -90,7 +92,7 @@ function onMessage(text) {
 }
 
 async function compareWithServer() {
-  const s = await (await fetch(`${httpBase}/state`)).json();
+  const s = await (await fetch(`${httpBase}/state?token=${token}`)).json();
   if (s.seq !== seq || s.game !== game) { fail(`/state at game ${s.game} seq ${s.seq}, client at ${game}/${seq}`); return; }
   const server = new Map(s.objects.map((o) => [keyOf(o), o]));
   if (server.size !== objects.size) fail(`object count server=${server.size} client=${objects.size}`);
@@ -102,7 +104,7 @@ async function compareWithServer() {
 }
 const sortKeys = (o) => Object.fromEntries(Object.entries(o).sort(([a], [b]) => a.localeCompare(b)));
 
-const ws = new WebSocket(url);
+const ws = new WebSocket(`${url}?token=${token}`);
 const done = new Promise((resolve) => {
   ws.onmessage = (ev) => { try { onMessage(ev.data); } catch (e) { fail(`exception ${e}`); } if (finalSeen) resolve('final'); };
   ws.onerror = (e) => { fail(`ws error ${e.message ?? e}`); resolve('error'); };

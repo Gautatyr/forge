@@ -25,6 +25,8 @@ import forge.model.FModel;
 import forge.player.GamePlayerUtil;
 import forge.web.bridge.GameStream;
 import forge.web.bridge.WebSpectatorGuiGame;
+import forge.web.server.AccessPolicy;
+import forge.web.server.StreamHub;
 import forge.web.server.WebServer;
 
 /**
@@ -39,6 +41,7 @@ import forge.web.server.WebServer;
  * --hidden redact|full    what viewers see of Library/Hand (default redact)
  * --port 7655  --assets forge-gui/  --home &lt;dir&gt;  --viewer &lt;dir&gt;
  * --wait-client SECONDS   wait for a WebSocket client before the first game
+ *                         (open the URL printed as "[web] serving ...": it carries the per-launch token)
  * --exit                  stop the server after the last game
  * </pre>
  */
@@ -85,7 +88,9 @@ public final class WebMain {
         long bootMs = (System.nanoTime() - t0) / 1_000_000;
         System.out.println("[web] card database ready in " + bootMs + " ms (user dir " + ForgeConstants.USER_DIR + ")");
 
-        WebServer server = new WebServer(port, Paths.get(opt.getOrDefault("viewer", moduleDir.resolve("spike-viewer").toString())), stream);
+        // per-launch token: printed once in the page URL ("[web] serving http://127.0.0.1:PORT/#token=..."), never stored
+        WebServer server = new WebServer(port, Paths.get(opt.getOrDefault("viewer", moduleDir.resolve("spike-viewer").toString())),
+                StreamHub.of(stream), AccessPolicy.newToken());
         server.start();
 
         int waitClient = Integer.parseInt(opt.getOrDefault("wait-client", "0"));
