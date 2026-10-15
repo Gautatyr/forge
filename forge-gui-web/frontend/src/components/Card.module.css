@@ -351,7 +351,8 @@
   }
 }
 
-.playNotch {
+/* Mana source while paying (design pass 4, §2.1): sky ring plus this notch. */
+.manaNotch {
   position: absolute;
   left: 50%;
   bottom: -0.7em;

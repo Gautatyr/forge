@@ -8,6 +8,7 @@ import { ChoiceTray } from './ChoiceTray';
 import { Hand } from './Hand';
 import { HoverPreview } from './HoverPreview';
 import { Inspector } from './Inspector';
+import { liveManaChoice, ManaChooser } from './ManaChooser';
 import { DevPanel, DisplaySettings, GameMenu, LogDrawer, ShortcutsOverlay } from './Overlays';
 import { Rail } from './Rail';
 import { StopsPanel } from './StopsPanel';
@@ -31,6 +32,7 @@ export function MatchScreen() {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const d = game.decision;
     const key = e.key;
+    const manaChoice = liveManaChoice(game, ui);
 
     if (key === ' ') {
       e.preventDefault();
@@ -47,8 +49,9 @@ export function MatchScreen() {
       if (ui.inspectId) setUi({ inspectId: undefined });
       else if (ui.overlay) setUi({ overlay: undefined });
       else if (ui.logOpen) setUi({ logOpen: false });
+      else if (manaChoice) setUi({ manaChoice: undefined });
       else if (ui.pendingBlocker || ui.pendingAttacker) setUi({ pendingBlocker: undefined, pendingAttacker: undefined });
-      else if (d.kind === 'chooseTargets') send({ type: 'cancel' });
+      else if (d.kind === 'chooseTargets' || d.kind === 'payMana') send({ type: 'cancel' });
       else if (ui.zoneView) setUi({ zoneView: undefined });
       else if (ui.trayPeek) setUi({ trayPeek: false });
       return;
@@ -67,7 +70,8 @@ export function MatchScreen() {
       case 'p':
         return send({ type: 'setAutoPass', on: !game.autoPass });
       case 'z':
-        return send({ type: 'undo' });
+        // While paying, Z undoes the last tap (design pass 4, §2.1).
+        return send(d.kind === 'payMana' ? { type: 'undoTap' } : { type: 'undo' });
       case 'a':
         if (d.kind === 'declareAttackers') {
           const defenderId = currentDefender(game, ui, prefs.layout);
@@ -77,6 +81,14 @@ export function MatchScreen() {
       case 'v':
         if (d.kind === 'choice') setUi((u) => ({ ...u, trayPeek: !u.trayPeek }));
         return;
+    }
+    if (/^[1-9]$/.test(key) && manaChoice) {
+      const colour = manaChoice.colours[Number(key) - 1];
+      if (colour) {
+        setUi({ manaChoice: undefined });
+        send({ type: 'tapForMana', cardId: manaChoice.cardId, colour });
+      }
+      return;
     }
     if (/^[1-9]$/.test(key) && d.kind === 'choice' && d.prompt.shape === 'chooseN') {
       const opt = d.prompt.options[Number(key) - 1];
@@ -108,6 +120,7 @@ export function MatchScreen() {
       <Arrows />
       <HoverPreview />
       <Inspector />
+      <ManaChooser />
       <LogDrawer />
       <DisplaySettings />
       <GameMenu />

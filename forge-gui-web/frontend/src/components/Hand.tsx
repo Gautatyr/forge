@@ -47,9 +47,7 @@ export function Hand() {
                   className={`${styles.pos} ${back ? styles.back : styles.front}`}
                   style={{ left: i * g.step, top: g.stagger && !back ? g.raise : g.stagger ? 0 : g.raise }}
                 >
-                  {/* A back card's notch would sit between the front cards and read as theirs;
-                      the outline on its visible name band says "playable". */}
-                  <Card card={c} context="hand" notch={!back} />
+                  <Card card={c} context="hand" />
                 </div>
               );
             })}

@@ -1,6 +1,6 @@
 import { GameBuilder, ref } from './builder';
 import type { CardKey } from './cardDb';
-import { cultivatePrompt, type MockGame } from './engine';
+import { applyIntent, cultivatePrompt, type MockGame } from './engine';
 
 export interface Scenario {
   id: string;
@@ -454,6 +454,23 @@ export const SCENARIOS: Scenario[] = [
     HAND_12,
   ),
   handScenario('hand15', '5d · Hand of 15 (overflow)', 'Fifteen cards, still staggered at full size.', HAND_15),
+  {
+    id: 'payment',
+    label: '6 · Payment: Sythis with tax, {G}{G} floating',
+    description:
+      'Paying {2}{G}{W} for Sythis by hand: click lands (Temple Garden and Command Tower ask for a colour), click a floating {G}, Z undoes a tap, Space pays the rest, Esc cancels. Then try Green Sun\'s Zenith (X first) or click a land to float mana.',
+    build: () => {
+      const b = new GameBuilder('payment', 'commander');
+      commanderTable(b, { sythisInCommand: true });
+      yourHand(b, ["Green Sun's Zenith", 'Heroic Intervention', 'Path to Exile', 'Cultivate', 'Forest', 'Primeval Titan']);
+      b.turn(9, 'you', 'main1', 'you');
+      b.p('you').landsPlayedThisTurn = 1;
+      b.p('you').manaPool = { G: 2 };
+      b.log('Hugo adds {G}{G} with two Forests.', 'you');
+      const g = b.done();
+      return applyIntent(g, { type: 'play', cardId: g.players[0]!.command[0]! });
+    },
+  },
 ];
 
 export function scenarioById(id: string): Scenario {

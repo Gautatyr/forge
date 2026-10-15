@@ -1,0 +1,83 @@
+/* Mana font 1.18.0 (SIL OFL 1.1), as in KeywordIcons.module.css: the same face, declared where it is used. */
+@font-face {
+  font-family: 'Mana';
+  src: url('mana-font/fonts/mana.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+.sym {
+  --pip: 1.5rem;
+  --pip-c: var(--c-mana-c);
+  position: relative;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: var(--pip);
+  height: var(--pip);
+  border-radius: 50%;
+  vertical-align: middle;
+  line-height: 1;
+}
+
+.w {
+  --pip-c: var(--c-mana-w);
+}
+.u {
+  --pip-c: var(--c-mana-u);
+}
+.b {
+  --pip-c: var(--c-mana-b);
+}
+.r {
+  --pip-c: var(--c-mana-r);
+}
+.g {
+  --pip-c: var(--c-mana-g);
+}
+.c,
+.generic {
+  --pip-c: var(--c-mana-c);
+}
+
+.glyph {
+  font-family: var(--font-mana);
+  font-size: calc(var(--pip) * 0.62);
+}
+
+.text {
+  font-family: var(--font-mono);
+  font-size: calc(var(--pip) * 0.55);
+  font-weight: var(--fw-bold);
+}
+
+/* Plain and paid: filled disc, dark glyph. */
+.plain,
+.paid {
+  background: var(--pip-c);
+  color: var(--c-text-on-accent);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.35);
+}
+
+/* Unpaid: outlined in the mana colour, glyph in the same colour, no fill. */
+.unpaid {
+  background: transparent;
+  color: var(--pip-c);
+  box-shadow: inset 0 0 0 2px var(--pip-c);
+}
+
+.check {
+  position: absolute;
+  right: -0.3rem;
+  bottom: -0.25rem;
+  display: grid;
+  place-items: center;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  font-size: var(--fs-2xs);
+  background: var(--c-text);
+  color: var(--c-bg);
+  box-shadow: 0 0 0 2px var(--c-bg);
+}

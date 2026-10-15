@@ -5,6 +5,8 @@
 const PATHS = {
   // States
   play: <path d="M8 5.5v13l10.5-6.5z" fill="currentColor" />,
+  /** Mana source you can tap while paying (four-point spark). */
+  mana: <path d="M12 2l2.3 7.7L22 12l-7.7 2.3L12 22l-2.3-7.7L2 12l7.7-2.3z" fill="currentColor" />,
   target: (
     <g fill="none" stroke="currentColor" strokeWidth="2.2">
       <circle cx="12" cy="12" r="8" />

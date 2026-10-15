@@ -1,7 +1,7 @@
 import { isCreature } from '../model/selectors';
 import type { CardView, Counter, PlayerId, PlayerView, StepId, Zone } from '../model/types';
 import { lookup, type CardKey } from './cardDb';
-import { computePlayable, recompute, type MockGame } from './engine';
+import { priorityDecision, recompute, type MockGame } from './engine';
 
 export interface CardOpts {
   tapped?: boolean;
@@ -31,6 +31,7 @@ export class GameBuilder {
       turn: { number: 1, activePlayerId: 'you', step: 'main1', priorityPlayerId: 'you' },
       decision: { kind: 'priority', playable: [] },
       autoPass: false,
+      autoPay: false,
       autoYield: false,
       autoYieldTo: [],
       passingUntilYourTurn: false,
@@ -151,7 +152,7 @@ export class GameBuilder {
     }
     recompute(this.g);
     if (this.g.decision.kind === 'priority') {
-      this.g.decision = { kind: 'priority', playable: computePlayable(this.g) };
+      this.g.decision = priorityDecision(this.g);
     }
     return this.g;
   }

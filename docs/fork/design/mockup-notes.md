@@ -194,3 +194,23 @@ Spec: `product-decisions-pass-3.md` section 4.
 | Focus compact seat overflow | Compact seats are stacked (header, summary, creatures) instead of a 17 rem side column. No element outside its seat in priority / blockers / stack6 at 1366 and 1920. "Hidden here" counts only what the seat does not draw (`hiddenInCompact`). | `Seat.*` |
 
 Measured creature widths (priority, Columns): 1920×1080 opponents 118–121 px (Mira 107: width-bound, a tapped Krenko plus 3 creatures in 499 px), you 159; 1366×768 opponents 72–79; 2560×1440 opponents 143–163 (Mira 143, same cause), you 212.
+
+## Pass 4: manual payment and no hand-holding (issue #24)
+
+Spec: `product-decisions-pass-4.md` §2.1 and P1.
+
+| Item | Change | Code |
+|---|---|---|
+| No hints (P1) | `CardStatus.playable` and the hand play notch removed: with priority no card is ringed, badged or dimmed. `Decision.priority.playable` stays as data only. Clicking a hand or other-zone card you can't play shows "You can't play X right now." in the prompt line for 3 s (neutral text colour). | `state/cardStatus.ts`, `Card.tsx`, `Hand.tsx`, `ActionPanel.tsx` |
+| Prompt copy (P1) | "Mira's Lightning Bolt is on top of the stack. Respond, or let it resolve." / "Your main phase." / "Ana's turn · combat." (other steps: upkeep, draw step, main phase, end step). Targets: "<instruction> for <card>." | `state/primaryAction.ts` |
+| Clicks with priority | Card click goes through `useCardClick` (`state/cardClick.ts`): hand/other zone → `play` or the note; your mana source → `tapForMana` (pool), dual → chooser; any other permanent of yours → `activate`; anything else → `MatchContext.activateCard` (targets, combat, choices). | `state/cardClick.ts`, `Card.tsx` |
+| Payment mode | `Decision.payMana` (cost, remaining, tax, x, sources with useful colours, autoTaps, autoCanPay, canUndoTap). Action block: floating line, "Pay {cost} for X · includes tax {2}" (paid pips filled + ✓, unpaid outlined, Mana font glyphs), "Click your lands or creatures that add mana.", Cancel (Esc) in the contextual row, main button "Pay automatically" / "Taps: …", Undo becomes "Undo tap (Z)". Sources: sky ring + spark notch; your other permanents dim. Spell goes on the stack when paid. | `Payment.*`, `ManaSymbol.*`, `ActionPanel.*`, `state/cardStatus.ts` |
+| Dual lands | Chooser above the card "Add {G} · Add {W}", keys 1–9, Esc / click elsewhere closes. Offers only the kinds that still pay. | `ManaChooser.*`, `MatchScreen.tsx` |
+| Pool | `PlayerView.manaPool`. Shown above the prompt only when not empty; ≥ 3 of a kind as "{G}×3"; while paying a symbol that still pays is a button (`spendPool`). Empties at each step change (mock). | `Payment.tsx`, `mock/engine.ts` |
+| Auto-pay | Switch under auto-pass, off by default (`GameView.autoPay`, intent `setAutoPay`, not undoable). On: casting pays at once; the log ends "Tapped: Forest, Krosan Verge." | `ActionPanel.tsx`, `MatchContext.tsx` (undo list only) |
+| Keys | Space pays automatically, Z undoes the last tap, Esc cancels (sources untap, spent floating mana returns). `?` overlay updated. | `MatchScreen.tsx`, `state/keymap.ts` |
+| Mock | Mana abilities parsed from oracle text (`{T}: Add …`, commander identity, Sol Ring {C}{C}). Auto-pay: pool first, coloured symbols from the least flexible source, generic from colourless then single-colour sources. X: an `input` prompt first (`x:<card>`), then payment. Activated abilities: Swiftfoot Boots (Equip {1}, target, sorcery speed), Selfless Spirit (sacrifice). Scenario `payment` (6): Sythis with tax 2 and {G}{G} floating, Green Sun's Zenith (new card) in hand. | `mock/cardRules.ts`, `mock/engine.ts`, `mock/scenarios.ts` |
+
+Contrast (WCAG, on `--c-bg`): unpaid glyphs 8.6–15.7:1 (B lowest); filled pips dark glyph 8.6–15.7:1; ✓ badge 16.6:1; "Floating" text-2 10.5:1, "empties at end of step" text-3 7.2:1; the note uses the existing text colour.
+
+Known gaps: the tray does not draw the `input` shape yet (§2.3), so the X prompt shows the tray's placeholder and its confirm takes the largest X. The engine's "which ability" menu (P2) is #30. Opponents' floating mana is not shown (not in §2.1).

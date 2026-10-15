@@ -1,0 +1,83 @@
+/* Payment mode and floating mana in the action block (design pass 4, §2.1). */
+
+.floating {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--c-text-3);
+}
+
+.floatLabel {
+  font-weight: var(--fw-bold);
+  color: var(--c-text-2);
+}
+
+.pool,
+.group,
+.spend {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-0);
+}
+
+.pool {
+  gap: var(--sp-1);
+}
+
+/* A symbol that still pays: a button with the sky outline, like a source you can tap. */
+.spend {
+  padding: var(--sp-0);
+  border-radius: var(--r-pill);
+  border: 2px solid var(--c-actionable);
+  cursor: pointer;
+}
+
+.spend:hover {
+  background: var(--c-panel-raised);
+}
+
+.spend:focus-visible {
+  outline: 2px solid var(--c-selected);
+  outline-offset: 2px;
+}
+
+.times {
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  color: var(--c-text);
+}
+
+.floatNote {
+  white-space: nowrap;
+}
+
+.cost {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-sm);
+  line-height: 1.35;
+  color: var(--c-text-2);
+}
+
+.costLead {
+  font-weight: var(--fw-bold);
+  color: var(--c-text);
+}
+
+.pips {
+  display: inline-flex;
+  gap: var(--sp-1);
+}
+
+.costFor b {
+  color: var(--c-text);
+}
+
+.sep {
+  color: var(--c-text-3);
+}

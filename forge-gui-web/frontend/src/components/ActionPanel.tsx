@@ -1,8 +1,14 @@
+import { useEffect } from 'react';
+import { you } from '../model/selectors';
 import { currentDefender } from '../state/focus';
 import { useMatch } from '../state/MatchContext';
 import { primaryAction, promptText } from '../state/primaryAction';
 import { Icon } from './Icon';
+import { FloatingMana, PaymentCost } from './Payment';
 import styles from './ActionPanel.module.css';
+
+/** How long the neutral note ("You can't play … right now.") holds the prompt line. */
+const NOTE_MS = 3000;
 
 /**
  * Bottom of the right panel: what the game wants, and the one button that
@@ -15,23 +21,43 @@ export function ActionPanel() {
   const action = primaryAction(game, ui, prefs.stops);
   const prompt = promptText(game);
   const d = game.decision;
+  const paying = d.kind === 'payMana' ? d : undefined;
+  const note = ui.promptNote;
   const canCancel =
     d.kind === 'chooseTargets' ||
+    d.kind === 'payMana' ||
     ((d.kind === 'declareAttackers' || d.kind === 'declareBlockers') && d.draft.length > 0) ||
     ui.pendingBlocker !== undefined ||
     ui.pendingAttacker !== undefined;
 
+  useEffect(() => {
+    if (!note) return;
+    const t = window.setTimeout(() => setUi((u) => (u.promptNote?.id === note.id ? { ...u, promptNote: undefined } : u)), NOTE_MS);
+    return () => window.clearTimeout(t);
+  }, [note, setUi]);
+
   return (
     <section className={styles.panel} aria-label="Your decision">
-      {/* Floating mana (issue 24): shown only while the pool is not empty,
-          directly above the prompt. Hidden while empty. */}
-      <div className={styles.floatingMana} data-slot="floating-mana" />
+      {/* Floating mana: shown only while the pool is not empty, directly above the prompt. */}
+      <div className={styles.floatingMana} data-slot="floating-mana">
+        <FloatingMana pool={you(game).manaPool} paying={paying} onSpend={(colour) => send({ type: 'spendPool', colour })} />
+      </div>
+
+      {/* Payment mode (design pass 4, §2.1): the cost with paid symbols filled. */}
+      {paying ? <PaymentCost game={game} paying={paying} /> : null}
 
       {/* Content-sized (at most 4 lines, full text on hover), so it always
-          shows and sits directly on the buttons, at any UI scale. */}
-      <p className={styles.prompt} aria-live="polite" title={prompt}>
-        {prompt}
-      </p>
+          shows and sits directly on the buttons, at any UI scale. A neutral
+          note replaces it for 3 s. */}
+      {note ? (
+        <p className={`${styles.prompt} ${styles.note}`} aria-live="polite" title={note.text}>
+          {note.text}
+        </p>
+      ) : (
+        <p className={styles.prompt} aria-live="polite" title={prompt}>
+          {prompt}
+        </p>
+      )}
 
       {/* Contextual buttons that answer the prompt; the row exists only while
           one shows. It sits above the main button, so nothing below moves. */}
@@ -53,7 +79,7 @@ export function ActionPanel() {
             className={styles.small}
             onClick={() => {
               send({ type: 'cancel' });
-              setUi({ pendingAttacker: undefined, pendingBlocker: undefined });
+              setUi({ pendingAttacker: undefined, pendingBlocker: undefined, manaChoice: undefined });
             }}
           >
             <Icon name="close" />
@@ -83,12 +109,26 @@ export function ActionPanel() {
         </button>
       </div>
 
-      {/* Persistent controls: fixed slots, never reordered or wrapped. */}
+      {/* Persistent controls: fixed slots, never reordered or wrapped. While
+          paying, Undo takes back the last tap. */}
       <div className={styles.persistent}>
-        <button type="button" className={styles.small} disabled={!canUndo} onClick={() => send({ type: 'undo' })}>
-          <Icon name="undo" />
-          Undo <kbd>Z</kbd>
-        </button>
+        {paying ? (
+          <button
+            type="button"
+            className={styles.small}
+            disabled={!paying.canUndoTap}
+            title="Untap the last source, or return the last floating mana spent"
+            onClick={() => send({ type: 'undoTap' })}
+          >
+            <Icon name="undo" />
+            Undo tap <kbd>Z</kbd>
+          </button>
+        ) : (
+          <button type="button" className={styles.small} disabled={!canUndo} onClick={() => send({ type: 'undo' })}>
+            <Icon name="undo" />
+            Undo <kbd>Z</kbd>
+          </button>
+        )}
         {game.passingUntilYourTurn ? (
           <button type="button" className={`${styles.small} ${styles.on}`} onClick={() => send({ type: 'cancelPassUntilYourTurn' })}>
             <Icon name="close" />
@@ -121,6 +161,21 @@ export function ActionPanel() {
           Auto-pass when I can't act <b>{game.autoPass ? 'On' : 'Off'}</b>
         </span>
         <kbd>P</kbd>
+      </label>
+
+      <label className={styles.toggle} title="Pay mana costs at once when you cast or activate. Off by default: you click your lands.">
+        <input
+          type="checkbox"
+          role="switch"
+          checked={game.autoPay ?? false}
+          onChange={(e) => send({ type: 'setAutoPay', on: e.target.checked })}
+        />
+        <span className={styles.switch} aria-hidden>
+          <span className={styles.knob} />
+        </span>
+        <span>
+          Auto-pay mana <b>{game.autoPay ? 'On' : 'Off'}</b>
+        </span>
       </label>
     </section>
   );
