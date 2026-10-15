@@ -329,18 +329,20 @@ function startSpell(g: MockGame, c: CardView, x?: number) {
   if (hasX && x === undefined) {
     const max = Math.max(0, availableMana(g, g.youId) - manaValue(c.front.manaCost));
     g.casting = undefined;
+    g.seq += 1; // a new prompt id per cast, so the field opens on the default again
     g.decision = {
       kind: 'choice',
       prompt: {
-        id: `x:${c.id}`,
+        id: `x:${c.id}:${g.seq}`,
         shape: 'input',
         kind: 'number',
         title: `Choose X for ${c.name}`,
-        instruction: `Choose X for ${c.name} (0–${max}). You pay the cost next.`,
+        instruction: 'You pay the cost next.',
         sourceCardId: c.id,
         confirmLabel: 'Continue to payment',
         min: 0,
         max,
+        defaultValue: String(max),
       },
     };
     return;
@@ -812,6 +814,23 @@ function answerTrayPrompt(g: MockGame, prompt: import('../model/types').ChoicePr
     log(g, `Your triggers resolve in this order: ${names.join(', ')}.`, you.id);
     return true;
   }
+  if (prompt.shape === 'distribute' && answer.shape === 'distribute') {
+    const name = (id: string) => {
+      const r = prompt.recipients.find((x) => x.id === id);
+      return r?.cardId ? ref(r.cardId) : (r?.label ?? id);
+    };
+    const parts = Object.entries(answer.amounts)
+      .filter(([, n]) => n > 0)
+      .map(([id, n], i) => `${n}${i === 0 ? ' damage' : ''} to ${name(id)}`);
+    const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : (parts[0] ?? 'no damage');
+    const source = prompt.combat?.attackerId ?? prompt.sourceCardId;
+    log(g, `${source ? ref(source) : 'You'} deals ${list}.`, you.id);
+    return true;
+  }
+  if (prompt.shape === 'input' && answer.shape === 'input' && !prompt.id.startsWith('x:')) {
+    log(g, prompt.kind === 'cardName' ? `You name ${answer.value}.` : `You answer: ${answer.value}.`, you.id);
+    return true;
+  }
   const ownBranch = prompt.id === 'cultivate' || prompt.id.startsWith('face:');
   if (prompt.shape === 'chooseN' && answer.shape === 'chooseN' && !ownBranch) {
     // Reveals are logged when they happen; other choices name what was chosen.
@@ -867,10 +886,10 @@ function answerPrompt(g: MockGame, answer: PromptAnswer) {
       return;
     }
   } else if (answer.shape === 'input' && prompt.shape === 'input' && prompt.id.startsWith('x:')) {
-    const n = Number(answer.value);
-    // The tray's number field (§2.3) is not drawn yet: an empty answer takes the largest X.
-    const x = answer.value.trim() !== '' && Number.isInteger(n) && n >= 0 ? Math.min(n, prompt.max ?? n) : (prompt.max ?? 0);
-    startSpell(g, g.cards[prompt.id.slice(2)]!, x);
+    // The number prompt (§2.3) sends a whole number in range; anything else keeps it open.
+    const x = /^\d+$/.test(answer.value) ? Number(answer.value) : -1;
+    if (x < (prompt.min ?? 0) || x > (prompt.max ?? x)) return;
+    startSpell(g, g.cards[prompt.sourceCardId!]!, x);
     return;
   } else if (answer.shape === 'yesNo') {
     const said = prompt.shape === 'yesNo' ? (answer.yes ? prompt.yesLabel : prompt.noLabel) : answer.yes ? 'Yes' : 'No';

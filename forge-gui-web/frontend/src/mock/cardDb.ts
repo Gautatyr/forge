@@ -1,4 +1,4 @@
-import type { CardFace } from '../model/types';
+import type { CardFace, CardNameOption } from '../model/types';
 import raw from './scryfall-cards.json';
 
 /** Shape written by scripts/resolve-scryfall.mjs. */
@@ -27,4 +27,11 @@ export function lookup(key: CardKey): { front: CardFace; back?: CardFace } {
   const e = DB[key];
   if (!e) throw new Error(`card ${key} missing from scryfall-cards.json; run pnpm resolve-cards`);
   return { front: { ...e.front }, back: e.back ? { ...e.back } : undefined };
+}
+
+/** Every card name in the mock card list (tokens left out), for "name a card". */
+export function cardNames(): CardNameOption[] {
+  return Object.values(DB)
+    .filter((e) => !/ token$/.test(e.key))
+    .map((e) => ({ name: e.front.name, manaCost: e.front.manaCost, typeLine: e.front.typeLine, image: e.front.image }));
 }
