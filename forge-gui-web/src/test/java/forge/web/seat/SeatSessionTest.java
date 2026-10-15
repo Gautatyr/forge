@@ -50,8 +50,8 @@ import forge.web.bridge.visibility.ViewerStream;
  */
 public class SeatSessionTest {
 
-    /** Stands in for the game thread, which blocks in a prompt. */
-    private final ExecutorService gameThread = Executors.newSingleThreadExecutor();
+    /** Stands in for the game thread, which blocks in a prompt; one per test, so a failed test leaves nothing behind. */
+    private ExecutorService gameThread;
     private Game game;
     private Player p0;
     private Player p1;
@@ -108,9 +108,13 @@ public class SeatSessionTest {
     @AfterMethod(alwaysRun = true)
     public void drain() {
         controllerCalls.clear();
+        if (gameThread != null) {
+            gameThread.shutdownNow(); // interrupts a prompt left open: it returns its default
+        }
     }
 
     private void start(WebSeats.Timeouts timeouts) {
+        gameThread = Executors.newSingleThreadExecutor();
         game = TestEngine.newGame(2);
         p0 = game.getPlayers().get(0);
         p1 = game.getPlayers().get(1);

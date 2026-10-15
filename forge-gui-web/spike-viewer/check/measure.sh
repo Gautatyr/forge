@@ -10,11 +10,13 @@ out="$1"; label="$2"; shift 2
 mkdir -p "$out"
 ./run-spike.sh --wait-client 120 --exit --label "$label" "$@" > "$out/$label.server.log" 2>&1 &
 srv=$!
-until grep -q "serving http" "$out/$label.server.log"; do
+until grep -q "^\[web\] seat 1 (" "$out/$label.server.log"; do
   kill -0 "$srv" 2>/dev/null || { echo "server died"; exit 1; }
   sleep 1
 done
-token=$(grep -o 'token=[A-Za-z0-9_-]*' "$out/$label.server.log" | head -1 | cut -d= -f2)
+sleep 1 # every seat line is out
+token=$(grep 'serving http' "$out/$label.server.log" | grep -o 'token=[A-Za-z0-9_-]*' | head -1 | cut -d= -f2)
+seat_tokens=$(grep '^\[web\] seat ' "$out/$label.server.log" | sed -E 's/^\[web\] seat ([0-9]+) .*token=([A-Za-z0-9_-]+).*/\1=\2/' | paste -sd,)
 java_pid=$(pgrep -P "$srv" java || echo "$srv")
 (
   hz=$(getconf CLK_TCK); prev=0
@@ -25,7 +27,7 @@ java_pid=$(pgrep -P "$srv" java || echo "$srv")
     prev=$t; sleep 2
   done
 ) > "$out/$label.cpu.txt" &
-node spike-viewer/check/ws-check.mjs --token "$token" --timeout 3000 --viewers "${VIEWERS:-spectator}" > "$out/$label.check.json"
+node spike-viewer/check/ws-check.mjs --token "$token" --seat-tokens "$seat_tokens" --timeout 3000 --viewers "${VIEWERS:-spectator}" > "$out/$label.check.json"
 rc=$?
 wait "$srv"
 echo "check exit=$rc"
