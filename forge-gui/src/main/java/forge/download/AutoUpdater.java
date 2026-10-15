@@ -26,6 +26,8 @@ import static forge.localinstance.properties.ForgeConstants.RELEASE_URL;
 
 public class AutoUpdater {
     private static final boolean VERSION_FROM_METADATA = true;
+    // Fork build: updating would replace this build with an upstream Card-Forge build.
+    private static final boolean UPDATES_DISABLED = true;
     private static final Localizer localizer = Localizer.getInstance();
 
     public static String[] updateChannels = new String[]{ "none", "snapshot", "release"};
@@ -70,6 +72,10 @@ public class AutoUpdater {
     }
 
     public boolean verifyUpdateable() {
+        if (UPDATES_DISABLED) {
+            return false;
+        }
+
         if (buildVersion.contains("GIT")) {
             //return false;
         }
