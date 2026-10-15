@@ -58,3 +58,13 @@ Newest last. Each entry: the decision, why, and what it implies.
 ## 2026-10-15 — Bridge work starts in parallel with design
 - Phase 2 of the match-screen epic (the Java bridge) starts now, in parallel with the design iteration.
 - **Why (owner):** the bridge is decoupled from the visual design and it is the longest piece of work. Real games through the prototype will also surface UX problems that mock data hides.
+
+## 2026-10-15 — Agent process tightened (token cost)
+- **Why:** the first review loops cost about 75M input tokens (mostly cache re-reads) for 3 bridge PRs and 25M for one mockup PR. The causes: the desktop test suite run about 40 times although nothing depends on `forge-gui-web`; full build logs in agent context; screenshot-heavy frontend checks; one oversized issue (#6, 134 coder turns).
+- **What changed (owner approved):**
+  - Gates are Make targets (`Makefile`, `scripts/gate.sh`, `scripts/check-changed.sh`): `make check` runs only the gates a branch needs; each gate keeps its full log in `target/gate-logs/` and prints a summary and its real exit code.
+  - Frontend verification measures layout before taking screenshots; screenshots only at the end.
+  - Issues are sized for one coder session.
+  - Per-worktree ports (`scripts/dev-port.sh`) so parallel agents don't collide.
+- **Structure adopted from the owner's UltimateReadingApp project:** per-folder `CLAUDE.md` files loaded on demand (`forge-gui-web/`, `forge-gui-web/frontend/`); project skills the global agents preload (`.claude/skills/project-review-gate`, `.claude/skills/product-context`); `.claude/settings.json` denies (`git stash`, git config writes, pushing upstream, force-pushes); `decisions.md` is append-only.
+- **Open:** whether review findings outside correctness/security may be non-blocking. The global reviewer agent treats every code/UI finding as blocking and only yields to stricter project rules, so this needs the owner's call.
