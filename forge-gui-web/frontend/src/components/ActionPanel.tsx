@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { you } from '../model/selectors';
 import { currentDefender } from '../state/focus';
+import { watching } from '../state/gameEnd';
 import { useMatch } from '../state/MatchContext';
 import { primaryAction, promptText } from '../state/primaryAction';
 import { Icon } from './Icon';
@@ -23,6 +24,8 @@ export function ActionPanel() {
   const d = game.decision;
   const paying = d.kind === 'payMana' ? d : undefined;
   const note = ui.promptNote;
+  // Out of the game or game over: the block reads "Watching" / "Game over" and offers nothing (§2.6).
+  const ended = game.result !== undefined || watching(game);
   const canCancel =
     d.kind === 'chooseTargets' ||
     d.kind === 'payMana' ||
@@ -53,11 +56,11 @@ export function ActionPanel() {
         <p className={`${styles.prompt} ${styles.note}`} aria-live="polite" title={note.text}>
           {note.text}
         </p>
-      ) : (
+      ) : prompt ? (
         <p className={styles.prompt} aria-live="polite" title={prompt}>
           {prompt}
         </p>
-      )}
+      ) : null}
 
       {/* Contextual buttons that answer the prompt; the row exists only while
           one shows. It sits above the main button, so nothing below moves. */}
@@ -97,7 +100,7 @@ export function ActionPanel() {
         >
           <span className={styles.primaryLabel}>
             {action.tone === 'attack' ? <Icon name="sword" /> : action.tone === 'block' ? <Icon name="shield" /> : null}
-            {!action.enabled && d.kind === 'waiting' ? <Icon name="hourglass" /> : null}
+            {ended ? <Icon name="eye" /> : !action.enabled && d.kind === 'waiting' ? <Icon name="hourglass" /> : null}
             {action.label}
             {action.enabled ? <kbd className={styles.key}>Space</kbd> : null}
           </span>
@@ -124,7 +127,7 @@ export function ActionPanel() {
             Undo tap <kbd>Z</kbd>
           </button>
         ) : (
-          <button type="button" className={styles.small} disabled={!canUndo} onClick={() => send({ type: 'undo' })}>
+          <button type="button" className={styles.small} disabled={!canUndo || ended} onClick={() => send({ type: 'undo' })}>
             <Icon name="undo" />
             Undo <kbd>Z</kbd>
           </button>
@@ -139,6 +142,7 @@ export function ActionPanel() {
             type="button"
             className={styles.small}
             title="Pass priority until your next turn. Stops and the stack still interrupt."
+            disabled={ended}
             onClick={() => send({ type: 'passUntilYourTurn' })}
           >
             <Icon name="endTurn" />

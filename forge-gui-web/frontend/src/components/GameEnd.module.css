@@ -1,0 +1,194 @@
+/* Players leaving and the end of the game (design pass 4 §2.6). */
+
+/* "■ Theo is out: …" at the top of the board. */
+.toasts {
+  position: absolute;
+  top: var(--sp-3);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-tray);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  width: max-content;
+  max-width: calc(100% - 2rem);
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--r-lg);
+  background: var(--c-panel-raised);
+  border: 1px solid var(--c-line-strong);
+  box-shadow: var(--shadow-float);
+  font-weight: var(--fw-bold);
+}
+
+/* "You're out" sits over your board, like the choice tray. */
+.overYourBoard {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--your-share);
+  z-index: var(--z-tray);
+  display: grid;
+  place-items: center;
+  padding: var(--sp-4);
+  pointer-events: none;
+}
+
+.dialog {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  max-width: 36rem;
+  padding: var(--sp-4) var(--sp-5);
+  border-radius: var(--r-lg);
+  background: var(--c-panel);
+  border: 2px solid var(--c-line-strong);
+  box-shadow: var(--shadow-float);
+}
+
+.dialogText {
+  margin: 0;
+  font-size: var(--fs-lg);
+}
+
+/* Concede confirm and the end-of-game panel dim the whole screen. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  display: grid;
+  place-items: center;
+  padding: var(--sp-4);
+  background: var(--c-scrim);
+}
+
+.panel {
+  width: min(35rem, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-5);
+  border-radius: var(--r-lg);
+  background: var(--c-panel);
+  border: 1px solid var(--c-line-strong);
+  box-shadow: var(--shadow-float);
+}
+
+.headline {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-2xl);
+  line-height: 1.1;
+}
+
+.reason {
+  margin: 0;
+  color: var(--c-text-2);
+}
+
+.ranking {
+  margin: 0;
+  padding: var(--sp-2) 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  border-top: 1px solid var(--c-line);
+  border-bottom: 1px solid var(--c-line);
+}
+
+.ranking li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+
+.ranking li svg {
+  align-self: center;
+  color: var(--c-text-2);
+}
+
+.place {
+  min-width: 2.5em;
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  color: var(--c-text-2);
+}
+
+.first .place,
+.first svg {
+  color: var(--c-text);
+}
+
+.detail {
+  color: var(--c-text-2);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
+
+.primary,
+.secondary,
+.danger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--r-md);
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-md);
+  white-space: nowrap;
+}
+
+.primary {
+  background: var(--c-priority);
+  color: var(--c-text-on-accent);
+}
+
+/* Concede: vermillion (the attack colour) plus the close icon. */
+.danger {
+  background: var(--c-attack);
+  color: var(--c-text-on-accent);
+}
+
+.primary kbd,
+.danger kbd {
+  border-color: currentColor;
+  color: inherit;
+}
+
+.secondary {
+  border: 1px solid var(--c-line-strong);
+  background: var(--c-panel-raised);
+}
+
+.secondary:hover {
+  background: var(--c-panel-hover);
+}
+
+/* After "Back to lobby". */
+.left {
+  height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--sp-4);
+  background: var(--c-bg);
+  text-align: center;
+}

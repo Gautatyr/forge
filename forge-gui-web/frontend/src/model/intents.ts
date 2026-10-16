@@ -47,4 +47,10 @@ export type Intent =
   | { type: 'setAutoYield'; on: boolean }
   | { type: 'setAutoPay'; on: boolean }
   | { type: 'toggleAutoYieldTo'; key: string }
-  | { type: 'undo' };
+  | { type: 'undo' }
+  /** Concede this game: you are out, the others keep playing (design pass 4 §2.6). */
+  | { type: 'concede' }
+  /** Leave the match for Forge's lobby; ends the game if it is still running. */
+  | { type: 'leaveMatch' }
+  /** The game is over and the match has more games: start the next one. */
+  | { type: 'nextGame' };

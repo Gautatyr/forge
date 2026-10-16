@@ -3,6 +3,7 @@ import type { ChoicePrompt } from '../model/types';
 import { GameBuilder, ref } from './builder';
 import type { CardKey } from './cardDb';
 import { applyIntent, cultivatePrompt, type MockGame } from './engine';
+import { START_END_SCENARIOS } from './scenariosStartEnd';
 
 export interface Scenario {
   id: string;
@@ -708,6 +709,7 @@ export const SCENARIOS: Scenario[] = [
       return applyIntent(g, { type: 'play', cardId: g.players[0]!.command[0]! });
     },
   },
+  ...START_END_SCENARIOS,
 ];
 
 export function scenarioById(id: string): Scenario {

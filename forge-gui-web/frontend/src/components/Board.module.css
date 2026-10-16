@@ -69,3 +69,28 @@
 .table .me {
   grid-area: me;
 }
+
+/* Columns: opponents side by side. A player who is out shrinks away
+   (design pass 4 §2.6) while the others widen; the negative margin takes
+   back the gap it leaves. */
+.columns .opps {
+  display: flex;
+}
+.column {
+  flex: 1 1 0;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+}
+.leaving {
+  overflow: hidden;
+  pointer-events: none;
+  animation: leave var(--dur-leave) var(--ease-out) forwards;
+}
+@keyframes leave {
+  to {
+    flex-grow: 0;
+    opacity: 0;
+    margin-inline-start: calc(-1 * var(--sp-2));
+  }
+}

@@ -32,6 +32,7 @@ import type {
 } from '../model/types';
 import { lookup, type CardKey } from './cardDb';
 import { manaAbility, producesMana, rule, type ManaAbility, type TargetSpec } from './cardRules';
+import { answerGameStart, checkOut, concede, startNextGame, type OpeningState } from './gameFlow';
 import { keyword, printedKeywords } from './keywords';
 
 export interface MockGame extends GameView {
@@ -41,6 +42,13 @@ export interface MockGame extends GameView {
   seq: number;
   /** The spell or ability between its first click and the stack (X, targets, payment). */
   casting?: Casting;
+  /** Game start: mulligans taken and who plays first (gameFlow.ts). */
+  opening?: OpeningState;
+  /** Players in the order they went out, for the ranking. */
+  outOrder?: PlayerId[];
+  /** Game number in the match (1 when absent), and games left after this one. */
+  gameNumber?: number;
+  gamesLeft?: number;
 }
 
 export interface Casting {
@@ -826,6 +834,7 @@ function answerPrompt(g: MockGame, answer: PromptAnswer) {
   if (g.decision.kind !== 'choice') return;
   const prompt = g.decision.prompt;
   const you = player(g, g.youId);
+  if (answerGameStart(g, prompt, answer)) return;
   if (prompt.id.startsWith('face:') && answer.shape === 'chooseN' && answer.optionIds.length === 0) {
     // Ability menu closed (Esc): back to priority, nothing played.
   } else if (answerTrayPrompt(g, prompt, answer)) {
@@ -882,8 +891,17 @@ function answerPrompt(g: MockGame, answer: PromptAnswer) {
   afterPriorityChange(g);
 }
 
-/** Apply one player intent. Returns a new game; the input is not mutated. */
+/**
+ * Apply one player intent. Returns a new game; the input is not mutated.
+ * After every change, players who should lose leave the game (gameFlow.ts).
+ */
 export function applyIntent(prev: MockGame, intent: Intent): MockGame {
+  const g = applyOne(prev, intent);
+  if (g !== prev) checkOut(g);
+  return g;
+}
+
+function applyOne(prev: MockGame, intent: Intent): MockGame {
   const g = structuredClone(prev);
   const you = player(g, g.youId);
   const d = g.decision;
@@ -1035,6 +1053,16 @@ export function applyIntent(prev: MockGame, intent: Intent): MockGame {
           afterPriorityChange(g);
           return g;
         }
+        // An opponent's attack, blocks declared: passing deals the combat damage.
+        if (g.combat && g.turn.step === 'declareBlockers' && g.turn.activePlayerId !== g.youId) {
+          log(g, 'You pass priority.', you.id);
+          goToStep(g, 'combatDamage');
+          resolveCombatDamage(g);
+          g.combat = undefined;
+          goToStep(g, 'endCombat');
+          afterPriorityChange(g);
+          return g;
+        }
         if (g.turn.activePlayerId === g.youId && g.turn.step === 'main1') {
           goToStep(g, 'declareAttackers');
           const candidates = you.battlefield
@@ -1154,5 +1182,11 @@ export function applyIntent(prev: MockGame, intent: Intent): MockGame {
       return g;
     case 'undo':
       return prev; // handled by the store's history
+    case 'concede':
+      return concede(g) ? g : prev;
+    case 'leaveMatch':
+      return prev; // the screen shows the lobby note; nothing left to play
+    case 'nextGame':
+      return startNextGame(g) ? g : prev;
   }
 }

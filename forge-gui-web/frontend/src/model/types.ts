@@ -126,8 +126,49 @@ export interface PlayerView {
   commanderDamageTaken: CommanderDamage[];
   landsPlayedThisTurn: number;
   hasLost: boolean;
+  /** Set with `hasLost`: when and why the player left the game (design pass 4 §2.6). */
+  out?: PlayerOut;
+  /** While the game starts: this player's opening-hand decision (§2.4). Absent once play begins. */
+  mulligan?: MulliganState;
   /** Floating mana; absent or all zero when empty. */
   manaPool?: ManaPool;
+}
+
+/**
+ * Why a player left the game. Names are copied in, so the line still reads
+ * after the source has left the game too.
+ */
+export type OutReason =
+  | { kind: 'commanderDamage'; amount: number; commanderName: string }
+  | { kind: 'life'; life: number }
+  | { kind: 'poison'; count: number }
+  | { kind: 'emptyLibrary' }
+  | { kind: 'conceded' }
+  /** Anything else, as the engine words it ("lost to Approach of the Second Sun"). */
+  | { kind: 'other'; text: string };
+
+export interface PlayerOut {
+  /** Turn number when the player left. */
+  turn: number;
+  reason: OutReason;
+}
+
+/** London mulligan, per player: deciding, kept N cards, or took a mulligan and goes down to N. */
+export type MulliganState =
+  | { state: 'deciding' }
+  | { state: 'kept'; cards: number }
+  | { state: 'mulligan'; cards: number };
+
+/** The game is over (design pass 4 §2.6). */
+export interface GameResult {
+  /** Absent for a draw. */
+  winnerId?: PlayerId;
+  /** e.g. "Last player standing." */
+  reason: string;
+  /** Every player, 1st first. */
+  ranking: PlayerId[];
+  /** The match has more games: the panel's main button is "Next game". */
+  nextGame: boolean;
 }
 
 /** One kind of mana: the five colours and colourless ({C}). */
@@ -242,16 +283,27 @@ export interface ChooseNPrompt extends PromptBase {
    * menu anchored to that card instead of the tray. An empty answer cancels.
    */
   abilityMenu?: boolean;
+  /**
+   * Counter reads "0 of 1 chosen" and the confirm keeps its plain label (no
+   * "(1)"): the mulligan's bottoming (design pass 4 §2.4).
+   */
+  progress?: boolean;
 }
 
 export interface YesNoPrompt extends PromptBase {
   shape: 'yesNo';
+  /** Button labels; `{player:<id>}` shows that player's seat shape and name ("Let ▲ Mira start"). */
   yesLabel: string;
   noLabel: string;
   /** The engine's default (primary button, Space). Yes when absent. */
   defaultAnswer?: 'yes' | 'no';
   /** Card shown in the body, e.g. a commander about to change zones. */
   cardId?: CardId;
+  /**
+   * Keys that answer at once, replacing Y / N; a missing one has no key (Space
+   * still answers the default). The mulligan uses `{ no: 'M' }`.
+   */
+  keys?: { yes?: string; no?: string };
 }
 
 /**
@@ -362,4 +414,6 @@ export interface GameView {
   /** "End turn" was pressed: passing until your next turn. */
   passingUntilYourTurn: boolean;
   log: LogEntry[];
+  /** Set once the game is over. */
+  result?: GameResult;
 }

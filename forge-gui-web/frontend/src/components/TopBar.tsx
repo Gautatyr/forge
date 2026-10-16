@@ -4,6 +4,7 @@ import { useMatch } from '../state/MatchContext';
 import { AI_CHIP_DELAY_MS, fitLevel, nextPlayer, SettleGate, waitingOn } from '../state/turnStrip';
 import type { Overlay } from '../state/ui';
 import { Icon, SeatGlyph, type IconName } from './Icon';
+import { GameOverChip } from './GameEnd';
 import { PhaseTrack } from './PhaseTrack';
 import styles from './TopBar.module.css';
 
@@ -113,13 +114,17 @@ export function TopBar() {
             </>
           ) : null}
         </span>
-        <span
-          className={`${styles.chip} ${waiting.isYou ? styles.chipYou : ''} ${chipShown ? '' : styles.chipPending}`}
-          role="status"
-          title={chipText}
-        >
-          <Icon name="hourglass" /> {waiting.isYou ? null : <SeatGlyph seat={waiting.seat} />} {chipText}
-        </span>
+        {game.result ? (
+          <GameOverChip className={`${styles.chip} ${styles.chipYou}`} />
+        ) : (
+          <span
+            className={`${styles.chip} ${waiting.isYou ? styles.chipYou : ''} ${chipShown ? '' : styles.chipPending}`}
+            role="status"
+            title={chipText}
+          >
+            <Icon name="hourglass" /> {waiting.isYou ? null : <SeatGlyph seat={waiting.seat} />} {chipText}
+          </span>
+        )}
       </div>
       <PhaseTrack ref={trackRef} foldCombat={level >= 2} />
       <div className={styles.tools}>

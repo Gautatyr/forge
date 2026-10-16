@@ -1,0 +1,6 @@
+.player {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2em;
+  white-space: nowrap;
+}

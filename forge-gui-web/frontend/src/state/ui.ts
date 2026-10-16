@@ -1,6 +1,6 @@
 import type { CardId, ManaColour, PlayerId, StackItemId } from '../model/types';
 
-export type Overlay = 'shortcuts' | 'display' | 'dev' | 'menu' | 'stops';
+export type Overlay = 'shortcuts' | 'display' | 'dev' | 'menu' | 'stops' | 'concede';
 export type ViewableZone = 'graveyard' | 'exile' | 'command';
 
 /** Screen-only state: never sent to the engine. */
@@ -26,6 +26,12 @@ export interface UiState {
   promptNote?: { id: number; text: string };
   /** Chooser at a mana source that adds two or more kinds ("Add {G} · Add {W}"). */
   manaChoice?: { cardId: CardId; colours: ManaColour[] };
+  /** You are out and chose "Watch the rest" in this game (its id). */
+  watchingGame?: string;
+  /** The game is over and you chose "View the board" in this game (its id). */
+  boardViewGame?: string;
+  /** "Back to lobby": the match screen is done. */
+  leftMatch?: boolean;
 }
 
 export interface ChoiceDraft {

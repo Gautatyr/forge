@@ -1,6 +1,7 @@
 import { commanderTax } from '../model/selectors';
-import type { PlayerView } from '../model/types';
+import type { MulliganState, PlayerView } from '../model/types';
 import { playerTargetSpot, spotlightItem } from '../state/cardStatus';
+import { mulliganTag } from '../state/gameStart';
 import { currentDefender } from '../state/focus';
 import { useMatch } from '../state/MatchContext';
 import { playerChoice } from './tray/inPlace';
@@ -8,6 +9,12 @@ import { useInPlacePick } from './tray/useInPlacePick';
 import type { ViewableZone } from '../state/ui';
 import { Icon, SeatGlyph, type IconName } from './Icon';
 import styles from './PlayerPlate.module.css';
+
+const MULLIGAN_TAG_CLASS: Record<MulliganState['state'], string | undefined> = {
+  deciding: styles.mulliganDeciding,
+  mulligan: styles.mulliganTaken,
+  kept: styles.mulliganKept,
+};
 
 interface Props {
   player: PlayerView;
@@ -67,6 +74,8 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
   };
 
   const cmdDamage = p.commanderDamageTaken.filter((x) => x.amount > 0);
+  // Opening hands (design pass 4 §2.4): opponents' "Deciding…", "Kept 7", "Mulligan → 6".
+  const mulligan = p.mulligan && !p.isYou ? mulliganTag(p.mulligan) : undefined;
   const ring = chosenTarget || choice?.chosen
     ? styles.ringSelected
     : isDefender
@@ -124,6 +133,13 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
               <Icon name="eye" />
               Show board
             </button>
+          ) : null}
+          {mulligan ? (
+            <span className={`${styles.tag} ${MULLIGAN_TAG_CLASS[p.mulligan!.state]}`} title={mulligan.title}>
+              <Icon name={mulligan.icon} />
+              <span className={styles.tagText}>{mulligan.text}</span>
+              {mulligan.count}
+            </span>
           ) : null}
           {active ? (
             <span className={`${styles.tag} ${styles.tagTurn}`} title={p.isYou ? 'Your turn' : 'Their turn'}>
