@@ -120,20 +120,18 @@ final class WireArgs {
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     static String label(Object o, FSerializableFunction display, SeatRefs refs) {
-        if (o instanceof CardView cv) {
-            Visibility v = refs.visibility(cv);
+        // a card, or an ability or stack item of a card, the seat may not see in full: one rule for all three
+        CardView card = o instanceof CardView cv ? cv
+                : o instanceof SpellAbilityView sa ? sa.getHostCard()
+                : o instanceof StackItemView si ? si.getSourceCard() : null;
+        if (card != null) {
+            Visibility v = refs.visibility(card);
             if (v == Visibility.HIDDEN) {
                 return HIDDEN_CARD;
             }
             if (v == Visibility.FACE_DOWN) {
                 return FACE_DOWN_CARD;
             }
-        }
-        if (o instanceof SpellAbilityView sa && sa.getHostCard() != null && refs.visibility(sa.getHostCard()) != Visibility.FULL) {
-            return HIDDEN_CARD;
-        }
-        if (o instanceof StackItemView si && si.getSourceCard() != null && refs.visibility(si.getSourceCard()) == Visibility.HIDDEN) {
-            return HIDDEN_CARD;
         }
         try {
             if (display != null) {
@@ -148,7 +146,12 @@ final class WireArgs {
         return String.valueOf(o);
     }
 
-    /** A choice entry: index, label, and the engine object's reference when it has one. */
+    /**
+     * A choice entry: index, label, and the engine object's reference when it has one. A card the seat
+     * sees in full while the card it copies stays hidden (an LKI copy the engine reveals, e.g.
+     * {@code Player.revealFaceDownCards}) keeps the hidden card's unseen id or alias, is labelled with
+     * its name, and is flagged {@code revealedCopy}: the seat has no state for it beyond the label.
+     */
     @SuppressWarnings("rawtypes")
     static JsonObject choice(int i, Object o, FSerializableFunction display, SeatRefs refs) {
         JsonObject j = new JsonObject();
@@ -156,6 +159,12 @@ final class WireArgs {
         j.addProperty("label", label(o, display, refs));
         if (o instanceof CardView || o instanceof PlayerView || o instanceof StackItemView || o instanceof SpellAbilityView) {
             j.add("ref", encode(o, refs));
+        }
+        if (o instanceof CardView cv && refs.visibility(cv) == Visibility.FULL) {
+            int ref = refs.card(cv.getId());
+            if (ref >= 0 && ref != cv.getId()) {
+                j.addProperty("revealedCopy", true);
+            }
         }
         return j;
     }

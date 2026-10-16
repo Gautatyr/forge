@@ -14,8 +14,12 @@ import com.google.gson.JsonObject;
 
 import forge.deck.CardPool;
 import forge.game.GameEntityView;
+import forge.game.GameView;
 import forge.game.card.CardView;
+import forge.game.card.CardView.CardStateView;
+import forge.game.card.CounterEnumType;
 import forge.game.player.DelayedReveal;
+import forge.game.player.PlayerView;
 import forge.game.spellability.SpellAbilityView;
 import forge.gamemodes.net.ProtocolMethod;
 import forge.gui.interfaces.IGuiGame;
@@ -35,8 +39,10 @@ import forge.web.bridge.SeatRefs;
  * <li>{@code choose}: array of choice indices, unique, size within [min, max]</li>
  * <li>{@code confirm}: boolean</li>
  * <li>{@code order}: {@code {"order":[indices into source then dest], "remember":bool}} (the new dest list);
- * {@code manipulateCardList}: the full permutation as an array; {@code sideboard}: indices of the new main deck</li>
- * <li>{@code distribute}: array of amounts, one per target, summing to {@code amount}; null to skip when allowed</li>
+ * {@code manipulateCardList}: the full permutation as an array (unmovable cards keep their relative order;
+ * unless {@code toAnywhere}, movable cards end in the leading or trailing run); {@code sideboard}: indices of the new main deck</li>
+ * <li>{@code distribute}: array of amounts, one per target, summing to {@code amount}; null to skip when allowed;
+ * combat damage follows {@code lethalOrder} with each choice's {@code lethal}</li>
  * <li>{@code text}: string, or null to cancel</li>
  * </ul>
  */
@@ -76,9 +82,12 @@ abstract class Prompt {
         return j;
     }
 
-    /** The prompt for a server-to-client method that needs an answer, or null if {@code m} needs none. */
+    /**
+     * The prompt for a server-to-client method that needs an answer, or null if {@code m} needs none.
+     * {@code gv} (may be null: 10) gives the poison counters a player loses at.
+     */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    static Prompt of(ProtocolMethod m, Object[] a) {
+    static Prompt of(ProtocolMethod m, Object[] a, GameView gv) {
         switch (m) {
             case getChoices: {
                 int min = (Integer) a[1];
@@ -160,7 +169,8 @@ abstract class Prompt {
             case sideboard:
                 return new Sideboard((CardPool) a[0], (CardPool) a[1], str(a[2]));
             case assignCombatDamage:
-                return Distribute.combat((CardView) a[0], (List<CardView>) a[1], (Integer) a[2], (GameEntityView) a[3], (Boolean) a[5]);
+                return Distribute.combat((CardView) a[0], (List<CardView>) a[1], (Integer) a[2], (GameEntityView) a[3], (Boolean) a[4],
+                        (Boolean) a[5], gv == null ? 10 : gv.getPoisonCountersToLose());
             case assignGenericAmount:
                 return Distribute.generic((CardView) a[0], (Map<Object, Integer>) a[1], (Integer) a[2], (Boolean) a[3], str(a[4]));
             case showInputDialog:
@@ -401,10 +411,10 @@ abstract class Prompt {
 
         @Override
         Object fallback() {
-            // dest as given, then source; the last remainingMin stay out
+            // dest as given, then source; as many as allowed stay out (many(): the fewest items picked, as Choose takes min)
             List<Object> out = new ArrayList<>(all.subList(sourceCount, all.size()));
             out.addAll(all.subList(0, sourceCount));
-            return new IGuiGame.OrderResult<>(new ArrayList<>(out.subList(0, all.size() - remainingMin)), false);
+            return new IGuiGame.OrderResult<>(new ArrayList<>(out.subList(0, all.size() - remainingMax)), false);
         }
     }
 
@@ -447,21 +457,49 @@ abstract class Prompt {
             j.addProperty("toAnywhere", toAnywhere);
         }
 
+        /**
+         * Cards that may not move keep their relative order (a scry gets the whole library and moves the
+         * top cards: the rest shift). Unless {@code toAnywhere}, every movable card ends in the leading
+         * run of movable cards (if {@code toTop}) or the trailing one (if {@code toBottom}), as
+         * {@code PlayerControllerHuman.arrangeForMove} reads the result.
+         */
         @Override
         Object decode(JsonElement v) throws BadReply {
             List<Integer> idx = indices(v, cards.size());
             if (idx.size() != cards.size()) {
                 throw new BadReply("expected a permutation of all " + cards.size() + " cards");
             }
+            int lastFixed = -1;
+            int lead = 0; // movable cards before the first fixed one
+            while (lead < idx.size() && isMovable(idx.get(lead))) {
+                lead++;
+            }
+            int trail = idx.size(); // first index of the trailing movable run
+            while (trail > lead && isMovable(idx.get(trail - 1))) {
+                trail--;
+            }
             List<Object> out = new ArrayList<>();
             for (int pos = 0; pos < idx.size(); pos++) {
                 int i = idx.get(pos);
-                if (i != pos && !movable.contains(cards.get(i))) {
-                    throw new BadReply("card " + i + " may not move");
+                if (!isMovable(i)) {
+                    if (i < lastFixed) {
+                        throw new BadReply("cards that may not move keep their order");
+                    }
+                    lastFixed = i;
+                } else if (!toAnywhere && lead < idx.size()) {
+                    boolean top = pos < lead;
+                    boolean bottom = pos >= trail;
+                    if (!(top && toTop) && !(bottom && toBottom)) {
+                        throw new BadReply("card " + i + " must go to the " + (toTop && toBottom ? "top or the bottom" : toTop ? "top" : "bottom"));
+                    }
                 }
                 out.add(cards.get(i));
             }
             return out;
+        }
+
+        private boolean isMovable(int i) {
+            return movable.contains(cards.get(i));
         }
 
         @Override
@@ -533,6 +571,26 @@ abstract class Prompt {
         final String label;
         /** Combat: the defender is the last target and the reply maps it to a null key. */
         final boolean combatDefender;
+        /** Combat: damage that is lethal to each target ({@code VAssignCombatDamage.getDamageToKill}); null otherwise. */
+        List<Integer> lethal;
+        /** Combat: which targets need lethal damage before others get any; null otherwise. */
+        LethalOrder lethalOrder;
+
+        /** The combat damage assignment rule, as {@code VAssignCombatDamage.checkDamageQueue} enforces it. */
+        enum LethalOrder {
+            /** A target gets damage only once every earlier target has lethal damage. */
+            IN_ORDER("inOrder"),
+            /** Blockers in any order (overrideOrder); the defender only once every blocker has lethal damage. */
+            BLOCKERS_FIRST("blockersFirst"),
+            /** Divided as the player chooses (divide-damage keyword with overrideOrder). */
+            FREE("free");
+
+            final String wire;
+
+            LethalOrder(String wire) {
+                this.wire = wire;
+            }
+        }
 
         private Distribute(ProtocolMethod m, CardView card, int amount, List<Object> targets, List<Integer> maxima,
                 boolean atLeastOne, boolean maySkip, String label, boolean combatDefender) {
@@ -547,12 +605,53 @@ abstract class Prompt {
             this.combatDefender = combatDefender;
         }
 
-        static Distribute combat(CardView attacker, List<CardView> blockers, int damage, GameEntityView defender, boolean maySkip) {
+        /**
+         * As {@code VAssignCombatDamage}: the defender is a target only for a trampler, or a divide-damage
+         * attacker with overrideOrder (the engine passes the defender for every blocked attacker).
+         */
+        static Distribute combat(CardView attacker, List<CardView> blockers, int damage, GameEntityView defender,
+                boolean overrideOrder, boolean maySkip, int poisonToLose) {
+            CardStateView as = attacker.getCurrentState();
+            boolean divide = as.hasDivideDamage();
+            boolean withDefender = defender != null && (as.hasTrample() || (divide && overrideOrder));
             List<Object> t = new ArrayList<>(blockers);
-            if (defender != null) {
+            if (withDefender) {
                 t.add(defender);
             }
-            return new Distribute(ProtocolMethod.assignCombatDamage, attacker, damage, t, null, false, maySkip, "damage", defender != null);
+            Distribute d = new Distribute(ProtocolMethod.assignCombatDamage, attacker, damage, t, null, false, maySkip, "damage", withDefender);
+            d.lethalOrder = divide && overrideOrder ? LethalOrder.FREE : overrideOrder ? LethalOrder.BLOCKERS_FIRST : LethalOrder.IN_ORDER;
+            d.lethal = new ArrayList<>();
+            for (Object o : t) {
+                d.lethal.add(damageToKill(o, as.hasDeathtouch(), as.hasInfect(), poisonToLose));
+            }
+            return d;
+        }
+
+        /** {@code VAssignCombatDamage.getDamageToKill}; a battle needs its defense. */
+        private static int damageToKill(Object target, boolean deathtouch, boolean infect, int poisonToLose) {
+            if (target instanceof PlayerView p) {
+                return Math.max(0, infect ? poisonToLose - p.getCounters(CounterEnumType.POISON) : p.getLife());
+            }
+            if (!(target instanceof CardView c)) {
+                return 0;
+            }
+            CardStateView s = c.getCurrentState();
+            if (s.isPlaneswalker()) {
+                return number(s.getLoyalty());
+            }
+            if (s.isBattle()) {
+                return number(s.getDefense());
+            }
+            int lethal = Math.max(0, c.getLethalDamage());
+            return deathtouch ? Math.min(lethal, 1) : lethal;
+        }
+
+        private static int number(String s) {
+            try {
+                return s == null ? 0 : Math.max(0, Integer.parseInt(s.trim()));
+            } catch (NumberFormatException e) {
+                return 0;
+            }
         }
 
         static Distribute generic(CardView source, Map<Object, Integer> targets, int amount, boolean atLeastOne, String label) {
@@ -588,9 +687,15 @@ abstract class Prompt {
                 if (combatDefender && i == targets.size() - 1) {
                     c.addProperty("defender", true);
                 }
+                if (lethal != null) {
+                    c.addProperty("lethal", lethal.get(i));
+                }
                 cs.add(c);
             }
             j.add("choices", cs);
+            if (lethalOrder != null) {
+                j.addProperty("lethalOrder", lethalOrder.wire);
+            }
         }
 
         @Override
@@ -618,13 +723,42 @@ abstract class Prompt {
             if (sum != amount) {
                 throw new BadReply("amounts must sum to " + amount);
             }
+            checkLethalOrder(amounts);
             return toMap(amounts);
+        }
+
+        /** {@code VAssignCombatDamage.checkDamageQueue}: no damage past a target that lacks lethal damage. */
+        private void checkLethalOrder(int[] amounts) throws BadReply {
+            if (lethalOrder == null || lethalOrder == LethalOrder.FREE) {
+                return;
+            }
+            int short0 = -1; // first target with less than lethal damage
+            for (int i = 0; i < amounts.length; i++) {
+                boolean defender = combatDefender && i == amounts.length - 1;
+                if (amounts[i] > 0 && short0 >= 0 && (lethalOrder == LethalOrder.IN_ORDER || defender)) {
+                    throw new BadReply("choice " + short0 + " needs lethal damage (" + lethal.get(short0) + ") before choice " + i);
+                }
+                if (short0 < 0 && amounts[i] < lethal.get(i)) {
+                    short0 = i;
+                }
+            }
         }
 
         @Override
         Object fallback() {
             int[] amounts = new int[targets.size()];
             int left = amount;
+            if (lethal != null) {
+                // the desktop's "Auto": lethal damage to each target in order, the rest to the last one
+                for (int i = 0; i < amounts.length && left > 0; i++) {
+                    amounts[i] = Math.min(lethal.get(i), left);
+                    left -= amounts[i];
+                }
+                if (amounts.length > 0) {
+                    amounts[amounts.length - 1] += left;
+                }
+                return toMap(amounts);
+            }
             if (atLeastOne) {
                 for (int i = 0; i < amounts.length && left > 0; i++) {
                     amounts[i] = 1;

@@ -81,6 +81,15 @@ final class SeatSession implements IRemote {
         return seat;
     }
 
+    /** Stops the action thread once queued actions ran; later actions are rejected ("seat closed"). */
+    void close() {
+        actions.shutdown();
+    }
+
+    boolean isClosed() {
+        return actions.isShutdown();
+    }
+
     // --- bound by WebGuiGame ---
 
     void openView(GameView gv, TrackableCollection<PlayerView> myPlayers) {
@@ -120,7 +129,7 @@ final class SeatSession implements IRemote {
         if (!(event instanceof GuiGameEvent e)) {
             return null;
         }
-        Prompt p = Prompt.of(e.getMethod(), e.getObjects());
+        Prompt p = Prompt.of(e.getMethod(), e.getObjects(), gameView);
         if (p == null) {
             System.err.println("[web] seat " + seat + ": no prompt shape for " + e.getMethod());
             return null;

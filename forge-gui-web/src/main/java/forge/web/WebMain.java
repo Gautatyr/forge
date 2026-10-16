@@ -56,10 +56,12 @@ import forge.web.server.WebServer;
  *                         spectator what every player may see (default); full: omniscient, debug only
  * --port 7655  --assets forge-gui/  --home &lt;dir&gt;  --viewer &lt;dir&gt;
  * --wait-client SECONDS   wait for a client (the human seat's, if any) before the first game
- * --exit                  stop the server after the last game
+ * --exit                  stop the server after the last game, once its clients have left (at most 30 s)
+ * --ai-seat-urls          with --human-seat: also give the AI seats a token and URL (debug; shows their hands)
  * </pre>
  * Every view has its own per-launch token, printed once: the spectator's as "[web] serving URL",
- * each seat's as "[web] seat N (...): URL". A token opens only its own view.
+ * each seat's as "[web] seat N (...): URL". A token opens only its own view. With a human seat, AI
+ * seats have no token unless --ai-seat-urls.
  */
 public final class WebMain {
 
@@ -135,13 +137,19 @@ public final class WebMain {
         // seat order = the game's player order: HostedMatch sorts human players first (stable)
         slots.sort((a, b) -> Boolean.compare(b.human(), a.human()));
 
-        // per-launch tokens, printed once and never stored: the spectator's first (the page URL), then one per seat
+        // per-launch tokens, printed once and never stored: the spectator's first (the page URL), then one per
+        // seat; with a human seat, AI seats get none unless --ai-seat-urls (they would show the AI players' hands)
+        boolean withHuman = humanSlot >= 0;
+        boolean aiSeatUrls = !withHuman || opt.containsKey("ai-seat-urls");
         Map<String, Integer> tokens = new LinkedHashMap<>();
         tokens.put(AccessPolicy.newToken(), GameStream.SPECTATOR);
         List<String> seatTokens = new ArrayList<>();
         for (int s = 0; s < slots.size(); s++) {
-            String t = AccessPolicy.newToken();
-            tokens.put(t, s);
+            String t = null;
+            if (slots.get(s).human() || aiSeatUrls) {
+                t = AccessPolicy.newToken();
+                tokens.put(t, s);
+            }
             seatTokens.add(t);
         }
         WebServer server = new WebServer(port, Paths.get(opt.getOrDefault("viewer", moduleDir.resolve("spike-viewer").toString())),
@@ -149,11 +157,11 @@ public final class WebMain {
         server.start();
         for (int s = 0; s < slots.size(); s++) {
             Slot sl = slots.get(s);
+            String t = seatTokens.get(s);
             System.out.println("[web] seat " + s + " (" + (sl.human() ? "human" : "AI") + ", deck" + sl.slot() + " " + sl.deck().getName()
-                    + "): " + server.pageUrl(seatTokens.get(s)));
+                    + ")" + (t == null ? "" : ": " + server.pageUrl(t)));
         }
 
-        boolean withHuman = humanSlot >= 0;
         int waitClient = Integer.parseInt(opt.getOrDefault("wait-client", "0"));
         for (int i = 0; i < waitClient * 10 && (withHuman ? stream.seatClientCount(0) : stream.clientCount()) == 0; i++) {
             Thread.sleep(100);
@@ -171,7 +179,11 @@ public final class WebMain {
             }
         }
         if (opt.containsKey("exit")) {
-            Thread.sleep(1000); // let the final delta leave
+            // let the final delta leave, then the clients finish (the checks read /state after it), at most 30 s
+            Thread.sleep(1000);
+            for (int i = 0; i < 300 && stream.clientCount() > 0; i++) {
+                Thread.sleep(100);
+            }
             server.stop();
             System.exit(0);
         }

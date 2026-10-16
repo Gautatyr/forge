@@ -31,6 +31,7 @@ import com.google.gson.JsonParser;
 
 import forge.game.Game;
 import forge.game.card.Card;
+import forge.game.card.CardCopyService;
 import forge.game.card.CardView;
 import forge.game.player.Player;
 import forge.game.zone.ZoneType;
@@ -60,6 +61,7 @@ public class SeatSessionTest {
     private Player p0;
     private Player p1;
     private GameStream stream;
+    private WebSeats seats;
     private WebGuiGame gui;
     private Client client;
     private final LinkedBlockingQueue<String> controllerCalls = new LinkedBlockingQueue<>();
@@ -124,7 +126,7 @@ public class SeatSessionTest {
         p0 = game.getPlayers().get(0);
         p1 = game.getPlayers().get(1);
         stream = new GameStream(HiddenPolicy.REDACT, null);
-        WebSeats seats = new WebSeats(stream, timeouts);
+        seats = new WebSeats(stream, timeouts);
         gui = seats.newSeat(0);
         gui.setGameView(game.getView());
         gui.openView(new TrackableCollection<>(p0.getView()));
@@ -277,24 +279,66 @@ public class SeatSessionTest {
     }
 
     @Test
-    public void manipulateCardListKeepsUnmovableCardsInPlace() throws Exception {
+    public void manipulateCardListTakesAScryToTheBottomOfTheWholeLibrary() throws Exception {
         start();
-        Card a = TestEngine.add("Island", p0, ZoneType.Library);
-        Card b = TestEngine.add("Forest", p0, ZoneType.Library);
-        Card c = TestEngine.add("Swamp", p0, ZoneType.Library);
-        for (Card x : List.of(a, b, c)) {
+        // as PlayerControllerHuman.arrangeForScry with UI_SELECT_FROM_CARD_DISPLAYS: the whole library, the top 2 movable
+        List<Card> lib = new ArrayList<>();
+        for (String n : List.of("Island", "Forest", "Swamp", "Mountain", "Plains")) {
+            Card x = TestEngine.add(n, p0, ZoneType.Library);
             x.addMayLookTemp(p0);
+            lib.add(x);
         }
-        List<CardView> cards = List.of(a.getView(), b.getView(), c.getView());
-        Future<List<CardView>> f = onGameThread(() -> gui.manipulateCardList("Scry", cards, List.of(a.getView(), c.getView()), true, true, false));
+        List<CardView> cards = new ArrayList<>();
+        lib.forEach(x -> cards.add(x.getView()));
+        Future<List<CardView>> f = onGameThread(() -> gui.manipulateCardList("Scry", cards, cards.subList(0, 2), true, true, false));
         JsonObject p = client.next("prompt");
         assertTrue(p.get("permutation").getAsBoolean());
-        reply(p, json("[1,0,2]"));
-        assertEquals(client.next("replyRejected").get("reason").getAsString(), "card 1 may not move");
+        reply(p, json("[1,2,0,3,4]"));
+        assertEquals(client.next("replyRejected").get("reason").getAsString(), "card 0 must go to the top or the bottom");
+        reply(p, json("[0,1,2,4,3]"));
+        assertEquals(client.next("replyRejected").get("reason").getAsString(), "cards that may not move keep their order");
         reply(p, json("[0,1]"));
         client.next("replyRejected");
-        reply(p, json("[2,1,0]"));
-        assertEquals(get(f), List.of(c.getView(), b.getView(), a.getView()));
+        reply(p, json("[1,2,3,4,0]")); // the first scried card to the bottom: every library card shifts up by one
+        assertEquals(get(f), List.of(cards.get(1), cards.get(2), cards.get(3), cards.get(4), cards.get(0)));
+    }
+
+    @Test
+    public void manipulateCardListHonoursTopBottomAndAnywhere() throws Exception {
+        start();
+        List<CardView> cards = new ArrayList<>();
+        for (String n : List.of("Island", "Forest", "Swamp")) {
+            Card x = TestEngine.add(n, p0, ZoneType.Library);
+            x.addMayLookTemp(p0);
+            cards.add(x.getView());
+        }
+        Future<List<CardView>> bottomOnly = onGameThread(() -> gui.manipulateCardList("Bottom", cards, cards.subList(0, 1), false, true, false));
+        JsonObject p = client.next("prompt");
+        reply(p, json("[0,1,2]"));
+        assertEquals(client.next("replyRejected").get("reason").getAsString(), "card 0 must go to the bottom");
+        reply(p, json("[1,2,0]"));
+        assertEquals(get(bottomOnly), List.of(cards.get(1), cards.get(2), cards.get(0)));
+
+        Future<List<CardView>> anywhere = onGameThread(() -> gui.manipulateCardList("Anywhere", cards, cards.subList(0, 1), true, true, true));
+        JsonObject q = client.next("prompt");
+        reply(q, json("[1,0,2]"));
+        assertEquals(get(anywhere), List.of(cards.get(1), cards.get(0), cards.get(2)));
+    }
+
+    @Test
+    public void manyTimesOutWithTheFewestItems() throws Exception {
+        start(new WebSeats.Timeouts(200, 10_000));
+        // AbstractGuiGame.many -> order(remainingMin = size - max, remainingMax = size - min)
+        Future<List<String>> none = onGameThread(() -> gui.many("Discard up to 2", "Discard", 0, 2, List.of("a", "b", "c"), null));
+        JsonObject p = client.next("prompt");
+        assertEquals(p.get("remainingMin").getAsInt(), 1);
+        assertEquals(p.get("remainingMax").getAsInt(), 3);
+        assertEquals(get(none), List.of(), "an optional pick takes nothing by default");
+        assertEquals(client.next("promptClosed").get("reason").getAsString(), "timeout");
+
+        Future<List<String>> one = onGameThread(() -> gui.many("Discard 1 to 2", "Discard", 1, 2, List.of("a", "b", "c"), null));
+        client.next("prompt");
+        assertEquals(get(one), List.of("a"), "at least min, no more");
     }
 
     // --- distribute ---
@@ -321,22 +365,68 @@ public class SeatSessionTest {
     }
 
     @Test
-    public void combatDamageMapsTheDefenderToTheNullKey() throws Exception {
+    public void combatDamageNeedsLethalBeforeTheNextTargetAndMapsTheDefenderToTheNullKey() throws Exception {
         start();
-        Card attacker = TestEngine.add("Craw Wurm", p0, ZoneType.Battlefield);
+        Card attacker = TestEngine.add("Colossal Dreadmaw", p0, ZoneType.Battlefield); // 6/6 trample
         Card b1 = TestEngine.add("Grizzly Bears", p1, ZoneType.Battlefield);
         Card b2 = TestEngine.add("Llanowar Elves", p1, ZoneType.Battlefield);
         Future<Map<CardView, Integer>> f = onGameThread(() -> gui.assignCombatDamage(attacker.getView(),
                 List.of(b1.getView(), b2.getView()), 6, p1.getView(), false, false));
         JsonObject p = client.next("prompt");
-        assertTrue(p.getAsJsonArray("choices").get(2).getAsJsonObject().get("defender").getAsBoolean());
+        JsonArray cs = p.getAsJsonArray("choices");
+        assertTrue(cs.get(2).getAsJsonObject().get("defender").getAsBoolean());
+        assertEquals(cs.get(0).getAsJsonObject().get("lethal").getAsInt(), 2);
+        assertEquals(cs.get(1).getAsJsonObject().get("lethal").getAsInt(), 1);
+        assertEquals(cs.get(2).getAsJsonObject().get("lethal").getAsInt(), p1.getLife());
+        assertEquals(p.get("lethalOrder").getAsString(), "inOrder");
         reply(p, json("null"));
         assertEquals(client.next("replyRejected").get("reason").getAsString(), "amounts required");
+        reply(p, json("[0,6,0]"));
+        assertEquals(client.next("replyRejected").get("reason").getAsString(), "choice 0 needs lethal damage (2) before choice 1");
+        reply(p, json("[2,0,4]"));
+        assertEquals(client.next("replyRejected").get("reason").getAsString(), "choice 1 needs lethal damage (1) before choice 2");
         reply(p, json("[2,1,3]"));
         Map<CardView, Integer> r = get(f);
         assertEquals(r.get(b1.getView()), Integer.valueOf(2));
         assertEquals(r.get(b2.getView()), Integer.valueOf(1));
         assertEquals(r.get(null), Integer.valueOf(3));
+    }
+
+    @Test
+    public void combatDamageWithOverrideOrderStillNeedsLethalOnEveryBlockerBeforeTheDefender() throws Exception {
+        start();
+        Card attacker = TestEngine.add("Colossal Dreadmaw", p0, ZoneType.Battlefield);
+        Card b1 = TestEngine.add("Grizzly Bears", p1, ZoneType.Battlefield);
+        Card b2 = TestEngine.add("Llanowar Elves", p1, ZoneType.Battlefield);
+        Future<Map<CardView, Integer>> f = onGameThread(() -> gui.assignCombatDamage(attacker.getView(),
+                List.of(b1.getView(), b2.getView()), 6, p1.getView(), true, false));
+        JsonObject p = client.next("prompt");
+        assertEquals(p.get("lethalOrder").getAsString(), "blockersFirst");
+        reply(p, json("[0,1,5]"));
+        assertEquals(client.next("replyRejected").get("reason").getAsString(), "choice 0 needs lethal damage (2) before choice 2");
+        reply(p, json("[0,6,0]")); // blockers in any order
+        Map<CardView, Integer> r = get(f);
+        assertEquals(r.get(b1.getView()), Integer.valueOf(0));
+        assertEquals(r.get(b2.getView()), Integer.valueOf(6));
+        assertFalse(r.containsKey(null));
+    }
+
+    @Test
+    public void combatDamageOffersTheDefenderOnlyToATrampler() throws Exception {
+        start();
+        Card attacker = TestEngine.add("Craw Wurm", p0, ZoneType.Battlefield); // 6/4, no trample
+        Card b1 = TestEngine.add("Grizzly Bears", p1, ZoneType.Battlefield);
+        Card b2 = TestEngine.add("Llanowar Elves", p1, ZoneType.Battlefield);
+        // the engine passes the defender for every blocked attacker (Combat.assignAttackersDamage)
+        Future<Map<CardView, Integer>> f = onGameThread(() -> gui.assignCombatDamage(attacker.getView(),
+                List.of(b1.getView(), b2.getView()), 6, p1.getView(), false, false));
+        JsonObject p = client.next("prompt");
+        assertEquals(p.getAsJsonArray("choices").size(), 2);
+        reply(p, json("[5,1]"));
+        Map<CardView, Integer> r = get(f);
+        assertEquals(r.get(b1.getView()), Integer.valueOf(5));
+        assertEquals(r.get(b2.getView()), Integer.valueOf(1));
+        assertFalse(r.containsKey(null));
     }
 
     // --- text ---
@@ -447,6 +537,32 @@ public class SeatSessionTest {
         assertEquals(get(f), List.of());
     }
 
+    @Test
+    public void revealedCopyOfAFaceDownCardIsNamedButNotByItsEngineId() throws Exception {
+        start();
+        Card exiled = TestEngine.add("Grizzly Bears", p1, ZoneType.Exile);
+        exiled.turnFaceDown(true);
+        stream.publish(List.of(), false); // seat 0 holds it as a placeholder
+        client.msgs.clear();
+        // as Player.revealFaceDownCards when p1 loses: a face-up LKI copy, same id, revealed to the others
+        Card lki = CardCopyService.getLKICopy(exiled);
+        lki.forceTurnFaceUp();
+        lki.setZone(exiled.getZone());
+        Future<Void> f = onGameThread(() -> {
+            gui.reveal("Revealing face-down cards", List.of(lki.getView()));
+            return null;
+        });
+        JsonObject p = client.next("prompt");
+        assertEquals(p.get("max").getAsInt(), 0);
+        JsonObject c = p.getAsJsonArray("choices").get(0).getAsJsonObject();
+        assertTrue(c.get("label").getAsString().contains("Grizzly Bears"), c.toString());
+        int ref = c.getAsJsonObject("ref").get("id").getAsInt();
+        assertTrue(ref >= ViewerStream.ALIAS_BASE, "named by its unseen id, not its engine id: " + c);
+        assertTrue(c.get("revealedCopy").getAsBoolean());
+        reply(p, json("[]"));
+        get(f);
+    }
+
     // --- calls ---
 
     @Test
@@ -539,6 +655,16 @@ public class SeatSessionTest {
         action("{\"t\":\"hello\"}");
         client.next("rejected");
         assertNull(controllerCalls.poll(200, TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    public void theSeatsNextGameClosesThePreviousActionThread() {
+        start();
+        SeatSession first = gui.session();
+        assertFalse(first.isClosed());
+        WebGuiGame next = seats.newSeat(0); // --games N: one GUI per game
+        assertTrue(first.isClosed());
+        assertFalse(next.session().isClosed());
     }
 
     @Test

@@ -193,11 +193,14 @@ public final class GameStream {
         }
     }
 
+    /** Under {@link #lock}, as {@link #addClient}: a seat's hooks hear its client counts in order. */
     public void removeClient(ClientSink c) {
-        Integer seat = clients.remove(c);
-        SeatHooks hooks = seatHooks;
-        if (seat != null && seat >= 0 && hooks != null) {
-            hooks.clientsChanged(seat, seatClientCount(seat));
+        synchronized (lock) {
+            Integer seat = clients.remove(c);
+            SeatHooks hooks = seatHooks;
+            if (seat != null && seat >= 0 && hooks != null) {
+                hooks.clientsChanged(seat, seatClientCount(seat));
+            }
         }
     }
 
