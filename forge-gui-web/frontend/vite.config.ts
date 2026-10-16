@@ -2,7 +2,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// Live mode through the dev server (`?live=1#token=…`): /ws is proxied to the bridge. `make web-dev`
+// Live mode through the dev server (`?live=1#token=…`): /ws and /img are proxied to the bridge. `make web-dev`
 // sets FORGE_BRIDGE to this worktree's `make web-server` port.
 // (No @types/node in this project: read the environment through globalThis.)
 const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
@@ -27,6 +27,8 @@ export default defineConfig({
         // token): present the dev page's upgrade as coming from the bridge's page.
         headers: { origin: bridge },
       },
+      // Card images (src/adapter/images.ts), from the bridge's Forge image cache.
+      '/img': { target: bridge, changeOrigin: true },
     },
   },
   // Vitest blanks CSS by default; the keyword-icon test reads mana-font's codepoints.

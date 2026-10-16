@@ -12,6 +12,7 @@ import forge.gamemodes.match.input.Input;
 import forge.gamemodes.match.input.InputSelectEntitiesFromList;
 import forge.gamemodes.net.ProtocolGuiGame;
 import forge.interfaces.IGameController;
+import forge.localinstance.properties.ForgePreferences.FPref;
 import forge.player.PlayerControllerHuman;
 import forge.trackable.TrackableCollection;
 import forge.util.ITriggerEvent;
@@ -75,6 +76,11 @@ public final class WebGuiGame extends ProtocolGuiGame {
         super.setOriginalGameController(player, gameController);
         session.bindController(gameController);
         if (gameController instanceof PlayerControllerHuman pch) {
+            // The web client reads setWeaklySelectable: cards you may play now, mana sources and the auto-pay
+            // plan while paying, attack candidates. This seat's own settings (YieldController overrides), so the
+            // desktop app's preferences are neither read nor changed.
+            pch.getYieldController().setPref(FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS, "true");
+            pch.getYieldController().setPref(FPref.UI_SHOW_AUTOTAP_PREVIEW, "true");
             // Before this seat's input blocks the game thread, publish what changed without an event,
             // e.g. cards shown by tempShowCards for the input. Observers run newest first: this one runs
             // before the InputProxy posts the input's prompt to the EDT.

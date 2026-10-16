@@ -16,6 +16,8 @@ export interface CardImage {
   normal: string;
   /** ~672x936, used by the hover preview and the inspector. */
   large: string;
+  /** Used when these fail to load (live: Scryfall when the bridge has no image). */
+  fallback?: CardImage;
 }
 
 export interface CardFace {

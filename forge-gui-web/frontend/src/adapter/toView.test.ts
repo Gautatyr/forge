@@ -264,6 +264,22 @@ describe('helpers', () => {
     expect(imageFromKey('t:hidden')).toBeUndefined();
   });
 
+  it('gives the image lookup every key, tokens by their name, special faces without one', () => {
+    const refs: unknown[] = [];
+    const lookup = (r: unknown) => (refs.push(r), undefined);
+    imageFromKey('c:Lightning Bolt|M10|1', false, lookup, 'Lightning Bolt');
+    imageFromKey('c:Delver of Secrets|ISD|1$alt', true, lookup, 'Insectile Aberration');
+    imageFromKey('t:w_1_1_soldier_m21', false, lookup, 'Soldier');
+    imageFromKey('t:morph', false, lookup, 'Face-down card');
+    imageFromKey(undefined, false, lookup, 'Nothing');
+    expect(refs).toEqual([
+      { key: 'c:Lightning Bolt|M10|1', name: 'Lightning Bolt', set: 'm10', back: false },
+      { key: 'c:Delver of Secrets|ISD|1$alt', name: 'Delver of Secrets', set: 'isd', back: true },
+      { key: 't:w_1_1_soldier_m21', name: 'Soldier', set: '', back: false, token: true },
+      { key: 't:morph', name: '', set: '', back: false, token: true },
+    ]);
+  });
+
   it('turns "Name (id)" in the log into card tokens for visible cards only', () => {
     const g = toGameView(session());
     expect(logText('Hugo cast Grizzly Bears (10) targeting Dragon (20); Secret (99) moved.', g.cards)).toBe(
@@ -372,7 +388,7 @@ describe('selections off the board (library searches, choosing a player)', () =>
       }),
     );
     s.apply({ t: 'call', method: 'setSelectables', args: [lands.map(card), 0, 2] });
-    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Grizzly Bears\nSelect up to 2 cards from your library', card(10)] });
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Grizzly Bears (10)\nSelect up to 2 cards from your library', card(10)] });
     s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', true, false, true] });
     return s;
   }
@@ -382,7 +398,9 @@ describe('selections off the board (library searches, choosing a player)', () =>
       kind: 'choice',
       prompt: {
         shape: 'chooseN',
-        title: 'Select up to 2 cards from your library',
+        // "Grizzly Bears (10)\nSelect up to 2…": what asks, then the question (not the same line twice)
+        title: 'Grizzly Bears',
+        instruction: 'Select up to 2 cards from your library',
         sourceCardId: '10',
         confirmLabel: 'OK',
         min: 0,
@@ -441,6 +459,62 @@ describe('selections off the board (library searches, choosing a player)', () =>
     });
     const id = g.decision.kind === 'choice' ? g.decision.prompt.id : '';
     expect(intentToFrames({ type: 'answer', promptId: id, answer: { shape: 'chooseN', optionIds: ['p1'] } }, s, g)).toEqual([act('selectPlayer', { player: 1 })]);
+  });
+
+  it('discards to hand size in the tray, for no card: an earlier click is not its source', () => {
+    const s = session();
+    s.apply(
+      delta1({
+        new: [
+          { type: 'card', id: 40, props: { Owner: 0, Controller: 0, Zone: 'Battlefield', CurrentState: 'Original' } },
+          { type: 'cardState', id: 40, state: 'Original', props: { Name: 'Vivid Marsh', Type: 'Land' } },
+          ...[51, 52, 53].flatMap((id): WireObject[] => [
+            { type: 'card', id, props: { Owner: 0, Controller: 0, Zone: 'Hand', CurrentState: 'Original' } },
+            { type: 'cardState', id, state: 'Original', props: { Name: `Card ${id}`, Type: 'Instant' } },
+          ]),
+        ],
+        changed: [{ type: 'player', id: 0, props: { Battlefield: [10, 30, 40], Hand: [51, 52, 53] } }],
+      }),
+    );
+    // Earlier this turn: Vivid Marsh clicked with priority (its mana ability), then priority again.
+    buttons(s, 'OK', 'End Turn', 'Priority: Hugo');
+    s.clicked(40);
+    buttons(s, 'OK', 'End Turn', 'Priority: Hugo');
+    s.apply({ t: 'call', method: 'awaitNextInput', args: [] });
+    // Cleanup: InputSelectCardsFromList without a spell ability (no card in showPromptMessage), no Cancel.
+    s.apply({ t: 'call', method: 'setSelectables', args: [[card(51), card(52), card(53)], 2, 2] });
+    s.apply({
+      t: 'call',
+      method: 'showPromptMessage',
+      args: [YOU, 'Cleanup Phase\nSelect 2 card(s) to discard to bring your hand down to the maximum of 7 cards.', null],
+    });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, false, true] });
+    const d = toGameView(s).decision;
+    expect(d).toMatchObject({
+      kind: 'choice',
+      prompt: {
+        shape: 'chooseN',
+        title: 'Cleanup Phase',
+        instruction: 'Select 2 card(s) to discard to bring your hand down to the maximum of 7 cards.',
+        min: 2,
+        max: 2,
+        options: [
+          { id: 'c51', cardId: '51' },
+          { id: 'c52', cardId: '52' },
+          { id: 'c53', cardId: '53' },
+        ],
+      },
+    });
+    expect(d.kind === 'choice' && d.prompt.sourceCardId).toBeFalsy();
+  });
+
+  it('shows a one-line selection once: as the title, with no instruction', () => {
+    const s = session();
+    s.apply({ t: 'call', method: 'setSelectables', args: [[card(10)], 1, 1] });
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Select a creature you control', null] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, false, true] });
+    const d = toGameView(s).decision;
+    expect(d).toMatchObject({ kind: 'choice', prompt: { shape: 'chooseN', title: 'Select a creature you control', instruction: '' } });
   });
 
   it('keeps board targeting for a spell whose targets are on the board', () => {

@@ -6,7 +6,7 @@ import { DEFAULT_STOPS, type StopPrefs } from '../state/prefs';
 import { isStop } from '../state/stops';
 import { connectLive, streamUrl, type LiveSource } from './client';
 import { intentToFrames, stopFrames } from './commands';
-import { ImageResolver } from './images';
+import { bridgeImageLookup, ImageResolver } from './images';
 import { parseRecording, replaySource, RECORDINGS } from './replay';
 import type { Notice } from './session';
 import type { SourceConfig } from './source';
@@ -71,6 +71,11 @@ export function useLive(config: SourceConfig, stops: StopPrefs = DEFAULT_STOPS):
   const [error, setError] = useState<string>();
   const [imagesVersion, imagesChanged] = useReducer((n: number) => n + 1, 0);
   const [images] = useState(() => new ImageResolver(imagesChanged));
+  // Live: the bridge serves every card's image (Scryfall as the fallback); a replay has no bridge.
+  const lookup = useMemo(
+    () => (config.kind === 'live' ? bridgeImageLookup(config.url, config.token) : images.lookup),
+    [config, images],
+  );
   const [local, setLocal] = useState<LiveLocal>(NO_LOCAL);
 
   useEffect(() => {
@@ -107,10 +112,10 @@ export function useLive(config: SourceConfig, stops: StopPrefs = DEFAULT_STOPS):
     if (!source.session.gameObject?.props.Players?.length) {
       return placeholderView(source.status === 'open' ? 'Waiting for the game to start' : 'Connecting to the bridge');
     }
-    return toGameView(source.session, images.lookup, local);
+    return toGameView(source.session, lookup, local);
     // version / imagesVersion track every session and image change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config, source, error, version, imagesVersion, images, local]);
+  }, [config, source, error, version, imagesVersion, lookup, local]);
 
   // Dev only: the current view-model, for checks from the browser console or Playwright.
   useEffect(() => {
