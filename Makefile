@@ -22,9 +22,9 @@ web-front-check: ## Frontend: install, type-check, lint, unit tests, build
 desktop-test: ## Engine/AI/desktop suite (~2 min); needed only when upstream modules or the root pom change
 	@$(GATE) desktop-test mvn -B -pl forge-gui-desktop -am test
 
-web-dev: ## Frontend dev server on a per-worktree port
-	@port=$$(scripts/dev-port.sh 5200); echo "Vite on http://localhost:$$port/"; \
-	cd forge-gui-web/frontend && pnpm dev --port $$port --strictPort
+web-dev: ## Frontend dev server on a per-worktree port; /ws proxies to this worktree's web-server (live: ?live=1#token=…)
+	@port=$$(scripts/dev-port.sh 5200); bridge=$$(scripts/dev-port.sh 7700); echo "Vite on http://localhost:$$port/ (live: http://localhost:$$port/?live=1#token=<bridge token>)"; \
+	cd forge-gui-web/frontend && FORGE_BRIDGE=http://127.0.0.1:$$bridge pnpm dev --port $$port --strictPort
 
 web-server: ## Build forge-gui-web and run the bridge server on a per-worktree port (args: ARGS="--mode commander")
 	@$(GATE) web-build mvn -B -pl forge-gui-web -am compile dependency:build-classpath -Dmdep.outputFile=target/cp.txt

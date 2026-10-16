@@ -1,4 +1,6 @@
 import { createContext, use, useCallback, useMemo, useReducer, useState, type ReactNode } from 'react';
+import { mockUrl, sourceFromLocation, type SourceConfig } from '../adapter/source';
+import { useLive } from '../adapter/useLive';
 import type { Intent } from '../model/intents';
 import type { CardId, GameView, PlayerId } from '../model/types';
 import { applyIntent, type MockGame } from '../mock/engine';
@@ -12,6 +14,7 @@ interface MatchApi {
   game: GameView;
   ui: UiState;
   prefs: Prefs;
+  /** Mock scenario id, or 'live' / 'replay' when the game comes from the bridge (src/adapter/). */
   scenarioId: string;
   canUndo: boolean;
   send: (intent: Intent) => void;
@@ -68,6 +71,9 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   });
   const [ui, setUiState] = useState<UiState>(INITIAL_UI);
   const [prefs, setPrefsState] = useState<Prefs>(initialPrefs);
+  const [source, setSource] = useState<SourceConfig>(() => sourceFromLocation(location));
+  const live = useLive(source, prefs.stops);
+  const liveSend = live?.send;
 
   const setUi = useCallback((patch: Partial<UiState> | ((u: UiState) => UiState)) => {
     setUiState((u) => (typeof patch === 'function' ? patch(u) : { ...u, ...patch }));
@@ -82,27 +88,36 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const send = useCallback((intent: Intent) => {
-    dispatch({ type: 'intent', intent });
+    if (liveSend) liveSend(intent);
+    else dispatch({ type: 'intent', intent });
     if (['primary', 'cancel', 'undo', 'answer', 'play'].includes(intent.type)) {
       setUiState((u) => ({ ...u, pendingAttacker: undefined, pendingBlocker: undefined, trayPeek: false }));
     }
     const focus = focusForIntent(intent);
     if (focus) setUiState((u) => ({ ...u, focusOpponentId: focus }));
-  }, []);
+  }, [liveSend]);
 
   const loadScenario = useCallback((id: string) => {
+    setSource({ kind: 'mock' });
     dispatch({ type: 'load', id });
     setUiState({ ...INITIAL_UI });
-    const url = new URL(location.href);
-    url.searchParams.set('scenario', id);
-    history.replaceState(null, '', url);
+    history.replaceState(null, '', mockUrl(location.href, id));
   }, []);
 
-  const game = h.game;
+  const game = live?.game ?? h.game;
+  const scenarioId = source.kind === 'mock' ? h.scenarioId : source.kind;
+
+  // Live: engine messages and rejected answers or actions show in the prompt line, like any neutral note.
+  const notice = live?.notice;
+  const [seenNotice, setSeenNotice] = useState(notice?.id);
+  if (notice && seenNotice !== notice.id) {
+    setSeenNotice(notice.id);
+    setUiState((u) => ({ ...u, promptNote: { id: (u.promptNote?.id ?? 0) + 1, text: notice.text } }));
+  }
 
   // Focus layout: when the turn passes, focus follows it (see focus.ts).
   // Adjusting state during render is React's pattern for "state derived from a change".
-  const turnKey = `${h.scenarioId}|${game.turn.number}|${game.turn.activePlayerId}`;
+  const turnKey = `${scenarioId}|${game.turn.number}|${game.turn.activePlayerId}`;
   const [seenTurnKey, setSeenTurnKey] = useState(turnKey);
   if (seenTurnKey !== turnKey) {
     setSeenTurnKey(turnKey);
@@ -114,7 +129,8 @@ export function MatchProvider({ children }: { children: ReactNode }) {
       const d = game.decision;
       switch (d.kind) {
         case 'priority':
-          if (d.playable.includes(id)) send({ type: 'play', cardId: id });
+          // Live: the engine decides what a click does (play, activate, or nothing).
+          if (live || d.playable.includes(id)) send({ type: 'play', cardId: id });
           return;
         case 'chooseTargets':
           send({ type: 'toggleTarget', target: { kind: 'card', id } });
@@ -131,11 +147,15 @@ export function MatchProvider({ children }: { children: ReactNode }) {
           setUi(r.pending);
           return;
         }
+        case 'choice':
+          // Live two-button inputs (pay mana, mulligan…) also take card clicks: 'play' is selectCard.
+          if (live && d.prompt.id.startsWith('input:')) send({ type: 'play', cardId: id });
+          return;
         default:
           return;
       }
     },
-    [game, ui, prefs.layout, send, setUi],
+    [game, ui, prefs.layout, send, setUi, live],
   );
 
   const activatePlayer = useCallback(
@@ -152,8 +172,8 @@ export function MatchProvider({ children }: { children: ReactNode }) {
       game,
       ui,
       prefs,
-      scenarioId: h.scenarioId,
-      canUndo: h.past.length > 0,
+      scenarioId,
+      canUndo: live ? live.canUndo : h.past.length > 0,
       send,
       setUi,
       setPrefs,
@@ -161,7 +181,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
       activateCard,
       activatePlayer,
     }),
-    [game, ui, prefs, h.scenarioId, h.past.length, send, setUi, setPrefs, loadScenario, activateCard, activatePlayer],
+    [game, ui, prefs, scenarioId, live, h.past.length, send, setUi, setPrefs, loadScenario, activateCard, activatePlayer],
   );
 
   return <Ctx value={api}>{children}</Ctx>;

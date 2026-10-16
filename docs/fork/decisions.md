@@ -104,6 +104,13 @@ Newest last. Each entry: the decision, why, and what it implies.
 - Stops live in the match screen's prefs (`prefs.stops`), not in the view-model: `GameView.stops` and the `setStop` intent are removed. This follows Forge, where the GUI owns stops and the engine asks `IGuiGame.isUiSetToSkipPhase(turnPlayer, phase)`.
 - The bridge (#11) must answer `isUiSetToSkipPhase` from stops the client sends; the message for that is not designed yet.
 - Defaults are Forge's (`ForgePreferences` PHASE_HUMAN_* / PHASE_AI_*). Shared rows persist; per-opponent rows last one match.
+## 2026-10-16 — Live adapter (issue #11)
+- `forge-gui-web/frontend/src/adapter/` maps the bridge stream to the UI view-model and may import the generated wire types (ESLint allows `src/wire/` and `src/adapter/`). Components still see only `src/model/`.
+- The page picks its source from the URL: mock scenarios (default), `?live=…` (bridge), `?replay=…` (recorded stream in `src/adapter/fixtures/`). The Mock panel switches back to mock scenarios.
+- Prompt/reply and call shapes the client expects from #8: `src/adapter/protocol.ts`. Client commands are `{"t":"<IGameController method>","args":[…]}`, like the existing `requestResync`.
+- Forge inputs are inferred from calls (`showPromptMessage`, `updateButtons`, selectables) plus phase: OK + End Turn/Undo = priority; attack/block steps = declare decisions; selectables = targets; any other two-button input (mulligan, pay mana) = a yes/no tray answered with selectButtonOk/Cancel.
+- Until #10 serves images, live card images resolve through Scryfall `cards/collection` in batches (per-card `cards/named` redirects hit Scryfall's rate limit on a full board).
+- Not done: client stops for `isUiSetToSkipPhase` (entry above) and yield settings (`sendYieldUpdate`): no wire form yet.
 
 ## 2026-10-16 — Bridge: card images come from the desktop app's image cache (issue #10)
 - `GET /img?key=<view image key>&token=<per-launch token>` serves `CardStateView.ImageKey` (both faces: the back face key ends in `$alt`) and `CardView.FacedownImageKey` / `t:hidden` (card back). 200 with `Cache-Control: private, max-age=31536000, immutable`; 404 `no-store` when there is no image.
@@ -117,6 +124,11 @@ Newest last. Each entry: the decision, why, and what it implies.
 - Phase stops: the client sends `sendYieldUpdate` `SkipPhase` per stop; the server skips none until told. This is the wire message #20 left open.
 - Details: [architecture/web-ui.md](architecture/web-ui.md#bridge-human-seat-issue-8).
 
+## 2026-10-16 — Live adapter on the human-seat protocol (issue #11, supersedes parts of the #11 entry)
+- The client speaks the bridge's seat protocol (#8): `{"t":"action","method",…}` and `{"t":"reply","id","value"}`; prompts by `shape`. Its message types are generated with the wire types (`WireEnvelope.SEAT_MESSAGES` / `CLIENT_MESSAGES`), not hand-written in `protocol.ts`.
+- Phase stops: on connect and on every edit the client sends `SkipPhase` for every player and step from `prefs.stops`. "To my turn" is a `SetMarker` at your upkeep.
+- `WebMain` turns on `UI_SHOW_ACTIONABLE_HIGHLIGHTS` and `UI_SHOW_AUTOTAP_PREVIEW` (in memory): the client reads `setWeaklySelectable` as data (playable cards, attack candidates, payment sources, the auto-pay plan, strength 2), never drawn as hints. A launcher that opens web matches from the desktop lobby needs the same two prefs.
+- Auto-pay mana is a client setting: one `selectButtonOk` ("Auto") per payment.
 ## 2026-10-16 — Launcher: desktop lobby, web match screen (issue #14)
 - New fork module `forge-gui-desktop-web` (depends on `forge-gui-desktop` and `forge-gui-web`). Upstream file edit: one `<module>` line in the root `pom.xml`.
 - Packaging for now: the system browser. The launcher runs Forge's desktop app; the bridge server runs in the same process on 127.0.0.1 and serves the built frontend (`forge-gui-web/frontend/dist`). JCEF/Electron not chosen yet; friend install (issue acceptance) is not covered.

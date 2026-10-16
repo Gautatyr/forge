@@ -1,0 +1,168 @@
+/** React glue: opens the live or replay source and exposes the view-model and an intent sender. */
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from 'react';
+import type { Intent } from '../model/intents';
+import type { GameView } from '../model/types';
+import { DEFAULT_STOPS, type StopPrefs } from '../state/prefs';
+import { isStop } from '../state/stops';
+import { connectLive, streamUrl, type LiveSource } from './client';
+import { intentToFrames, stopFrames } from './commands';
+import { ImageResolver } from './images';
+import { parseRecording, replaySource, RECORDINGS } from './replay';
+import type { Notice } from './session';
+import type { SourceConfig } from './source';
+import { NO_LOCAL, passUntilYourTurnDone, toGameView, type LiveLocal } from './toView';
+
+/** Shown until the first snapshot names the players. */
+export function placeholderView(what: string): GameView {
+  return {
+    id: 'live-pending',
+    format: 'commander',
+    youId: 'pending',
+    players: [
+      {
+        id: 'pending',
+        name: 'You',
+        seat: 0,
+        isYou: true,
+        isAi: false,
+        life: 0,
+        startingLife: 0,
+        poison: 0,
+        counters: [],
+        handCount: 0,
+        libraryCount: 0,
+        hand: [],
+        battlefield: [],
+        graveyard: [],
+        exile: [],
+        command: [],
+        commanders: [],
+        commanderCasts: {},
+        commanderDamageTaken: [],
+        landsPlayedThisTurn: 0,
+        hasLost: false,
+      },
+    ],
+    cards: {},
+    stack: [],
+    turn: { number: 0, activePlayerId: 'pending', step: 'untap' },
+    decision: { kind: 'waiting', forPlayerId: 'pending', what },
+    autoPass: false,
+    autoYield: false,
+    autoYieldTo: [],
+    passingUntilYourTurn: false,
+    log: [],
+  };
+}
+
+const NOOP_SUBSCRIBE = () => () => {};
+
+export interface LiveApi {
+  game: GameView;
+  canUndo: boolean;
+  send: (intent: Intent) => void;
+  /** Newest engine message or rejection, shown once in the prompt line. */
+  notice?: Notice;
+}
+
+/** Undefined for the mock source; hooks run either way. */
+export function useLive(config: SourceConfig, stops: StopPrefs = DEFAULT_STOPS): LiveApi | undefined {
+  const [source, setSource] = useState<LiveSource>();
+  const [error, setError] = useState<string>();
+  const [imagesVersion, imagesChanged] = useReducer((n: number) => n + 1, 0);
+  const [images] = useState(() => new ImageResolver(imagesChanged));
+  const [local, setLocal] = useState<LiveLocal>(NO_LOCAL);
+
+  useEffect(() => {
+    if (config.kind === 'mock') return;
+    let src: LiveSource | undefined;
+    let cancelled = false;
+    const ready: Promise<LiveSource> =
+      config.kind === 'live'
+        ? Promise.resolve(connectLive(streamUrl(config.url, config.token, config.seat)))
+        : (RECORDINGS[config.recording]?.() ?? Promise.reject(new Error(`Unknown recording "${config.recording}"`))).then((text) =>
+            replaySource(parseRecording(text), { at: config.at, stepMs: config.stepMs }),
+          );
+    ready
+      .then((s) => {
+        src = s;
+        if (cancelled) s.close();
+        else setSource(s);
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setError(String(e));
+      });
+    return () => {
+      cancelled = true;
+      src?.close();
+    };
+  }, [config]);
+
+  const version = useSyncExternalStore(source?.subscribe ?? NOOP_SUBSCRIBE, () => source?.version ?? -1);
+
+  const game = useMemo(() => {
+    if (config.kind === 'mock') return undefined;
+    if (error) return placeholderView(error);
+    if (!source) return placeholderView('Loading');
+    if (!source.session.gameObject?.props.Players?.length) {
+      return placeholderView(source.status === 'open' ? 'Waiting for the game to start' : 'Connecting to the bridge');
+    }
+    return toGameView(source.session, images.lookup, local);
+    // version / imagesVersion track every session and image change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config, source, error, version, imagesVersion, images, local]);
+
+  // Dev only: the current view-model, for checks from the browser console or Playwright.
+  useEffect(() => {
+    if (import.meta.env.DEV && game) Object.assign(window, { __liveGame: game });
+  }, [game]);
+
+  const send = useCallback(
+    (intent: Intent) => {
+      if (!source || !game) return;
+      if (intent.type === 'setAutoPay') setLocal((l) => ({ ...l, autoPay: intent.on }));
+      if (intent.type === 'passUntilYourTurn') setLocal((l) => ({ ...l, passingUntilYourTurn: true, passFromTurn: game.turn.number }));
+      if (intent.type === 'cancelPassUntilYourTurn') setLocal((l) => ({ ...l, passingUntilYourTurn: false }));
+      source.send(intentToFrames(intent, source.session, game));
+    },
+    [source, game],
+  );
+
+  // "To my turn" ends when your next turn comes (pressed on your own turn: the one after it).
+  // Adjusting state during render: React's pattern for state derived from a change.
+  if (game && local.passingUntilYourTurn && passUntilYourTurnDone(game, local.passFromTurn ?? -1)) {
+    setLocal((l) => ({ ...l, passingUntilYourTurn: false }));
+  }
+
+  // Auto-pay: answer each payment with "Auto" once, when the engine can pay it.
+  const paid = useRef<string>(undefined);
+  const d = game?.decision;
+  // One "Auto" per payment: the key is the payment, not its card or cost (both can change while it settles).
+  const payKey = d?.kind === 'payMana' && d.autoCanPay ? String(source?.session.payment?.seq ?? '') : undefined;
+  useEffect(() => {
+    if (!local.autoPay || !payKey || paid.current === payKey || !source) return;
+    paid.current = payKey;
+    source.send([{ t: 'action', method: 'selectButtonOk' }]);
+  }, [local.autoPay, payKey, source]);
+
+  // Phase stops → the engine (the bridge skips none until told): on connect, on a new game or player list, on every edit.
+  const stopsKey =
+    config.kind === 'live' && source?.status === 'open' && game && game.id !== 'live-pending'
+      ? `${game.id}|${game.youId}|${game.players.map((p) => p.id).join(',')}|${JSON.stringify(stops)}`
+      : undefined;
+  const sentStops = useRef<string>(undefined);
+  useEffect(() => {
+    if (!stopsKey || !source || !game || sentStops.current === stopsKey) return;
+    sentStops.current = stopsKey;
+    source.send(stopFrames(game, (turnPlayerId, step) => isStop(stops, game.youId, turnPlayerId, step)));
+    // stopsKey covers game and stops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stopsKey, source]);
+
+  const canUndo = !!source && source.session.input.cancel.enabled && source.session.input.cancel.label.startsWith('Undo');
+  const notice = source?.session.notices.at(-1);
+  return useMemo(
+    () => (game ? { game, canUndo, send, notice } : undefined),
+    [game, canUndo, send, notice],
+  );
+}

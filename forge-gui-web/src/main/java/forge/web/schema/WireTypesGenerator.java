@@ -123,19 +123,7 @@ public final class WireTypesGenerator {
 
         o.section("Envelope: server -> client JSON text frames");
         o.block("export interface LogEntry", List.of("type: GameLogEntryType;", "msg: string;"));
-        List<String> messageNames = new ArrayList<>();
-        for (WireEnvelope.Message msg : WireEnvelope.MESSAGES) {
-            messageNames.add(msg.tsName());
-            List<String> fields = new ArrayList<>();
-            for (WireEnvelope.Field f : msg.fields()) {
-                if (f.doc() != null) {
-                    fields.add("/** " + f.doc() + " */");
-                }
-                fields.add(f.name() + (f.optional() ? "?: " : ": ") + f.ts() + ";");
-            }
-            o.line("/** " + msg.doc() + " */");
-            o.block("export interface " + msg.tsName(), fields);
-        }
+        List<String> messageNames = messages(o, WireEnvelope.MESSAGES);
         o.line("export type ServerMessage = " + String.join(" | ", messageNames) + ";");
         o.blank();
 
@@ -160,7 +148,46 @@ public final class WireTypesGenerator {
         o.blank();
         o.line("/** Java return type of each method; undefined = no reply. */");
         o.block("export interface ProtocolReturns", returns);
+
+        o.section("Human seat: server -> seat (after hello and snapshot) and seat -> server");
+        for (WireEnvelope.Decl d : WireEnvelope.SEAT_TYPES) {
+            o.line("/** " + d.doc() + " */");
+            for (String l : d.ts().split("\n")) {
+                o.line(l);
+            }
+            o.blank();
+        }
+        List<String> seat = messages(o, WireEnvelope.SEAT_MESSAGES);
+        List<String> prompts = new ArrayList<>();
+        for (WireEnvelope.Message msg : WireEnvelope.SEAT_MESSAGES) {
+            if ("prompt".equals(msg.t())) {
+                prompts.add(msg.tsName());
+            }
+        }
+        o.line("export type PromptMessage = " + String.join(" | ", prompts) + ";");
+        o.line("export type SeatMessage = " + String.join(" | ", seat) + ";");
+        o.blank();
+        List<String> fromClient = messages(o, WireEnvelope.CLIENT_MESSAGES);
+        o.line("export type ClientMessage = " + String.join(" | ", fromClient) + ";");
         return o.toString();
+    }
+
+    /** One interface per message; returns their names. */
+    private static List<String> messages(Out o, List<WireEnvelope.Message> list) {
+        List<String> names = new ArrayList<>();
+        for (WireEnvelope.Message msg : list) {
+            names.add(msg.tsName());
+            List<String> fields = new ArrayList<>();
+            for (WireEnvelope.Field f : msg.fields()) {
+                if (f.doc() != null) {
+                    fields.add("/** " + f.doc() + " */");
+                }
+                fields.add(f.name() + (f.optional() ? "?: " : ": ") + f.ts() + ";");
+            }
+            o.line("/** " + msg.doc() + " */");
+            o.block("export interface " + msg.tsName(), fields);
+        }
+        return names;
     }
 
     private static List<String> props(WireModel m, String objectType) {
