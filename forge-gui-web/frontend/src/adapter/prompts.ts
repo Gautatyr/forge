@@ -38,11 +38,27 @@ function option(c: PromptChoice, cards: Record<string, CardView>, players?: read
   return o;
 }
 
-/** "Title\nmore" → title "Title", instruction the whole text. */
+/** A single line longer than this is split at an early "Card name: " into title and instruction. */
+const LONG_LINE = 80;
+
+/**
+ * An engine message as tray words, never the same line twice: "Cultivate (12)\nSelect up to 2…" → title
+ * "Cultivate" (no engine card id), instruction the other lines; one line → the title alone, unless it is a
+ * long "Card name: rule text" line (the card names the tray). An engine title is kept as the title.
+ */
+export function promptWords(message: string | null | undefined, title: string | undefined, fallback: string) {
+  const lines = (message ?? '').split('\n').map((l) => l.trim()).filter(Boolean);
+  const head = title?.trim();
+  if (head) return { title: head, instruction: lines.join('\n') === head ? '' : lines.join('\n') };
+  if (lines.length > 1) return { title: lines[0]!.replace(/\s*\(\d+\)$/, ''), instruction: lines.slice(1).join('\n') };
+  const line = lines[0] ?? '';
+  const colon = line.indexOf(': ');
+  if (line.length > LONG_LINE && colon > 0 && colon < 60) return { title: line.slice(0, colon), instruction: line.slice(colon + 2) };
+  return { title: line || fallback, instruction: '' };
+}
+
 function words(p: { message?: string | null; title?: string }, fallback: string) {
-  const message = (p.message ?? '').trim();
-  const title = p.title?.trim() || message.split('\n')[0] || fallback;
-  return { title, instruction: message || title };
+  return promptWords(p.message, p.title, fallback);
 }
 
 const cardOf = (ref: { type: string; id: number } | undefined, cards: Record<string, CardView>): CardId | undefined =>
@@ -227,12 +243,7 @@ export function inputToChoice(input: InputState, view: Pick<GameView, 'players' 
     }
     return bottomPrompt(hand, n, (id) => view.cards[id]?.name ?? 'Card', `${INPUT_PROMPT_PREFIX}bottom:${n}:${hand.join(',')}`);
   }
-  const lines = msg.split('\n');
-  const base = {
-    title: lines[0] || 'Your decision',
-    instruction: msg || 'Your decision',
-    sourceCardId,
-  };
+  const base = { ...promptWords(msg, undefined, 'Your decision'), sourceCardId };
   const key = `${input.ok.label}|${input.cancel.label}|${msg}`;
   if (input.ok.enabled && input.cancel.enabled) {
     return {

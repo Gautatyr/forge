@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CardView } from '../model/types';
 import type { PromptChoice, PromptMessage } from './protocol';
-import { inputToChoice, promptToChoice, replyValue } from './prompts';
+import { inputToChoice, promptToChoice, promptWords, replyValue } from './prompts';
 import { NO_INPUT } from './session';
 
 const cards = { '12': { id: '12', name: 'Llanowar Elves' } as CardView };
@@ -56,6 +56,27 @@ describe('prompt → choice tray', () => {
     const nums = ['0', '1', '2', '3'].map((label, i) => ({ i, label }));
     expect(promptToChoice(choose('getChoices', 1, 1, { choices: nums }), cards)).toMatchObject({ shape: 'input', kind: 'number', min: 0, max: 3 });
     expect(replyValue(choose('getChoices', 1, 1, { choices: nums }), { shape: 'input', value: '2' })).toEqual([2]);
+  });
+
+  it('never shows the same line as title and instruction', () => {
+    // one line: the title alone
+    expect(promptWords('Play first?', undefined, 'Confirm')).toEqual({ title: 'Play first?', instruction: '' });
+    // what asks (no engine card id), then the rest
+    expect(promptWords('Cultivate (12)\nSelect up to 2 cards from your library', undefined, 'Choose')).toEqual({
+      title: 'Cultivate',
+      instruction: 'Select up to 2 cards from your library',
+    });
+    // an engine title equal to the message
+    expect(promptWords('Choose a colour', 'Choose a colour', 'Choose')).toEqual({ title: 'Choose a colour', instruction: '' });
+    expect(promptWords('', undefined, 'Choose')).toEqual({ title: 'Choose', instruction: '' });
+    // a long "Card: rule text" line: the card names the tray, the rule is the instruction
+    const rule =
+      'Szarekh, the Silent King: If a commander is in a graveyard or in exile and that card was put into that zone since the last time state-based actions were checked, its owner may put it into the command zone.';
+    expect(promptWords(rule, undefined, 'Confirm')).toEqual({
+      title: 'Szarekh, the Silent King',
+      instruction:
+        'If a commander is in a graveyard or in exile and that card was put into that zone since the last time state-based actions were checked, its owner may put it into the command zone.',
+    });
   });
 
   it('maps confirm to yes/no with the server labels and default', () => {
@@ -151,7 +172,7 @@ describe('button inputs → tray', () => {
 
   it('turns other two-button inputs into yes/no with the button labels', () => {
     const p = inputToChoice({ ...NO_INPUT, message: 'Use the ability?\nmore', ok: { label: 'Yes', enabled: true }, cancel: { label: 'No', enabled: true } }, view);
-    expect(p).toMatchObject({ shape: 'yesNo', title: 'Use the ability?', yesLabel: 'Yes', noLabel: 'No' });
+    expect(p).toMatchObject({ shape: 'yesNo', title: 'Use the ability?', instruction: 'more', yesLabel: 'Yes', noLabel: 'No' });
     expect(p?.id.startsWith('input:buttons:')).toBe(true);
   });
 

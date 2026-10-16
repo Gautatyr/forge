@@ -14,6 +14,7 @@ Audience: the owner and friends, possibly the public later. Never monetised.
 | File | Content |
 |---|---|
 | [decisions.md](decisions.md) | Decision log. Read this first. |
+| [PLAY.md](PLAY.md) | Owner's guide: play a Commander game in the new match screen (`make play`), what works, limits, back to Swing. |
 | [design/match-screen-decisions.md](design/match-screen-decisions.md) | Owner's rulings on the match-screen design. Overrides the memo where they differ. |
 | [design/product-decisions-pass-4.md](design/product-decisions-pass-4.md) | Design pass 4: review of the prototype, every screen missing for a full Commander game, implementation split. |
 | [design/keyword-icons.html](design/keyword-icons.html) | Approved keyword icon set (Mana font), with names and one-line explanations. Open in a browser. |
@@ -54,6 +55,6 @@ mvn -pl forge-gui-desktop -am compile dependency:build-classpath -Dmdep.outputFi
 java -cp "target/classes:"(cat target/cp.txt) forge.view.Main sim -D ../forge-gui/res/geneticaidecks -d "<deck1>.dck" "<deck2>.dck" -n 10 -q
 ```
 
-Play with the web match screen: `make play` (desktop lobby; Start opens the match in the browser). See `forge-gui-desktop-web/CLAUDE.md`.
+Play with the web match screen: `make play` (desktop lobby; Start opens the match in the browser). Steps: [PLAY.md](PLAY.md); internals: `forge-gui-desktop-web/CLAUDE.md`.
 
 The desktop app finds its `res/` folder through `GuiDesktop.getAssetsDir()` (`forge-gui-desktop/src/main/java/forge/GuiDesktop.java:87`): `../forge-gui/` when the version string contains "git", otherwise the working directory.

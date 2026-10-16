@@ -27,7 +27,7 @@ import type {
 } from '../model/types';
 import type { CardProps, CardStateProps, PhaseType, PlayerProps, ZoneType } from '../wire/generated/wire';
 import { parseImageKey, scryfallLookup, type ImageLookup } from './images';
-import { promptToChoice, inputToChoice, SELECT_PROMPT_PREFIX, targetKey } from './prompts';
+import { promptToChoice, promptWords, inputToChoice, SELECT_PROMPT_PREFIX, targetKey } from './prompts';
 import type { LiveSession } from './session';
 
 const STEP_OF: Record<PhaseType, StepId> = {
@@ -283,14 +283,13 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
   // Cards the engine shows you (an opponent's hand, a revealed card): look, then OK.
   const shown = s.revealed.map(sid).filter((id) => view.cards[id]);
   if (shown.length && input.ok.enabled && !/^Priority:/.test(input.message)) {
-    const msg = input.message.trim() || 'Revealed cards';
+    const msg = input.message.trim();
     return {
       kind: 'choice',
       prompt: {
         id: `input:ok:reveal:${shown.join(',')}`,
         shape: 'chooseN',
-        title: msg.split('\n')[0]!,
-        instruction: msg,
+        ...promptWords(msg, undefined, 'Revealed cards'),
         confirmLabel: input.ok.label || 'OK',
         min: 0,
         max: 0,
@@ -347,18 +346,14 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
       t.kind === 'player' || ['battlefield', 'stack'].includes(view.cards[t.id]!.zone) || youView.hand.includes(t.id);
     if (legal.length && (!castCard() || !legal.every(onBoard))) {
       const msg = input.message.replace(/\s*\(Click on the portrait\.?\)/i, '').trim();
-      const lines = msg.split('\n').map((l) => l.trim()).filter(Boolean);
       const source = known(input.cardId);
-      // "Cultivate (12)\nSelect up to 2 cards from your library", "Cleanup Phase\nSelect 2 card(s) to discard…":
-      // what asks (without the engine's card id), then the question; a single line is the title alone.
-      const title = lines.length > 1 ? lines[0]!.replace(/\s*\(\d+\)$/, '') : (lines[0] ?? 'Choose');
       return {
         kind: 'choice',
         prompt: {
           id: `${SELECT_PROMPT_PREFIX}${legal.map(targetKey).join(',')}|${msg}`,
           shape: 'chooseN',
-          title,
-          instruction: lines.length > 1 ? lines.at(-1)! : '',
+          // "Cultivate (12)\nSelect up to 2 cards from your library", "Cleanup Phase\nSelect 2 card(s) to discard…"
+          ...promptWords(msg, undefined, 'Choose'),
           ...(source ? { sourceCardId: source } : {}),
           confirmLabel: input.ok.label || 'OK',
           options: legal.map((t) => ({

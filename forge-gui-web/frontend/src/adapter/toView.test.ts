@@ -227,6 +227,14 @@ describe('payment and reveals', () => {
     expect(g.players[0]!.battlefield).toEqual(['30']);
   });
 
+  it('shows a one-line reveal message once', () => {
+    const s = session();
+    s.apply({ t: 'call', method: 'showRevealedCards', args: [[card(20)]] });
+    buttons(s, 'OK', '', "Looking at cards in AI's hand");
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', '', true, false, true] });
+    expect(toGameView(s).decision).toMatchObject({ kind: 'choice', prompt: { title: "Looking at cards in AI's hand", instruction: '' } });
+  });
+
   it('shows revealed cards in the tray until OK', () => {
     const s = session();
     s.apply({ t: 'call', method: 'showRevealedCards', args: [[card(20)]] });
