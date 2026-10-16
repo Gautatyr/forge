@@ -100,10 +100,7 @@ final class TriggerAudit {
     private final List<SpellAbility> putting = new ArrayList<>();
     /** View ids of this seat's triggers cast, with a description. */
     private final Map<Integer, String> cast = new HashMap<>();
-    /**
-     * Triggers cast and still to leave the stack, by view id and count: the engine reuses a trigger's id when it
-     * triggers again (e.g. twice at once), and matches stack instances by that id too.
-     */
+    /** Triggers cast for the seat ({@link #handed}) and still to leave the stack, by view id and count. */
     private final Map<Integer, Integer> left = new HashMap<>();
     /** The last spell or ability that resolved: its own removal from the stack follows. */
     private int justResolved = -1;
