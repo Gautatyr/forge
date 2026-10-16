@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type FocusEvent, type MouseEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type FocusEvent, type MouseEvent } from 'react';
 import { currentFace, isCreature } from '../model/selectors';
 import type { CardView } from '../model/types';
 import { useCardClick } from '../state/cardClick';
@@ -100,12 +100,28 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
   const showTapped = c.tapped && onBoard && !s.attacking;
   const hasIcons = onBoard && c.zone === 'battlefield' && iconKeywords(c.keywords).length > 0;
 
+  // Whether the pointer or focus is on this element: it started the hover and must end it.
+  const hovered = useRef(false);
   const hover = (e: MouseEvent | FocusEvent) => {
+    hovered.current = true;
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const side = r.left + r.width / 2 < window.innerWidth / 2 ? 'right' : 'left';
     setUi((u) => (u.hover?.cardId === c.id && u.hover.side === side ? u : { ...u, hover: { cardId: c.id, side } }));
   };
-  const unhover = () => setUi((u) => (u.hover?.cardId === c.id ? { ...u, hover: undefined } : u));
+  const unhover = () => {
+    hovered.current = false;
+    setUi((u) => (u.hover?.cardId === c.id ? { ...u, hover: undefined } : u));
+  };
+  // pointerleave and blur never fire on an element taken off the page (a land played from the hand, a spell
+  // cast): end the hover when the hovered element goes, or the preview stays up until another card is hovered.
+  useEffect(() => {
+    const id = c.id;
+    return () => {
+      if (!hovered.current) return;
+      hovered.current = false;
+      setUi((u) => (u.hover?.cardId === id ? { ...u, hover: undefined } : u));
+    };
+  }, [c.id, setUi]);
   const actions: CardActions = {
     activate: () => {
       if (onActivate) return onActivate();
