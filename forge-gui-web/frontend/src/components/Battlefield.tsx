@@ -1,8 +1,8 @@
 import type { CSSProperties } from 'react';
-import { commanderTax, isLand } from '../model/selectors';
+import { isLand } from '../model/selectors';
 import type { CardView, GameView, PlayerView } from '../model/types';
 import { useMatch } from '../state/MatchContext';
-import { groupPermanents as group, inCreatureRow, type Entry } from './battlefieldGroups';
+import { commandEntries, groupPermanents as group, inCreatureRow, type Entry } from './battlefieldGroups';
 import { fitBattlefield, fitRow, RATIO, STAGGER_RAISE, type LayoutItem, type RowFit } from './battlefieldLayout';
 import { Card } from './Card';
 import { useSize } from './useSize';
@@ -96,12 +96,7 @@ export function Battlefield({ player, rows = 'all' }: Props) {
   const creatures = group(cards.filter(inCreatureRow), game, ui, prefs);
   const others = group(cards.filter((c) => !inCreatureRow(c) && !isLand(c)), game, ui, prefs);
   const lands = group(cards.filter((c) => isLand(c) && !inCreatureRow(c)), game, ui, prefs);
-  const command: Entry[] = player.command.flatMap((id) => {
-    const c = game.cards[id];
-    if (!c) return [];
-    const tax = commanderTax(player, id);
-    return [{ card: c, ids: [id], caption: { label: 'Command zone', detail: tax > 0 ? `tax +${tax}` : '' } }];
-  });
+  const command = commandEntries(player, game);
   if (others.length && lands.length) lands[0] = { ...lands[0]!, separator: true };
   if ((others.length || lands.length) && command.length) command[0] = { ...command[0]!, separator: true };
   const support = rows === 'creatures' ? [] : [...others, ...lands, ...command];

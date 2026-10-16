@@ -28,13 +28,13 @@ import forge.model.FModel;
 import forge.web.HeadlessWebGui;
 
 /** Boots the engine once per test JVM with an isolated profile and builds bare games. */
-final class TestEngine {
+public final class TestEngine {
 
     private static boolean booted;
 
     private TestEngine() { }
 
-    static synchronized void boot() {
+    public static synchronized void boot() {
         if (booted) {
             return;
         }
@@ -61,7 +61,7 @@ final class TestEngine {
         booted = true;
     }
 
-    static Game newGame(int players) {
+    public static Game newGame(int players) {
         boot();
         List<RegisteredPlayer> rps = new ArrayList<>();
         for (int i = 0; i < players; i++) {
@@ -73,7 +73,7 @@ final class TestEngine {
         return game;
     }
 
-    static Card add(String name, Player p, ZoneType zone) {
+    public static Card add(String name, Player p, ZoneType zone) {
         IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
         if (paper == null) {
             StaticData.instance().attemptToLoadCard(name);

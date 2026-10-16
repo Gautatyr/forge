@@ -1,5 +1,7 @@
 package forge.web.server;
 
+import com.google.gson.JsonObject;
+
 import forge.web.bridge.ClientSink;
 import forge.web.bridge.GameStream;
 
@@ -19,6 +21,12 @@ public interface StreamHub {
     String snapshot(int seat);
 
     String metricsJson();
+
+    /**
+     * A message from a seat's client (a prompt reply or a player action), on the channel's event
+     * loop: must not block. {@code seat} comes from the client's token, never from the message.
+     */
+    default void clientMessage(int seat, JsonObject msg, ClientSink from) { }
 
     static StreamHub of(GameStream stream) {
         return new StreamHub() {
@@ -45,6 +53,11 @@ public interface StreamHub {
             @Override
             public String metricsJson() {
                 return stream.metricsJson();
+            }
+
+            @Override
+            public void clientMessage(int seat, JsonObject msg, ClientSink from) {
+                stream.clientMessage(seat, msg, from);
             }
         };
     }

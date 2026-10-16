@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react';
-import { player } from '../model/selectors';
+import { player, you } from '../model/selectors';
 import { SCENARIOS } from '../mock/scenarios';
 import { SHORTCUTS } from '../state/keymap';
 import { useMatch } from '../state/MatchContext';
@@ -170,8 +170,9 @@ export function ShortcutsOverlay() {
 }
 
 export function GameMenu() {
-  const { ui, setUi } = useMatch();
+  const { ui, setUi, game } = useMatch();
   if (ui.overlay !== 'menu') return null;
+  const canConcede = !game.result && !you(game).hasLost;
   return (
     <Popover title="Game" onClose={() => setUi({ overlay: undefined })} className={styles.menu}>
       <button type="button" className={styles.menuItem} onClick={() => setUi({ overlay: 'display' })}>
@@ -180,8 +181,14 @@ export function GameMenu() {
       <button type="button" className={styles.menuItem} disabled title="Opens Forge's Yield Settings window (Swing) in the real app">
         <Icon name="hourglass" /> Yield and stop settings…
       </button>
-      <button type="button" className={`${styles.menuItem} ${styles.danger}`} disabled title="Not wired in the mockup">
-        <Icon name="close" /> Concede this game
+      <button
+        type="button"
+        className={`${styles.menuItem} ${styles.danger}`}
+        disabled={!canConcede}
+        title={canConcede ? undefined : "You're already out of this game"}
+        onClick={() => setUi({ overlay: 'concede' })}
+      >
+        <Icon name="close" /> Concede game…
       </button>
     </Popover>
   );

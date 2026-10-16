@@ -1,28 +1,155 @@
-import type { CSSProperties } from 'react';
-import type { ChoiceOption, ChooseNPrompt, OrderPrompt } from '../model/types';
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { opponents, player } from '../model/selectors';
+import type { ChoicePrompt } from '../model/types';
 import { useMatch } from '../state/MatchContext';
-import { draftFor, primaryAction } from '../state/primaryAction';
 import type { ChoiceDraft } from '../state/ui';
 import { Card } from './Card';
-import { Icon } from './Icon';
+import { Icon, SeatGlyph } from './Icon';
+import { AbilityMenu } from './tray/AbilityMenu';
+import { TrayBody } from './tray/TrayBody';
+import {
+  counterText,
+  FILTER_FROM,
+  inPlaceRefs,
+  initialDraft,
+  isAbilityMenu,
+  isReveal,
+  keyAction,
+  trayConfirm,
+  trayDraft,
+  visibleOptions,
+} from './tray/trayLogic';
 import styles from './ChoiceTray.module.css';
 
 /**
- * Non-modal tray for every off-board question (choose N, order, yes/no,
- * distribute, type a value). It never covers the opponents, and "Peek at
- * board" folds it away until you bring it back.
+ * Every question the engine asks outside targeting and combat (design pass 4
+ * §2.2). Non-modal and over your board only. Three presentations:
+ * - the tray (choose N, yes/no, order, reveal, and the number shapes of #31);
+ * - a one-line bar when the options are picked in place on the board;
+ * - the ability menu, anchored to its card.
  */
 export function ChoiceTray() {
-  const { game, ui, prefs, setUi, send } = useMatch();
+  const { game } = useMatch();
   const d = game.decision;
   if (d.kind !== 'choice') return null;
-  const prompt = d.prompt;
-  const draft = draftFor(prompt, ui.choiceDraft);
-  const setDraft = (next: ChoiceDraft) => setUi({ choiceDraft: next });
-  const action = primaryAction(game, ui, prefs.stops);
-  const source = prompt.sourceCardId ? game.cards[prompt.sourceCardId] : undefined;
+  return <PromptView key={d.prompt.id} prompt={d.prompt} />;
+}
 
-  if (ui.trayPeek) {
+function PromptView({ prompt }: { prompt: ChoicePrompt }) {
+  const { game, ui, prefs, setUi, send } = useMatch();
+  const [query, setQuery] = useState('');
+  const draft = trayDraft(prompt, ui.choiceDraft);
+  const setDraft = (next: ChoiceDraft) => setUi({ choiceDraft: next });
+  const confirm = trayConfirm(prompt, draft);
+  const answer = () => confirm.answer && send({ type: 'answer', promptId: prompt.id, answer: confirm.answer });
+  const refs = inPlaceRefs(game, prompt);
+  const mode = isAbilityMenu(prompt) ? 'menu' : refs ? 'inPlace' : ui.trayPeek ? 'peek' : 'tray';
+  // The tray may grow to the height of your board (the opponents keep theirs).
+  const yourShare = opponents(game).length === 1 ? 50 : 100 - prefs.opponentShare;
+  const barRef = useRef<HTMLDivElement>(null);
+
+  // The in-place bar sits at the bottom centre of your board; when that covers
+  // an option, it takes the corner of your board that covers the fewest.
+  useLayoutEffect(() => {
+    const el = barRef.current;
+    const area = el?.offsetParent;
+    if (!el || !refs || !(area instanceof HTMLElement)) return;
+    const covered = () => {
+      const b = el.getBoundingClientRect();
+      const opts = [
+        ...[...refs.cards.keys()].flatMap((id) => [...area.querySelectorAll(`[data-card-id="${CSS.escape(id)}"]`)]),
+        ...[...refs.players.keys()].flatMap((id) => [...area.querySelectorAll(`[data-player-id="${CSS.escape(id)}"]`)]),
+      ];
+      return opts.filter((o) => {
+        const r = o.getBoundingClientRect();
+        return r.bottom > b.top && r.top < b.bottom && r.right > b.left && r.left < b.right;
+      }).length;
+    };
+    const set = (s: Partial<Record<'top' | 'bottom' | 'left' | 'right' | 'transform', string>>) => {
+      el.style.top = s.top ?? '';
+      el.style.bottom = s.bottom ?? '';
+      el.style.left = s.left ?? '';
+      el.style.right = s.right ?? '';
+      el.style.transform = s.transform ?? '';
+    };
+    let frame = 0;
+    // Every frame while open: the board lays itself out after paint and reflows.
+    const place = () => {
+      frame = requestAnimationFrame(place);
+      set({});
+      if (covered() === 0) return;
+      const gap = `${area.clientHeight - el.offsetTop - el.offsetHeight}px`;
+      const top = { top: `calc(${100 - yourShare}% + ${gap})`, bottom: 'auto' };
+      const right = { left: 'auto', right: gap, transform: 'none' };
+      const left = { left: gap, transform: 'none' };
+      // Bottom centre first, then the other corners of your board: the first that covers the fewest options.
+      const spots = [{}, top, right, { ...top, ...right }, left, { ...top, ...left }];
+      let best = spots[0]!;
+      let fewest = Infinity;
+      for (const s of spots) {
+        set(s);
+        const n = covered();
+        if (n < fewest) [best, fewest] = [s, n];
+        if (n === 0) break;
+      }
+      set(best);
+    };
+    place();
+    return () => cancelAnimationFrame(frame);
+  });
+  const filterable = prompt.shape === 'chooseN' && prompt.options.length > FILTER_FROM;
+  const visible =
+    prompt.shape === 'chooseN' && mode === 'tray'
+      ? visibleOptions(prompt.options, filterable ? query : '', (id) => game.cards[id]?.front.typeLine)
+      : [];
+
+  // Store the starting draft so the main button (primaryAction) answers the
+  // engine's default too, e.g. a yes/no whose default is "no".
+  const stored = ui.choiceDraft?.promptId === prompt.id;
+  useEffect(() => {
+    if (!stored) setUi({ choiceDraft: initialDraft(prompt) });
+  }, [stored, prompt, setUi]);
+
+  // Capture phase, so the prompt's keys win over the screen's shortcuts.
+  const onKey = useEffectEvent((e: KeyboardEvent) => {
+    if (e.ctrlKey || e.metaKey || ui.inspectId || ui.overlay) return;
+    const el = e.target as HTMLElement | null;
+    const inInput = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT');
+    const a = keyAction(prompt, draft, visible, { key: e.key, alt: e.altKey, inInput });
+    if (!a || (a.kind === 'peek' && mode !== 'tray' && mode !== 'peek')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (a.kind === 'answer') send({ type: 'answer', promptId: prompt.id, answer: a.answer });
+    else if (a.kind === 'draft') setDraft(a.draft);
+    else setUi((u) => ({ ...u, trayPeek: !u.trayPeek }));
+  });
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => onKey(e);
+    window.addEventListener('keydown', h, true);
+    return () => window.removeEventListener('keydown', h, true);
+  }, []);
+
+  if (mode === 'menu' && prompt.shape === 'chooseN') return <AbilityMenu prompt={prompt} />;
+
+  const counter = prompt.shape === 'chooseN' && !isReveal(prompt) ? counterText(prompt, draft.selected.length) : '';
+  const confirmButton = (
+    <button type="button" className={styles.confirm} disabled={!confirm.enabled} onClick={answer}>
+      {confirm.label}
+      {confirm.enabled ? <kbd>Space</kbd> : null}
+    </button>
+  );
+
+  if (mode === 'inPlace') {
+    return (
+      <div ref={barRef} className={`${styles.tray} ${styles.bar}`} role="region" aria-label={prompt.title}>
+        <h2 className={styles.barTitle}>{prompt.title}</h2>
+        <span className={styles.status}>{counter}</span>
+        {confirmButton}
+      </div>
+    );
+  }
+
+  if (mode === 'peek') {
     return (
       <div className={`${styles.tray} ${styles.peek}`} role="region" aria-label={`${prompt.title} (hidden while you look at the board)`}>
         <span className={styles.peekTitle}>
@@ -37,13 +164,32 @@ export function ChoiceTray() {
     );
   }
 
+  const source = prompt.sourceCardId ? game.cards[prompt.sourceCardId] : undefined;
+  const by = prompt.byPlayerId ? player(game, prompt.byPlayerId) : undefined;
+  const footer =
+    prompt.shape === 'yesNo' ? null : (
+      <footer className={styles.foot}>
+        <span className={styles.status}>
+          {counter || (prompt.shape === 'order' && prompt.lists.length > 1 ? 'Click a card to move it between the lists. Arrows reorder.' : '')}
+        </span>
+        {confirmButton}
+      </footer>
+    );
+
   return (
-    <div className={styles.tray} role="region" aria-label={prompt.title}>
+    <div className={styles.tray} role="region" aria-label={prompt.title} style={{ '--tray-max': `${yourShare}%` } as CSSProperties}>
       <header className={styles.head}>
         {source ? <Card card={source} context="thumb" style={{ '--cw': '2.6rem' } as CSSProperties} /> : null}
         <div className={styles.titles}>
-          <h2>{prompt.title}</h2>
-          <p>{prompt.instruction}</p>
+          <h2>
+            {by ? (
+              <span className={styles.byGlyph}>
+                <SeatGlyph seat={by.seat} />
+              </span>
+            ) : null}
+            {prompt.title}
+          </h2>
+          {prompt.instruction ? <p>{prompt.instruction}</p> : null}
         </div>
         <button type="button" className={styles.ghost} onClick={() => setUi({ trayPeek: true })}>
           <Icon name="eye" />
@@ -51,150 +197,23 @@ export function ChoiceTray() {
         </button>
       </header>
 
+      {filterable ? (
+        <div className={styles.filter}>
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Filter by name or type"
+            aria-label="Filter by name or type"
+          />
+        </div>
+      ) : null}
+
       <div className={styles.body}>
-        {prompt.shape === 'chooseN' ? <ChooseN prompt={prompt} draft={draft} setDraft={setDraft} /> : null}
-        {prompt.shape === 'order' ? <Order prompt={prompt} draft={draft} setDraft={setDraft} /> : null}
-        {prompt.shape === 'yesNo' ? (
-          <div className={styles.yesNo}>
-            {[
-              ['yes', prompt.yesLabel],
-              ['no', prompt.noLabel],
-            ].map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                className={`${styles.option} ${draft.selected[0] === id ? styles.chosen : ''}`}
-                aria-pressed={draft.selected[0] === id}
-                onClick={() => setDraft({ ...draft, selected: [id!] })}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        ) : null}
-        {prompt.shape === 'distribute' || prompt.shape === 'input' ? (
-          <p className={styles.note}>This prompt shape is specified in the view-model but not drawn in the mockup yet.</p>
-        ) : null}
+        <TrayBody prompt={prompt} draft={draft} setDraft={setDraft} visible={visible} send={send} />
       </div>
 
-      <footer className={styles.foot}>
-        <span className={styles.status}>{statusLine(prompt, draft)}</span>
-        <button
-          type="button"
-          className={styles.confirm}
-          disabled={!action.enabled}
-          onClick={() => action.intent && send(action.intent)}
-        >
-          {prompt.confirmLabel} <kbd>Space</kbd>
-        </button>
-      </footer>
-    </div>
-  );
-}
-
-function statusLine(prompt: ChooseNPrompt | OrderPrompt | { shape: string }, draft: ChoiceDraft): string {
-  if (prompt.shape === 'chooseN') {
-    const p = prompt as ChooseNPrompt;
-    const range = p.min === p.max ? `${p.max}` : p.min === 0 ? `up to ${p.max}` : `${p.min}–${p.max}`;
-    return `Chosen ${draft.selected.length} of ${range}. Keys 1–9 pick options.`;
-  }
-  if (prompt.shape === 'order') return 'Click a card to move it between the lists. Arrows reorder.';
-  return '';
-}
-
-function OptionTile({ o, index, chosen, onClick }: { o: ChoiceOption; index: number; chosen: boolean; onClick: () => void }) {
-  const { game } = useMatch();
-  const card = o.cardId ? game.cards[o.cardId] : undefined;
-  return (
-    <div className={`${styles.tile} ${chosen ? styles.tileChosen : ''}`}>
-      {card ? (
-        <Card card={card} context="thumb" style={{ '--cw': '6.6rem' } as CSSProperties} onActivate={onClick} ariaExtra={chosen ? 'chosen' : undefined} />
-      ) : null}
-      <button type="button" className={`${styles.option} ${chosen ? styles.chosen : ''}`} aria-pressed={chosen} onClick={onClick}>
-        <kbd>{index + 1}</kbd>
-        {chosen ? <Icon name="check" /> : null}
-        <span className={styles.optionLabel}>{o.label}</span>
-        {o.detail ? <span className={styles.optionDetail}>{o.detail}</span> : null}
-      </button>
-    </div>
-  );
-}
-
-function ChooseN({ prompt, draft, setDraft }: { prompt: ChooseNPrompt; draft: ChoiceDraft; setDraft: (d: ChoiceDraft) => void }) {
-  const toggle = (id: string) => {
-    const has = draft.selected.includes(id);
-    let selected = has ? draft.selected.filter((x) => x !== id) : [...draft.selected, id];
-    if (prompt.max === 1 && !has) selected = [id];
-    if (selected.length > prompt.max) return;
-    setDraft({ ...draft, selected });
-  };
-  return (
-    <div className={styles.options}>
-      {prompt.options.map((o, i) => (
-        <OptionTile key={o.id} o={o} index={i} chosen={draft.selected.includes(o.id)} onClick={() => toggle(o.id)} />
-      ))}
-    </div>
-  );
-}
-
-function Order({ prompt, draft, setDraft }: { prompt: OrderPrompt; draft: ChoiceDraft; setDraft: (d: ChoiceDraft) => void }) {
-  const { game } = useMatch();
-  const items = new Map(prompt.lists.flatMap((l) => l.items).map((i) => [i.id, i]));
-  const move = (itemId: string, from: string) => {
-    const to = prompt.lists.find((l) => l.id !== from)?.id;
-    if (!to) return;
-    setDraft({
-      ...draft,
-      lists: {
-        ...draft.lists,
-        [from]: (draft.lists[from] ?? []).filter((x) => x !== itemId),
-        [to]: [...(draft.lists[to] ?? []), itemId],
-      },
-    });
-  };
-  const shift = (listId: string, i: number, by: number) => {
-    const list = [...(draft.lists[listId] ?? [])];
-    const j = i + by;
-    if (j < 0 || j >= list.length) return;
-    [list[i], list[j]] = [list[j]!, list[i]!];
-    setDraft({ ...draft, lists: { ...draft.lists, [listId]: list } });
-  };
-  return (
-    <div className={styles.lists}>
-      {prompt.lists.map((l) => {
-        const ids = draft.lists[l.id] ?? [];
-        return (
-          <section key={l.id} className={styles.list} aria-label={l.label}>
-            <h3>
-              {l.label} <span>{l.hint}</span>
-            </h3>
-            <div className={styles.listCards}>
-              {ids.length === 0 ? <p className={styles.empty}>Empty — click a card on the other side to move it here.</p> : null}
-              {ids.map((id, i) => {
-                const o = items.get(id)!;
-                const card = o.cardId ? game.cards[o.cardId] : undefined;
-                const other = prompt.lists.find((x) => x.id !== l.id)!;
-                return (
-                  <div key={id} className={styles.orderItem}>
-                    {card ? <Card card={card} context="thumb" style={{ '--cw': '6.6rem' } as CSSProperties} onActivate={() => move(id, l.id)} /> : null}
-                    <div className={styles.orderControls}>
-                      <button type="button" onClick={() => shift(l.id, i, -1)} disabled={i === 0} aria-label={`Move ${o.label} left`}>
-                        ◀
-                      </button>
-                      <button type="button" className={styles.moveBtn} onClick={() => move(id, l.id)}>
-                        To {other.label.split(' ')[0]?.toLowerCase()}
-                      </button>
-                      <button type="button" onClick={() => shift(l.id, i, 1)} disabled={i === ids.length - 1} aria-label={`Move ${o.label} right`}>
-                        ▶
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        );
-      })}
+      {footer}
     </div>
   );
 }

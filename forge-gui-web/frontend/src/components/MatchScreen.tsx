@@ -1,13 +1,16 @@
 import { useEffect, useEffectEvent } from 'react';
 import { currentDefender } from '../state/focus';
+import { gameEndView, watching } from '../state/gameEnd';
 import { useMatch } from '../state/MatchContext';
-import { draftFor, primaryAction } from '../state/primaryAction';
+import { primaryAction } from '../state/primaryAction';
 import { Arrows } from './Arrows';
 import { Board } from './Board';
 import { ChoiceTray } from './ChoiceTray';
+import { ConcedeDialog, GameOverPanel, LeftMatch, OutToast, YouAreOut } from './GameEnd';
 import { Hand } from './Hand';
 import { HoverPreview } from './HoverPreview';
 import { Inspector } from './Inspector';
+import { liveManaChoice, ManaChooser } from './ManaChooser';
 import { DevPanel, DisplaySettings, GameMenu, LogDrawer, ShortcutsOverlay } from './Overlays';
 import { Rail } from './Rail';
 import { StopsPanel } from './StopsPanel';
@@ -29,8 +32,11 @@ export function MatchScreen() {
       if (e.key !== 'Escape') return;
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    // A game-end dialog or panel owns the keyboard while open (GameEnd.tsx).
+    if (gameEndView(game, ui) || ui.leftMatch) return;
     const d = game.decision;
     const key = e.key;
+    const manaChoice = liveManaChoice(game, ui);
 
     if (key === ' ') {
       e.preventDefault();
@@ -47,8 +53,9 @@ export function MatchScreen() {
       if (ui.inspectId) setUi({ inspectId: undefined });
       else if (ui.overlay) setUi({ overlay: undefined });
       else if (ui.logOpen) setUi({ logOpen: false });
+      else if (manaChoice) setUi({ manaChoice: undefined });
       else if (ui.pendingBlocker || ui.pendingAttacker) setUi({ pendingBlocker: undefined, pendingAttacker: undefined });
-      else if (d.kind === 'chooseTargets') send({ type: 'cancel' });
+      else if (d.kind === 'chooseTargets' || d.kind === 'payMana') send({ type: 'cancel' });
       else if (ui.zoneView) setUi({ zoneView: undefined });
       else if (ui.trayPeek) setUi({ trayPeek: false });
       return;
@@ -67,26 +74,26 @@ export function MatchScreen() {
       case 'p':
         return send({ type: 'setAutoPass', on: !game.autoPass });
       case 'z':
-        return send({ type: 'undo' });
+        if (game.result || watching(game)) return;
+        // While paying, Z undoes the last tap (design pass 4, §2.1).
+        return send(d.kind === 'payMana' ? { type: 'undoTap' } : { type: 'undo' });
       case 'a':
         if (d.kind === 'declareAttackers') {
           const defenderId = currentDefender(game, ui, prefs.layout);
           if (defenderId) send({ type: 'attackWithAll', defenderId });
         }
         return;
-      case 'v':
-        if (d.kind === 'choice') setUi((u) => ({ ...u, trayPeek: !u.trayPeek }));
-        return;
     }
-    if (/^[1-9]$/.test(key) && d.kind === 'choice' && d.prompt.shape === 'chooseN') {
-      const opt = d.prompt.options[Number(key) - 1];
-      if (!opt) return;
-      const draft = draftFor(d.prompt, ui.choiceDraft);
-      const has = draft.selected.includes(opt.id);
-      let selected = has ? draft.selected.filter((x) => x !== opt.id) : [...draft.selected, opt.id];
-      if (d.prompt.max === 1 && !has) selected = [opt.id];
-      if (selected.length <= d.prompt.max) setUi({ choiceDraft: { ...draft, selected } });
+    // A dual land's mana chooser: live only while paying or holding priority, so never alongside the tray.
+    if (/^[1-9]$/.test(key) && manaChoice) {
+      const colour = manaChoice.colours[Number(key) - 1];
+      if (colour) {
+        setUi({ manaChoice: undefined });
+        send({ type: 'tapForMana', cardId: manaChoice.cardId, colour });
+      }
+      return;
     }
+    // A prompt's own keys (1–9, V, Y/N, Space, Esc in the ability menu) are handled by ChoiceTray.
   });
 
   useEffect(() => {
@@ -95,6 +102,8 @@ export function MatchScreen() {
     return () => window.removeEventListener('keydown', h);
   }, []);
 
+  if (match.ui.leftMatch) return <LeftMatch />;
+
   return (
     <div className={styles.screen}>
       <TopBar />
@@ -102,16 +111,21 @@ export function MatchScreen() {
         <Board />
         <ChoiceTray />
         <StopsPanel />
+        <OutToast />
+        <YouAreOut />
       </main>
       <Rail />
       <Hand />
       <Arrows />
       <HoverPreview />
       <Inspector />
+      <ManaChooser />
       <LogDrawer />
       <DisplaySettings />
       <GameMenu />
       <ShortcutsOverlay />
+      <ConcedeDialog />
+      <GameOverPanel />
       <DevPanel />
     </div>
   );

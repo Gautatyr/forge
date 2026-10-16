@@ -83,6 +83,7 @@ describe('mock permanents carry printed and added keywords', () => {
     let g = scenarioById('priority').build();
     const hi = g.players[0]!.hand.find((id) => g.cards[id]!.name === 'Heroic Intervention')!;
     g = applyIntent(g, { type: 'play', cardId: hi });
+    g = applyIntent(g, { type: 'payAuto' }); // payment is manual by default
     g = applyIntent(g, { type: 'primary' });
     const eidolon = Object.values(g.cards).find((c) => c.name === 'Eidolon of Blossoms')!;
     expect(eidolon.keywords.filter((k) => k.grantedBy?.untilEndOfTurn).map((k) => [k.label, k.grantedBy!.name])).toEqual([

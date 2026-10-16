@@ -1,0 +1,86 @@
+/* Ability menu (design pass 4 P2): fixed, placed next to its card by AbilityMenu.tsx. */
+.menu {
+  position: fixed;
+  left: 0;
+  top: 0;
+  visibility: hidden;
+  z-index: var(--z-popover);
+  width: min(24rem, calc(100vw - 2 * var(--sp-2)));
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-2);
+  border-radius: var(--r-lg);
+  background: var(--c-panel);
+  border: 2px solid var(--c-priority);
+  box-shadow: var(--shadow-float);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  padding: 0 var(--sp-1) var(--sp-1);
+  border-bottom: 1px solid var(--c-line);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+}
+
+.sub {
+  font-size: var(--fs-sm);
+  color: var(--c-text-2);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  border-radius: var(--r-md);
+  border: 1px solid var(--c-line-strong);
+  background: var(--c-panel-raised);
+  text-align: left;
+  font-size: var(--fs-sm);
+}
+
+.row:hover,
+.row:focus-visible {
+  background: var(--c-panel-hover);
+}
+
+.cost {
+  display: inline-flex;
+  min-height: 1.2em;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-0);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.detail {
+  font-size: var(--fs-xs);
+  color: var(--c-text-3);
+}
+
+.cancel {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--c-line-strong);
+  font-size: var(--fs-sm);
+}
+
+.cancel:hover {
+  background: var(--c-panel-hover);
+}

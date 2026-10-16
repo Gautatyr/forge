@@ -1,40 +1,46 @@
-import type { MouseEvent, ReactNode } from 'react';
+import type { MouseEvent } from 'react';
 import { useMatch } from '../state/MatchContext';
+import { logParts } from './logParts';
+import { ManaSymbol } from './ManaSymbol';
 import styles from './LogText.module.css';
 
-/** Renders log text; {card:<id>} tokens become hoverable card names. */
+/** Renders log text; {card:<id>} tokens become hoverable card names, {R} / {2} mana symbols. */
 export function LogText({ text }: { text: string }) {
   const { game, setUi } = useMatch();
-  const parts: ReactNode[] = [];
-  let last = 0;
-  for (const m of text.matchAll(/\{card:([^}]+)\}/g)) {
-    if (m.index > last) parts.push(text.slice(last, m.index));
-    const id = m[1]!;
-    const c = game.cards[id];
-    const name = c?.name ?? 'a card';
-    const show = (e: MouseEvent) => {
-      const r = e.currentTarget.getBoundingClientRect();
-      if (c) setUi({ hover: { cardId: id, side: r.left < window.innerWidth / 2 ? 'right' : 'left' } });
-    };
-    parts.push(
-      c ? (
-        <button
-          key={`${id}-${m.index}`}
-          type="button"
-          className={styles.ref}
-          onPointerEnter={show}
-          onPointerLeave={() => setUi({ hover: undefined })}
-          onClick={() => setUi({ inspectId: id, hover: undefined })}
-          title="Hover to see the card, click to inspect"
-        >
-          {name}
-        </button>
-      ) : (
-        <span key={`${id}-${m.index}`}>{name}</span>
-      ),
-    );
-    last = m.index + m[0].length;
-  }
-  if (last < text.length) parts.push(text.slice(last));
-  return <>{parts}</>;
+  return (
+    <>
+      {logParts(text).map((part) => {
+        if (part.kind === 'text') return part.text;
+        if (part.kind === 'mana') {
+          return (
+            <span key={part.at} className={styles.mana}>
+              <ManaSymbol symbol={part.symbol} />
+            </span>
+          );
+        }
+        const id = part.id;
+        const c = game.cards[id];
+        const name = c?.name ?? 'a card';
+        const show = (e: MouseEvent) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          if (c) setUi({ hover: { cardId: id, side: r.left < window.innerWidth / 2 ? 'right' : 'left' } });
+        };
+        return c ? (
+          <button
+            key={part.at}
+            type="button"
+            className={styles.ref}
+            onPointerEnter={show}
+            onPointerLeave={() => setUi({ hover: undefined })}
+            onClick={() => setUi({ inspectId: id, hover: undefined })}
+            title="Hover to see the card, click to inspect"
+          >
+            {name}
+          </button>
+        ) : (
+          <span key={part.at}>{name}</span>
+        );
+      })}
+    </>
+  );
 }

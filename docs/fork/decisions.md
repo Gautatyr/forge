@@ -111,3 +111,11 @@ Newest last. Each entry: the decision, why, and what it implies.
 - Forge inputs are inferred from calls (`showPromptMessage`, `updateButtons`, selectables) plus phase: OK + End Turn/Undo = priority; attack/block steps = declare decisions; selectables = targets; any other two-button input (mulligan, pay mana) = a yes/no tray answered with selectButtonOk/Cancel.
 - Until #10 serves images, live card images resolve through Scryfall `cards/collection` in batches (per-card `cards/named` redirects hit Scryfall's rate limit on a full board).
 - Not done: client stops for `isUiSetToSkipPhase` (entry above) and yield settings (`sendYieldUpdate`): no wire form yet.
+
+## 2026-10-16 — Bridge: human seats over the WebSocket (issue #8)
+- Every view has its own per-launch token (spectator, and one per seat); the seat a client sees and acts for comes from its token only. Host and Origin checks are unchanged. With a human seat, AI seats get no token (their view shows the AI's hand) unless `WebMain --ai-seat-urls` (checks).
+- A human seat is `WebGuiGame extends ProtocolGuiGame` with our own `IRemote` (`SeatSession`): prompts go out with server-rendered labels and come back as indices validated against the held arguments; our pending map (`AtomicLong` ids), not `ReplyPool`. Network play's unfiltered deltas are dropped; state comes from the per-viewer `GameStream`.
+- The stream is flushed before every prompt and before the seat's input blocks the game, so temporary reveals reach the seat.
+- A prompt falls back to the engine default after 15 min unanswered, or 60 s without a connected client (both flags of `WebMain`).
+- Phase stops: the client sends `sendYieldUpdate` `SkipPhase` per stop; the server skips none until told. This is the wire message #20 left open.
+- Details: [architecture/web-ui.md](architecture/web-ui.md#bridge-human-seat-issue-8).

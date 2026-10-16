@@ -3,7 +3,7 @@ import { scenarioById } from '../mock/scenarios';
 import type { GameView } from '../model/types';
 import { DEFAULT_PREFS } from '../state/prefs';
 import { INITIAL_UI } from '../state/ui';
-import { groupPermanents } from './battlefieldGroups';
+import { commandEntries, groupPermanents } from './battlefieldGroups';
 
 /** stack6 with both Goblin Bombardment activations (s4 below, s6 on top) aimed at two of Mira's Goblin tokens. */
 function twoGoblinTargets() {
@@ -54,5 +54,21 @@ describe('battlefield grouping keeps targeted tokens apart (review of PR 16)', (
     const rest = goblins.slice(2);
     const entries = groupPermanents(cards, game, INITIAL_UI, DEFAULT_PREFS);
     expect(entries.find((e) => e.ids.includes(rest[0]!))!.ids.sort()).toEqual([...rest].sort());
+  });
+});
+
+describe('commander in the command zone (design pass 4, P3)', () => {
+  it('leaves your own commander out of your support row: the hand shows it', () => {
+    const g = scenarioById('hand9').build();
+    expect(g.players[0]!.command).toHaveLength(1);
+    expect(commandEntries(g.players[0]!, g)).toEqual([]);
+  });
+
+  it('keeps an opponent’s commander in their support row, with its tax', () => {
+    const g = scenarioById('hand9').build();
+    const theo = g.players.find((p) => p.id === 'theo')!;
+    expect(commandEntries(theo, g).map((e) => [e.card.name, e.caption])).toEqual([
+      ['Talrand, Sky Summoner', { label: 'Command zone', detail: 'tax +4' }],
+    ]);
   });
 });

@@ -44,6 +44,10 @@ const CARDS = [
   'Vampire Nighthawk', 'Tolarian Terror', 'Run Amok', 'Fencing Ace', 'Giant Spider', 'Wall of Omens',
   'Noble Hierarch', 'Avacyn, Angel of Hope', 'Silver Knight', 'Knight of Grace', "Ulamog's Crusher",
   'Bloated Contaminator', 'Boggart Brute',
+  // Payment (pass 4): an X spell
+  "Green Sun's Zenith",
+  // Number prompts (pass 4 §2.3): divide damage, name a card
+  'Fiery Justice', 'Meddling Mage',
   // Tokens
   { key: 'Angel token', query: '!"Angel" t:token pow=4 tou=4 o:flying c=w' },
   { key: 'Goblin token', query: '!"Goblin" t:token pow=1 tou=1 c=r' },
