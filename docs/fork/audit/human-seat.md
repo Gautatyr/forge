@@ -123,9 +123,11 @@ answers with seat actions (`SeatSession.act`): `selectCard`, `selectPlayer`, `se
   one adds no target and asks again (desktop: same).
 - Upstream race: `InputPayMana.updateMessage` → `PlayerControllerHuman.pushActionableCards` runs on the EDT
   (`web-edt`; desktop: the Swing EDT, same `invokeInEdtNowOrLater`) while the game thread runs; both can enter
-  `GameAction.checkStaticAbilities`. A `ConcurrentModificationException` on the EDT loses one highlight refresh; on the
-  game thread (`StaticEffects.clearStaticEffects`, seen once in the sweep) it ends the game. Not a decision; the
-  sweep lists it as an engine exception.
+  `GameAction.checkStaticAbilities`. A `ConcurrentModificationException` on the EDT loses one highlight refresh; on a
+  game thread it ends the game: seen in the sweep in `StaticEffects.clearStaticEffects`, and in the bridge's flush
+  (`GameStream.publish` → `NetworkChecksumUtil` → `Tracker.getDelayedPropsFor`, on the `Game-N` thread that
+  `InputPayMana.activateManaAbility` starts). Threading, not a decision; the sweep lists any game-thread CME as a
+  race (not failed). Follow-up needed.
 - Upstream: `InputPayMana` enables Auto when `ComputerUtilMana.getManaSourcesToPayCost` finds sources, but
   `payManaCost` can still fail ("Didn't find what to pay"); Auto then does nothing and stays enabled (desktop: same).
   The player taps sources or cancels; the sweep's seat cancels after 10 tries.

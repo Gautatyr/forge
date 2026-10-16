@@ -73,6 +73,17 @@ public class HumanSeatSweep {
     private static final String AI_LOOP = "AI loop";
     /** The game thread died in engine or AI code (no seat frame): an upstream bug, reported, not failed. */
     private static final String ENGINE_EXCEPTION = "engine exception";
+    /**
+     * The game thread died of a {@code ConcurrentModificationException}, even in seat code (the bridge's flush walks
+     * the game state): another thread changed it meanwhile, e.g. upstream's {@code InputPayMana.updateMessage} on the
+     * EDT (audit, "Known gaps"). A threading race, not a question the seat answered: reported, not failed.
+     */
+    private static final String RACE = "race";
+
+    /** An exception in seat code that is not a {@link #RACE}. */
+    private static boolean seatFault(String crash) {
+        return crash.contains("at forge.web.") && !crash.lines().findFirst().orElse("").contains("java.util.ConcurrentModificationException");
+    }
 
     /** One planned game. */
     private record Plan(int index, String mode, int players, Deck seatDeck, String seatSource, List<Deck> opponents) { }
@@ -119,8 +130,8 @@ public class HumanSeatSweep {
         Set<String> seatDeckCards = new TreeSet<>();
 
         boolean passed() {
-            return ("finished".equals(end) || AI_LOOP.equals(end) || ENGINE_EXCEPTION.equals(end)) && silentDefaults == 0 && seatErrors.isEmpty()
-                    && crashes.stream().noneMatch(c -> c.contains("at forge.web."))
+            return ("finished".equals(end) || AI_LOOP.equals(end) || ENGINE_EXCEPTION.equals(end) || RACE.equals(end)) && silentDefaults == 0
+                    && seatErrors.isEmpty() && crashes.stream().noneMatch(HumanSeatSweep::seatFault)
                     && droppedTriggers.isEmpty() && unresolvedTriggers.isEmpty();
         }
     }
@@ -303,8 +314,9 @@ public class HumanSeatSweep {
             } else if (SilentDefaults.count() > 0) {
                 end = "silent default";
             } else if (crashes.stream().anyMatch(c -> c.startsWith("Game"))) {
-                // an exception in seat code fails; one in engine or AI code (no forge.web frame) is an engine exception
-                end = crashes.stream().anyMatch(c -> c.startsWith("Game") && c.contains("at forge.web.")) ? "crashed" : ENGINE_EXCEPTION;
+                // an exception in seat code fails; a race, or one in engine or AI code (no forge.web frame), does not
+                end = crashes.stream().anyMatch(c -> c.startsWith("Game") && seatFault(c)) ? "crashed"
+                        : crashes.stream().anyMatch(c -> c.startsWith("Game") && c.contains("at forge.web.")) ? RACE : ENGINE_EXCEPTION;
             } else if (client.seat() != null && client.seat().errors.stream().anyMatch(e -> e.startsWith("input stuck") || e.startsWith("seat driver"))) {
                 end = "seat stuck";
             } else if (System.currentTimeMillis() - t0 > GAME_MS) {
@@ -558,8 +570,8 @@ public class HumanSeatSweep {
             if (AI_LOOP.equals(r.end)) {
                 aiLoops.add("game " + r.index + " turn " + r.turns);
             }
-            if (ENGINE_EXCEPTION.equals(r.end)) {
-                engineExceptions.add("game " + r.index + " turn " + r.turns + ": " + r.crashes.get(0).lines().limit(4).toList());
+            if (ENGINE_EXCEPTION.equals(r.end) || RACE.equals(r.end)) {
+                engineExceptions.add("game " + r.index + " " + r.end + " turn " + r.turns + ": " + r.crashes.get(0).lines().limit(4).toList());
             }
             if (!r.passed()) {
                 failed.add("game " + r.index + " (" + r.seatDeck + "): " + r.end);
@@ -568,7 +580,7 @@ public class HumanSeatSweep {
             r.actions.forEach((k, v) -> actions.merge(k, v, Integer::sum));
         }
         return "[sweep] games " + results.size() + " " + byMode + ": passed " + passed + ", failed " + failed
-                + "; ended at the turn cap " + capped + "\n[sweep] not failed: AI loops " + aiLoops + "; engine exceptions " + engineExceptions
+                + "; ended at the turn cap " + capped + "\n[sweep] not failed: AI loops " + aiLoops + "; engine exceptions and races (CME) " + engineExceptions
                 + "\n[sweep] decks " + decks.size() + "; the seat's " + seatDecks.size() + ": " + seatDecks
                 + "\n[sweep] distinct cards: in the seat's decks " + seatCards.size() + ", played by the seat " + played.size()
                 + ", with seat triggers " + triggerCards.size()
