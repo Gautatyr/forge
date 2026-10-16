@@ -58,6 +58,16 @@ Source: [product-decisions-pass-4.md](product-decisions-pass-4.md).
 - Your commander in the command zone shows only in the group beside the hand; that group lists every card you may cast from another zone, whatever you can afford.
 - Commander damage chips name the source commander and its controller.
 
+## Rulings from playtest 1 (2026-10-16)
+Source: [playtest-1.md](playtest-1.md).
+- **Official step names** in the turn strip (Comprehensive Rules wording), shortened only when space forces it, with the full name on hover.
+- **The hover preview stays in one fixed place** whatever the card's position.
+- **Opponents' commanders are not drawn on their board** while in the command zone. A command-zone chip in the opponent's header shows the commander on hover. This overrides pass 3/4's support-row placement.
+- **No prompt when there is nothing to do** (for example, a free mulligan with 0 cards to put on the bottom).
+- **Coin toss copy:** "You won the coin toss. Who plays first?", without "Choose exactly 1".
+- **Music and sounds** play during web matches as they do in Forge.
+- **Legal choices come from the engine:** possible blockers and attackers are what Forge allows (flying, reach, menace, …), never a local guess.
+
 ## Language (2026-10-15)
 - The match screen is switchable between **English and French**: UI text, keyword explanations, card names and text, and card images where Scryfall has French printings.
 - Forge already ships the data: `forge-gui/res/languages/fr-FR.properties` (UI strings) and `forge-gui/res/languages/cardnames-fr-FR.txt` (card names and text).

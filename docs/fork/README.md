@@ -16,6 +16,7 @@ Audience: the owner and friends, possibly the public later. Never monetised.
 | [decisions.md](decisions.md) | Decision log. Read this first. |
 | [PLAY.md](PLAY.md) | Owner's guide: play a Commander game in the new match screen (`make play`), what works, limits, back to Swing. |
 | [design/match-screen-decisions.md](design/match-screen-decisions.md) | Owner's rulings on the match-screen design. Overrides the memo where they differ. |
+| [design/playtest-1.md](design/playtest-1.md) | Owner's first real game in the web screen: review and triage. |
 | [design/product-decisions-pass-4.md](design/product-decisions-pass-4.md) | Design pass 4: review of the prototype, every screen missing for a full Commander game, implementation split. |
 | [design/keyword-icons.html](design/keyword-icons.html) | Approved keyword icon set (Mana font), with names and one-line explanations. Open in a browser. |
 | [design/product-decisions-pass-3.md](design/product-decisions-pass-3.md) | Product decisions for mockup pass 3: turn strip and stops, mana payment, keyword icons, card sizing. |
