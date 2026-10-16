@@ -108,6 +108,38 @@ describe('players leaving (design pass 4 §2.6)', () => {
     expect(g.result).toEqual({ winnerId: 'ai', reason: 'Last player standing.', ranking: ['ai', 'you'], nextGame: false });
   });
 
+  // Forge removes a loser's objects only while more than 2 players are in the game (Game.onPlayerLost, CR 800.4a).
+  it('1v1: the loser keeps their cards, so "View the board" shows the final board', () => {
+    const before = scenarioById('duel').build();
+    const mine = { battlefield: [...you(before).battlefield], hand: [...you(before).hand] };
+    expect(mine.battlefield.length).toBeGreaterThan(0);
+    const g = applyIntent(before, { type: 'concede' });
+    expect(you(g).battlefield).toEqual(mine.battlefield);
+    expect(you(g).hand).toEqual(mine.hand);
+    expect(mine.battlefield.every((id) => g.cards[id]?.zone === 'battlefield')).toBe(true);
+  });
+
+  it('4-player: players out early leave with their cards; the last one out keeps theirs', () => {
+    let g = scenarioById('player-out').build();
+    g = applyIntent(g, { type: 'primary' }); // Theo out, 4 in the game: removed
+    expect(player(g, 'theo').battlefield).toEqual([]);
+    g = applyIntent(g, { type: 'concede' }); // you out, 3 in the game: removed
+    expect(you(g).battlefield).toEqual([]);
+    const anaField = [...player(g, 'ana').battlefield];
+    expect(anaField.length).toBeGreaterThan(0);
+    player(g, 'ana').life = 0;
+    g = applyIntent(g, { type: 'setAutoPass', on: true }); // Ana out, 2 in the game: the game ends, her board stays
+    expect(g.result?.winnerId).toBe('mira');
+    expect(player(g, 'ana').battlefield).toEqual(anaField);
+  });
+
+  it('game over scenario (you won): the last opponent out keeps their board', () => {
+    const g = scenarioById('game-over-next').build();
+    expect(player(g, 'mira').battlefield.length).toBeGreaterThan(0);
+    expect(player(g, 'theo').battlefield).toEqual([]);
+    expect(player(g, 'ana').battlefield).toEqual([]);
+  });
+
   it('the last player standing wins; the ranking runs from the winner back through who went out last', () => {
     let g = scenarioById('player-out').build();
     g = applyIntent(g, { type: 'primary' }); // Theo out

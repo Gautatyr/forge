@@ -1,7 +1,7 @@
 import { commanderTax } from '../model/selectors';
 import type { MulliganState, PlayerView } from '../model/types';
 import { playerTargetSpot, spotlightItem } from '../state/cardStatus';
-import { mulliganTag } from '../state/gameStart';
+import { mulliganTag, turnPlayerId } from '../state/gameStart';
 import { currentDefender } from '../state/focus';
 import { useMatch } from '../state/MatchContext';
 import { playerChoice } from './tray/inPlace';
@@ -28,8 +28,10 @@ interface Props {
 export function PlayerPlate({ player: p, density, vertical = false, onExpand }: Props) {
   const { game, ui, prefs, setUi, activatePlayer } = useMatch();
   const d = game.decision;
-  const active = game.turn.activePlayerId === p.id;
-  const priority = game.turn.priorityPlayerId === p.id;
+  // No turn before turn 1 or after the game: no "Your turn" or "Priority" tag then.
+  const turnOf = turnPlayerId(game);
+  const active = turnOf === p.id;
+  const priority = turnOf !== undefined && game.turn.priorityPlayerId === p.id;
   const legalTarget = d.kind === 'chooseTargets' && d.legal.some((t) => t.kind === 'player' && t.id === p.id);
   const chosenTarget = d.kind === 'chooseTargets' && d.chosen.some((t) => t.kind === 'player' && t.id === p.id);
   const defenderPick = d.kind === 'declareAttackers' && d.defenders.includes(p.id);
@@ -137,7 +139,8 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
           {mulligan ? (
             <span className={`${styles.tag} ${MULLIGAN_TAG_CLASS[p.mulligan!.state]}`} title={mulligan.title}>
               <Icon name={mulligan.icon} />
-              <span className={styles.tagText}>{mulligan.text}</span>
+              {/* Not .tagText: the words stay on narrow headers (§2.4 names the tags). */}
+              <span>{mulligan.text}</span>
               {mulligan.count}
             </span>
           ) : null}

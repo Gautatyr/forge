@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import { you } from '../model/selectors';
-import { boardOpponents, LEAVE_MS } from '../state/gameEnd';
+import { boardOpponents, LEAVE_MS, leavingIds } from '../state/gameEnd';
 import { focusedOpponent } from '../state/focus';
 import { useMatch } from '../state/MatchContext';
 import { Seat } from './Seat';
@@ -16,7 +16,8 @@ import styles from './Board.module.css';
  */
 export function Board() {
   const { game, ui, setUi, prefs } = useMatch();
-  const leaving = useJustOut(game, LEAVE_MS);
+  // Once the game is over, the players still in it when it ended keep their seats ("View the board").
+  const leaving = leavingIds(game, useJustOut(game, LEAVE_MS));
   const live = boardOpponents(game, []);
   const me = you(game);
   const settled = live.length === 1 ? 'duel' : live.length === 3 || prefs.layout !== 'table' ? prefs.layout : 'columns';
@@ -81,15 +82,14 @@ export function Board() {
   return (
     <div className={`${styles.board} ${styles.columns}`} style={split}>
       <div className={styles.opps}>
-        {opps.map((p) => (
-          <div
-            key={p.id}
-            className={`${styles.column} ${leaving.includes(p.id) && p.hasLost ? styles.leaving : ''}`}
-            aria-hidden={p.hasLost || undefined}
-          >
-            <Seat player={p} density="full" />
-          </div>
-        ))}
+        {opps.map((p) => {
+          const goes = leaving.includes(p.id) && p.hasLost;
+          return (
+            <div key={p.id} className={`${styles.column} ${goes ? styles.leaving : ''}`} aria-hidden={goes || undefined}>
+              <Seat player={p} density="full" />
+            </div>
+          );
+        })}
       </div>
       {mine}
     </div>

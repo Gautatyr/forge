@@ -3,8 +3,34 @@
  * choice tray's yes/no and in-place choose-N shapes, and the opponents' tags.
  * The engine gives the facts; the words live here, for the mock and the adapter.
  */
-import type { CardId, ChooseNPrompt, MulliganState, YesNoPrompt } from '../model/types';
+import type { CardId, ChooseNPrompt, GameView, MulliganState, PlayerId, YesNoPrompt } from '../model/types';
 import type { IconName } from '../components/Icon';
+import { headline } from './gameEnd';
+import { nextPlayer } from './turnStrip';
+
+/**
+ * The player whose turn it is; undefined before turn 1 (toss, opening hands)
+ * and once the game is over. The top bar, the plates' "Your turn" tag, the
+ * active seat and the step strip all read this, never `game.turn` directly.
+ */
+export function turnPlayerId(game: GameView): PlayerId | undefined {
+  return game.starting || game.result ? undefined : game.turn.activePlayerId;
+}
+
+/** What the top bar's turn block reads. */
+export type TurnHeading =
+  | { kind: 'turn'; playerId: PlayerId; number: number; nextId?: PlayerId }
+  /** Before turn 1: "Game start" (the toss), then "Opening hands". */
+  | { kind: 'start'; text: string }
+  /** The result's headline: "You won", "Mira won" (with `playerId`'s seat shape), "Draw". */
+  | { kind: 'over'; playerId?: PlayerId; text: string };
+
+export function turnHeading(game: GameView): TurnHeading {
+  if (game.result) return { kind: 'over', ...headline(game) };
+  const id = turnPlayerId(game);
+  if (!id) return { kind: 'start', text: game.players.some((p) => p.mulligan) ? 'Opening hands' : 'Game start' };
+  return { kind: 'turn', playerId: id, number: game.turn.number, nextId: nextPlayer(game)?.id };
+}
 
 export interface MulliganFacts {
   /** Cards drawn: 7. */
@@ -51,7 +77,7 @@ export function bottomPrompt(hand: CardId[], n: number, nameOf: (id: CardId) => 
 
 export interface MulliganTag {
   icon: IconName;
-  /** Hidden on narrow headers (the icon, count and tooltip stay). */
+  /** Kept on narrow headers too, unlike the other tags' words. */
   text: string;
   count?: string;
   title: string;

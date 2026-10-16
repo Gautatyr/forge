@@ -85,9 +85,26 @@ export function newlyOut(before: PlayerId[], game: GameView): PlayerId[] {
   return game.players.filter((p) => p.hasLost && before.includes(p.id)).map((p) => p.id);
 }
 
-/** Opponents the board draws: the live ones, plus those whose column is still leaving, in seat order. */
+/**
+ * Players still in the game when it ended: the first two of the ranking (the
+ * winner and the last one out, or the two who drew). Forge removes a loser's
+ * objects only while more than 2 players are in the game (Game.onPlayerLost),
+ * so their boards stay and keep their seats. Empty while the game goes on.
+ */
+export function finalPlayers(game: GameView): PlayerId[] {
+  return game.result ? game.result.ranking.slice(0, 2) : [];
+}
+
+/** Just-out players whose column leaves: not the final players, who stay on the board. */
+export function leavingIds(game: GameView, justOut: PlayerId[]): PlayerId[] {
+  const final = finalPlayers(game);
+  return justOut.filter((id) => !final.includes(id));
+}
+
+/** Opponents the board draws, in seat order: the live ones, the final players, and those whose column is still leaving. */
 export function boardOpponents(game: GameView, leaving: PlayerId[]): PlayerView[] {
-  return opponents(game).filter((p) => !p.hasLost || leaving.includes(p.id));
+  const final = finalPlayers(game);
+  return opponents(game).filter((p) => !p.hasLost || final.includes(p.id) || leaving.includes(p.id));
 }
 
 /** You are out and the game goes on without you: the action block reads "Watching". */

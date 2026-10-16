@@ -94,6 +94,7 @@ function mulliganDecision(g: MockGame, o: OpeningState) {
  */
 export function startOpeningHands(g: MockGame, starter: PlayerId, firstFree = true) {
   g.opening = { mulligans: 0, firstFree, starter, deals: 0 };
+  g.starting = true;
   for (const p of g.players) {
     if (p.isYou) continue;
     p.handCount = HAND_SIZE;
@@ -121,6 +122,7 @@ export function tossPrompt(g: MockGame): ChoicePrompt {
 function beginGame(g: MockGame, o: OpeningState) {
   for (const p of g.players) p.mulligan = undefined;
   g.opening = undefined;
+  g.starting = undefined;
   const starter = player(g, o.starter);
   g.turn = { number: 1, activePlayerId: starter.id, step: 'main1', priorityPlayerId: starter.id };
   log(g, `The game begins. ${starter.isYou ? 'You play' : `${starter.name} plays`} first.`, starter.id);
@@ -223,7 +225,10 @@ export function markOut(g: MockGame, p: PlayerView, reason: OutReason, commander
         : outReasonText(reason);
     log(g, `${p.name} is out: ${why}.`, p.id);
   }
-  removeFromGame(g, p);
+  // CR 800.4a: the player's objects leave with them, but only in a multiplayer game. Forge
+  // counts the players still in the game, this one included (Game.onPlayerLost): in 1v1 and
+  // at the last elimination the loser's cards stay, so "View the board" shows the final board.
+  if (g.players.filter((q) => !q.hasLost || q === p).length > 2) removeFromGame(g, p);
   // Nobody waits on a player who is gone; you, out, only watch.
   const d = g.decision;
   if (p.isYou || (d.kind === 'waiting' && d.forPlayerId === p.id)) {
@@ -278,6 +283,7 @@ export function concede(g: MockGame): boolean {
   const you = player(g, g.youId);
   if (you.hasLost || g.result) return false;
   g.opening = undefined;
+  g.starting = undefined;
   for (const p of g.players) p.mulligan = undefined;
   markOut(g, you, { kind: 'conceded' }, undefined, false);
   log(g, `${you.name} concedes.`, you.id);

@@ -400,6 +400,11 @@ export interface GameView {
   cards: Record<CardId, CardView>;
   /** Bottom → top. */
   stack: StackItem[];
+  /**
+   * True from the toss until turn 1 begins (design pass 4 §2.4): there is no
+   * turn, step or turn order yet, and `turn` is a placeholder the screen ignores.
+   */
+  starting?: boolean;
   turn: TurnState;
   combat?: CombatState;
   decision: Decision;

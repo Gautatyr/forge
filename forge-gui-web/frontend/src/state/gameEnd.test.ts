@@ -3,8 +3,10 @@ import { GameBuilder } from '../mock/builder';
 import type { MockGame } from '../mock/engine';
 import {
   boardOpponents,
+  finalPlayers,
   gameEndView,
   headline,
+  leavingIds,
   newlyOut,
   ordinal,
   outLine,
@@ -97,6 +99,36 @@ describe('who just went out, and the board without them', () => {
     out(g, 'theo', 12, krenko);
     expect(boardOpponents(g, []).map((p) => p.id)).toEqual(['mira', 'ana']);
     expect(boardOpponents(g, ['theo']).map((p) => p.id)).toEqual(['mira', 'theo', 'ana']);
+  });
+
+  it('game over: keeps the players still in the game when it ended (the first two of the ranking)', () => {
+    const g = table();
+    out(g, 'theo', 9, krenko);
+    out(g, 'ana', 11, krenko);
+    out(g, 'mira', 13, { kind: 'life', life: 0 });
+    g.result = { winnerId: 'you', reason: 'Last player standing.', ranking: ['you', 'mira', 'ana', 'theo'], nextGame: false };
+    expect(finalPlayers(g)).toEqual(['you', 'mira']);
+    expect(boardOpponents(g, []).map((p) => p.id)).toEqual(['mira']);
+    // The last one out does not leave, even while just out.
+    expect(boardOpponents(g, ['mira']).map((p) => p.id)).toEqual(['mira']);
+    expect(leavingIds(g, ['mira'])).toEqual([]);
+  });
+
+  it('1v1 game over: the loser stays on the board', () => {
+    const b = new GameBuilder('d', 'constructed');
+    b.player('you', 'Hugo', 20).player('ai', 'Mira', 20);
+    const g = b.done();
+    out(g, 'ai', 7, { kind: 'life', life: 0 });
+    g.result = { winnerId: 'you', reason: 'Last player standing.', ranking: ['you', 'ai'], nextGame: false };
+    expect(boardOpponents(g, ['ai']).map((p) => p.id)).toEqual(['ai']);
+    expect(leavingIds(g, ['ai'])).toEqual([]);
+  });
+
+  it('mid-game: no final players, a just-out opponent is leaving', () => {
+    const g = table();
+    out(g, 'theo', 12, krenko);
+    expect(finalPlayers(g)).toEqual([]);
+    expect(leavingIds(g, ['theo'])).toEqual(['theo']);
   });
 });
 

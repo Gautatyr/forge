@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import { player } from '../model/selectors';
 import { useMatch } from '../state/MatchContext';
-import { AI_CHIP_DELAY_MS, fitLevel, nextPlayer, SettleGate, waitingOn } from '../state/turnStrip';
+import { turnHeading } from '../state/gameStart';
+import { AI_CHIP_DELAY_MS, fitLevel, SettleGate, waitingOn } from '../state/turnStrip';
 import type { Overlay } from '../state/ui';
 import { Icon, SeatGlyph, type IconName } from './Icon';
 import { GameOverChip } from './GameEnd';
@@ -73,8 +74,8 @@ function useFit() {
 
 export function TopBar() {
   const { game, ui, setUi } = useMatch();
-  const active = player(game, game.turn.activePlayerId);
-  const next = nextPlayer(game);
+  // Before turn 1 and after the game there is no turn: no "Your turn", number or "next:".
+  const heading = turnHeading(game);
   const waiting = player(game, waitingOn(game));
   const chipShown = useSettled(waiting.id, waiting.isAi ? AI_CHIP_DELAY_MS : 0);
   const { barRef, leftRef, trackRef, toolsRef, level, measure } = useFit();
@@ -82,7 +83,7 @@ export function TopBar() {
   const wordsHidden = level >= 1;
 
   // Names and step change the natural widths without resizing a constrained box: re-measure.
-  const contentKey = `${active.id}|${next?.id}|${waiting.id}|${game.turn.number}|${game.turn.step}`;
+  const contentKey = `${JSON.stringify(heading)}|${waiting.id}|${game.turn.step}`;
   useLayoutEffect(() => measure(), [contentKey, measure]);
 
   const tool = (icon: IconName, label: string, key: string | undefined, pressed: boolean, onClick: () => void, title: string) => (
@@ -95,25 +96,32 @@ export function TopBar() {
     </button>
   );
 
-  const whose = active.isYou ? 'Your turn' : `${active.name}'s turn`;
-  const turnLine = `Turn ${game.turn.number}${next ? ` · next: ${next.isYou ? 'you' : next.name}` : ''}`;
+  const active = heading.kind === 'turn' ? player(game, heading.playerId) : undefined;
+  const next = heading.kind === 'turn' && heading.nextId ? player(game, heading.nextId) : undefined;
+  // The seat shape of whose turn it is, or of the winner ("● You won", "▲ Mira won").
+  const winnerId = game.result?.winnerId;
+  const headSeat = active ?? (heading.kind === 'over' && winnerId ? player(game, winnerId) : undefined);
+  const whose = heading.kind === 'turn' ? (active!.isYou ? 'Your turn' : `${active!.name}'s turn`) : heading.text;
+  const turnLine = heading.kind === 'turn' ? `Turn ${heading.number}${next ? ` · next: ${next.isYou ? 'you' : next.name}` : ''}` : '';
   const chipText = waiting.isYou ? 'Waiting for you' : `Waiting for ${waiting.name}`;
 
   return (
     <header ref={barRef} className={styles.bar}>
       <div ref={leftRef} className={styles.turn}>
         <span className={styles.whose} title={whose}>
-          <SeatGlyph seat={active.seat} /> {whose}
+          {headSeat ? <SeatGlyph seat={headSeat.seat} /> : heading.kind === 'start' ? <Icon name="hand" /> : null} {whose}
         </span>
-        <span className={styles.turnLine} title={turnLine}>
-          Turn {game.turn.number}
-          {next ? (
-            <>
-              {' · next: '}
-              <SeatGlyph seat={next.seat} /> {next.isYou ? 'you' : next.name}
-            </>
-          ) : null}
-        </span>
+        {heading.kind === 'turn' ? (
+          <span className={styles.turnLine} title={turnLine}>
+            Turn {heading.number}
+            {next ? (
+              <>
+                {' · next: '}
+                <SeatGlyph seat={next.seat} /> {next.isYou ? 'you' : next.name}
+              </>
+            ) : null}
+          </span>
+        ) : null}
         {game.result ? (
           <GameOverChip className={`${styles.chip} ${styles.chipYou}`} />
         ) : (

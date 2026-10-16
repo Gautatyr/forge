@@ -104,6 +104,7 @@ export const START_END_SCENARIOS: Scenario[] = [
       table(b, true);
       b.turn(1, 'you', 'main1');
       const g = b.done();
+      g.starting = true;
       g.decision = { kind: 'choice', prompt: tossPrompt(g) };
       return g;
     },
@@ -160,7 +161,10 @@ export const START_END_SCENARIOS: Scenario[] = [
     build: () => {
       const { g, ids } = midGame('game-over');
       markOut(at(g, 12), player(g, 'theo'), { kind: 'commanderDamage', amount: 21, commanderName: 'Krenko, Mob Boss' }, ids.krenko);
+      player(g, 'ana').life = 0;
       markOut(at(g, 13), player(g, 'ana'), { kind: 'life', life: 0 });
+      // The last one out keeps their board ("View the board"): the plate shows the final life.
+      player(g, 'you').life = -2;
       markOut(at(g, 14), player(g, 'you'), { kind: 'life', life: -2 });
       finishIfOver(g);
       return g;
@@ -175,6 +179,7 @@ export const START_END_SCENARIOS: Scenario[] = [
       g.gamesLeft = 1;
       markOut(at(g, 9), player(g, 'theo'), { kind: 'conceded' });
       markOut(at(g, 11), player(g, 'ana'), { kind: 'commanderDamage', amount: 21, commanderName: "Sythis, Harvest's Hand" }, ids.sythis);
+      player(g, 'mira').life = 0;
       markOut(at(g, 13), player(g, 'mira'), { kind: 'life', life: 0 });
       finishIfOver(g);
       return g;
