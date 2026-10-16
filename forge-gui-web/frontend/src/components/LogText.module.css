@@ -10,3 +10,8 @@
 .ref:hover {
   text-decoration-color: var(--c-text);
 }
+
+/* Mana in a log line ("Mira adds {R}{R}."): pips sized so the line keeps its height. */
+.mana > [role='img'] {
+  --pip: 1.15em;
+}

@@ -250,3 +250,31 @@
   color: var(--c-text-3);
   font-size: var(--fs-xs);
 }
+
+/* Design pass 4, P6: a line where you lose life or a permanent. */
+.events li.eventLoss {
+  font-weight: var(--fw-bold);
+  color: var(--c-text);
+}
+
+/* "— ■ Theo's turn 10 —": one divider above each turn's entries. */
+.events li.turnDivider {
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  color: var(--c-text-3);
+}
+.events li.turnDivider::before,
+.events li.turnDivider::after {
+  content: '';
+  flex: 1 1 0;
+  min-width: var(--sp-2);
+  border-top: 1px solid var(--c-line-strong);
+}
+.turnLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  white-space: nowrap;
+}

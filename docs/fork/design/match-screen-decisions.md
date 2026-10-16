@@ -51,6 +51,13 @@ Source: [product-decisions-pass-3.md](product-decisions-pass-3.md). The spec sta
 - **No hand-holding.** Don't highlight every playable card. The screen gives information; the player counts their untapped lands and available mana and decides what they can play, like in a paper game. This overrides D2's "playable cards outlined" and the spec's "cards you can click light up".
 - Preview verdict: better, not final. Two more product design-and-review passes before full implementation.
 
+## Design pass 4 (2026-10-16, settled by the product agent under delegation)
+Source: [product-decisions-pass-4.md](product-decisions-pass-4.md).
+- **Highlights are answers, never hints:** a card lights up only when the open prompt lets you pick it (targets, attackers/blockers while declaring, cards to choose, mana sources while paying). Every other card looks and reacts the same.
+- Clicking a permanent with priority tries to activate it; several abilities open a card-anchored ability menu.
+- Your commander in the command zone shows only in the group beside the hand; that group lists every card you may cast from another zone, whatever you can afford.
+- Commander damage chips name the source commander and its controller.
+
 ## Language (2026-10-15)
 - The match screen is switchable between **English and French**: UI text, keyword explanations, card names and text, and card images where Scryfall has French printings.
 - Forge already ships the data: `forge-gui/res/languages/fr-FR.properties` (UI strings) and `forge-gui/res/languages/cardnames-fr-FR.txt` (card names and text).

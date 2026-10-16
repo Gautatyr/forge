@@ -57,7 +57,7 @@ public final class WebServer {
     private final int requestedPort;
     private final Path webRoot;
     private final StreamHub stream;
-    private final String token;
+    private final Map<String, Integer> tokens;
     private final SendLimits limits;
     private final ImageSource images;
     private volatile AccessPolicy policy;
@@ -67,26 +67,44 @@ public final class WebServer {
 
     /**
      * @param port  0 picks a free port
-     * @param token per-launch secret ({@link AccessPolicy#newToken()}), required on the WebSocket and data endpoints
+     * @param token per-launch secret ({@link AccessPolicy#newToken()}) of the spectator view, required on
+     *              the WebSocket and data endpoints
      */
     public WebServer(int port, Path webRoot, StreamHub stream, String token) {
-        this(port, webRoot, stream, token, SendLimits.DEFAULT, ImageSource.NONE);
+        this(port, webRoot, stream, Map.of(token, GameStream.SPECTATOR), SendLimits.DEFAULT, ImageSource.NONE);
     }
 
-    /** @param images card images for {@code GET /img?key=<view image key>&token=...} */
+    /**
+     * @param tokens per-launch secrets, each bound to the one view it opens: a seat, or
+     *               {@link GameStream#SPECTATOR}; the first is printed as the page URL
+     */
+    public WebServer(int port, Path webRoot, StreamHub stream, Map<String, Integer> tokens) {
+        this(port, webRoot, stream, tokens, SendLimits.DEFAULT, ImageSource.NONE);
+    }
+
+    /** @param images card images for {@code GET /img?key=<view image key>&token=...} (any valid token) */
+    public WebServer(int port, Path webRoot, StreamHub stream, Map<String, Integer> tokens, ImageSource images) {
+        this(port, webRoot, stream, tokens, SendLimits.DEFAULT, images);
+    }
+
+    /** One spectator token, with card images. */
     public WebServer(int port, Path webRoot, StreamHub stream, String token, ImageSource images) {
-        this(port, webRoot, stream, token, SendLimits.DEFAULT, images);
+        this(port, webRoot, stream, Map.of(token, GameStream.SPECTATOR), SendLimits.DEFAULT, images);
     }
 
     WebServer(int port, Path webRoot, StreamHub stream, String token, SendLimits limits) {
-        this(port, webRoot, stream, token, limits, ImageSource.NONE);
+        this(port, webRoot, stream, Map.of(token, GameStream.SPECTATOR), limits, ImageSource.NONE);
     }
 
-    WebServer(int port, Path webRoot, StreamHub stream, String token, SendLimits limits, ImageSource images) {
+    WebServer(int port, Path webRoot, StreamHub stream, Map<String, Integer> tokens, SendLimits limits) {
+        this(port, webRoot, stream, tokens, limits, ImageSource.NONE);
+    }
+
+    WebServer(int port, Path webRoot, StreamHub stream, Map<String, Integer> tokens, SendLimits limits, ImageSource images) {
         this.requestedPort = port;
         this.webRoot = webRoot.toAbsolutePath().normalize();
         this.stream = stream;
-        this.token = token;
+        this.tokens = tokens;
         this.limits = limits;
         this.images = images;
     }
@@ -114,11 +132,11 @@ public final class WebServer {
                                 .addLast(new WebSocketServerCompressionHandler())
                                 .addLast(new WebSocketServerProtocolHandler(wsConfig))
                                 .addLast(new HttpHandler())
-                                .addLast(new WsConnectionHandler(stream, limits));
+                                .addLast(new WsConnectionHandler(stream, limits, WebServer.this::seatOf));
                     }
                 });
         serverChannel = b.bind("127.0.0.1", requestedPort).sync().channel();
-        policy = new AccessPolicy(token, port());
+        policy = new AccessPolicy(tokens, port());
         System.out.println("[web] serving " + pageUrl() + " (viewer root " + webRoot + ")");
     }
 
@@ -131,9 +149,14 @@ public final class WebServer {
         return (InetSocketAddress) serverChannel.localAddress();
     }
 
-    /** The viewer URL including the token; open this one. */
+    /** The viewer URL including the first token; open this one. */
     public String pageUrl() {
         return policy.pageUrl();
+    }
+
+    /** The viewer URL for one token (a seat's page). */
+    public String pageUrl(String token) {
+        return policy.pageUrl(token);
     }
 
     public void stop() {
@@ -146,17 +169,15 @@ public final class WebServer {
         }
     }
 
-    /** {@code ?seat=N} picks a player's stream (index in the game's player list); anything else is a spectator. */
-    static int seatOf(String uri) {
-        java.util.List<String> v = new QueryStringDecoder(uri).parameters().get("seat");
-        if (v == null || v.isEmpty()) {
-            return GameStream.SPECTATOR;
-        }
-        try {
-            return Math.max(GameStream.SPECTATOR, Integer.parseInt(v.get(0)));
-        } catch (NumberFormatException e) {
-            return GameStream.SPECTATOR;
-        }
+    /**
+     * The seat bound to the request's {@code token} (index in the game's player list), or
+     * {@link GameStream#SPECTATOR}. A {@code seat} parameter is ignored: a token opens one view only.
+     */
+    int seatOf(String uri) {
+        List<String> v = new QueryStringDecoder(uri).parameters().get("token");
+        AccessPolicy p = policy;
+        Integer seat = v == null || v.size() != 1 || p == null ? null : p.seatOf(v.get(0));
+        return seat == null ? GameStream.SPECTATOR : seat;
     }
 
     private final class HttpHandler extends SimpleChannelInboundHandler<FullHttpRequest> {

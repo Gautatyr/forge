@@ -27,7 +27,7 @@ public class WsConnectionHandlerTest {
     @BeforeMethod
     public void connect() {
         hub = new FakeHub();
-        handler = new WsConnectionHandler(hub, LIMITS);
+        handler = new WsConnectionHandler(hub, LIMITS, WsConnectionHandlerTest::seatOfToken);
         ch = new EmbeddedChannel(handler);
         ch.pipeline().fireUserEventTriggered(
                 new WebSocketServerProtocolHandler.HandshakeComplete("/ws?token=t", EmptyHttpHeaders.INSTANCE, null));
@@ -92,7 +92,7 @@ public class WsConnectionHandlerTest {
     public void snapshotLargerThanQueueLimitIsStillDelivered() {
         hub = new FakeHub();
         hub.padSnapshots(5_000);
-        handler = new WsConnectionHandler(hub, LIMITS);
+        handler = new WsConnectionHandler(hub, LIMITS, WsConnectionHandlerTest::seatOfToken);
         ch = new EmbeddedChannel(handler);
         ch.pipeline().fireUserEventTriggered(
                 new WebSocketServerProtocolHandler.HandshakeComplete("/ws?token=t", EmptyHttpHeaders.INSTANCE, null));
@@ -106,7 +106,7 @@ public class WsConnectionHandlerTest {
     public void deltasQueuedBehindOversizedSnapshotBeforeFirstDrainAreDelivered() {
         hub = new FakeHub();
         hub.padSnapshots(5_000);
-        handler = new WsConnectionHandler(hub, LIMITS);
+        handler = new WsConnectionHandler(hub, LIMITS, WsConnectionHandlerTest::seatOfToken);
         ch = new EmbeddedChannel(handler);
         ch.pipeline().fireUserEventTriggered(
                 new WebSocketServerProtocolHandler.HandshakeComplete("/ws?token=t", EmptyHttpHeaders.INSTANCE, null));
@@ -143,7 +143,7 @@ public class WsConnectionHandlerTest {
                 throw new IllegalStateException(e);
             }
         });
-        handler = new WsConnectionHandler(hub, LIMITS);
+        handler = new WsConnectionHandler(hub, LIMITS, WsConnectionHandlerTest::seatOfToken);
         ch = new EmbeddedChannel(handler);
         ch.pipeline().fireUserEventTriggered(
                 new WebSocketServerProtocolHandler.HandshakeComplete("/ws?token=t", EmptyHttpHeaders.INSTANCE, null));
@@ -153,19 +153,44 @@ public class WsConnectionHandlerTest {
         assertEquals(hub.clientCount(), 1);
     }
 
-    @Test
-    public void seatFromHandshakeIsKeptAcrossResyncs() {
-        assertEquals(hub.seats, List.of(-1), "no seat: spectator");
+    /** Test tokens: "t1" opens seat 1, anything else the spectator view. */
+    private static int seatOfToken(String uri) {
+        return uri.contains("token=t1") ? 1 : -1;
+    }
+
+    private void connectSeatOne() {
         hub = new FakeHub();
-        handler = new WsConnectionHandler(hub, LIMITS);
+        handler = new WsConnectionHandler(hub, LIMITS, WsConnectionHandlerTest::seatOfToken);
         ch = new EmbeddedChannel(handler);
+        // the seat comes from the token; a seat parameter is ignored
         ch.pipeline().fireUserEventTriggered(
-                new WebSocketServerProtocolHandler.HandshakeComplete("/ws?token=t&seat=1", EmptyHttpHeaders.INSTANCE, null));
+                new WebSocketServerProtocolHandler.HandshakeComplete("/ws?token=t1&seat=3", EmptyHttpHeaders.INSTANCE, null));
         written();
+    }
+
+    @Test
+    public void seatFromTokenIsKeptAcrossResyncs() {
+        assertEquals(hub.seats, List.of(-1), "spectator token: spectator");
+        connectSeatOne();
         ch.writeInbound(new TextWebSocketFrame("{\"t\":\"requestResync\"}"));
         written();
         assertEquals(hub.seats, List.of(1, 1));
         assertEquals(handler.resyncCount(), 1);
+    }
+
+    @Test
+    public void seatMessagesReachTheHubWithTheTokensSeat() {
+        connectSeatOne();
+        ch.writeInbound(new TextWebSocketFrame("{\"t\":\"reply\",\"id\":3,\"value\":[0],\"seat\":2}"));
+        ch.writeInbound(new TextWebSocketFrame("not json"));
+        ch.writeInbound(new TextWebSocketFrame("[1,2]"));
+        assertEquals(hub.messages, List.of("1:{\"t\":\"reply\",\"id\":3,\"value\":[0],\"seat\":2}"));
+    }
+
+    @Test
+    public void spectatorMessagesAreDropped() {
+        ch.writeInbound(new TextWebSocketFrame("{\"t\":\"action\",\"method\":\"concede\"}"));
+        assertEquals(hub.messages, List.of());
     }
 
     @Test

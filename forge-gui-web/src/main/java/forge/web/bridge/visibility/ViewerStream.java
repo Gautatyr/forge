@@ -111,6 +111,15 @@ public final class ViewerStream {
         return levels.get(wireId) == Visibility.FULL && mirror.get("card:" + wireId) != null ? wireId : -1;
     }
 
+    /**
+     * How this viewer names a card outside zone lists, as of the last flush: engine id if visible in
+     * full, alias if face down, else its unseen id; -1 if this viewer was never told of the card.
+     * For references in prompts and calls sent to a seat.
+     */
+    public int refOf(int realId) {
+        return tableRef(realId);
+    }
+
     /** Filters one flush for this viewer and applies it to the mirror. */
     public Delta apply(Flush f) {
         Map<Integer, Visibility> now = new HashMap<>();

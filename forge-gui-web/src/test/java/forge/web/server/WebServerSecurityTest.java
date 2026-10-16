@@ -13,7 +13,9 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -24,6 +26,7 @@ import org.testng.annotations.Test;
 public class WebServerSecurityTest {
 
     private static final String TOKEN = AccessPolicy.newToken();
+    private static final String SEAT1 = AccessPolicy.newToken();
 
     private FakeHub hub;
     private WebServer server;
@@ -35,7 +38,10 @@ public class WebServerSecurityTest {
         Path root = Files.createTempDirectory("forge-web-test");
         Files.writeString(root.resolve("index.html"), "<!doctype html><title>t</title>");
         hub = new FakeHub();
-        server = new WebServer(0, root, hub, TOKEN);
+        Map<String, Integer> tokens = new LinkedHashMap<>();
+        tokens.put(TOKEN, -1);
+        tokens.put(SEAT1, 1);
+        server = new WebServer(0, root, hub, tokens);
         server.start();
         port = server.port();
         self = "127.0.0.1:" + port;
@@ -113,17 +119,29 @@ public class WebServerSecurityTest {
     }
 
     @Test
-    public void seatStreamsNeedTheTokenAndReachTheHubWithTheirSeat() throws Exception {
+    public void eachTokenOpensOnlyItsOwnSeat() throws Exception {
         String origin = "http://" + self;
         assertEquals(handshake("/ws?seat=0", self, origin).status, 403);
         assertEquals(get("/state?seat=0", self), 403);
         assertEquals(get("/state?seat=1&token=wrong", self), 403);
+        assertEquals(handshake("/ws?token=" + SEAT1.substring(1), self, origin).status, 403);
         assertEquals(hub.seats, List.of(), "refused requests never reach the hub");
+        // the spectator token cannot pick a seat
         assertEquals(handshake("/ws?token=" + TOKEN + "&seat=1", self, origin).status, 101);
-        assertEquals(handshake("/ws?seat=0&token=" + TOKEN, self, origin).status, 101);
         assertEquals(get("/state?token=" + TOKEN + "&seat=1", self), 200);
-        assertEquals(get("/state?token=" + TOKEN, self), 200);
-        assertEquals(hub.seats, List.of(1, 0, 1, -1));
+        // a seat token opens its seat, whatever seat parameter rides along
+        assertEquals(handshake("/ws?token=" + SEAT1, self, origin).status, 101);
+        assertEquals(handshake("/ws?seat=0&token=" + SEAT1, self, origin).status, 101);
+        assertEquals(get("/state?token=" + SEAT1, self), 200);
+        assertEquals(hub.seats, List.of(-1, -1, 1, 1, 1));
+    }
+
+    @Test
+    public void seatTokenNeedsTheRightHostAndOrigin() throws Exception {
+        assertEquals(handshake("/ws?token=" + SEAT1, "evil.example:" + port, "http://evil.example:" + port).status, 403);
+        assertEquals(handshake("/ws?token=" + SEAT1, self, "http://evil.example").status, 403);
+        assertEquals(get("/state?token=" + SEAT1, "evil.example:" + port), 403);
+        assertEquals(hub.adds.get(), 0);
     }
 
     @Test
@@ -141,6 +159,12 @@ public class WebServerSecurityTest {
         assertTrue(p.tokenValid(a));
         assertFalse(p.tokenValid(null));
         assertFalse(p.tokenValid(a + "x"));
+        assertEquals(p.seatOf(a), Integer.valueOf(-1));
+        String b = AccessPolicy.newToken();
+        AccessPolicy seats = new AccessPolicy(Map.of(a, -1, b, 2), 1);
+        assertEquals(seats.seatOf(b), Integer.valueOf(2));
+        assertEquals(seats.seatOf(a), Integer.valueOf(-1));
+        assertEquals(seats.seatOf(b + "x"), null);
     }
 
     private record Handshake(int status, String firstText) { }

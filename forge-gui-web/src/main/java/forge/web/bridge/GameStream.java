@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Function;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -21,6 +22,7 @@ import com.google.gson.JsonObject;
 import forge.game.GameLog;
 import forge.game.GameLogEntry;
 import forge.game.GameView;
+import forge.game.card.CardView;
 import forge.game.event.GameEvent;
 import forge.game.event.GameEventShuffle;
 import forge.game.player.PlayerView;
@@ -32,6 +34,7 @@ import forge.web.bridge.visibility.Flush;
 import forge.web.bridge.visibility.LiveCards;
 import forge.web.bridge.visibility.Viewer;
 import forge.web.bridge.visibility.ViewerStream;
+import forge.web.bridge.visibility.Visibility;
 import forge.web.bridge.visibility.ZoneOrder;
 import forge.web.schema.WireEnvelope;
 
@@ -58,6 +61,21 @@ public final class GameStream {
 
     /** Seat index of a spectator. */
     public static final int SPECTATOR = -1;
+
+    /**
+     * What a human seat adds to its clients' stream (forge.web.seat). Called under the stream's lock:
+     * implementations must not block nor take a lock held while calling this stream.
+     */
+    public interface SeatHooks {
+        /** Messages a new client of the seat gets right after its snapshot (open prompts, current input). */
+        List<String> greeting(int seat);
+
+        /** A reply or action from a client of the seat (transport thread). */
+        void receive(int seat, JsonObject msg, ClientSink from);
+
+        /** The seat's connected-client count changed. */
+        void clientsChanged(int seat, int clients);
+    }
     private static final int LOG_TAIL = 400;
 
     private final Object lock = new Object();
@@ -80,6 +98,7 @@ public final class GameStream {
     /** Last known card order of every zone, {@code playerId:Zone -> ids}, to detect shuffles. */
     private Map<String, List<Integer>> zoneOrders = new HashMap<>();
     private volatile CountDownLatch gameOver = new CountDownLatch(1);
+    private volatile SeatHooks seatHooks;
 
     public GameStream(HiddenPolicy policy, Path metricsDir) {
         this.policy = policy;
@@ -94,6 +113,10 @@ public final class GameStream {
 
     public void setLabel(String label) {
         this.label = label;
+    }
+
+    public void setSeatHooks(SeatHooks hooks) {
+        this.seatHooks = hooks;
     }
 
     private Viewer viewer(int seat, List<PlayerView> players) {
@@ -132,6 +155,13 @@ public final class GameStream {
         return gameOver;
     }
 
+    /** The game view bound by the last {@link #startGame}, or null. */
+    public GameView gameView() {
+        synchronized (lock) {
+            return gameView;
+        }
+    }
+
     /** A spectator client: sees no hidden information. */
     public void addClient(ClientSink c) {
         addClient(c, SPECTATOR);
@@ -149,16 +179,95 @@ public final class GameStream {
             if (metrics != null) {
                 metrics.recordClientSnapshot(StreamMetrics.utf8(snap).length);
             }
+            SeatHooks hooks = seatHooks;
+            boolean seated = seat >= 0 && seat < seats.size();
+            if (hooks != null && seated) {
+                for (String m : hooks.greeting(seat)) {
+                    c.send(m);
+                }
+            }
             clients.put(c, seat);
+            if (hooks != null && seated) {
+                hooks.clientsChanged(seat, seatClientCount(seat));
+            }
         }
     }
 
+    /** Under {@link #lock}, as {@link #addClient}: a seat's hooks hear its client counts in order. */
     public void removeClient(ClientSink c) {
-        clients.remove(c);
+        synchronized (lock) {
+            Integer seat = clients.remove(c);
+            SeatHooks hooks = seatHooks;
+            if (seat != null && seat >= 0 && hooks != null) {
+                hooks.clientsChanged(seat, seatClientCount(seat));
+            }
+        }
     }
 
     public int clientCount() {
         return clients.size();
+    }
+
+    /** Connected clients of one seat. */
+    public int seatClientCount(int seat) {
+        int n = 0;
+        for (int s : clients.values()) {
+            if (s == seat) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /** A message from a seat's client; see {@link SeatHooks#receive}. */
+    public void clientMessage(int seat, JsonObject msg, ClientSink from) {
+        SeatHooks hooks = seatHooks;
+        if (hooks != null && seat >= 0) {
+            hooks.receive(seat, msg, from);
+        }
+    }
+
+    /**
+     * Builds a message for one seat with that seat's card ids and sends it to the seat's clients, in
+     * order with its deltas (one lock, one queue per client). Returns the text sent, or null when the
+     * current game has no such seat (the message is dropped).
+     */
+    public String sendToSeat(int seat, Function<SeatRefs, JsonObject> build) {
+        return sendToSeat(seat, build, null);
+    }
+
+    /**
+     * As {@link #sendToSeat(int, Function)}; {@code sent} receives the text under the lock, so a client
+     * added concurrently either got the message or finds it in the seat's greeting.
+     */
+    public String sendToSeat(int seat, Function<SeatRefs, JsonObject> build, java.util.function.Consumer<String> sent) {
+        synchronized (lock) {
+            if (seat < 0 || seat >= seats.size()) {
+                return null;
+            }
+            ViewerStream vs = seats.get(seat);
+            SeatRefs refs = new SeatRefs() {
+                @Override
+                public int card(int realId) {
+                    return vs.refOf(realId);
+                }
+
+                @Override
+                public Visibility visibility(CardView card) {
+                    return vs.viewer().of(card);
+                }
+            };
+            String text = build.apply(refs).toString();
+            if (sent != null) {
+                sent.accept(text);
+            }
+            for (Map.Entry<ClientSink, Integer> c : clients.entrySet()) {
+                if (c.getValue() == seat) {
+                    c.getKey().send(text);
+                }
+            }
+            return text;
+        }
     }
 
     /** The spectator's current snapshot. Thread-safe. */

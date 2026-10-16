@@ -2,14 +2,16 @@ import { player } from '../model/selectors';
 import type { CardId, GameView, PlayerId, StackItem, TargetRef } from '../model/types';
 import type { UiState } from './ui';
 
-/** Everything a card needs to draw its state overlays. Derived, never stored. */
+/**
+ * Everything a card needs to draw its state overlays. Derived, never stored.
+ * "Highlights are answers, never hints" (design pass 4): a card is actionable
+ * only while the open prompt lets you pick it, never for ordinary priority.
+ */
 export interface CardStatus {
-  /** You may play it now (hand, command zone, flashback…). */
-  playable: boolean;
-  /** Can be clicked as part of the current decision (target, attacker, blocker, incoming attacker). */
+  /** Can be clicked as part of the current decision (target, attacker, blocker, incoming attacker, mana source while paying). */
   actionable: boolean;
   /** Icon for the actionable state. */
-  actionKind?: 'play' | 'target' | 'attack' | 'block' | 'blockTarget';
+  actionKind?: 'target' | 'attack' | 'block' | 'blockTarget' | 'mana';
   /** Chosen by you in the current decision (target, pending blocker…). */
   selected: boolean;
   /** Not usable for the current decision: drawn faded. */
@@ -53,7 +55,6 @@ export function cardStatus(game: GameView, ui: UiState, id: CardId): CardStatus 
   const c = game.cards[id];
   const d = game.decision;
   const s: CardStatus = {
-    playable: false,
     actionable: false,
     selected: false,
     dimmed: false,
@@ -61,10 +62,13 @@ export function cardStatus(game: GameView, ui: UiState, id: CardId): CardStatus 
   };
   if (!c) return s;
 
-  if (d.kind === 'priority' && d.playable.includes(id)) {
-    s.playable = true;
-    s.actionable = true;
-    s.actionKind = 'play';
+  if (d.kind === 'payMana') {
+    // Sources that can still pay are ringed; your other permanents dim; opponents' boards don't.
+    const source = d.sources.some((x) => x.cardId === id);
+    s.actionable = source;
+    s.actionKind = source ? 'mana' : undefined;
+    s.selected = id === d.sourceCardId;
+    s.dimmed = !source && !s.selected && c.zone === 'battlefield' && c.controllerId === game.youId;
   }
 
   if (d.kind === 'chooseTargets') {

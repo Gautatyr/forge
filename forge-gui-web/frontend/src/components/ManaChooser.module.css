@@ -1,0 +1,41 @@
+/* Small chooser at a dual land: "Add {G} · Add {W}". Positioned by ManaChooser.tsx. */
+.chooser {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: var(--z-popover);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--c-actionable);
+  background: var(--c-panel);
+  box-shadow: var(--shadow-float);
+}
+
+.option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--r-md);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  color: var(--c-text);
+  white-space: nowrap;
+}
+
+.option:hover,
+.option:focus-visible {
+  background: var(--c-panel-raised);
+}
+
+.option:focus-visible {
+  outline: 2px solid var(--c-selected);
+  outline-offset: 1px;
+}
+
+.sep {
+  color: var(--c-text-3);
+}
