@@ -129,6 +129,10 @@ describe('sourceFromLocation', () => {
     expect(sourceFromLocation(loc('?live=1', '#token=xyz'))).toEqual({ kind: 'live', url: 'ws://localhost:5300/ws', token: 'xyz', seat: 0 });
     expect(sourceFromLocation(loc('?live&seat=spectator', '#token=xyz'))).toMatchObject({ seat: 'spectator' });
   });
+  it("reads the desktop launcher's seat URL (forge-gui-desktop-web WebMatchHost.seatUrl)", () => {
+    const launcher = { search: '?live=1&seat=2', hash: '#token=t0k', host: '127.0.0.1:41234', protocol: 'http:' };
+    expect(sourceFromLocation(launcher)).toEqual({ kind: 'live', url: 'ws://127.0.0.1:41234/ws', token: 't0k', seat: 2 });
+  });
   it('reads a replay', () => {
     expect(sourceFromLocation(loc('?replay=commander4&at=250&play=200'))).toEqual({ kind: 'replay', recording: 'commander4', at: 250, stepMs: 200 });
     expect(sourceFromLocation(loc('?replay'))).toEqual({ kind: 'replay', recording: 'commander4' });

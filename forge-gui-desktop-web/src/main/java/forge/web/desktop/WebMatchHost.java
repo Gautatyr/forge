@@ -7,11 +7,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import forge.web.bridge.GameStream;
+import forge.web.images.ForgeImages;
 import forge.web.seat.WebGuiGame;
 import forge.web.seat.WebSeats;
 import forge.web.server.AccessPolicy;
+import forge.web.server.ImageSource;
 import forge.web.server.StreamHub;
 import forge.web.server.WebServer;
 
@@ -30,8 +33,14 @@ public final class WebMatchHost {
     /**
      * @param port    0 picks a free port
      * @param webRoot the built frontend ({@code forge-gui-web/frontend/dist})
+     * @param images  card images for {@code /img}, created when the server starts (after the card database)
      */
-    public record Options(int port, Path webRoot, WebSeats.Timeouts timeouts) { }
+    public record Options(int port, Path webRoot, WebSeats.Timeouts timeouts, Supplier<ImageSource> images) {
+        /** Images from Forge's card image cache, downloading a missing one as the desktop does. */
+        public Options(int port, Path webRoot, WebSeats.Timeouts timeouts) {
+            this(port, webRoot, timeouts, ForgeImages::create);
+        }
+    }
 
     private final Options options;
     private final GameStream stream = new GameStream(GameStream.HiddenPolicy.REDACT, null);
@@ -66,7 +75,7 @@ public final class WebMatchHost {
             System.err.println("[web] no built frontend in " + options.webRoot().toAbsolutePath()
                     + " (run: make play, or pnpm build in forge-gui-web/frontend)");
         }
-        WebServer s = new WebServer(options.port(), options.webRoot(), StreamHub.of(stream), tokens);
+        WebServer s = new WebServer(options.port(), options.webRoot(), StreamHub.of(stream), tokens, options.images().get());
         try {
             s.start();
         } catch (InterruptedException e) {
@@ -117,9 +126,13 @@ public final class WebMatchHost {
         }
     }
 
-    /** The page of one seat, token in the URL fragment (after {@link #start}). */
+    /**
+     * The match screen of one seat (after {@link #start}): the frontend's live source ({@code ?live=1&seat=N},
+     * {@code src/adapter/source.ts}) on this server's {@code /ws}, the token in the fragment, which the browser
+     * never sends to a server.
+     */
     public synchronized String seatUrl(int seat) {
-        return server.pageUrl(seatTokens.get(seat));
+        return "http://127.0.0.1:" + server.port() + "/?live=1&seat=" + seat + "#token=" + seatTokens.get(seat);
     }
 
     public synchronized int port() {

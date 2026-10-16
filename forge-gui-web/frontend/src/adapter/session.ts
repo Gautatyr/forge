@@ -27,6 +27,8 @@ export interface InputState {
   ownerId?: number;
   message: string;
   cardId?: number;
+  /** The input names a card (cardId, or -1 for one this view can't resolve, e.g. a spell being cast). */
+  namesCard: boolean;
   ok: Button;
   cancel: Button;
   /** Cards the input accepts (setSelectables). */
@@ -39,6 +41,7 @@ export interface InputState {
 
 export const NO_INPUT: InputState = {
   message: '',
+  namesCard: false,
   ok: { label: '', enabled: false },
   cancel: { label: '', enabled: false },
   targets: [],
@@ -285,6 +288,7 @@ export class LiveSession {
           ownerId: refId(a[0]) ?? this.input.ownerId,
           message: typeof a[1] === 'string' ? a[1] : '',
           cardId: card !== undefined && card >= 0 ? card : undefined,
+          namesCard: card !== undefined,
         };
         return;
       }

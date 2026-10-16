@@ -138,3 +138,9 @@ Newest last. Each entry: the decision, why, and what it implies.
 - Toggle "Use the new match screen": a checkbox in Forge's menu bar (navigation bar, between the tabs and the window buttons; shorter label or checkbox alone when the window is narrow), default on, saved in `<user dir>/preferences/fork-web.preferences` (fork-owned; `forge.preferences` untouched).
 - The launcher does not initialise Sentry (upstream's crash reporting).
 
+## 2026-10-16 — Playing from the lobby end to end (issue #13)
+- The launcher's seat page is `/?live=1&seat=N#token=…`: the frontend's live source, so the page starts live without any other parameter.
+- Actionable highlights and the autotap preview are set per web seat (`YieldController` overrides in `WebGuiGame.setOriginalGameController`), not in `FModel` preferences: the desktop app's own preferences are neither read nor changed (it may save them). `WebMain` keeps its in-memory prefs.
+- The launcher serves `/img` from Forge's image cache (`ForgeImages`, the user's real cache; downloads land there as the desktop app's would). The frontend uses `/img` for every live card and token, with Scryfall by name as the fallback.
+- Frontend: an input that names no card (`showPromptMessage` card null: discard to hand size, who starts) is for no spell; the last clicked card is the source only when the engine names one it can't resolve (-1).
+- Tray words: an engine message never shows the same line as title and instruction (`promptWords`): first line (without the engine's card id) and the rest; one line is the title alone; a long single "Card: rule text" line is split at the colon.

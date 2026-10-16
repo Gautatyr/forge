@@ -104,6 +104,7 @@ describe('LiveSession input state (bridge seat protocol)', () => {
       ownerId: 0,
       message: 'Lightning Bolt - Select target',
       cardId: 33,
+      namesCard: true,
       ok: { label: 'OK', enabled: false },
       cancel: { label: 'Cancel', enabled: true },
       selectable: { cards: [10, 12], min: 1, max: 1 },

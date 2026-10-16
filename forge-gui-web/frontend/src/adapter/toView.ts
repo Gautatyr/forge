@@ -26,8 +26,8 @@ import type {
   OutReason,
 } from '../model/types';
 import type { CardProps, CardStateProps, PhaseType, PlayerProps, ZoneType } from '../wire/generated/wire';
-import { namedImage, parseImageKey, type ImageLookup } from './images';
-import { promptToChoice, inputToChoice, SELECT_PROMPT_PREFIX, targetKey } from './prompts';
+import { parseImageKey, scryfallLookup, type ImageLookup } from './images';
+import { promptToChoice, promptWords, inputToChoice, SELECT_PROMPT_PREFIX, targetKey } from './prompts';
 import type { LiveSession } from './session';
 
 const STEP_OF: Record<PhaseType, StepId> = {
@@ -69,10 +69,17 @@ function counters(map: Record<string, number> | undefined, skip: string[] = []):
     .map(([k, n]) => ({ kind: counterName(k), count: n }));
 }
 
-/** `c:<name>|<set>|<art index>` → an image by name and set (the view has no collector number); other keys (tokens…) have none. */
-export function imageFromKey(key: string | undefined, back = false, lookup: ImageLookup = namedImage): CardFace['image'] {
-  const r = parseImageKey(key);
-  return r ? lookup({ ...r, back }) : undefined;
+/** Faces with no card of their own (face-down, hidden…): no name to look up. */
+const SPECIAL_FACE = /^t:(hidden|morph|manifest|cloaked|foretell)$/;
+
+/**
+ * A view image key → the lookup's image. `c:<name>|<set>|<art index>` names the card by name and set (the
+ * view has no collector number); other keys (tokens `t:…`) go by the face's name.
+ */
+export function imageFromKey(key: string | undefined, back = false, lookup: ImageLookup = scryfallLookup, name = ''): CardFace['image'] {
+  if (!key) return undefined;
+  const card = parseImageKey(key);
+  return card ? lookup({ key, ...card, back }) : lookup({ key, name: SPECIAL_FACE.test(key) ? '' : name, set: '', back, token: true });
 }
 
 /** "Flying (reminder…)" → keyword; the name is the label without its value ("Ward {2}" → "Ward"). */
@@ -95,7 +102,7 @@ function face(p: CardStateProps, fallbackName: string, back: boolean, images: Im
     manaCost: p.ManaCost ?? '',
     typeLine: type,
     oracleText: cleanText(p.OracleText || p.AbilityText),
-    image: imageFromKey(p.ImageKey, back, images),
+    image: imageFromKey(p.ImageKey, back, images, p.Name),
   };
   if (creature) {
     f.power = String(p.Power ?? 0);
@@ -113,7 +120,7 @@ function gamePlayer(s: LiveSession, id: number | undefined): number | undefined 
 }
 
 /** Undefined for cards this viewer can't see, cards in no drawn zone, and cards of no player of the game. */
-export function mapCard(s: LiveSession, id: number, images: ImageLookup = namedImage): CardView | undefined {
+export function mapCard(s: LiveSession, id: number, images: ImageLookup = scryfallLookup): CardView | undefined {
   const card = s.get('card', id) ?? s.limboCard(id);
   if (!card) return undefined;
   const cp: CardProps = card.props;
@@ -245,9 +252,10 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
 
   const youView = view.players.find((p) => p.isYou)!;
   const weakly = [...s.weakly.keys()];
-  // The engine's ref to the spell being cast can be unknown (-1): fall back to the card you clicked.
+  // The engine's ref to the spell being cast can be unknown (-1): fall back to the card you clicked. An input
+  // that names no card (discard to hand size, who starts) is for no spell, whatever was clicked before.
   const known = (id: number | undefined) => (id !== undefined && id >= 0 && view.cards[sid(id)] ? sid(id) : undefined);
-  const castCard = () => known(input.cardId) ?? known(s.lastCard) ?? '';
+  const castCard = () => known(input.cardId) ?? (input.namesCard ? known(s.lastCard) : undefined) ?? '';
 
   const pay = PAY_COST.exec(input.message);
   if (pay) {
@@ -275,14 +283,13 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
   // Cards the engine shows you (an opponent's hand, a revealed card): look, then OK.
   const shown = s.revealed.map(sid).filter((id) => view.cards[id]);
   if (shown.length && input.ok.enabled && !/^Priority:/.test(input.message)) {
-    const msg = input.message.trim() || 'Revealed cards';
+    const msg = input.message.trim();
     return {
       kind: 'choice',
       prompt: {
         id: `input:ok:reveal:${shown.join(',')}`,
         shape: 'chooseN',
-        title: msg.split('\n')[0]!,
-        instruction: msg,
+        ...promptWords(msg, undefined, 'Revealed cards'),
         confirmLabel: input.ok.label || 'OK',
         min: 0,
         max: 0,
@@ -339,16 +346,14 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
       t.kind === 'player' || ['battlefield', 'stack'].includes(view.cards[t.id]!.zone) || youView.hand.includes(t.id);
     if (legal.length && (!castCard() || !legal.every(onBoard))) {
       const msg = input.message.replace(/\s*\(Click on the portrait\.?\)/i, '').trim();
-      const lines = msg.split('\n').map((l) => l.trim()).filter(Boolean);
       const source = known(input.cardId);
       return {
         kind: 'choice',
         prompt: {
           id: `${SELECT_PROMPT_PREFIX}${legal.map(targetKey).join(',')}|${msg}`,
           shape: 'chooseN',
-          // "Cultivate (12)\nSelect up to 2 cards from your library": the last line is the question.
-          title: lines.at(-1) ?? 'Choose',
-          instruction: lines.at(-1) ?? 'Choose',
+          // "Cultivate (12)\nSelect up to 2 cards from your library", "Cleanup Phase\nSelect 2 card(s) to discard…"
+          ...promptWords(msg, undefined, 'Choose'),
           ...(source ? { sourceCardId: source } : {}),
           confirmLabel: input.ok.label || 'OK',
           options: legal.map((t) => ({
@@ -415,7 +420,7 @@ export function passUntilYourTurnDone(g: Pick<GameView, 'turn' | 'youId' | 'star
   return !g.starting && g.turn.activePlayerId === g.youId && g.turn.number > fromTurn;
 }
 
-export function toGameView(s: LiveSession, images: ImageLookup = namedImage, local: LiveLocal = NO_LOCAL): GameView {
+export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup, local: LiveLocal = NO_LOCAL): GameView {
   const game = s.gameObject;
   const gp = game?.props ?? {};
   const playerIds = gp.Players ?? [];

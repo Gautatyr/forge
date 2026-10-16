@@ -88,7 +88,10 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
   const pickInPlace = useInPlacePick();
   const s = cardStatusWithChoice(game, ui, c.id);
   const face = currentFace(c);
-  const img = face.image ?? c.front.image;
+  // Live: the bridge's image first; when it has none, its fallback (Scryfall) at once.
+  const [fellBack, setFellBack] = useState<string>();
+  const own = face.image ?? c.front.image;
+  const img = own?.fallback && fellBack === own.normal ? own.fallback : own;
   const onBoard = context === 'board';
   const showOverlays = context !== 'thumb';
   const ring = showOverlays ? ringClass(s) : undefined;
@@ -170,10 +173,12 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
               decoding="async"
               draggable={false}
               onError={() =>
-                window.setTimeout(
-                  () => setFailures((f) => ({ src: img.normal, count: f?.src === img.normal ? f.count + 1 : 1 })),
-                  1200,
-                )
+                img === own && own.fallback
+                  ? setFellBack(own.normal)
+                  : window.setTimeout(
+                      () => setFailures((f) => ({ src: img.normal, count: f?.src === img.normal ? f.count + 1 : 1 })),
+                      1200,
+                    )
               }
             />
           ) : (

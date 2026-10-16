@@ -27,8 +27,9 @@ design-token file. Data comes from mock scenarios, a recorded game, or the live 
 - Every state is shape/icon + colour, never colour alone (colour-blind players).
 - No user-facing string hard-coded once i18n lands (issue #3): English and French, and
   French runs ~30 % longer.
-- Card images load from `cards.scryfall.io` (live: resolved in batches through Scryfall's
-  `cards/collection`, `src/adapter/images.ts`); the bridge will serve them later (#10).
+- Card images (`src/adapter/images.ts`): live, the bridge's `/img?key=<image key>&token=…` for every card
+  and token (Vite proxies `/img`), Scryfall by name as the fallback (`CardImage.fallback`); replay and mock,
+  Scryfall (`cards/collection` in batches).
 
 ## Dev loop and verification
 - `make web-dev` (per-worktree port), `make web-front-check` (install, type-check, lint,

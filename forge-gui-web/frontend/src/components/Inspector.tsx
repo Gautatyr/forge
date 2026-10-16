@@ -3,6 +3,7 @@ import { commanderTax, currentFace, isCreature, player } from '../model/selector
 import type { CardFace } from '../model/types';
 import { useMatch } from '../state/MatchContext';
 import { Card } from './Card';
+import { CardArt } from './CardArt';
 import { Icon } from './Icon';
 import { KeywordBadge } from './KeywordIcons';
 import { grantedText, keywordLine } from './keywordCatalog';
@@ -38,7 +39,7 @@ export function Inspector() {
         <div className={styles.faces}>
           {faces.map((f) => (
             <figure key={f.label} className={styles.face}>
-              {f.face.image ? <img src={f.face.image.large} alt={f.face.name} /> : null}
+              {f.face.image ? <CardArt key={f.face.image.large} image={f.face.image} size="large" alt={f.face.name} /> : null}
               {c.back ? (
                 <figcaption>
                   {f.label}

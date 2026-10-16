@@ -1,6 +1,7 @@
 import { currentFace } from '../model/selectors';
 import { cardStatus } from '../state/cardStatus';
 import { useMatch } from '../state/MatchContext';
+import { CardArt } from './CardArt';
 import { Icon } from './Icon';
 import styles from './HoverPreview.module.css';
 
@@ -27,7 +28,7 @@ export function HoverPreview() {
 
   return (
     <div className={`${styles.preview} ${styles[ui.hover.side]}`} aria-hidden>
-      {img ? <img src={img.large} alt="" className={styles.img} /> : null}
+      {img ? <CardArt key={img.large} image={img} size="large" alt="" className={styles.img} /> : null}
       <div className={styles.info}>
         {notes.map((n) => (
           <span key={n} className={styles.note}>
