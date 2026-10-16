@@ -38,14 +38,15 @@ import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.codec.http.websocketx.extensions.compression.WebSocketServerCompressionHandler;
 
 /**
- * One port serves the viewer page (static files), {@code /state} and {@code /metrics} (JSON) and
- * the {@code /ws} WebSocket. Bound to loopback only. Every request passes {@link RequestGuard}
- * ({@link AccessPolicy}: Host, Origin, per-launch token); each WebSocket client gets a bounded send
- * queue and resyncs from a snapshot ({@link WsConnectionHandler}).
+ * One port serves the viewer page (static files), {@code /state} and {@code /metrics} (JSON), card
+ * images ({@code /img}, {@link ImageSource}) and the {@code /ws} WebSocket. Bound to loopback only.
+ * Every request passes {@link RequestGuard} ({@link AccessPolicy}: Host, Origin, per-launch token);
+ * each WebSocket client gets a bounded send queue and resyncs from a snapshot ({@link WsConnectionHandler}).
  */
 public final class WebServer {
 
     private static final String WS_PATH = "/ws";
+    static final String IMG_PATH = "/img";
     /** Netty marks a channel unwritable above this many pending outbound bytes; draining stops there. */
     private static final WriteBufferWaterMark WATER_MARK = new WriteBufferWaterMark(512 << 10, 1 << 20);
 
@@ -59,6 +60,7 @@ public final class WebServer {
     private final StreamHub stream;
     private final Map<String, Integer> tokens;
     private final SendLimits limits;
+    private final ImageSource images;
     private volatile AccessPolicy policy;
     private EventLoopGroup boss;
     private EventLoopGroup workers;
@@ -70,7 +72,7 @@ public final class WebServer {
      *              the WebSocket and data endpoints
      */
     public WebServer(int port, Path webRoot, StreamHub stream, String token) {
-        this(port, webRoot, stream, Map.of(token, GameStream.SPECTATOR), SendLimits.DEFAULT);
+        this(port, webRoot, stream, Map.of(token, GameStream.SPECTATOR), SendLimits.DEFAULT, ImageSource.NONE);
     }
 
     /**
@@ -78,19 +80,34 @@ public final class WebServer {
      *               {@link GameStream#SPECTATOR}; the first is printed as the page URL
      */
     public WebServer(int port, Path webRoot, StreamHub stream, Map<String, Integer> tokens) {
-        this(port, webRoot, stream, tokens, SendLimits.DEFAULT);
+        this(port, webRoot, stream, tokens, SendLimits.DEFAULT, ImageSource.NONE);
+    }
+
+    /** @param images card images for {@code GET /img?key=<view image key>&token=...} (any valid token) */
+    public WebServer(int port, Path webRoot, StreamHub stream, Map<String, Integer> tokens, ImageSource images) {
+        this(port, webRoot, stream, tokens, SendLimits.DEFAULT, images);
+    }
+
+    /** One spectator token, with card images. */
+    public WebServer(int port, Path webRoot, StreamHub stream, String token, ImageSource images) {
+        this(port, webRoot, stream, Map.of(token, GameStream.SPECTATOR), SendLimits.DEFAULT, images);
     }
 
     WebServer(int port, Path webRoot, StreamHub stream, String token, SendLimits limits) {
-        this(port, webRoot, stream, Map.of(token, GameStream.SPECTATOR), limits);
+        this(port, webRoot, stream, Map.of(token, GameStream.SPECTATOR), limits, ImageSource.NONE);
     }
 
     WebServer(int port, Path webRoot, StreamHub stream, Map<String, Integer> tokens, SendLimits limits) {
+        this(port, webRoot, stream, tokens, limits, ImageSource.NONE);
+    }
+
+    WebServer(int port, Path webRoot, StreamHub stream, Map<String, Integer> tokens, SendLimits limits, ImageSource images) {
         this.requestedPort = port;
         this.webRoot = webRoot.toAbsolutePath().normalize();
         this.stream = stream;
         this.tokens = tokens;
         this.limits = limits;
+        this.images = images;
     }
 
     public void start() throws InterruptedException {
@@ -180,6 +197,18 @@ public final class WebServer {
                 send(ctx, HttpResponseStatus.OK, TYPES.get("json"), stream.metricsJson().getBytes(StandardCharsets.UTF_8));
                 return;
             }
+            if (IMG_PATH.equals(path)) {
+                List<String> key = new QueryStringDecoder(req.uri()).parameters().get("key");
+                images.find(key == null || key.size() != 1 ? null : key.get(0)).whenComplete((img, err) -> {
+                    if (img == null) {
+                        send(ctx, HttpResponseStatus.NOT_FOUND, "text/plain", "no image".getBytes(StandardCharsets.UTF_8));
+                    } else {
+                        // the key names one printing's image, and the URL carries this launch's token
+                        send(ctx, HttpResponseStatus.OK, img.contentType(), img.bytes(), "private, max-age=31536000, immutable");
+                    }
+                });
+                return;
+            }
             if (path.endsWith("/")) {
                 path += "index.html";
             }
@@ -194,10 +223,14 @@ public final class WebServer {
         }
 
         private void send(ChannelHandlerContext ctx, HttpResponseStatus status, String type, byte[] body) {
+            send(ctx, status, type, body, "no-store");
+        }
+
+        private void send(ChannelHandlerContext ctx, HttpResponseStatus status, String type, byte[] body, String cacheControl) {
             FullHttpResponse res = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status, Unpooled.wrappedBuffer(body));
             res.headers().set(HttpHeaderNames.CONTENT_TYPE, type);
             res.headers().set(HttpHeaderNames.CONTENT_LENGTH, body.length);
-            res.headers().set(HttpHeaderNames.CACHE_CONTROL, "no-store");
+            res.headers().set(HttpHeaderNames.CACHE_CONTROL, cacheControl);
             ctx.writeAndFlush(res).addListener(ChannelFutureListener.CLOSE);
         }
     }

@@ -17,7 +17,7 @@ import forge.web.bridge.GameStream;
  * <li>{@code Host} must name the loopback server (blocks DNS rebinding);</li>
  * <li>a WebSocket upgrade must come from the server's own page ({@code Origin}) and carry a
  * per-launch token; a request without {@code Origin} is a non-browser client and needs the token only;</li>
- * <li>game data over HTTP ({@code /state}, {@code /metrics}) needs a token.</li>
+ * <li>game data over HTTP ({@code /state}, {@code /metrics}) and card images ({@code /img}) need a token.</li>
  * </ul>
  * Each token is bound to one viewer: a seat (index in the game's player list) or
  * {@link GameStream#SPECTATOR}. The seat a client sees and acts for comes from its token only.

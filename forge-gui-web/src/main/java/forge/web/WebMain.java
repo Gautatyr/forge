@@ -30,6 +30,8 @@ import forge.player.GamePlayerUtil;
 import forge.player.LobbyPlayerHuman;
 import forge.web.bridge.GameStream;
 import forge.web.bridge.WebSpectatorGuiGame;
+import forge.web.images.DesktopImageCache;
+import forge.web.images.ForgeImages;
 import forge.web.seat.WebSeats;
 import forge.web.server.AccessPolicy;
 import forge.web.server.StreamHub;
@@ -55,6 +57,7 @@ import forge.web.server.WebServer;
  * --hidden redact|full    redact: each seat sees what the engine lets that player see, the
  *                         spectator what every player may see (default); full: omniscient, debug only
  * --port 7655  --assets forge-gui/  --home &lt;dir&gt;  --viewer &lt;dir&gt;
+ * --image-cache &lt;dir&gt;    card image cache (default: the desktop app's, e.g. ~/.cache/forge/pics; ignored on Windows)
  * --wait-client SECONDS   wait for a client (the human seat's, if any) before the first game
  * --exit                  stop the server after the last game, once its clients have left (at most 30 s)
  * --ai-seat-urls          with --human-seat: also give the AI seats a token and URL (debug; shows their hands)
@@ -96,6 +99,11 @@ public final class WebMain {
         // Isolated profile: the engine derives its user dir (~/.forge) from user.home. Never touch the real one.
         Path home = Paths.get(opt.getOrDefault("home", moduleDir.resolve("target/forge-home").toString())).toAbsolutePath();
         Files.createDirectories(home);
+        // ...except the card image cache, shared with the desktop app (override: --image-cache <pics dir>)
+        String os = System.getProperty("os.name");
+        Path pics = opt.containsKey("image-cache") ? Paths.get(opt.get("image-cache")).toAbsolutePath()
+                : DesktopImageCache.desktopPics(System.getProperty("user.home"), os);
+        System.out.println("[web] " + DesktopImageCache.link(home, pics, os));
         System.setProperty("user.home", home.toString());
         System.setProperty("java.awt.headless", "true");
         System.setProperty("java.util.Arrays.useLegacyMergeSort", "true");
@@ -153,7 +161,7 @@ public final class WebMain {
             seatTokens.add(t);
         }
         WebServer server = new WebServer(port, Paths.get(opt.getOrDefault("viewer", moduleDir.resolve("spike-viewer").toString())),
-                StreamHub.of(stream), tokens);
+                StreamHub.of(stream), tokens, ForgeImages.create());
         server.start();
         for (int s = 0; s < slots.size(); s++) {
             Slot sl = slots.get(s);
