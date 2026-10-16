@@ -107,6 +107,14 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   const game = live?.game ?? h.game;
   const scenarioId = source.kind === 'mock' ? h.scenarioId : source.kind;
 
+  // Live: engine messages and rejected answers or actions show in the prompt line, like any neutral note.
+  const notice = live?.notice;
+  const [seenNotice, setSeenNotice] = useState(notice?.id);
+  if (notice && seenNotice !== notice.id) {
+    setSeenNotice(notice.id);
+    setUiState((u) => ({ ...u, promptNote: { id: (u.promptNote?.id ?? 0) + 1, text: notice.text } }));
+  }
+
   // Focus layout: when the turn passes, focus follows it (see focus.ts).
   // Adjusting state during render is React's pattern for "state derived from a change".
   const turnKey = `${scenarioId}|${game.turn.number}|${game.turn.activePlayerId}`;

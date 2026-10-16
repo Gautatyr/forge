@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { WireObject } from '../wire/generated/wire';
 import { intentToFrames, stopFrames } from './commands';
 import { LiveSession } from './session';
-import { imageFromKey, logText, parseKeyword, toGameView } from './toView';
+import { imageFromKey, logText, parseKeyword, passUntilYourTurnDone, toGameView } from './toView';
 
 const ALIAS = 2 ** 30;
 
@@ -172,7 +172,7 @@ describe('intents → frames', () => {
   });
 
   it('passes until your turn with a yield marker at your upkeep', () => {
-    const s = session();
+    const s = session('MAIN1', 1);
     buttons(s, 'OK', 'End Turn');
     expect(intentToFrames({ type: 'passUntilYourTurn' }, s, toGameView(s))).toEqual([
       act('sendYieldUpdate', { update: { kind: 'SetMarker', phaseOwner: 0, phase: 'UPKEEP', atOrPastAtClick: false } }),
@@ -269,5 +269,246 @@ describe('helpers', () => {
     expect(logText('Hugo cast Grizzly Bears (10) targeting Dragon (20); Secret (99) moved.', g.cards)).toBe(
       'Hugo cast {card:10} targeting {card:20}; Secret (99) moved.',
     );
+  });
+});
+
+type View = ReturnType<typeof toGameView>;
+const delta1 = (d: { new?: WireObject[]; changed?: { type: string; id: number; props: object }[] }) =>
+  ({ t: 'delta', game: 1, seq: 1, ts: 0, new: d.new ?? [], changed: d.changed ?? [], removed: [], log: [], events: [] }) as Parameters<LiveSession['apply']>[0];
+
+/** Every player id the view names, wherever it names one. */
+function playerIdsIn(g: View): string[] {
+  const ids: string[] = [g.youId, g.turn.activePlayerId];
+  if (g.turn.priorityPlayerId) ids.push(g.turn.priorityPlayerId);
+  for (const c of Object.values(g.cards)) ids.push(c.ownerId, c.controllerId);
+  for (const a of g.combat?.attacks ?? []) ids.push(a.defenderId);
+  for (const si of g.stack) {
+    ids.push(si.controllerId);
+    for (const t of si.targets) if (t.kind === 'player') ids.push(t.id);
+  }
+  const d = g.decision;
+  if (d.kind === 'waiting') ids.push(d.forPlayerId);
+  if (d.kind === 'chooseTargets') for (const t of [...d.legal, ...d.chosen]) if (t.kind === 'player') ids.push(t.id);
+  if (d.kind === 'declareAttackers') ids.push(...d.defenders, ...d.draft.map((a) => a.defenderId));
+  if (d.kind === 'choice' && d.prompt.shape === 'chooseN') for (const o of d.prompt.options) if (o.playerId) ids.push(o.playerId);
+  return ids;
+}
+
+/** Every card id the view names in a zone list or in combat. */
+function cardIdsIn(g: View): string[] {
+  const ids: string[] = [];
+  for (const p of g.players) ids.push(...p.hand, ...p.battlefield, ...p.graveyard, ...p.exile, ...p.command, ...p.commanders);
+  for (const a of g.combat?.attacks ?? []) ids.push(a.attackerId);
+  for (const b of g.combat?.blocks ?? []) ids.push(b.blockerId, b.attackerId);
+  return ids;
+}
+
+describe('cards in no zone, of no player (a mutated commander’s merged copy)', () => {
+  it('leaves the card out, drops its combat bands and names only players of the game', () => {
+    const s = session('COMBAT_DECLARE_ATTACKERS', 1);
+    s.apply(
+      delta1({
+        new: [
+          { type: 'card', id: -1, props: { CurrentState: 'Original' } },
+          { type: 'cardState', id: -1, state: 'Original', props: { Name: 'Otrimi, the Ever-Playful', Type: 'Legendary Creature - Nightmare Beast', Power: 6, Toughness: 6 } },
+          { type: 'card', id: 50, props: { Owner: 1, Controller: 1, Zone: 'Battlefield', CurrentState: 'Original' } },
+          { type: 'cardState', id: 50, state: 'Original', props: { Name: 'Jace, Architect of Thought', Type: 'Legendary Planeswalker - Jace', Loyalty: '4' } },
+          { type: 'stackItem', id: 7, props: { SourceCard: -1, ActivatingPlayer: -1, Ability: true, Description: 'Mutate trigger', TargetPlayers: [-1, 0] } },
+        ],
+        changed: [
+          { type: 'player', id: 1, props: { Battlefield: [20, 50] } },
+          {
+            type: 'game',
+            id: 1,
+            props: {
+              Stack: [7],
+              CombatView: [
+                { attackers: [-1, 10], defender: { type: 'card', id: 50 }, blockers: [], plannedBlockers: [] },
+                { attackers: [20], defender: { type: 'card', id: -1 }, blockers: [-1], plannedBlockers: [] },
+                { attackers: [10], defender: { type: 'player', id: -1 }, blockers: [], plannedBlockers: [] },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+    const g = toGameView(s);
+    expect(g.cards['-1']).toBeUndefined();
+    const players = new Set(g.players.map((p) => p.id));
+    expect(playerIdsIn(g).filter((id) => !players.has(id))).toEqual([]);
+    expect(cardIdsIn(g).filter((id) => !g.cards[id])).toEqual([]);
+    // Jace's controller is the defender; the ghost attacker, the ghost defender and the unknown player are dropped.
+    expect(g.combat).toEqual({ attacks: [{ attackerId: '10', defenderId: '1' }], blocks: [] });
+    // The stack item stays, held by a real player (the active one when its controller is unknown).
+    expect(g.stack).toEqual([expect.objectContaining({ id: '7', controllerId: '1', targets: [{ kind: 'player', id: '0' }] })]);
+  });
+
+  it('keeps a card whose owner is unknown but whose controller is known', () => {
+    const s = session();
+    s.apply(
+      delta1({
+        new: [
+          { type: 'card', id: 60, props: { Controller: 1, Zone: 'Battlefield', CurrentState: 'Original' } },
+          { type: 'cardState', id: 60, state: 'Original', props: { Name: 'Token', Type: 'Creature' } },
+        ],
+        changed: [{ type: 'player', id: 1, props: { Battlefield: [20, 60] } }],
+      }),
+    );
+    expect(toGameView(s).cards['60']).toMatchObject({ ownerId: '1', controllerId: '1', zone: 'battlefield' });
+  });
+});
+
+describe('selections off the board (library searches, choosing a player)', () => {
+  /** Cultivate resolving: three basic lands of your library are selectable, up to 2. */
+  function search(): LiveSession {
+    const s = session();
+    const lands = [71, 72, 73];
+    s.apply(
+      delta1({
+        new: lands.flatMap((id): WireObject[] => [
+          { type: 'card', id, props: { Owner: 0, Controller: 0, Zone: 'Library', CurrentState: 'Original' } },
+          { type: 'cardState', id, state: 'Original', props: { Name: `Forest ${id}`, Type: 'Basic Land - Forest' } },
+        ]),
+      }),
+    );
+    s.apply({ t: 'call', method: 'setSelectables', args: [lands.map(card), 0, 2] });
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Grizzly Bears\nSelect up to 2 cards from your library', card(10)] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', true, false, true] });
+    return s;
+  }
+
+  it('lists library cards in the tray (they are on no board)', () => {
+    expect(toGameView(search()).decision).toMatchObject({
+      kind: 'choice',
+      prompt: {
+        shape: 'chooseN',
+        title: 'Select up to 2 cards from your library',
+        sourceCardId: '10',
+        confirmLabel: 'OK',
+        min: 0,
+        max: 2,
+        options: [
+          { id: 'c71', label: 'Forest 71', cardId: '71' },
+          { id: 'c72', label: 'Forest 72', cardId: '72' },
+          { id: 'c73', label: 'Forest 73', cardId: '73' },
+        ],
+      },
+    });
+  });
+
+  it('answers with one selectCard per pick, then OK unless the last pick ends the input', () => {
+    const s = search();
+    const answer = (optionIds: string[]) => {
+      const g = toGameView(s);
+      const id = g.decision.kind === 'choice' ? g.decision.prompt.id : '';
+      return intentToFrames({ type: 'answer', promptId: id, answer: { shape: 'chooseN', optionIds } }, s, g);
+    };
+    expect(answer(['c72'])).toEqual([act('selectCard', { card: 72 }), act('selectButtonOk')]);
+    // Two of up to two: the engine ends the input on the second pick; an OK would answer the next input.
+    expect(answer(['c71', 'c73'])).toEqual([act('selectCard', { card: 71 }), act('selectCard', { card: 73 })]);
+    expect(answer([])).toEqual([act('selectButtonOk')]);
+    // Already picked on the server: unpick what the answer drops, pick only what is new.
+    s.apply({ t: 'call', method: 'setHighlighted', args: [[card(71)], true] });
+    expect(answer(['c72'])).toEqual([act('selectCard', { card: 71 }), act('selectCard', { card: 72 }), act('selectButtonOk')]);
+  });
+
+  it('keeps the prompt id while the engine highlights picks', () => {
+    const s = search();
+    const before = toGameView(s).decision;
+    s.apply({ t: 'call', method: 'setHighlighted', args: [[card(71)], true] });
+    const after = toGameView(s).decision;
+    expect(before.kind === 'choice' && after.kind === 'choice' && before.prompt.id === after.prompt.id).toBe(true);
+  });
+
+  it('asks who starts with player options (no spell, no Cancel), answered by selectPlayer', () => {
+    const s = session();
+    s.apply({ t: 'call', method: 'setSelectableTargets', args: [[YOU, { type: 'player', id: 1 }]] });
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Choose the player who goes first (Click on the portrait.)', null] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, false, true] });
+    const g = toGameView(s);
+    expect(g.decision).toMatchObject({
+      kind: 'choice',
+      prompt: {
+        shape: 'chooseN',
+        title: 'Choose the player who goes first',
+        min: 1,
+        max: 1,
+        options: [
+          { id: 'p0', label: 'Hugo', playerId: '0' },
+          { id: 'p1', label: 'AI', playerId: '1' },
+        ],
+      },
+    });
+    const id = g.decision.kind === 'choice' ? g.decision.prompt.id : '';
+    expect(intentToFrames({ type: 'answer', promptId: id, answer: { shape: 'chooseN', optionIds: ['p1'] } }, s, g)).toEqual([act('selectPlayer', { player: 1 })]);
+  });
+
+  it('keeps board targeting for a spell whose targets are on the board', () => {
+    const s = session();
+    s.apply({ t: 'call', method: 'setSelectables', args: [[card(20)], 1, 1] });
+    s.apply({ t: 'call', method: 'setSelectableTargets', args: [[{ type: 'player', id: 1 }]] });
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Bolt - Select any target', card(10)] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, true, false] });
+    expect(toGameView(s).decision.kind).toBe('chooseTargets');
+  });
+});
+
+describe('payment, mana sources, "To my turn"', () => {
+  it('leaves tapped cards out of the auto-pay plan', () => {
+    const s = session();
+    buttons(s, 'OK', 'End Turn', 'Priority: Hugo');
+    s.clicked(10);
+    // 30 is tapped (session()), 10 is not.
+    s.apply({ t: 'call', method: 'setWeaklySelectable', args: [[card(10), card(10), card(30), card(30)]] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'Auto', 'Cancel', true, true, true] });
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Bears\n\nPay Mana Cost: {1}', card(10)] });
+    expect(toGameView(s).decision).toMatchObject({ kind: 'payMana', autoTaps: ['10'] });
+  });
+
+  it('names the colour a source adds before "any colour" (Vivid Marsh B, Haven C, a "GU" land G)', () => {
+    const s = session();
+    const permanent = (id: number, props: object): WireObject[] => [
+      { type: 'card', id, props: { Owner: 0, Controller: 0, Zone: 'Battlefield', CurrentState: 'Original' } },
+      { type: 'cardState', id, state: 'Original', props: { Type: 'Land', ...props } },
+    ];
+    s.apply(
+      delta1({
+        new: [
+          ...permanent(41, { Name: 'Vivid Marsh', OrigProduceMana: 'B', OrigProduceAnyMana: true }),
+          ...permanent(42, { Name: 'Haven of the Spirit Dragon', OrigProduceAnyMana: true, OracleText: '{T}: Add {C}.\r\n\r\n{T}: Add one mana of any color. Spend this mana only to cast a Dragon creature spell.' }),
+          ...permanent(43, { Name: 'Yavimaya Coast', OrigProduceMana: 'GU' }),
+          ...permanent(44, { Name: 'Curse of Opulence', Type: 'Enchantment - Aura Curse', OracleText: 'Whenever enchanted player is attacked, create a Gold token. (A Gold token is an artifact with "Sacrifice this token: Add one mana of any color.")' }),
+        ],
+        changed: [{ type: 'player', id: 0, props: { Battlefield: [10, 30, 41, 42, 43, 44] } }],
+      }),
+    );
+    buttons(s, 'OK', 'End Turn', 'Priority: Hugo');
+    expect(toGameView(s).decision).toMatchObject({
+      kind: 'priority',
+      manaSources: [
+        { cardId: '41', colours: ['B'] },
+        { cardId: '42', colours: ['C'] },
+        { cardId: '43', colours: ['G'] },
+      ],
+    });
+  });
+
+  it('sets the yield marker so that "To my turn" on your own turn waits for your next turn', () => {
+    const mine = session('MAIN1', 0);
+    buttons(mine, 'OK', 'End Turn');
+    expect(intentToFrames({ type: 'passUntilYourTurn' }, mine, toGameView(mine))[0]).toEqual(
+      act('sendYieldUpdate', { update: { kind: 'SetMarker', phaseOwner: 0, phase: 'UPKEEP', atOrPastAtClick: true } }),
+    );
+    const theirs = session('MAIN1', 1);
+    expect(intentToFrames({ type: 'passUntilYourTurn' }, theirs, toGameView(theirs))[0]).toEqual(
+      act('sendYieldUpdate', { update: { kind: 'SetMarker', phaseOwner: 0, phase: 'UPKEEP', atOrPastAtClick: false } }),
+    );
+  });
+
+  it('ends "To my turn" when a later turn of yours starts', () => {
+    const g = toGameView(session('MAIN1', 0));
+    expect(passUntilYourTurnDone(g, 5)).toBe(false);
+    expect(passUntilYourTurnDone({ ...g, turn: { ...g.turn, number: 6, activePlayerId: '1' } }, 5)).toBe(false);
+    expect(passUntilYourTurnDone({ ...g, turn: { ...g.turn, number: 9 } }, 5)).toBe(true);
   });
 });

@@ -27,7 +27,7 @@ import type {
 } from '../model/types';
 import type { CardProps, CardStateProps, PhaseType, PlayerProps, ZoneType } from '../wire/generated/wire';
 import { namedImage, parseImageKey, type ImageLookup } from './images';
-import { promptToChoice, inputToChoice } from './prompts';
+import { promptToChoice, inputToChoice, SELECT_PROMPT_PREFIX, targetKey } from './prompts';
 import type { LiveSession } from './session';
 
 const STEP_OF: Record<PhaseType, StepId> = {
@@ -107,10 +107,20 @@ function face(p: CardStateProps, fallbackName: string, back: boolean, images: Im
 
 const sid = (n: number) => String(n);
 
+/** A player of this game, or undefined (the engine sends -1 for cards outside the game, e.g. a mutated card's merged copy). */
+function gamePlayer(s: LiveSession, id: number | undefined): number | undefined {
+  return id !== undefined && (s.gameObject?.props.Players ?? []).includes(id) ? id : undefined;
+}
+
+/** Undefined for cards this viewer can't see, cards in no drawn zone, and cards of no player of the game. */
 export function mapCard(s: LiveSession, id: number, images: ImageLookup = namedImage): CardView | undefined {
   const card = s.get('card', id) ?? s.limboCard(id);
   if (!card) return undefined;
   const cp: CardProps = card.props;
+  const zone = cp.Zone ? ZONE_OF[cp.Zone] : undefined;
+  const owner = gamePlayer(s, cp.Owner) ?? gamePlayer(s, cp.Controller);
+  if (!zone || owner === undefined) return undefined;
+  const controller = gamePlayer(s, cp.Controller) ?? owner;
   const current = cp.CurrentState ?? 'Original';
   const cur = s.cardState(id, current);
   if (!cur) return undefined; // hidden from this viewer
@@ -123,7 +133,6 @@ export function mapCard(s: LiveSession, id: number, images: ImageLookup = namedI
   const front = face(frontState.props, name, false, images);
   const back = backState && backState !== frontState ? face(backState.props, name, true, images) : undefined;
   const transformed = backState === cur && back !== undefined;
-  const zone = (cp.Zone && ZONE_OF[cp.Zone]) || 'exile';
   const creature = /\bCreature\b/.test(typeLineOf(cur.props.Type));
   const attached = cp.EntityAttachedTo;
   return {
@@ -132,8 +141,8 @@ export function mapCard(s: LiveSession, id: number, images: ImageLookup = namedI
     front,
     back,
     transformed,
-    ownerId: sid(cp.Owner ?? -1),
-    controllerId: sid(cp.Controller ?? cp.Owner ?? -1),
+    ownerId: sid(owner),
+    controllerId: sid(controller),
     zone,
     isToken: cp.Token === true,
     isCommander: cp.IsCommander === true,
@@ -180,26 +189,35 @@ export function manaPool(mana: Record<string, number> | undefined): ManaPool | u
   return Object.keys(out).length ? out : undefined;
 }
 
-/** OrigProduceMana "W U" / "Any" → the kinds the source adds. */
+const WUBRG: ManaColour[] = ['W', 'U', 'B', 'R', 'G'];
+
+/**
+ * The kinds a source adds, specific ones first, "any colour" last (Vivid Marsh: B then any; Haven of the
+ * Spirit Dragon: C then any). Lands carry OrigProduceMana (a ColorSet name: "B", "GU", "C") and
+ * OrigProduceAnyMana; other sources (Sol Ring, dorks) only their rules text.
+ */
 function produced(s: LiveSession, id: number): ManaColour[] {
   const card = s.get('card', id);
   const st = s.cardState(id, card?.props.CurrentState ?? 'Original')?.props;
   if (!st) return [];
-  if (st.OrigProduceAnyMana) return ['W', 'U', 'B', 'R', 'G'];
-  const listed = (st.OrigProduceMana ?? '').split(/[\s,]+/).filter((x): x is ManaColour => /^[WUBRGC]$/.test(x));
-  if (listed.length) return [...new Set(listed)];
-  // Not a land (Sol Ring, mana rocks, dorks): read the rules text's mana abilities.
-  const kinds = new Set<ManaColour>();
-  for (const line of (st.OracleText || st.AbilityText || '').split(/\n/)) {
+  const kinds = new Set<ManaColour>((st.OrigProduceMana ?? '').match(/[WUBRGC]/g) as ManaColour[] | null);
+  let any = st.OrigProduceAnyMana === true;
+  // Quoted text is another object's ability (a Gold token's "Sacrifice this token: Add …"), not this card's.
+  const text = (st.OracleText || st.AbilityText || '').replace(/"[^"]*"|“[^”]*”/g, '');
+  for (const line of text.split(/\n/)) {
     const add = /:\s*Add\s+(.*)/i.exec(line)?.[1];
     if (!add) continue;
-    if (/any colou?r|any combination of colou?rs/i.test(add)) for (const c of ['W', 'U', 'B', 'R', 'G'] as const) kinds.add(c);
     for (const m of add.matchAll(/\{([WUBRGC])\}/g)) kinds.add(m[1] as ManaColour);
+    if (/any colou?r|any combination of colou?rs/i.test(add)) any = true;
   }
+  if (any) for (const c of WUBRG) kinds.add(c);
   return [...kinds];
 }
 
-/** A source of the live game: one click taps it (the engine asks which ability when there are several). */
+/**
+ * A source of the live game: one click taps it, and the engine asks which ability when there are several,
+ * so the view names one colour (the first it adds) and the screen's own colour chooser stays out.
+ */
 function manaSource(s: LiveSession, id: number): ManaSource {
   const kinds = produced(s, id);
   return { cardId: sid(id), colours: kinds.length ? [kinds[0]!] : [] };
@@ -218,7 +236,7 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
   };
   if (s.finished) return waiting('Game over');
   const prompt = s.prompt;
-  if (prompt) return { kind: 'choice', prompt: promptToChoice(prompt, view.cards) };
+  if (prompt) return { kind: 'choice', prompt: promptToChoice(prompt, view.cards, view.players.map((p) => p.id)) };
 
   const input = s.input;
   const mine =
@@ -247,7 +265,9 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
       tax: 0,
       sources,
       canUndoTap: false,
-      autoTaps: [...s.weakly.entries()].filter(([, n]) => n >= 2).map(([id]) => sid(id)),
+      autoTaps: [...s.weakly.entries()]
+        .filter(([id, n]) => n >= 2 && view.cards[sid(id)] && !view.cards[sid(id)]!.tapped)
+        .map(([id]) => sid(id)),
       autoCanPay: input.ok.enabled && input.ok.label === 'Auto',
     };
   }
@@ -301,13 +321,46 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
     return { kind: 'priority', playable, manaSources };
   }
   if (input.selectable || input.targets.length > 0) {
+    const isPlayer = (id: string) => view.players.some((p) => p.id === id);
     const legal: TargetRef[] = [
       ...(input.selectable?.cards ?? []).filter((id) => view.cards[sid(id)]).map((id): TargetRef => ({ kind: 'card', id: sid(id) })),
-      ...input.targets.filter((t) => t.type === 'player').map((t): TargetRef => ({ kind: 'player', id: sid(t.id) })),
+      ...input.targets.filter((t) => t.type === 'player' && isPlayer(sid(t.id))).map((t): TargetRef => ({ kind: 'player', id: sid(t.id) })),
     ];
     const chosen: TargetRef[] = input.highlighted.flatMap((h): TargetRef[] =>
-      h.type === 'card' ? [{ kind: 'card', id: sid(h.id) }] : h.type === 'player' ? [{ kind: 'player', id: sid(h.id) }] : [],
+      h.type === 'card' && view.cards[sid(h.id)]
+        ? [{ kind: 'card', id: sid(h.id) }]
+        : h.type === 'player' && isPlayer(sid(h.id))
+          ? [{ kind: 'player', id: sid(h.id) }]
+          : [],
     );
+    // Picks the board can't take (library cards, graveyards…) or that are not for a spell or ability
+    // (who starts): a tray list. Each pick is a selectCard / selectPlayer, then OK (selectionFrames).
+    const onBoard = (t: TargetRef) =>
+      t.kind === 'player' || ['battlefield', 'stack'].includes(view.cards[t.id]!.zone) || youView.hand.includes(t.id);
+    if (legal.length && (!castCard() || !legal.every(onBoard))) {
+      const msg = input.message.replace(/\s*\(Click on the portrait\.?\)/i, '').trim();
+      const lines = msg.split('\n').map((l) => l.trim()).filter(Boolean);
+      const source = known(input.cardId);
+      return {
+        kind: 'choice',
+        prompt: {
+          id: `${SELECT_PROMPT_PREFIX}${legal.map(targetKey).join(',')}|${msg}`,
+          shape: 'chooseN',
+          // "Cultivate (12)\nSelect up to 2 cards from your library": the last line is the question.
+          title: lines.at(-1) ?? 'Choose',
+          instruction: lines.at(-1) ?? 'Choose',
+          ...(source ? { sourceCardId: source } : {}),
+          confirmLabel: input.ok.label || 'OK',
+          options: legal.map((t) => ({
+            id: targetKey(t),
+            label: t.kind === 'card' ? view.cards[t.id]!.name : view.players.find((p) => p.id === t.id)!.name,
+            ...(t.kind === 'card' ? { cardId: t.id } : { playerId: t.id }),
+          })),
+          min: input.selectable?.min ?? (input.ok.enabled ? 0 : 1),
+          max: Math.min(legal.length, input.selectable?.max ?? 1),
+        },
+      };
+    }
     return {
       kind: 'chooseTargets',
       sourceCardId: castCard(),
@@ -351,9 +404,16 @@ function outReason(s: LiveSession, p: PlayerProps, cards: Record<string, CardVie
 export interface LiveLocal {
   autoPay: boolean;
   passingUntilYourTurn: boolean;
+  /** Turn number when "To my turn" was pressed. */
+  passFromTurn?: number;
 }
 
 export const NO_LOCAL: LiveLocal = { autoPay: false, passingUntilYourTurn: false };
+
+/** "To my turn" (pressed on turn `fromTurn`) is over once a later turn of yours has started. */
+export function passUntilYourTurnDone(g: Pick<GameView, 'turn' | 'youId' | 'starting'>, fromTurn: number): boolean {
+  return !g.starting && g.turn.activePlayerId === g.youId && g.turn.number > fromTurn;
+}
 
 export function toGameView(s: LiveSession, images: ImageLookup = namedImage, local: LiveLocal = NO_LOCAL): GameView {
   const game = s.gameObject;
@@ -420,19 +480,24 @@ export function toGameView(s: LiveSession, images: ImageLookup = namedImage, loc
     return pv;
   });
 
+  // Every player id in the view names a player of the game (components look them up and throw otherwise).
+  const activeId = gamePlayer(s, gp.PlayerTurn) ?? youNum ?? -1;
+
   // The engine lists the stack top first; the view-model wants bottom → top.
   const stack: StackItem[] = [...(gp.Stack ?? [])].reverse().flatMap((id): StackItem[] => {
     const si = s.get('stackItem', id)?.props;
     if (!si) return [];
     const targets: TargetRef[] = [
       ...(si.TargetCards ?? []).filter((c) => cards[sid(c)]).map((c): TargetRef => ({ kind: 'card', id: sid(c) })),
-      ...(si.TargetPlayers ?? []).map((p): TargetRef => ({ kind: 'player', id: sid(p) })),
+      ...(si.TargetPlayers ?? []).filter((p) => gamePlayer(s, p) !== undefined).map((p): TargetRef => ({ kind: 'player', id: sid(p) })),
     ];
+    const source = cards[sid(si.SourceCard ?? -1)];
+    const controller = gamePlayer(s, si.ActivatingPlayer);
     return [
       {
         id: sid(id),
         sourceCardId: sid(si.SourceCard ?? -1),
-        controllerId: sid(si.ActivatingPlayer ?? -1),
+        controllerId: controller !== undefined ? sid(controller) : (source?.controllerId ?? sid(activeId)),
         kind: si.Ability ? ((si.SourceTrigger ?? -1) >= 0 ? 'trigger' : 'ability') : 'spell',
         text: si.Description ?? '',
         targets,
@@ -443,13 +508,21 @@ export function toGameView(s: LiveSession, images: ImageLookup = namedImage, loc
   const priority = playerIds.find((pid) => s.get('player', pid)?.props.HasPriority && !s.get('player', pid)?.props.HasLost);
   const combat: CombatState | undefined = gp.CombatView?.length
     ? {
+        // Attackers, blockers and defenders the view can't draw (a merged mutate copy, id -1) are left out.
         attacks: gp.CombatView.flatMap((band) => {
-          const def = band.defender.type === 'player' ? sid(band.defender.id) : cards[sid(band.defender.id)]?.controllerId;
-          return def ? band.attackers.map((a) => ({ attackerId: sid(a), defenderId: def })) : [];
+          const def =
+            band.defender.type === 'player'
+              ? gamePlayer(s, band.defender.id) !== undefined
+                ? sid(band.defender.id)
+                : undefined
+              : cards[sid(band.defender.id)]?.controllerId;
+          const attackers = band.attackers.map(sid).filter((a) => cards[a]);
+          return def ? attackers.map((a) => ({ attackerId: a, defenderId: def })) : [];
         }),
-        blocks: gp.CombatView.flatMap((band) =>
-          band.attackers.length ? band.blockers.map((b) => ({ blockerId: sid(b), attackerId: sid(band.attackers[0]!) })) : [],
-        ),
+        blocks: gp.CombatView.flatMap((band) => {
+          const attacker = band.attackers.map(sid).find((a) => cards[a]);
+          return attacker ? band.blockers.map(sid).filter((b) => cards[b]).map((b) => ({ blockerId: b, attackerId: attacker })) : [];
+        }),
       }
     : undefined;
 
@@ -472,7 +545,7 @@ export function toGameView(s: LiveSession, images: ImageLookup = namedImage, loc
     ...(starting ? { starting: true } : {}),
     turn: {
       number: gp.Turn ?? 0,
-      activePlayerId: sid(gp.PlayerTurn ?? youNum ?? -1),
+      activePlayerId: sid(activeId),
       step: STEP_OF[gp.Phase ?? 'UNTAP'] ?? 'untap',
       priorityPlayerId: priority !== undefined ? sid(priority) : undefined,
     },

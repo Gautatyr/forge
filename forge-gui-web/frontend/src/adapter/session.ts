@@ -73,6 +73,12 @@ function refId(v: unknown): number | undefined {
 
 const sameRef = (a: SeatRef, b: SeatRef) => a.type === b.type && a.id === b.id;
 
+/** "Turn 6 (AI 2 (Deck))" → 6. */
+function turnOf(e: WireLogEntry): number | undefined {
+  const m = e.type === 'TURN' ? /^Turn (\d+)/.exec(e.msg) : null;
+  return m ? Number(m[1]) : undefined;
+}
+
 export class LiveSession {
   objects = new Map<string, WireObject>();
   hello?: HelloMessage;
@@ -116,6 +122,8 @@ export class LiveSession {
   /** Bumped on every change, so views can memoise. */
   version = 0;
   private logSeq = 0;
+  /** Turn of the newest log entry. */
+  private logTurn?: number;
   private noticeSeq = 0;
 
   get gameObject(): Extract<WireObject, { type: 'game' }> | undefined {
@@ -179,15 +187,17 @@ export class LiveSession {
         this.game = frame.game;
         this.seq = frame.seq;
         this.awaitingSnapshot = false;
+        // Every snapshot (connect, reconnect, resync) is followed by the seat's greeting, which re-sends the
+        // current input and the prompts still open: drop ours, or a prompt closed meanwhile stays forever.
+        this.input = NO_INPUT;
+        this.prompts = [];
+        this.answering.clear();
+        this.revealed = [];
+        this.weakly = new Map();
         if (newGame) {
-          this.input = NO_INPUT;
-          this.prompts = [];
-          this.answering.clear();
-          this.revealed = [];
           this.lastCard = undefined;
           this.limbo = new Map();
           this.conceded = false;
-          this.weakly = new Map();
           this.finished = false;
           this.payment = undefined;
           this.lostAt = new Map();
@@ -197,7 +207,8 @@ export class LiveSession {
         this.trackPlayers();
         // The snapshot carries the log tail: replace ours (it may have missed entries).
         this.log = [];
-        this.addLog(frame.log);
+        this.logTurn = undefined;
+        this.addLog(frame.log, true);
         return 'ok';
       }
       case 'delta': {
@@ -354,11 +365,19 @@ export class LiveSession {
     }
   }
 
-  private addLog(entries: WireLogEntry[]) {
-    const turn = this.gameObject?.props.Turn ?? 0;
+  /**
+   * An entry belongs to the turn of the last "Turn N (…)" line before it. In a snapshot's tail, entries
+   * before its first such line belong to the turn before; with no such line, to the current turn.
+   */
+  private addLog(entries: WireLogEntry[], tail = false) {
+    if (this.logTurn === undefined) {
+      const first = tail ? entries.map(turnOf).find((n) => n !== undefined) : undefined;
+      this.logTurn = first !== undefined ? Math.max(0, first - 1) : (this.gameObject?.props.Turn ?? 0);
+    }
     for (const e of entries) {
+      this.logTurn = turnOf(e) ?? this.logTurn;
       this.logSeq += 1;
-      this.log.push({ ...e, id: this.logSeq, turn });
+      this.log.push({ ...e, id: this.logSeq, turn: this.logTurn });
     }
     if (this.log.length > LOG_LIMIT) this.log = this.log.slice(-LOG_LIMIT);
   }

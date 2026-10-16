@@ -155,14 +155,45 @@ describe('LiveSession input state (bridge seat protocol)', () => {
     expect(s.prompt?.id).toBe(4);
   });
 
-  it('keeps open prompts across a resync snapshot of the same game, drops them on a new game', () => {
+  it('drops prompts and input on every snapshot: the greeting after it re-sends what is still open', () => {
     const s = new LiveSession();
     s.apply(snapshot(1));
+    s.apply(confirm(1));
     s.apply(confirm(3));
+    s.apply({ t: 'call', method: 'updateButtons', args: [P0, 'OK', 'Cancel', true, true, true] });
+    s.apply({ t: 'call', method: 'setWeaklySelectable', args: [[card(10)]] });
+    s.apply({ t: 'call', method: 'showRevealedCards', args: [[card(10)]] });
+    s.answered(3);
+    // Reconnect: prompt 1 closed while the socket was down; only prompt 3 is still open.
     s.apply(snapshot(1, 40));
+    expect(s.prompt).toBeUndefined();
+    expect(s.prompts).toEqual([]);
+    expect(s.input.ok.enabled || s.input.cancel.enabled).toBe(false);
+    expect(s.weakly.size).toBe(0);
+    expect(s.revealed).toEqual([]);
+    s.apply(confirm(3));
     expect(s.prompt?.id).toBe(3);
     s.apply(snapshot(2, 0));
     expect(s.prompt).toBeUndefined();
+  });
+
+  it('tags log entries with the turn their TURN line names, not the current turn', () => {
+    const s = new LiveSession();
+    const snap = snapshot(1, 10);
+    snap.objects[0] = { type: 'game', id: 1, props: { Players: [0, 1], Turn: 24, Phase: 'MAIN1', PlayerTurn: 0 } };
+    snap.log = [
+      { type: 'LAND', msg: 'before' },
+      { type: 'TURN', msg: 'Turn 5 (P0)' },
+      { type: 'LAND', msg: 'in five' },
+      { type: 'TURN', msg: 'Turn 6 (P1 (Deck))' },
+      { type: 'LAND', msg: 'in six' },
+    ];
+    s.apply(snap);
+    expect(s.log.map((e) => e.turn)).toEqual([4, 5, 5, 6, 6]);
+    s.apply(delta(11, { log: [{ type: 'LAND', msg: 'still six' }] }));
+    expect(s.log.at(-1)!.turn).toBe(6);
+    s.apply(delta(12, { log: [{ type: 'TURN', msg: 'Turn 7 (P0)' }, { type: 'LAND', msg: 'seven' }] }));
+    expect(s.log.slice(-2).map((e) => e.turn)).toEqual([7, 7]);
   });
 
   it('collects engine messages and rejected actions as notices', () => {

@@ -5,7 +5,7 @@
  * confirmations) become tray prompts whose answers are button presses and card clicks.
  */
 import type { PromptAnswer } from '../model/intents';
-import type { CardId, CardView, ChoiceOption, ChoicePrompt, DistributeRecipient, GameView } from '../model/types';
+import type { CardId, CardView, ChoiceOption, ChoicePrompt, DistributeRecipient, GameView, TargetRef } from '../model/types';
 import { bottomPrompt, mulliganPrompt } from '../state/gameStart';
 import type { PromptChoice, PromptMessage } from './protocol';
 import type { InputState } from './session';
@@ -14,7 +14,13 @@ import type { InputState } from './session';
 export const promptViewId = (id: number) => `prompt:${id}`;
 /** Ids of tray prompts built from a Forge input: `input:<kind>:<key>`. */
 export const INPUT_PROMPT_PREFIX = 'input:';
-export type InputPromptKind = 'mulligan' | 'bottom' | 'buttons' | 'ok' | 'cancel';
+export type InputPromptKind = 'mulligan' | 'bottom' | 'buttons' | 'ok' | 'cancel' | 'select';
+/** Cards or players to pick from a list (library searches, who starts): `input:select:<option ids>|<message>`. */
+export const SELECT_PROMPT_PREFIX = `${INPUT_PROMPT_PREFIX}select:`;
+/** Option id of a card or player in a select prompt: `c12`, `p1`. */
+export const targetKey = (t: TargetRef) => `${t.kind === 'card' ? 'c' : 'p'}${t.id}`;
+export const targetOfKey = (key: string): TargetRef | undefined =>
+  /^[cp]-?\d+$/.test(key) ? { kind: key[0] === 'c' ? 'card' : 'player', id: key.slice(1) } : undefined;
 
 export function inputPromptKind(id: string): InputPromptKind | undefined {
   if (!id.startsWith(INPUT_PROMPT_PREFIX)) return undefined;
@@ -24,11 +30,11 @@ export function inputPromptKind(id: string): InputPromptKind | undefined {
 /** Name a card: a text prompt with this many options or more is a name list, fewer a list to pick from. */
 const NAME_LIST_MIN = 13;
 
-function option(c: PromptChoice, cards: Record<string, CardView>): ChoiceOption {
+function option(c: PromptChoice, cards: Record<string, CardView>, players?: readonly string[]): ChoiceOption {
   const o: ChoiceOption = { id: String(c.i), label: c.label };
   const ref = c.ref;
   if (ref?.type === 'card' && cards[String(ref.id)]) o.cardId = String(ref.id);
-  if (ref?.type === 'player') o.playerId = String(ref.id);
+  if (ref?.type === 'player' && (!players || players.includes(String(ref.id)))) o.playerId = String(ref.id);
   return o;
 }
 
@@ -44,13 +50,15 @@ const cardOf = (ref: { type: string; id: number } | undefined, cards: Record<str
 
 const isWhole = (s: string) => /^-?\d+$/.test(s.trim());
 
-export function promptToChoice(p: PromptMessage, cards: Record<string, CardView>): ChoicePrompt {
+/** `players`: the game's player ids; a choice naming another player id keeps its label only. */
+export function promptToChoice(p: PromptMessage, cards: Record<string, CardView>, players?: readonly string[]): ChoicePrompt {
   const id = promptViewId(p.id);
+  const opt = (c: PromptChoice) => option(c, cards, players);
   const sourceCardId = cardOf('card' in p ? p.card : undefined, cards);
   switch (p.shape) {
     case 'choose': {
       const w = words(p, p.method === 'getAbilityToPlay' ? 'Choose an ability' : 'Choose');
-      const options = p.choices.filter((c) => !c.disabled).map((c) => option(c, cards));
+      const options = p.choices.filter((c) => !c.disabled).map((c) => opt(c));
       const base = { id, ...w, sourceCardId, confirmLabel: p.max === 0 ? 'OK' : 'Confirm' };
       if (p.method === 'getAbilityToPlay') {
         return { ...base, shape: 'chooseN', options, min: 0, max: 1, abilityMenu: true };
@@ -80,10 +88,10 @@ export function promptToChoice(p: PromptMessage, cards: Record<string, CardView>
       const w = words(p, 'Put in order');
       const base = { id, ...w, sourceCardId, confirmLabel: 'Confirm', shape: 'order' as const };
       if (p.permutation || p.method === 'manipulateCardList') {
-        return { ...base, lists: [{ id: 'all', label: 'Order', hint: 'First is on top', items: p.choices.map((c) => option(c, cards)) }] };
+        return { ...base, lists: [{ id: 'all', label: 'Order', hint: 'First is on top', items: p.choices.map((c) => opt(c)) }] };
       }
-      const inDest = p.choices.filter((c) => c.inDest).map((c) => option(c, cards));
-      const out = p.choices.filter((c) => !c.inDest).map((c) => option(c, cards));
+      const inDest = p.choices.filter((c) => c.inDest).map((c) => opt(c));
+      const out = p.choices.filter((c) => !c.inDest).map((c) => opt(c));
       if (p.method === 'order' && (p.remainingMax ?? 0) === 0) {
         return { ...base, lists: [{ id: 'dest', label: p.destLabel || 'Order', hint: 'First to last', items: [...inDest, ...out] }] };
       }
@@ -98,7 +106,7 @@ export function promptToChoice(p: PromptMessage, cards: Record<string, CardView>
     case 'distribute': {
       const label = p.amountLabel || 'amount';
       const recipients = p.choices.map((c): DistributeRecipient => {
-        const r: DistributeRecipient = option(c, cards);
+        const r: DistributeRecipient = opt(c);
         if (p.atLeastOne) r.min = 1;
         if (c.lethal !== undefined) r.lethal = c.lethal;
         return r;

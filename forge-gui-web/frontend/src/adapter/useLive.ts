@@ -10,7 +10,7 @@ import { ImageResolver } from './images';
 import { parseRecording, replaySource, RECORDINGS } from './replay';
 import type { Notice } from './session';
 import type { SourceConfig } from './source';
-import { NO_LOCAL, toGameView, type LiveLocal } from './toView';
+import { NO_LOCAL, passUntilYourTurnDone, toGameView, type LiveLocal } from './toView';
 
 /** Shown until the first snapshot names the players. */
 export function placeholderView(what: string): GameView {
@@ -121,17 +121,18 @@ export function useLive(config: SourceConfig, stops: StopPrefs = DEFAULT_STOPS):
     (intent: Intent) => {
       if (!source || !game) return;
       if (intent.type === 'setAutoPay') setLocal((l) => ({ ...l, autoPay: intent.on }));
-      if (intent.type === 'passUntilYourTurn') setLocal((l) => ({ ...l, passingUntilYourTurn: true }));
+      if (intent.type === 'passUntilYourTurn') setLocal((l) => ({ ...l, passingUntilYourTurn: true, passFromTurn: game.turn.number }));
       if (intent.type === 'cancelPassUntilYourTurn') setLocal((l) => ({ ...l, passingUntilYourTurn: false }));
       source.send(intentToFrames(intent, source.session, game));
     },
     [source, game],
   );
 
-  // "To my turn" ends when your turn comes.
-  const yourTurn = !!game && game.turn.activePlayerId === game.youId && !game.starting;
+  // "To my turn" ends when your next turn comes (pressed on your own turn: the one after it).
   // Adjusting state during render: React's pattern for state derived from a change.
-  if (yourTurn && local.passingUntilYourTurn) setLocal((l) => ({ ...l, passingUntilYourTurn: false }));
+  if (game && local.passingUntilYourTurn && passUntilYourTurnDone(game, local.passFromTurn ?? -1)) {
+    setLocal((l) => ({ ...l, passingUntilYourTurn: false }));
+  }
 
   // Auto-pay: answer each payment with "Auto" once, when the engine can pay it.
   const paid = useRef<string>(undefined);

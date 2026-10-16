@@ -10,7 +10,7 @@ import type { Intent } from '../model/intents';
 import type { GameView, StepId } from '../model/types';
 import type { PhaseType } from '../wire/generated/wire';
 import { COLOUR_MASK, type ActionMessage, type ClientFrame } from './protocol';
-import { inputPromptKind, promptViewId, replyValue } from './prompts';
+import { inputPromptKind, promptViewId, replyValue, targetOfKey } from './prompts';
 import type { LiveSession } from './session';
 
 const num = (id: string) => Number(id);
@@ -79,8 +79,10 @@ export function intentToFrames(intent: Intent, s: LiveSession, view: GameView): 
       return answerFrames(intent.promptId, intent.answer, s);
     case 'passUntilYourTurn': {
       // A yield marker at your upkeep: the engine passes for you until then (stops and the stack still interrupt).
+      // Pressed on your own turn at or past your upkeep, the marker is for your next turn (YieldController.setMarker).
+      const atOrPast = view.turn.activePlayerId === view.youId && view.turn.step !== 'untap' && !view.starting;
       const marker = action('sendYieldUpdate', {
-        update: { kind: 'SetMarker', phaseOwner: num(view.youId), phase: 'UPKEEP', atOrPastAtClick: false },
+        update: { kind: 'SetMarker', phaseOwner: num(view.youId), phase: 'UPKEEP', atOrPastAtClick: atOrPast },
       });
       return d.kind === 'priority' ? [marker, action('selectButtonOk')] : [marker];
     }
@@ -118,6 +120,22 @@ function answerFrames(promptId: string, answer: Extract<Intent, { type: 'answer'
       const want = new Set(answer.optionIds);
       const toggle = [...[...want].filter((id) => !on.has(id)), ...[...on].filter((id) => !want.has(id))];
       return [...toggle.map(selectCard), action('selectButtonOk')];
+    }
+    case 'select': {
+      // A card / player list (InputSelectEntitiesFromList, InputSelectTargets): unpick what the answer drops,
+      // pick what is new, then OK. The engine ends the input itself on the pick that reaches its maximum:
+      // an OK after that would answer the next input.
+      if (answer.shape !== 'chooseN') return [];
+      const key = (h: { type: string; id: number }) => (h.type === 'card' || h.type === 'player' ? `${h.type[0]}${h.id}` : '');
+      const on = s.input.highlighted.map(key).filter(Boolean);
+      const want = answer.optionIds.filter((id) => targetOfKey(id));
+      const toggle = [...on.filter((id) => !want.includes(id)), ...want.filter((id) => !on.includes(id))];
+      const frames = toggle.map((id) => {
+        const t = targetOfKey(id)!;
+        return t.kind === 'card' ? selectCard(t.id) : selectPlayer(t.id);
+      });
+      const max = s.input.selectable?.max ?? 1;
+      return toggle.length === 0 || want.length < max ? [...frames, action('selectButtonOk')] : frames;
     }
     default: {
       const p = s.prompt;
