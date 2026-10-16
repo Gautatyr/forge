@@ -16,10 +16,10 @@ const answer = (g: MockGame, a: PromptAnswer) => applyIntent(g, { type: 'answer'
 const yes = (g: MockGame, v: boolean) => answer(g, { shape: 'yesNo', yes: v });
 
 describe('game start (design pass 4 §2.4)', () => {
-  it('toss: "You go first. Play first?" then the opening hand', () => {
+  it('toss: "You won the coin toss. Who plays first?" then the opening hand', () => {
     let g = scenarioById('toss').build();
     const toss = prompt(g);
-    expect(toss.title).toBe('You go first. Play first?');
+    expect(toss.title).toBe('You won the coin toss. Who plays first?');
     expect(toss.shape === 'yesNo' && [toss.yesLabel, toss.noLabel]).toEqual(['Play first', 'Let {player:mira} start']);
     expect(g.players.every((p) => p.life === 40)).toBe(true);
     g = yes(g, true);

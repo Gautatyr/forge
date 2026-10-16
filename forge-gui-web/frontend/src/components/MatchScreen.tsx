@@ -15,6 +15,7 @@ import { DevPanel, DisplaySettings, GameMenu, LogDrawer, ShortcutsOverlay } from
 import { Rail } from './Rail';
 import { StopsPanel } from './StopsPanel';
 import { TopBar } from './TopBar';
+import { ZoneBrowser } from './ZoneBrowser';
 import styles from './MatchScreen.module.css';
 
 export function MatchScreen() {
@@ -111,6 +112,7 @@ export function MatchScreen() {
         <Board />
         <ChoiceTray />
         <StopsPanel />
+        <ZoneBrowser />
         <OutToast />
         <YouAreOut />
       </main>

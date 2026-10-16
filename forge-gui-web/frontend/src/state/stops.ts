@@ -82,7 +82,7 @@ export function nextStop(game: GameView, stops: StopPrefs): StopPoint | undefine
   return undefined;
 }
 
-/** "Theo's Attack step", "your Main 1"; undefined when no stop is set. */
+/** "Theo's declare attackers step", "your first main phase"; undefined when no stop is set. */
 export function nextStopLabel(game: GameView, stops: StopPrefs): string | undefined {
   const at = nextStop(game, stops);
   if (!at) return undefined;
@@ -92,7 +92,7 @@ export function nextStopLabel(game: GameView, stops: StopPrefs): string | undefi
 
 /** Hover text of a strip step: on whose turns the game stops there. */
 export function stepHint(game: GameView, stops: StopPrefs, step: StepId): string {
-  const name = stepInfo(step).stopName;
+  const name = stepInfo(step).longLabel;
   const opponents = game.players.filter((p) => p.id !== game.youId && !p.hasLost).map((p) => p.id);
   const mine = has(stops.yourTurn, step);
   const theirs = sharedOpponentCell(stops, opponents, step);

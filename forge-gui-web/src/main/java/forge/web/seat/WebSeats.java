@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Consumer;
 
 import com.google.gson.JsonObject;
 
@@ -35,11 +36,21 @@ public final class WebSeats implements GameStream.SeatHooks {
         return t;
     });
     private volatile SeatSession publisher;
+    /** Hears the game's events (the launcher plays Forge's sounds from them); none by default. */
+    private volatile Consumer<List<GameEvent>> eventSink;
 
     public WebSeats(GameStream stream, Timeouts timeouts) {
         this.stream = stream;
         this.timeouts = timeouts;
         stream.setSeatHooks(this);
+    }
+
+    /**
+     * Receives every batch of game events of the publishing seat, on the game thread, after it is
+     * published: once per game, however many human seats. A sink that throws is logged and ignored.
+     */
+    public void setEventSink(Consumer<List<GameEvent>> sink) {
+        eventSink = sink;
     }
 
     /** The GUI for the human player at {@code seat} (index in the game's player list). */
@@ -79,6 +90,14 @@ public final class WebSeats implements GameStream.SeatHooks {
         }
         boolean finished = events.stream().anyMatch(e -> e instanceof GameEventGameFinished);
         stream.publish(events, finished);
+        Consumer<List<GameEvent>> sink = eventSink;
+        if (sink != null && !events.isEmpty()) {
+            try {
+                sink.accept(events);
+            } catch (RuntimeException e) {
+                System.err.println("[web] game event sink failed: " + e);
+            }
+        }
     }
 
     /** Sends what changed since the last flush, to every viewer. Call only while the game thread is not mutating. */

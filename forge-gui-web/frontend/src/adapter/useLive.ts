@@ -5,7 +5,7 @@ import type { GameView } from '../model/types';
 import { DEFAULT_STOPS, type StopPrefs } from '../state/prefs';
 import { isStop } from '../state/stops';
 import { connectLive, streamUrl, type LiveSource } from './client';
-import { intentToFrames, stopFrames } from './commands';
+import { autoAnswer, intentToFrames, stopFrames } from './commands';
 import { bridgeImageLookup, ImageResolver } from './images';
 import { parseRecording, replaySource, RECORDINGS } from './replay';
 import type { Notice } from './session';
@@ -149,6 +149,21 @@ export function useLive(config: SourceConfig, stops: StopPrefs = DEFAULT_STOPS):
     paid.current = payKey;
     source.send([{ t: 'action', method: 'selectButtonOk' }]);
   }, [local.autoPay, payKey, source]);
+
+  // Inputs with nothing to decide are answered without a prompt, once each (playtest 1).
+  const auto = config.kind === 'live' && source ? autoAnswer(source.session) : undefined;
+  const answered = useRef<string>(undefined);
+  useEffect(() => {
+    if (!auto) {
+      answered.current = undefined;
+      return;
+    }
+    if (!source || answered.current === auto.key) return;
+    answered.current = auto.key;
+    source.send(auto.frames);
+    // auto.key names the input; its frames do not change while it is shown
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auto?.key, source]);
 
   // Phase stops → the engine (the bridge skips none until told): on connect, on a new game or player list, on every edit.
   const stopsKey =

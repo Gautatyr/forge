@@ -8,6 +8,7 @@ import { CombatPanel } from './CombatPanel';
 import { Icon, SeatGlyph } from './Icon';
 import { LogText } from './LogText';
 import { recentRows } from './recentRows';
+import { zoneCardIds, zoneTitle } from './zoneBrowser';
 import styles from './Rail.module.css';
 
 /**
@@ -104,23 +105,33 @@ function StackPanel() {
 function ZoneViewer() {
   const { game, ui, setUi } = useMatch();
   const z = ui.zoneView;
-  if (!z) return null;
-  const p = player(game, z.playerId);
-  const ids = z.zone === 'graveyard' ? p.graveyard : z.zone === 'exile' ? p.exile : p.command;
-  const title = `${p.isYou ? 'Your' : `${p.name}'s`} ${z.zone}`;
+  if (!z || z.large) return null;
+  const ids = zoneCardIds(game, z.playerId, z.zone);
+  const title = zoneTitle(game, z.playerId, z.zone);
   return (
     <section className={`${styles.block} ${styles.zone}`} aria-label={title}>
       <header className={styles.head}>
         <h2>
           {title} <span className={styles.count}>{ids.length}</span>
         </h2>
-        <button type="button" className={styles.close} onClick={() => setUi({ zoneView: undefined })} aria-label="Close">
-          <Icon name="close" />
-        </button>
+        <span className={styles.headTools}>
+          <button
+            type="button"
+            className={styles.close}
+            onClick={() => setUi({ zoneView: { ...z, large: true } })}
+            aria-label={`Large view of ${title.toLowerCase()}`}
+            title="Large view: search it by name or type"
+          >
+            <Icon name="expand" />
+          </button>
+          <button type="button" className={styles.close} onClick={() => setUi({ zoneView: undefined })} aria-label="Close">
+            <Icon name="close" />
+          </button>
+        </span>
       </header>
       {ids.length === 0 ? <p className={styles.hint}>Nothing here yet.</p> : null}
       <div className={`${styles.body} ${styles.zoneGrid}`} data-scroll-region>
-        {[...ids].reverse().map((id) => {
+        {ids.map((id) => {
           const c = game.cards[id];
           return c ? <Card key={id} card={c} context="thumb" style={{ '--cw': '7.3rem' } as CSSProperties} /> : null;
         })}

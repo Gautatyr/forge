@@ -6,7 +6,7 @@
  */
 import type { PromptAnswer } from '../model/intents';
 import type { CardId, CardView, ChoiceOption, ChoicePrompt, DistributeRecipient, GameView, TargetRef } from '../model/types';
-import { bottomPrompt, mulliganPrompt } from '../state/gameStart';
+import { bottomPrompt, mulliganPrompt, tossTitle, type TossChooser } from '../state/gameStart';
 import type { PromptChoice, PromptMessage } from './protocol';
 import type { InputState } from './session';
 
@@ -206,10 +206,34 @@ export function replyValue(p: PromptMessage, a: PromptAnswer): unknown {
   }
 }
 
+/**
+ * Who chooses the starting player, from PlayerControllerHuman.chooseStartingPlayer's message
+ * (lblYouHaveWonTheCoinToss / lblYouLostTheLastGame, English): undefined for any other message.
+ */
+export function tossChooser(message: string): TossChooser | undefined {
+  const first = message.trim().split('\n')[0]!.trim();
+  if (/, you have won the coin toss\.$/.test(first)) return 'wonToss';
+  if (/, you lost the last game\.$/.test(first)) return 'lostLastGame';
+  return undefined;
+}
+
 /** Opening hand: Keep / Mulligan buttons. */
 const isMulligan = (i: InputState) => i.ok.label === 'Keep' && i.cancel.label === 'Mulligan';
 /** London mulligan: "Return N card(s) to the bottom of your library", OK / Auto. */
 const LONDON = /^Return (\d+) card\(s\) to the bottom/;
+
+/** Cards the London mulligan puts on the bottom (left to choose + already chosen); undefined for another input. */
+function londonCount(input: InputState): number | undefined {
+  const london = LONDON.exec(input.message.trim());
+  return london ? Number(london[1]) + input.highlighted.filter((h) => h.type === 'card').length : undefined;
+}
+
+/**
+ * After a free mulligan Forge still asks to put 0 cards on the bottom (InputLondonMulligan): nothing
+ * to decide, so the screen answers it without a prompt (playtest 1). A pick never reads as 0 left and
+ * 0 chosen: InputLondonMulligan highlights a pick before it sends its new message.
+ */
+export const freeMulliganKeep = (input: InputState): boolean => londonCount(input) === 0;
 
 /**
  * A Forge input that only asks for buttons (and, for the London mulligan, cards of your hand) as a
@@ -223,28 +247,31 @@ export function inputToChoice(input: InputState, view: Pick<GameView, 'players' 
     const hand = you?.hand ?? [];
     return mulliganPrompt({ handSize: hand.length, toBottom: 0, freeNext: false }, `${INPUT_PROMPT_PREFIX}mulligan:${hand.join(',')}`);
   }
-  const london = LONDON.exec(msg);
-  if (london) {
-    const chosen = input.highlighted.filter((h) => h.type === 'card').length;
-    const n = Number(london[1]) + chosen;
+  const n = londonCount(input);
+  // n = 0, a free mulligan: no prompt (freeMulliganKeep, answered by the screen).
+  if (n !== undefined) {
     const hand = you?.hand ?? [];
-    if (n === 0) {
-      // A free mulligan: nothing goes to the bottom; the engine then asks Keep / Mulligan again.
-      return {
-        id: `${INPUT_PROMPT_PREFIX}ok:keep:${hand.join(',')}`,
-        shape: 'chooseN',
-        title: `New hand · ${hand.length} cards`,
-        instruction: 'Nothing to put on the bottom: this mulligan is free.',
-        confirmLabel: 'OK',
-        options: [],
-        min: 0,
-        max: 0,
-      };
-    }
-    return bottomPrompt(hand, n, (id) => view.cards[id]?.name ?? 'Card', `${INPUT_PROMPT_PREFIX}bottom:${n}:${hand.join(',')}`);
+    return n === 0
+      ? undefined
+      : bottomPrompt(hand, n, (id) => view.cards[id]?.name ?? 'Card', `${INPUT_PROMPT_PREFIX}bottom:${n}:${hand.join(',')}`);
   }
   const base = { ...promptWords(msg, undefined, 'Your decision'), sourceCardId };
   const key = `${input.ok.label}|${input.cancel.label}|${msg}`;
+  const toss = tossChooser(msg);
+  const opponent = view.players.find((p) => !p.isYou && !p.hasLost);
+  if (toss && opponent && input.ok.enabled && input.cancel.enabled) {
+    // Two players: Play (OK) or Draw (Cancel), worded as who plays first.
+    return {
+      ...base,
+      title: tossTitle(toss),
+      instruction: '',
+      id: `${INPUT_PROMPT_PREFIX}buttons:${key}`,
+      shape: 'yesNo',
+      confirmLabel: 'Play first',
+      yesLabel: 'Play first',
+      noLabel: `Let {player:${opponent.id}} start`,
+    };
+  }
   if (input.ok.enabled && input.cancel.enabled) {
     return {
       ...base,

@@ -1,0 +1,105 @@
+/* Large graveyard / exile view (playtest 1): over the board, below the hover
+   preview, so a hovered card still shows large. */
+.browser {
+  --zone-cw: clamp(7.5rem, 11vw, 11rem);
+  position: absolute;
+  inset: var(--sp-2);
+  z-index: var(--z-popover);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4) var(--sp-3);
+  border-radius: var(--r-lg);
+  background: var(--c-panel);
+  border: 1px solid var(--c-line-strong);
+  box-shadow: var(--shadow-float);
+  min-height: 0;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-3);
+}
+
+.head h2 {
+  margin: 0;
+  margin-right: auto;
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+}
+
+.count {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--c-text-2);
+  margin-left: 0.2rem;
+}
+
+.filter {
+  width: min(20rem, 100%);
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--c-line-strong);
+  background: var(--c-bg);
+  color: var(--c-text);
+  font: inherit;
+  font-size: var(--fs-sm);
+}
+
+.filter::placeholder {
+  color: var(--c-text-3);
+}
+
+.ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--r-md);
+  border: 1px solid var(--c-line-strong);
+  font-size: var(--fs-sm);
+  color: var(--c-text-2);
+}
+
+.ghost:hover {
+  background: var(--c-panel-hover);
+  color: var(--c-text);
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--r-md);
+  color: var(--c-text-2);
+}
+
+.close:hover {
+  background: var(--c-panel-hover);
+  color: var(--c-text);
+}
+
+.empty {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--c-text-3);
+}
+
+.grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, var(--zone-cw));
+  grid-auto-rows: max-content;
+  justify-content: center;
+  gap: var(--sp-3);
+  padding: var(--sp-1);
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-line-strong) transparent;
+}

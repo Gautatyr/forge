@@ -3,7 +3,8 @@ import { scenarioById } from '../mock/scenarios';
 import type { GameView } from '../model/types';
 import { DEFAULT_PREFS } from '../state/prefs';
 import { INITIAL_UI } from '../state/ui';
-import { commandEntries, groupPermanents } from './battlefieldGroups';
+import { battlefieldRows, groupPermanents } from './battlefieldGroups';
+import { commandZoneChips } from './commandZone';
 
 /** stack6 with both Goblin Bombardment activations (s4 below, s6 on top) aimed at two of Mira's Goblin tokens. */
 function twoGoblinTargets() {
@@ -57,18 +58,37 @@ describe('battlefield grouping keeps targeted tokens apart (review of PR 16)', (
   });
 });
 
-describe('commander in the command zone (design pass 4, P3)', () => {
-  it('leaves your own commander out of your support row: the hand shows it', () => {
+describe('commander in the command zone (pass 4 P3, playtest 1)', () => {
+  const ids = (rows: ReturnType<typeof battlefieldRows>) => [...rows.creatures, ...rows.support].flatMap((e) => e.ids);
+
+  it('never draws a commander in the command zone on a board: yours or an opponent’s', () => {
     const g = scenarioById('hand9').build();
-    expect(g.players[0]!.command).toHaveLength(1);
-    expect(commandEntries(g.players[0]!, g)).toEqual([]);
+    expect(g.players.filter((p) => p.command.length > 0).map((p) => p.isYou)).toEqual(expect.arrayContaining([true, false]));
+    for (const p of g.players) {
+      const rows = battlefieldRows(p, g, INITIAL_UI, DEFAULT_PREFS);
+      for (const id of p.command) expect(ids(rows)).not.toContain(id);
+      expect(ids(rows).sort()).toEqual(p.battlefield.filter((id) => !g.cards[id]!.attachedTo).sort());
+    }
   });
 
-  it('keeps an opponent’s commander in their support row, with its tax', () => {
+  it('gives an opponent a command-zone chip naming the commander and its tax', () => {
     const g = scenarioById('hand9').build();
     const theo = g.players.find((p) => p.id === 'theo')!;
-    expect(commandEntries(theo, g).map((e) => [e.card.name, e.caption])).toEqual([
-      ['Talrand, Sky Summoner', { label: 'Command zone', detail: 'tax +4' }],
+    const talrand = theo.command[0]!;
+    expect(commandZoneChips(theo, g)).toEqual([
+      { cardId: talrand, tax: 4, title: "Talrand, Sky Summoner is in Theo's command zone. Commander tax +4." },
     ]);
+  });
+
+  it('gives you no chip: your commander shows beside your hand', () => {
+    const g = scenarioById('hand9').build();
+    expect(commandZoneChips(g.players[0]!, g)).toEqual([]);
+  });
+
+  it('says when there is no tax yet', () => {
+    const g = scenarioById('hand9').build();
+    const theo = g.players.find((p) => p.id === 'theo')!;
+    const fresh = { ...theo, commanderCasts: {} };
+    expect(commandZoneChips(fresh, g)[0]!.title).toBe("Talrand, Sky Summoner is in Theo's command zone. No commander tax yet.");
   });
 });

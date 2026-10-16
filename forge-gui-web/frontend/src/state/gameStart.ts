@@ -32,6 +32,14 @@ export function turnHeading(game: GameView): TurnHeading {
   return { kind: 'turn', playerId: id, number: game.turn.number, nextId: nextPlayer(game)?.id };
 }
 
+/** Who chooses the starting player: the toss winner (first game) or the loser of the last game. */
+export type TossChooser = 'wonToss' | 'lostLastGame';
+
+/** The starting player's question (playtest 1): "You won the coin toss. Who plays first?" */
+export function tossTitle(chooser: TossChooser): string {
+  return `${chooser === 'wonToss' ? 'You won the coin toss.' : 'You lost the last game.'} Who plays first?`;
+}
+
 export interface MulliganFacts {
   /** Cards drawn: 7. */
   handSize: number;
