@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { WireObject } from '../wire/generated/wire';
-import { intentToFrames } from './commands';
+import { intentToFrames, stopFrames } from './commands';
 import { LiveSession } from './session';
 import { imageFromKey, logText, parseKeyword, toGameView } from './toView';
 
@@ -26,10 +26,13 @@ function session(phase: 'MAIN1' | 'COMBAT_DECLARE_ATTACKERS' | 'COMBAT_DECLARE_B
   return s;
 }
 
+const YOU = { type: 'player', id: 0 } as const;
+const card = (id: number) => ({ type: 'card', id }) as const;
 const buttons = (s: LiveSession, ok: string, cancel: string, message = '') => {
-  s.apply({ t: 'call', method: 'showPromptMessage', args: [0, message, null] });
-  s.apply({ t: 'call', method: 'updateButtons', args: [0, ok, cancel, true, true, true] });
+  s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, message, null] });
+  s.apply({ t: 'call', method: 'updateButtons', args: [YOU, ok, cancel, true, true, true] });
 };
+const act = (method: string, fields: object = {}) => ({ t: 'action', method, ...fields });
 
 describe('toGameView', () => {
   it('puts you first and maps players', () => {
@@ -64,13 +67,17 @@ describe('toGameView', () => {
   it('waits for the priority holder when no input is shown to you', () => {
     const s = session();
     s.apply({ t: 'delta', game: 1, seq: 1, ts: 0, new: [], changed: [{ type: 'player', id: 0, props: { HasPriority: null } }, { type: 'player', id: 1, props: { HasPriority: true } }], removed: [], log: [], events: [] });
-    expect(toGameView(s).decision).toEqual({ kind: 'waiting', forPlayerId: '1', what: 'AI has priority' });
+    expect(toGameView(s).decision).toEqual({ kind: 'waiting', forPlayerId: '1', what: 'AI is deciding' });
   });
 
   it('gives you priority on InputPassPriority (OK / End Turn)', () => {
     const s = session();
     buttons(s, 'OK', 'End Turn', 'Priority: Hugo');
-    expect(toGameView(s).decision).toEqual({ kind: 'priority', playable: [] });
+    expect(toGameView(s).decision).toEqual({ kind: 'priority', playable: [], manaSources: [] });
+    // Actionable highlights (setWeaklySelectable) name what you may play now.
+    s.apply({ t: 'call', method: 'setWeaklySelectable', args: [[card(10)]] });
+    s.apply({ t: 'delta', game: 1, seq: 1, ts: 0, new: [], changed: [{ type: 'card', id: 10, props: { Zone: 'Hand' } }, { type: 'player', id: 0, props: { Hand: [10], Battlefield: [30] } }], removed: [], log: [], events: [] });
+    expect(toGameView(s).decision).toMatchObject({ kind: 'priority', playable: ['10'] });
   });
 
   it('turns InputAttack into declareAttackers and InputBlock into declareBlockers', () => {
@@ -88,10 +95,10 @@ describe('toGameView', () => {
 
   it('turns selectables into chooseTargets', () => {
     const s = session();
-    s.apply({ t: 'call', method: 'setSelectables', args: [[10, 20], 1, 1] });
-    s.apply({ t: 'call', method: 'setSelectableTargets', args: [[1]] });
-    s.apply({ t: 'call', method: 'showPromptMessage', args: [0, 'Bolt - Select any target', 10] });
-    s.apply({ t: 'call', method: 'updateButtons', args: [0, 'OK', 'Cancel', false, true, false] });
+    s.apply({ t: 'call', method: 'setSelectables', args: [[card(10), card(20)], 1, 1] });
+    s.apply({ t: 'call', method: 'setSelectableTargets', args: [[{ type: 'player', id: 1 }]] });
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Bolt - Select any target', card(10)] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, true, false] });
     expect(toGameView(s).decision).toEqual({
       kind: 'chooseTargets',
       sourceCardId: '10',
@@ -110,8 +117,8 @@ describe('toGameView', () => {
   it('turns other two-button inputs into a yes/no tray, and prompts into the matching shape', () => {
     const s = session();
     buttons(s, 'Keep', 'Mulligan', 'Keep this hand?');
-    expect(toGameView(s).decision).toMatchObject({ kind: 'choice', prompt: { shape: 'yesNo', yesLabel: 'Keep', noLabel: 'Mulligan' } });
-    s.apply({ t: 'prompt', id: 4, method: 'getChoices', title: 'Choose a color', choices: [{ i: 0, label: 'Red' }], min: 1, max: 1 });
+    expect(toGameView(s).decision).toMatchObject({ kind: 'choice', prompt: { shape: 'yesNo', yesLabel: 'Keep 0', noLabel: 'Mulligan' } });
+    s.apply({ t: 'prompt', id: 4, method: 'getChoices', shape: 'choose', message: 'Choose a color', choices: [{ i: 0, label: 'Red' }], min: 1, max: 1 });
     expect(toGameView(s).decision).toMatchObject({ kind: 'choice', prompt: { id: 'prompt:4', shape: 'chooseN' } });
   });
 });
@@ -120,20 +127,22 @@ describe('intents → frames', () => {
   it('maps board actions to Forge input clicks', () => {
     const s = session('COMBAT_DECLARE_ATTACKERS');
     const g = toGameView(s);
-    expect(intentToFrames({ type: 'play', cardId: '10' }, s, g)).toEqual([{ t: 'selectCard', args: [10] }]);
-    expect(intentToFrames({ type: 'toggleTarget', target: { kind: 'player', id: '1' } }, s, g)).toEqual([{ t: 'selectPlayer', args: [1] }]);
-    expect(intentToFrames({ type: 'primary' }, s, g)).toEqual([{ t: 'selectButtonOk' }]);
-    expect(intentToFrames({ type: 'cancel' }, s, g)).toEqual([{ t: 'selectButtonCancel' }]);
+    expect(intentToFrames({ type: 'play', cardId: '10' }, s, g)).toEqual([act('selectCard', { card: 10 })]);
+    expect(intentToFrames({ type: 'toggleTarget', target: { kind: 'player', id: '1' } }, s, g)).toEqual([act('selectPlayer', { player: 1 })]);
+    expect(intentToFrames({ type: 'primary' }, s, g)).toEqual([act('selectButtonOk')]);
+    expect(intentToFrames({ type: 'cancel' }, s, g)).toEqual([act('selectButtonCancel')]);
     expect(intentToFrames({ type: 'toggleAttacker', cardId: '10', defenderId: '1' }, s, g)).toEqual([
-      { t: 'selectPlayer', args: [1] },
-      { t: 'selectCard', args: [10] },
+      act('selectPlayer', { player: 1 }),
+      act('selectCard', { card: 10 }),
     ]);
-    expect(intentToFrames({ type: 'attackWithAll', defenderId: '1' }, s, g)).toEqual([{ t: 'selectPlayer', args: [1] }, { t: 'alphaStrike' }]);
+    expect(intentToFrames({ type: 'attackWithAll', defenderId: '1' }, s, g)).toEqual([act('selectPlayer', { player: 1 }), act('alphaStrike')]);
     expect(intentToFrames({ type: 'assignBlock', blockerId: '10', attackerId: '20' }, s, g)).toEqual([
-      { t: 'selectCard', args: [20] },
-      { t: 'selectCard', args: [10] },
+      act('selectCard', { card: 20 }),
+      act('selectCard', { card: 10 }),
     ]);
-    expect(intentToFrames({ type: 'undo' }, s, g)).toEqual([{ t: 'undoLastAction' }]);
+    expect(intentToFrames({ type: 'spendPool', colour: 'G' }, s, g)).toEqual([act('useMana', { color: 16 })]);
+    expect(intentToFrames({ type: 'undo' }, s, g)).toEqual([act('undoLastAction')]);
+    expect(intentToFrames({ type: 'concede' }, s, g)).toEqual([act('concede')]);
     expect(intentToFrames({ type: 'setAutoPass', on: true }, s, g)).toEqual([]);
   });
 
@@ -142,30 +151,88 @@ describe('intents → frames', () => {
     s.apply({ t: 'delta', game: 1, seq: 1, ts: 0, new: [], changed: [{ type: 'game', id: 1, props: { CombatView: [{ attackers: [20], defender: { type: 'player', id: 0 }, blockers: [10], plannedBlockers: [] }] } }], removed: [], log: [], events: [] });
     buttons(s, 'OK', 'Cancel', 'Select creatures to block');
     expect(intentToFrames({ type: 'removeBlock', blockerId: '10' }, s, toGameView(s))).toEqual([
-      { t: 'selectCard', args: [20] },
-      { t: 'selectCard', args: [10] },
+      act('selectCard', { card: 20 }),
+      act('selectCard', { card: 10 }),
     ]);
   });
 
-  it('answers prompts by reply and two-button inputs by button', () => {
+  it('answers prompts by reply and button inputs by button', () => {
     const s = session();
     buttons(s, 'Keep', 'Mulligan');
     const g = toGameView(s);
     const inputId = g.decision.kind === 'choice' ? g.decision.prompt.id : '';
-    expect(intentToFrames({ type: 'answer', promptId: inputId, answer: { shape: 'yesNo', yes: false } }, s, g)).toEqual([{ t: 'selectButtonCancel' }]);
-    s.apply({ t: 'prompt', id: 9, method: 'chooseSingleEntityForEffect', title: 'Pick', choices: [{ i: 0, label: 'A' }, { i: 1, label: 'B' }] });
+    expect(intentToFrames({ type: 'answer', promptId: inputId, answer: { shape: 'yesNo', yes: false } }, s, g)).toEqual([act('selectButtonCancel')]);
+    s.apply({ t: 'prompt', id: 9, method: 'chooseSingleEntityForEffect', shape: 'choose', message: 'Pick', min: 1, max: 1, choices: [{ i: 0, label: 'A' }, { i: 1, label: 'B' }] });
     expect(intentToFrames({ type: 'answer', promptId: 'prompt:9', answer: { shape: 'chooseN', optionIds: ['1'] } }, s, toGameView(s))).toEqual([
-      { t: 'reply', id: 9, value: 1 },
+      { t: 'reply', id: 9, value: [1] },
     ]);
     expect(intentToFrames({ type: 'answer', promptId: 'prompt:8', answer: { shape: 'chooseN', optionIds: ['1'] } }, s, toGameView(s))).toEqual([]);
   });
 
-  it('ends the turn only through InputPassPriority\'s End Turn button', () => {
+  it('passes until your turn with a yield marker at your upkeep', () => {
     const s = session();
     buttons(s, 'OK', 'End Turn');
-    expect(intentToFrames({ type: 'passUntilYourTurn' }, s, toGameView(s))).toEqual([{ t: 'selectButtonCancel' }]);
-    buttons(s, 'OK', 'Undo (1)');
-    expect(intentToFrames({ type: 'passUntilYourTurn' }, s, toGameView(s))).toEqual([]);
+    expect(intentToFrames({ type: 'passUntilYourTurn' }, s, toGameView(s))).toEqual([
+      act('sendYieldUpdate', { update: { kind: 'SetMarker', phaseOwner: 0, phase: 'UPKEEP', atOrPastAtClick: false } }),
+      act('selectButtonOk'),
+    ]);
+    expect(intentToFrames({ type: 'cancelPassUntilYourTurn' }, s, toGameView(s))).toEqual([act('sendYieldUpdate', { update: { kind: 'ClearMarker' } })]);
+  });
+
+  it('sends phase stops as SkipPhase for every player and step', () => {
+    const g = toGameView(session());
+    const frames = stopFrames(g, (pid, step) => pid === '0' && step === 'main1');
+    expect(frames).toContainEqual(act('sendYieldUpdate', { update: { kind: 'SkipPhase', turnPlayer: 0, phase: 'MAIN1', skip: false } }));
+    expect(frames).toContainEqual(act('sendYieldUpdate', { update: { kind: 'SkipPhase', turnPlayer: 1, phase: 'MAIN1', skip: true } }));
+    expect(frames).toHaveLength(2 * 11);
+  });
+});
+
+describe('payment and reveals', () => {
+  it('turns "Pay Mana Cost" into payMana with the sources and the auto-pay plan', () => {
+    const s = session();
+    s.apply({ t: 'delta', game: 1, seq: 1, ts: 0, new: [{ type: 'card', id: 40, props: { Owner: 0, Controller: 0, Zone: 'Battlefield', CurrentState: 'Original' } }, { type: 'cardState', id: 40, state: 'Original', props: { Name: 'Forest', Type: 'Basic Land - Forest', OrigProduceMana: 'G' } }], changed: [{ type: 'player', id: 0, props: { Battlefield: [10, 30, 40] } }], removed: [], log: [], events: [] });
+    s.clicked(10);
+    s.apply({ t: 'call', method: 'setWeaklySelectable', args: [[card(40), card(40)]] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'Auto', 'Cancel', true, true, true] });
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Grizzly Bears\n\nPay Mana Cost: {1}{G}', card(-1)] });
+    expect(toGameView(s).decision).toEqual({
+      kind: 'payMana',
+      sourceCardId: '10',
+      cost: '{1}{G}',
+      remaining: '{1}{G}',
+      tax: 0,
+      sources: [{ cardId: '40', colours: ['G'] }],
+      canUndoTap: false,
+      autoTaps: ['40'],
+      autoCanPay: true,
+    });
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Grizzly Bears\n\nPay Mana Cost: {1}', card(-1)] });
+    expect(toGameView(s).decision).toMatchObject({ cost: '{1}{G}', remaining: '{1}' });
+  });
+
+  it('keeps naming the spell being paid for while it is in no zone', () => {
+    const s = session();
+    s.clicked(10);
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'Auto', 'Cancel', true, true, true] });
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Bears\n\nPay Mana Cost: {2}', card(-1)] });
+    s.apply({ t: 'delta', game: 1, seq: 1, ts: 0, new: [], changed: [{ type: 'player', id: 0, props: { Battlefield: [30] } }], removed: ['card:10', 'cardState:10:Original'], log: [], events: [] });
+    const g = toGameView(s);
+    expect(g.decision).toMatchObject({ kind: 'payMana', sourceCardId: '10' });
+    expect(g.cards['10']).toMatchObject({ name: 'Grizzly Bears', zone: 'stack' });
+    expect(g.players[0]!.battlefield).toEqual(['30']);
+  });
+
+  it('shows revealed cards in the tray until OK', () => {
+    const s = session();
+    s.apply({ t: 'call', method: 'showRevealedCards', args: [[card(20)]] });
+    buttons(s, 'OK', 'End Turn', "Looking at cards in AI's hand");
+    const g = toGameView(s);
+    expect(g.decision).toMatchObject({ kind: 'choice', prompt: { shape: 'chooseN', max: 0, options: [{ id: '20', cardId: '20' }] } });
+    const id = g.decision.kind === 'choice' ? g.decision.prompt.id : '';
+    expect(intentToFrames({ type: 'answer', promptId: id, answer: { shape: 'chooseN', optionIds: [] } }, s, g)).toEqual([act('selectButtonOk')]);
+    s.apply({ t: 'call', method: 'hideRevealedCards', args: [] });
+    expect(toGameView(s).decision.kind).not.toBe('choice');
   });
 });
 

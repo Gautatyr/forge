@@ -72,7 +72,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   const [ui, setUiState] = useState<UiState>(INITIAL_UI);
   const [prefs, setPrefsState] = useState<Prefs>(initialPrefs);
   const [source, setSource] = useState<SourceConfig>(() => sourceFromLocation(location));
-  const live = useLive(source);
+  const live = useLive(source, prefs.stops);
   const liveSend = live?.send;
 
   const setUi = useCallback((patch: Partial<UiState> | ((u: UiState) => UiState)) => {

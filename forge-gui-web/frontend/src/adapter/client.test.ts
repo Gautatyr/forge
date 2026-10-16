@@ -61,18 +61,36 @@ describe('connectLive', () => {
     expect(src.session.awaitingSnapshot).toBe(true);
   });
 
-  it('notifies subscribers and sends frames; a reply clears the prompt', () => {
+  it('notifies subscribers and sends frames; a reply hides the prompt until the server closes or rejects it', () => {
     const { src, sockets } = setup();
     const ws = sockets[0]!;
     let calls = 0;
     src.subscribe(() => (calls += 1));
     ws.open();
-    ws.receive({ t: 'prompt', id: 2, method: 'confirm', title: 'Draw?', choices: [] });
+    const prompt = { t: 'prompt', id: 2, method: 'confirm', shape: 'confirm', message: 'Draw?', yes: 'Yes', no: 'No', default: true };
+    ws.receive(prompt);
     expect(src.session.prompt?.id).toBe(2);
-    src.send([{ t: 'reply', id: 2, value: true }, { t: 'selectButtonOk' }]);
-    expect(ws.sent).toEqual([{ t: 'reply', id: 2, value: true }, { t: 'selectButtonOk' }]);
+    src.send([{ t: 'reply', id: 2, value: true }, { t: 'action', method: 'selectButtonOk' }]);
+    expect(ws.sent).toEqual([{ t: 'reply', id: 2, value: true }, { t: 'action', method: 'selectButtonOk' }]);
     expect(src.session.prompt).toBeUndefined();
     expect(calls).toBe(3);
+    ws.receive({ t: 'replyRejected', id: 2, reason: 'pick between 1 and 1' });
+    expect(src.session.prompt?.id).toBe(2);
+    expect(src.session.notices.at(-1)?.text).toContain('pick between 1 and 1');
+    ws.receive({ t: 'promptClosed', id: 2, reason: 'answered' });
+    expect(src.session.prompts).toEqual([]);
+  });
+
+  it('remembers the card clicked to cast, not the mana sources clicked to pay for it', () => {
+    const { src, sockets } = setup();
+    const ws = sockets[0]!;
+    ws.open();
+    ws.receive(snapshot);
+    src.send([{ t: 'action', method: 'selectCard', card: 6 }]);
+    ws.receive({ t: 'call', method: 'showPromptMessage', args: [{ type: 'player', id: 0 }, 'Siege\n\nPay Mana Cost: {2}{U}', { type: 'card', id: -1 }] });
+    src.send([{ t: 'action', method: 'selectCard', card: 10 }]);
+    expect(src.session.lastCard).toBe(6);
+    expect(src.session.payment).toMatchObject({ cost: '{2}{U}' });
   });
 
   it('reconnects after the socket closes, until closed by the page', () => {

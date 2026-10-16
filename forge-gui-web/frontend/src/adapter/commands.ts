@@ -1,60 +1,146 @@
 /**
- * UI intents → client frames (replies and the 16 IGameController commands). Board interaction
- * follows Forge's inputs: a card click is selectCard, a player click selectPlayer, the main button
- * selectButtonOk, cancel selectButtonCancel (InputAttack: selectPlayer picks the defender, a
- * creature click toggles it; InputBlock: click the attacker, then the blocker).
+ * UI intents → client frames: replies to prompts and `{"t":"action","method",…}` player actions
+ * (docs/fork/architecture/web-ui.md, "Bridge: human seat"). Board interaction follows Forge's
+ * inputs: a card click is selectCard, a player click selectPlayer, the main button selectButtonOk,
+ * cancel selectButtonCancel (InputAttack: selectPlayer picks the defender, a creature click toggles
+ * it; InputBlock: click the attacker, then the blocker; InputPayMana: a source click taps it,
+ * useMana spends floating mana, OK is "Auto").
  */
 import type { Intent } from '../model/intents';
-import type { GameView } from '../model/types';
-import type { ClientFrame, CommandMessage } from './protocol';
-import { INPUT_PROMPT_PREFIX, promptViewId, replyValue } from './prompts';
+import type { GameView, StepId } from '../model/types';
+import type { PhaseType } from '../wire/generated/wire';
+import { COLOUR_MASK, type ActionMessage, type ClientFrame } from './protocol';
+import { inputPromptKind, promptViewId, replyValue } from './prompts';
 import type { LiveSession } from './session';
 
 const num = (id: string) => Number(id);
-const cmd = (t: CommandMessage['t'], ...args: (number | string)[]): CommandMessage => (args.length ? { t, args } : { t });
+type Method = ActionMessage['method'];
+export const action = (method: Method, fields: Omit<ActionMessage, 't' | 'method'> = {}): ActionMessage => ({
+  t: 'action',
+  method,
+  ...fields,
+});
+const selectCard = (id: string) => action('selectCard', { card: num(id) });
+const selectPlayer = (id: string) => action('selectPlayer', { player: num(id) });
 
-/** Frames for one intent; [] = nothing to send (settings the bridge has no wire form for yet). */
+/** Phases of a view-model step (combat damage covers first strike too). */
+export const PHASES_OF: Record<StepId, PhaseType[]> = {
+  untap: ['UNTAP'],
+  upkeep: ['UPKEEP'],
+  draw: ['DRAW'],
+  main1: ['MAIN1'],
+  beginCombat: ['COMBAT_BEGIN'],
+  declareAttackers: ['COMBAT_DECLARE_ATTACKERS'],
+  declareBlockers: ['COMBAT_DECLARE_BLOCKERS'],
+  combatDamage: ['COMBAT_FIRST_STRIKE_DAMAGE', 'COMBAT_DAMAGE'],
+  endCombat: ['COMBAT_END'],
+  main2: ['MAIN2'],
+  end: ['END_OF_TURN'],
+  cleanup: ['CLEANUP'],
+};
+
+/** Frames for one intent; [] = nothing to send (client-side settings, or nothing to answer). */
 export function intentToFrames(intent: Intent, s: LiveSession, view: GameView): ClientFrame[] {
+  const d = view.decision;
   switch (intent.type) {
     case 'play':
-      return [cmd('selectCard', num(intent.cardId))];
+    case 'activate':
+    case 'tapForMana':
+      return [selectCard(intent.cardId)];
+    case 'spendPool':
+      return [action('useMana', { color: COLOUR_MASK[intent.colour] })];
+    case 'payAuto':
+      return [action('selectButtonOk')];
+    case 'undoTap':
+      return [];
     case 'toggleTarget':
-      return [intent.target.kind === 'card' ? cmd('selectCard', num(intent.target.id)) : cmd('selectPlayer', num(intent.target.id))];
+      return [intent.target.kind === 'card' ? selectCard(intent.target.id) : selectPlayer(intent.target.id)];
     case 'primary':
-      return [cmd('selectButtonOk')];
+      return [action('selectButtonOk')];
     case 'cancel':
-      return [cmd('selectButtonCancel')];
+      if (d.kind === 'declareBlockers') {
+        // InputBlock has no cancel: clicking attacker then blocker removes each block.
+        return d.draft.flatMap((b) => [selectCard(b.attackerId), selectCard(b.blockerId)]);
+      }
+      // Paying, targeting: Cancel. Attacking: the cancel button is "Call Back" once attackers are declared.
+      return [action('selectButtonCancel')];
     case 'toggleAttacker':
     case 'setAttackDefender':
-      return [cmd('selectPlayer', num(intent.defenderId)), cmd('selectCard', num(intent.cardId))];
+      return [selectPlayer(intent.defenderId), selectCard(intent.cardId)];
     case 'attackWithAll':
-      return [cmd('selectPlayer', num(intent.defenderId)), cmd('alphaStrike')];
+      return [selectPlayer(intent.defenderId), action('alphaStrike')];
     case 'assignBlock':
-      return [cmd('selectCard', num(intent.attackerId)), cmd('selectCard', num(intent.blockerId))];
+      return [selectCard(intent.attackerId), selectCard(intent.blockerId)];
     case 'removeBlock': {
-      const d = view.decision;
       const block = d.kind === 'declareBlockers' ? d.draft.find((b) => b.blockerId === intent.blockerId) : undefined;
-      return block ? [cmd('selectCard', num(block.attackerId)), cmd('selectCard', num(intent.blockerId))] : [];
+      return block ? [selectCard(block.attackerId), selectCard(intent.blockerId)] : [];
     }
-    case 'answer': {
-      if (intent.promptId.startsWith(INPUT_PROMPT_PREFIX)) {
-        return intent.answer.shape === 'yesNo' ? [cmd(intent.answer.yes ? 'selectButtonOk' : 'selectButtonCancel')] : [];
-      }
-      const p = s.prompt;
-      if (!p || promptViewId(p.id) !== intent.promptId) return [];
-      const value = replyValue(p, intent.answer);
-      return value === undefined ? [] : [{ t: 'reply', id: p.id, value }];
+    case 'answer':
+      return answerFrames(intent.promptId, intent.answer, s);
+    case 'passUntilYourTurn': {
+      // A yield marker at your upkeep: the engine passes for you until then (stops and the stack still interrupt).
+      const marker = action('sendYieldUpdate', {
+        update: { kind: 'SetMarker', phaseOwner: num(view.youId), phase: 'UPKEEP', atOrPastAtClick: false },
+      });
+      return d.kind === 'priority' ? [marker, action('selectButtonOk')] : [marker];
     }
-    case 'passUntilYourTurn':
-      // InputPassPriority's second button is "End Turn" unless an undo is possible.
-      return s.input.cancel.enabled && s.input.cancel.label === 'End Turn' ? [cmd('selectButtonCancel')] : [];
-    case 'undo':
-      return [cmd('undoLastAction')];
     case 'cancelPassUntilYourTurn':
+      return [action('sendYieldUpdate', { update: { kind: 'ClearMarker' } })];
+    case 'undo':
+      return [action('undoLastAction')];
+    case 'concede':
+      return [action('concede')];
     case 'setAutoPass':
     case 'setAutoYield':
+    case 'setAutoPay':
     case 'toggleAutoYieldTo':
-      // Yield settings travel as YieldUpdate (sendYieldUpdate), which has no wire form yet.
+    case 'leaveMatch':
+    case 'nextGame':
+      // Client-side (autoPay) or no wire form yet.
       return [];
   }
+}
+
+function answerFrames(promptId: string, answer: Extract<Intent, { type: 'answer' }>['answer'], s: LiveSession): ClientFrame[] {
+  switch (inputPromptKind(promptId)) {
+    case 'mulligan':
+    case 'buttons':
+      return answer.shape === 'yesNo' ? [action(answer.yes ? 'selectButtonOk' : 'selectButtonCancel')] : [];
+    case 'ok':
+      return [action('selectButtonOk')];
+    case 'cancel':
+      return [action('selectButtonCancel')];
+    case 'bottom': {
+      // InputLondonMulligan: toggle the cards that differ from the server's selection, then OK.
+      if (answer.shape !== 'chooseN') return [];
+      const on = new Set(s.input.highlighted.filter((h) => h.type === 'card').map((h) => String(h.id)));
+      const want = new Set(answer.optionIds);
+      const toggle = [...[...want].filter((id) => !on.has(id)), ...[...on].filter((id) => !want.has(id))];
+      return [...toggle.map(selectCard), action('selectButtonOk')];
+    }
+    default: {
+      const p = s.prompt;
+      if (!p || promptViewId(p.id) !== promptId) return [];
+      const value = replyValue(p, answer);
+      return value === undefined ? [] : [{ t: 'reply', id: p.id, value }];
+    }
+  }
+}
+
+/**
+ * Phase stops as SkipPhase yield updates: for every player and step, skip unless the step is a
+ * stop (the bridge skips none until told).
+ */
+export function stopFrames(view: GameView, isStop: (turnPlayerId: string, step: StepId) => boolean): ClientFrame[] {
+  const out: ClientFrame[] = [];
+  for (const p of view.players) {
+    for (const step of Object.keys(PHASES_OF) as StepId[]) {
+      if (step === 'untap' || step === 'cleanup') continue;
+      const skip = !isStop(p.id, step);
+      for (const phase of PHASES_OF[step]) {
+        out.push(action('sendYieldUpdate', { update: { kind: 'SkipPhase', turnPlayer: num(p.id), phase, skip } }));
+      }
+    }
+  }
+  return out;
 }

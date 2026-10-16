@@ -59,7 +59,10 @@ export function connectLive(
     send(frames) {
       if (!socket || socket.readyState !== OPEN) return;
       for (const f of frames) socket.send(JSON.stringify(f));
-      for (const f of frames) if (f.t === 'reply') source.session.answered(f.id);
+      for (const f of frames) {
+        if (f.t === 'reply') source.session.answered(f.id);
+        if (f.t === 'action' && f.method === 'selectCard' && f.card !== undefined) source.session.clicked(f.card);
+      }
       changed();
     },
     subscribe(l) {

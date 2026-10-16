@@ -1,11 +1,12 @@
 /**
  * Client copy of one viewer's stream: the wire objects (snapshot + deltas), the log, and the
- * human-seat input state carried by calls and prompts. `apply` returns 'resync' when the stream
- * broke (seq gap); the caller then asks for a snapshot and the session drops deltas until it comes.
+ * human-seat input state carried by calls and prompts (docs/fork/architecture/web-ui.md, "Bridge:
+ * human seat"). `apply` returns 'resync' when the stream broke (seq gap); the caller then asks for a
+ * snapshot and the session drops deltas until it comes.
  */
 import type { HelloMessage, LogEntry as WireLogEntry, SnapshotMessage, WireObject } from '../wire/generated/wire';
 import { hasDrift, schemaDrift, type SchemaDrift } from '../wire/schemaDrift';
-import type { PromptMessage, ServerFrame, WireRef } from './protocol';
+import { asRef, type PromptMessage, type SeatRef, type ServerFrame } from './protocol';
 
 export const LOG_LIMIT = 400;
 
@@ -31,9 +32,9 @@ export interface InputState {
   /** Cards the input accepts (setSelectables). */
   selectable?: { cards: number[]; min: number; max: number };
   /** Players and stack items the input accepts (setSelectableTargets). */
-  targets: WireRef[];
+  targets: SeatRef[];
   /** Chosen so far (setHighlighted). */
-  highlighted: WireRef[];
+  highlighted: SeatRef[];
 }
 
 export const NO_INPUT: InputState = {
@@ -44,25 +45,33 @@ export const NO_INPUT: InputState = {
   highlighted: [],
 };
 
+export interface Notice {
+  id: number;
+  text: string;
+}
+
 export type Viewer = SnapshotMessage['viewer'];
 
 export const objectKey = (o: { type: string; id: number; state?: string }) =>
   o.type === 'cardState' ? `cardState:${o.id}:${o.state}` : `${o.type}:${o.id}`;
 
-/** Card refs in calls: numbers are card ids; objects are typed refs. */
-function toRefs(v: unknown, plain: WireRef['type']): WireRef[] {
+/** Refs in call args: `{type,id}` objects; a bare number is read as `plain`. */
+function toRefs(v: unknown, plain: SeatRef['type']): SeatRef[] {
   if (!Array.isArray(v)) return [];
-  return v.flatMap((x): WireRef[] => {
+  return v.flatMap((x): SeatRef[] => {
     if (typeof x === 'number') return [{ type: plain, id: x }];
-    if (x && typeof x === 'object' && 'type' in x && 'id' in x && typeof x.id === 'number') {
-      const t = x.type;
-      if (t === 'card' || t === 'player' || t === 'stackItem') return [{ type: t, id: x.id }];
-    }
-    return [];
+    const r = asRef(x);
+    return r ? [r] : [];
   });
 }
 
-const sameRef = (a: WireRef, b: WireRef) => a.type === b.type && a.id === b.id;
+/** A player or card argument: a ref, or a bare id. */
+function refId(v: unknown): number | undefined {
+  if (typeof v === 'number') return v;
+  return asRef(v)?.id;
+}
+
+const sameRef = (a: SeatRef, b: SeatRef) => a.type === b.type && a.id === b.id;
 
 export class LiveSession {
   objects = new Map<string, WireObject>();
@@ -73,20 +82,48 @@ export class LiveSession {
   seq = -1;
   log: SessionLogEntry[] = [];
   input: InputState = NO_INPUT;
-  prompt?: PromptMessage;
+  /** Open prompts, oldest first. */
+  prompts: PromptMessage[] = [];
+  /** Prompts whose reply left; hidden unless the server rejects the reply. */
+  answering = new Set<number>();
+  /**
+   * setWeaklySelectable: card id → strength. With the bridge's actionable highlights on, the cards
+   * you may play now (priority), the mana sources (paying; 2 = in the auto-pay plan), attack candidates.
+   */
+  weakly = new Map<number, number>();
+  /** showRevealedCards: cards the engine shows you until the input ends (e.g. an opponent's hand). */
+  revealed: number[] = [];
+  /** Last card this client clicked (selectCard): names the spell being paid for when the engine's ref is unknown. */
+  lastCard?: number;
+  /** That card's objects while it is in no zone (cast, being paid for). */
+  limbo = new Map<string, WireObject>();
   /** Game over (final delta or finishGame). */
   finished = false;
+  /** The payment being made: its full cost, as the first "Pay Mana Cost" message of the input showed it. */
+  payment?: { cardId?: number; cost: string; seq: number };
+  private paymentSeq = 0;
+  /** Player → turn when they were first seen out, and the order they went out in. */
+  lostAt = new Map<number, number>();
+  lostOrder = new Map<number, number>();
+  /** Player → life before turn 1 (the format's starting life). */
+  startingLife = new Map<number, number>();
   /** A gap was seen; deltas are dropped until the next snapshot. */
   awaitingSnapshot = false;
-  /** Engine messages (message / showErrorDialog) not yet shown. */
-  notices: string[] = [];
+  /** Engine messages and rejections, newest last. */
+  notices: Notice[] = [];
   /** Bumped on every change, so views can memoise. */
   version = 0;
   private logSeq = 0;
+  private noticeSeq = 0;
 
   get gameObject(): Extract<WireObject, { type: 'game' }> | undefined {
     for (const o of this.objects.values()) if (o.type === 'game') return o;
     return undefined;
+  }
+
+  /** The prompt to show: the oldest open one not being answered. */
+  get prompt(): PromptMessage | undefined {
+    return this.prompts.find((p) => !this.answering.has(p.id));
   }
 
   get(type: 'card', id: number): Extract<WireObject, { type: 'card' }> | undefined;
@@ -97,13 +134,33 @@ export class LiveSession {
   }
 
   cardState(id: number, state: string): Extract<WireObject, { type: 'cardState' }> | undefined {
-    return this.objects.get(`cardState:${id}:${state}`) as Extract<WireObject, { type: 'cardState' }> | undefined;
+    const key = `cardState:${id}:${state}`;
+    return (this.objects.get(key) ?? this.limbo.get(key)) as Extract<WireObject, { type: 'cardState' }> | undefined;
+  }
+
+  /** This client sent selectCard: remember the card unless it pays for the spell being cast. */
+  clicked(card: number) {
+    if (this.payment || card === this.lastCard) return;
+    this.lastCard = card;
+    this.limbo = new Map();
+  }
+
+  /** A card the client clicked that is in no zone now (a spell being cast). */
+  limboCard(id: number): Extract<WireObject, { type: 'card' }> | undefined {
+    return this.limbo.get(`card:${id}`) as Extract<WireObject, { type: 'card' }> | undefined;
   }
 
   apply(frame: ServerFrame): 'ok' | 'resync' {
     const r = this.applyInner(frame);
     this.version += 1;
     return r;
+  }
+
+  /** Shown once in the prompt line (engine messages, rejections, link problems). */
+  notice(text: string) {
+    this.noticeSeq += 1;
+    this.notices = [...this.notices.slice(-19), { id: this.noticeSeq, text }];
+    this.version += 1;
   }
 
   private applyInner(frame: ServerFrame): 'ok' | 'resync' {
@@ -122,10 +179,19 @@ export class LiveSession {
         this.awaitingSnapshot = false;
         if (newGame) {
           this.input = NO_INPUT;
-          this.prompt = undefined;
+          this.prompts = [];
+          this.answering.clear();
+          this.revealed = [];
+          this.lastCard = undefined;
+          this.limbo = new Map();
+          this.weakly = new Map();
           this.finished = false;
-          this.log = [];
+          this.payment = undefined;
+          this.lostAt = new Map();
+          this.lostOrder = new Map();
+          this.startingLife = new Map();
         }
+        this.trackPlayers();
         // The snapshot carries the log tail: replace ours (it may have missed entries).
         this.log = [];
         this.addLog(frame.log);
@@ -146,7 +212,14 @@ export class LiveSession {
           const props = Object.fromEntries(Object.entries(merged).filter(([, v]) => v !== null));
           this.objects.set(objectKey(patch), { ...cur, props } as WireObject);
         }
-        for (const key of frame.removed) this.objects.delete(key);
+        for (const key of frame.removed) {
+          // A spell being cast leaves every zone until it is paid for: keep the clicked card to name it meanwhile.
+          const o = this.objects.get(key);
+          if (o && o.id === this.lastCard && (o.type === 'card' || o.type === 'cardState')) this.limbo.set(key, o);
+          this.objects.delete(key);
+        }
+        for (const key of this.limbo.keys()) if (this.objects.has(key)) this.limbo.delete(key);
+        this.trackPlayers();
         this.addLog(frame.log);
         if (frame.final) this.finished = true;
         return 'ok';
@@ -155,20 +228,32 @@ export class LiveSession {
         this.applyCall(frame.method, frame.args);
         return 'ok';
       case 'prompt':
-        this.prompt = frame;
+        // A reconnect greeting re-sends open prompts: replace, never duplicate.
+        this.prompts = [...this.prompts.filter((p) => p.id !== frame.id), frame];
         return 'ok';
       case 'promptClosed':
-        if (this.prompt?.id === frame.id) this.prompt = undefined;
+        this.prompts = this.prompts.filter((p) => p.id !== frame.id);
+        this.answering.delete(frame.id);
+        return 'ok';
+      case 'replyRejected':
+        if (frame.id !== undefined) this.answering.delete(frame.id);
+        this.notice(`Answer not accepted: ${frame.reason}`);
+        return 'ok';
+      case 'actionRejected':
+        this.notice(`${frame.method ?? 'Action'}: ${frame.reason}`);
+        return 'ok';
+      case 'rejected':
+        this.notice(frame.reason);
         return 'ok';
       default:
         return 'ok';
     }
   }
 
-  /** The reply left: stop showing the prompt (the server sends the next one if any). */
+  /** The reply left: stop showing the prompt (it comes back if the server rejects the reply). */
   answered(promptId: number) {
-    if (this.prompt?.id === promptId) {
-      this.prompt = undefined;
+    if (this.prompts.some((p) => p.id === promptId)) {
+      this.answering.add(promptId);
       this.version += 1;
     }
   }
@@ -176,19 +261,24 @@ export class LiveSession {
   private applyCall(method: string, args: unknown[]) {
     const a = args;
     switch (method) {
-      case 'showPromptMessage':
+      case 'showPromptMessage': {
+        const card = refId(a[2]);
+        const pay = typeof a[1] === 'string' ? /Pay Mana Cost:\s*(\S+)/.exec(a[1]) : null;
+        if (!pay) this.payment = undefined;
+        else if (!this.payment || this.payment.cardId !== card) this.payment = { cardId: card, cost: pay[1]!, seq: ++this.paymentSeq };
         this.input = {
           ...this.input,
-          ownerId: typeof a[0] === 'number' ? a[0] : this.input.ownerId,
+          ownerId: refId(a[0]) ?? this.input.ownerId,
           message: typeof a[1] === 'string' ? a[1] : '',
-          cardId: typeof a[2] === 'number' && a[2] >= 0 ? a[2] : undefined,
+          cardId: card !== undefined && card >= 0 ? card : undefined,
         };
         return;
+      }
       case 'updateButtons': {
         const ok = { label: String(a[1] ?? ''), enabled: a[3] === true };
         const cancel = { label: String(a[2] ?? ''), enabled: a[4] === true };
         // Both disabled does not end an input (mandatory targeting waits for a click); awaitNextInput does.
-        this.input = { ...this.input, ownerId: typeof a[0] === 'number' ? a[0] : this.input.ownerId, ok, cancel };
+        this.input = { ...this.input, ownerId: refId(a[0]) ?? this.input.ownerId, ok, cancel };
         return;
       }
       case 'awaitNextInput':
@@ -218,10 +308,25 @@ export class LiveSession {
         this.input = { ...this.input, highlighted: on ? [...rest, ...refs] : rest };
         return;
       }
+      case 'setWeaklySelectable': {
+        const m = new Map<number, number>();
+        for (const r of toRefs(a[0], 'card')) if (r.type === 'card') m.set(r.id, (m.get(r.id) ?? 0) + 1);
+        this.weakly = m;
+        return;
+      }
+      case 'clearWeaklySelectable':
+        this.weakly = new Map();
+        return;
+      case 'showRevealedCards':
+        this.revealed = toRefs(a[0], 'card').flatMap((r) => (r.type === 'card' ? [r.id] : []));
+        return;
+      case 'hideRevealedCards':
+        this.revealed = [];
+        return;
       case 'message':
       case 'showErrorDialog': {
         const text = [a[1], a[0]].filter((x) => typeof x === 'string' && x).join(': ');
-        if (text) this.notices = [...this.notices, text];
+        if (text) this.notice(text);
         return;
       }
       case 'finishGame':
@@ -229,6 +334,20 @@ export class LiveSession {
         return;
       default:
         return;
+    }
+  }
+
+  /** Starting life before turn 1; when each player went out. */
+  private trackPlayers() {
+    const g = this.gameObject?.props;
+    for (const pid of g?.Players ?? []) {
+      const p = this.get('player', pid)?.props;
+      if (!p) continue;
+      if (!g?.Turn && p.Life !== undefined && !this.startingLife.has(pid)) this.startingLife.set(pid, p.Life);
+      if (p.HasLost && !this.lostAt.has(pid)) {
+        this.lostAt.set(pid, g?.Turn ?? 0);
+        this.lostOrder.set(pid, this.lostOrder.size + 1);
+      }
     }
   }
 

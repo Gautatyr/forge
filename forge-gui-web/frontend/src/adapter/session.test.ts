@@ -87,14 +87,18 @@ describe('LiveSession state stream', () => {
   });
 });
 
-describe('LiveSession input state', () => {
-  it('follows showPromptMessage, updateButtons, selectables and highlights', () => {
+const P0 = { type: 'player', id: 0 } as const;
+const card = (id: number) => ({ type: 'card', id }) as const;
+const confirm = (id: number) => ({ t: 'prompt', id, method: 'confirm', shape: 'confirm', message: 'Draw?', yes: 'Yes', no: 'No', default: true }) as const;
+
+describe('LiveSession input state (bridge seat protocol)', () => {
+  it('follows showPromptMessage, updateButtons, selectables and highlights with {type,id} refs', () => {
     const s = new LiveSession();
     s.apply(snapshot());
-    s.apply({ t: 'call', method: 'setSelectables', args: [[10, 12], 1, 1] });
-    s.apply({ t: 'call', method: 'setSelectableTargets', args: [[1]] });
-    s.apply({ t: 'call', method: 'showPromptMessage', args: [0, 'Lightning Bolt - Select target', 33] });
-    s.apply({ t: 'call', method: 'updateButtons', args: [0, 'OK', 'Cancel', false, true, false] });
+    s.apply({ t: 'call', method: 'setSelectables', args: [[card(10), card(12)], 1, 1] });
+    s.apply({ t: 'call', method: 'setSelectableTargets', args: [[{ type: 'player', id: 1 }]] });
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [P0, 'Lightning Bolt - Select target', card(33)] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [P0, 'OK', 'Cancel', false, true, false] });
     s.apply({ t: 'call', method: 'setHighlighted', args: [[{ type: 'player', id: 1 }], true] });
     expect(s.input).toEqual({
       ownerId: 0,
@@ -114,37 +118,58 @@ describe('LiveSession input state', () => {
 
   it('ends the input on awaitNextInput', () => {
     const s = new LiveSession();
-    s.apply({ t: 'call', method: 'updateButtons', args: [0, 'OK', 'End Turn', true, true, true] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [P0, 'OK', 'End Turn', true, true, true] });
     s.apply({ t: 'call', method: 'awaitNextInput', args: [] });
     expect(s.input.ok.enabled || s.input.cancel.enabled).toBe(false);
   });
 
-  it('holds one prompt until answered or closed', () => {
+  it('counts weakly selectable cards by strength (listed twice = the auto-pay plan)', () => {
     const s = new LiveSession();
-    s.apply({ t: 'prompt', id: 7, method: 'confirm', title: 'Draw?', choices: [] });
+    s.apply({ t: 'call', method: 'setWeaklySelectable', args: [[card(1), card(2), card(2)]] });
+    expect(s.weakly).toEqual(new Map([[1, 1], [2, 2]]));
+    s.apply({ t: 'call', method: 'clearWeaklySelectable', args: [] });
+    expect(s.weakly.size).toBe(0);
+  });
+
+  it('holds prompts until closed; a sent reply hides it until rejected', () => {
+    const s = new LiveSession();
+    s.apply(confirm(7));
     expect(s.prompt?.id).toBe(7);
     s.answered(8);
     expect(s.prompt?.id).toBe(7);
     s.answered(7);
     expect(s.prompt).toBeUndefined();
-    s.apply({ t: 'prompt', id: 9, method: 'confirm', title: 'Draw?', choices: [] });
-    s.apply({ t: 'promptClosed', id: 9 });
+    s.apply({ t: 'replyRejected', id: 7, reason: 'expected a boolean' });
+    expect(s.prompt?.id).toBe(7);
+    expect(s.notices.at(-1)?.text).toContain('expected a boolean');
+    s.apply({ t: 'promptClosed', id: 7, reason: 'answered' });
     expect(s.prompt).toBeUndefined();
   });
 
-  it('keeps a pending prompt across a resync snapshot of the same game, drops it on a new game', () => {
+  it('shows the oldest of several open prompts', () => {
+    const s = new LiveSession();
+    s.apply(confirm(3));
+    s.apply(confirm(4));
+    expect(s.prompt?.id).toBe(3);
+    s.apply({ t: 'promptClosed', id: 3, reason: 'timeout' });
+    expect(s.prompt?.id).toBe(4);
+  });
+
+  it('keeps open prompts across a resync snapshot of the same game, drops them on a new game', () => {
     const s = new LiveSession();
     s.apply(snapshot(1));
-    s.apply({ t: 'prompt', id: 3, method: 'confirm', title: 'x', choices: [] });
+    s.apply(confirm(3));
     s.apply(snapshot(1, 40));
     expect(s.prompt?.id).toBe(3);
     s.apply(snapshot(2, 0));
     expect(s.prompt).toBeUndefined();
   });
 
-  it('collects engine messages as notices', () => {
+  it('collects engine messages and rejected actions as notices', () => {
     const s = new LiveSession();
     s.apply({ t: 'call', method: 'showErrorDialog', args: ['Not enough mana', 'Error'] });
-    expect(s.notices).toEqual(['Error: Not enough mana']);
+    s.apply({ t: 'actionRejected', method: 'selectCard', reason: 'unknown card' });
+    expect(s.notices.map((n) => n.text)).toEqual(['Error: Not enough mana', 'selectCard: unknown card']);
+    expect(s.notices[1]!.id).toBeGreaterThan(s.notices[0]!.id);
   });
 });

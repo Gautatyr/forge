@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { player } from '../model/selectors';
 import type { GameView } from '../model/types';
 import { primaryAction, promptText } from '../state/primaryAction';
+import { watching } from '../state/gameEnd';
 import { DEFAULT_STOPS } from '../state/prefs';
 import { INITIAL_UI } from '../state/ui';
 import { gunzipDataUrl, parseRecording, RECORDINGS } from './replay';
@@ -51,7 +52,8 @@ describe('recorded 4-player Commander stream', () => {
       for (const e of g.log) for (const m of e.text.matchAll(/\{card:([^}]+)\}/g)) expect(g.cards[m[1]!]).toBeDefined();
       // The screen's own derivations must not throw on any state.
       expect(primaryAction(g, INITIAL_UI, DEFAULT_STOPS).label).toBeTruthy();
-      expect(promptText(g)).toBeTruthy();
+      // Empty once the game is over or you are out (the end panel speaks then).
+      if (!g.result && !watching(g)) expect(promptText(g)).toBeTruthy();
       expect(() => player(g, g.turn.activePlayerId)).not.toThrow();
     }
   });
@@ -86,6 +88,8 @@ describe('recorded 4-player Commander stream', () => {
   it('ends with three players out', () => {
     const last = views.at(-1)!;
     expect(last.players.filter((p) => p.hasLost)).toHaveLength(3);
+    expect(last.result).toMatchObject({ winnerId: last.players.find((p) => !p.hasLost)!.id });
+    expect(last.result!.ranking).toHaveLength(4);
   });
 
   it('lists the commander precon replay', () => {

@@ -1,100 +1,163 @@
 import { describe, expect, it } from 'vitest';
 import type { CardView } from '../model/types';
-import type { PromptMessage } from './protocol';
+import type { PromptChoice, PromptMessage } from './protocol';
 import { inputToChoice, promptToChoice, replyValue } from './prompts';
 import { NO_INPUT } from './session';
 
 const cards = { '12': { id: '12', name: 'Llanowar Elves' } as CardView };
-const choices = [
-  { i: 0, label: 'Llanowar Elves', ref: { type: 'card' as const, id: 12 } },
-  { i: 1, label: 'Opponent', ref: { type: 'player' as const, id: 1 } },
-  { i: 2, label: 'Hidden', ref: { type: 'card' as const, id: 1073741900 } },
+const choices: PromptChoice[] = [
+  { i: 0, label: 'Llanowar Elves', ref: { type: 'card', id: 12 } },
+  { i: 1, label: 'Opponent', ref: { type: 'player', id: 1 } },
+  { i: 2, label: 'Hidden card', ref: { type: 'card', id: 1073741900 } },
 ];
-const prompt = (method: PromptMessage['method'], extra: Partial<PromptMessage> = {}): PromptMessage => ({
-  t: 'prompt',
-  id: 5,
+const base = { t: 'prompt' as const, id: 5 };
+const choose = (method: PromptMessage['method'], min = 1, max = 1, extra: object = {}): PromptMessage => ({
+  ...base,
   method,
-  title: 'Choose',
+  shape: 'choose',
+  message: 'Choose a card',
+  min,
+  max,
   choices,
   ...extra,
 });
+const view = { players: [{ id: '0', isYou: true, hand: ['12', '13'] }], cards } as never;
 
 describe('prompt → choice tray', () => {
-  it('maps the five list methods to chooseN with server bounds or single-pick defaults', () => {
-    for (const m of ['getChoices', 'chooseEntitiesForEffect'] as const) {
-      expect(promptToChoice(prompt(m, { min: 1, max: 2 }), cards)).toMatchObject({ shape: 'chooseN', min: 1, max: 2 });
-    }
-    for (const m of ['chooseSingleEntityForEffect', 'getAbilityToPlay', 'showOptionDialog'] as const) {
-      expect(promptToChoice(prompt(m), cards)).toMatchObject({ shape: 'chooseN', min: 1, max: 1 });
-    }
-    const p = promptToChoice(prompt('getChoices'), cards);
-    expect(p.id).toBe('prompt:5');
+  it('maps choose prompts to chooseN with the server bounds and card/player refs', () => {
+    const p = promptToChoice(choose('chooseEntitiesForEffect', 1, 2), cards);
+    expect(p).toMatchObject({ id: 'prompt:5', shape: 'chooseN', min: 1, max: 2, title: 'Choose a card' });
     expect(p.shape === 'chooseN' && p.options).toEqual([
       { id: '0', label: 'Llanowar Elves', cardId: '12' },
-      { id: '1', label: 'Opponent' },
-      { id: '2', label: 'Hidden' },
+      { id: '1', label: 'Opponent', playerId: '1' },
+      { id: '2', label: 'Hidden card' },
     ]);
+    // A reveal (max 0): nothing to pick, OK.
+    expect(promptToChoice(choose('getChoices', 0, 0), cards)).toMatchObject({ shape: 'chooseN', max: 0, confirmLabel: 'OK' });
   });
 
-  it('maps confirm dialogs to yes/no with the server labels', () => {
-    expect(promptToChoice(prompt('confirm', { choices: [] }), cards)).toMatchObject({ shape: 'yesNo', yesLabel: 'Yes', noLabel: 'No' });
-    expect(
-      promptToChoice(prompt('showConfirmDialog', { choices: [{ i: 0, label: 'Play' }, { i: 1, label: 'Draw' }] }), cards),
-    ).toMatchObject({ shape: 'yesNo', yesLabel: 'Play', noLabel: 'Draw' });
+  it('maps getAbilityToPlay to the ability menu of its card, without the abilities that cannot be played', () => {
+    const p = promptToChoice(
+      choose('getAbilityToPlay', 0, 1, {
+        message: null,
+        card: { type: 'card', id: 12 },
+        choices: [
+          { i: 0, label: '{T}: Add {G}.' },
+          { i: 1, label: '{1}: Pump', disabled: true },
+        ],
+      }),
+      cards,
+    );
+    expect(p).toMatchObject({ shape: 'chooseN', abilityMenu: true, sourceCardId: '12', min: 0, max: 1 });
+    expect(p.shape === 'chooseN' && p.options.map((o) => o.id)).toEqual(['0']);
   });
 
-  it('maps order methods to one list, or two when the prompt has a destination', () => {
-    const one = promptToChoice(prompt('order'), cards);
-    expect(one.shape === 'order' && one.lists.map((l) => [l.id, l.items.length])).toEqual([['dest', 3]]);
-    const two = promptToChoice(prompt('manipulateCardList', { dest: [{ i: 3, label: 'Island' }] }), cards);
+  it('maps a list of numbers to the number field', () => {
+    const nums = ['0', '1', '2', '3'].map((label, i) => ({ i, label }));
+    expect(promptToChoice(choose('getChoices', 1, 1, { choices: nums }), cards)).toMatchObject({ shape: 'input', kind: 'number', min: 0, max: 3 });
+    expect(replyValue(choose('getChoices', 1, 1, { choices: nums }), { shape: 'input', value: '2' })).toEqual([2]);
+  });
+
+  it('maps confirm to yes/no with the server labels and default', () => {
+    const p: PromptMessage = { ...base, method: 'confirm', shape: 'confirm', message: 'Play first?', yes: 'Play', no: 'Draw', default: false };
+    expect(promptToChoice(p, cards)).toMatchObject({ shape: 'yesNo', yesLabel: 'Play', noLabel: 'Draw', defaultAnswer: 'no', title: 'Play first?' });
+    expect(replyValue(p, { shape: 'yesNo', yes: true })).toBe(true);
+  });
+
+  it('maps order to one list when everything must be ordered, two when some may stay out', () => {
+    const order = (remainingMax: number): PromptMessage => ({
+      ...base,
+      method: 'order',
+      shape: 'order',
+      message: 'Order triggers',
+      destLabel: 'Resolve first',
+      choices: [
+        { i: 0, label: 'A', inDest: false },
+        { i: 1, label: 'B', inDest: true },
+      ],
+      remainingMin: 0,
+      remainingMax,
+      rememberOption: false,
+    });
+    const one = promptToChoice(order(0), cards);
+    expect(one.shape === 'order' && one.lists.map((l) => [l.id, l.items.map((i) => i.id)])).toEqual([['dest', ['1', '0']]]);
+    expect(replyValue(order(0), { shape: 'order', lists: [{ id: 'dest', itemIds: ['0', '1'] }] })).toEqual({ order: [0, 1], remember: false });
+    const two = promptToChoice(order(1), cards);
     expect(two.shape === 'order' && two.lists.map((l) => [l.id, l.items.map((i) => i.id)])).toEqual([
-      ['source', ['0', '1', '2']],
-      ['dest', ['3']],
+      ['source', ['0']],
+      ['dest', ['1']],
     ]);
-    expect(promptToChoice(prompt('sideboard'), cards).shape).toBe('order');
   });
 
-  it('maps damage assignment to distribute and the input dialog to input', () => {
-    expect(promptToChoice(prompt('assignCombatDamage', { amount: 5, card: 12 }), cards)).toMatchObject({
+  it('answers manipulateCardList with the full permutation and sideboard with the main deck', () => {
+    const m: PromptMessage = { ...base, method: 'manipulateCardList', shape: 'order', message: 'Top of library', choices, permutation: true };
+    const p = promptToChoice(m, cards);
+    expect(p.shape === 'order' && p.lists.map((l) => l.id)).toEqual(['all']);
+    expect(replyValue(m, { shape: 'order', lists: [{ id: 'all', itemIds: ['2', '0', '1'] }] })).toEqual([2, 0, 1]);
+    const sb: PromptMessage = { ...base, method: 'sideboard', shape: 'order', message: 'Sideboard', destLabel: 'Main deck', choices: [{ i: 0, label: 'X', inDest: true }, { i: 1, label: 'Y' }] };
+    expect(replyValue(sb, { shape: 'order', lists: [{ id: 'source', itemIds: ['0'] }, { id: 'dest', itemIds: ['1'] }] })).toEqual([1]);
+  });
+
+  it('maps combat damage to distribute with lethal and trample, and replies one amount per choice', () => {
+    const d: PromptMessage = {
+      ...base,
+      method: 'assignCombatDamage',
+      shape: 'distribute',
+      card: { type: 'card', id: 12 },
+      amount: 5,
+      amountLabel: 'damage',
+      atLeastOne: false,
+      maySkip: false,
+      lethalOrder: 'blockersFirst',
+      choices: [
+        { i: 0, label: 'Bear', ref: { type: 'card', id: 40 }, lethal: 2 },
+        { i: 1, label: 'Opponent', ref: { type: 'player', id: 1 }, defender: true },
+      ],
+    };
+    expect(promptToChoice(d, cards)).toMatchObject({
       shape: 'distribute',
       total: 5,
       sourceCardId: '12',
+      combat: { attackerId: '12', deathtouch: false, trampleId: '1' },
+      recipients: [{ id: '0', lethal: 2 }, { id: '1', playerId: '1' }],
     });
-    expect(promptToChoice(prompt('assignGenericAmount', { amount: 3 }), cards).shape).toBe('distribute');
-    expect(promptToChoice(prompt('showInputDialog'), cards)).toMatchObject({ shape: 'input', kind: 'text' });
+    expect(replyValue(d, { shape: 'distribute', amounts: { '0': 2, '1': 3 } })).toEqual([2, 3]);
+  });
+
+  it('maps text: free text, number, a short option list, a card name', () => {
+    const t = (extra: object): PromptMessage => ({ ...base, method: 'showInputDialog', shape: 'text', message: 'Name', numeric: false, ...extra });
+    expect(promptToChoice(t({}), cards)).toMatchObject({ shape: 'input', kind: 'text' });
+    expect(promptToChoice(t({ numeric: true, initial: '3' }), cards)).toMatchObject({ shape: 'input', kind: 'number', defaultValue: '3' });
+    const few = t({ options: ['Red', 'Blue'] });
+    expect(promptToChoice(few, cards)).toMatchObject({ shape: 'chooseN', min: 1, max: 1 });
+    expect(replyValue(few, { shape: 'chooseN', optionIds: ['1'] })).toBe('Blue');
+    const names = Array.from({ length: 20 }, (_, i) => `Card ${i}`);
+    expect(promptToChoice(t({ options: names }), cards)).toMatchObject({ shape: 'input', kind: 'cardName' });
+    expect(replyValue(t({ options: names }), { shape: 'input', value: 'Card 3' })).toBe('Card 3');
+  });
+
+  it('replies choose prompts with indices, never objects', () => {
+    expect(replyValue(choose('getChoices', 0, 3), { shape: 'chooseN', optionIds: ['2', '0'] })).toEqual([2, 0]);
+    expect(replyValue(choose('getAbilityToPlay', 0, 1), { shape: 'chooseN', optionIds: [] })).toEqual([]);
   });
 });
 
-describe('tray answer → reply value', () => {
-  it('sends indices, never objects', () => {
-    expect(replyValue(prompt('getChoices'), { shape: 'chooseN', optionIds: ['2', '0'] })).toEqual([2, 0]);
-    expect(replyValue(prompt('chooseSingleEntityForEffect'), { shape: 'chooseN', optionIds: ['1'] })).toBe(1);
-    expect(replyValue(prompt('getAbilityToPlay'), { shape: 'chooseN', optionIds: [] })).toBe(-1);
-    expect(replyValue(prompt('confirm'), { shape: 'yesNo', yes: false })).toBe(false);
-    expect(
-      replyValue(prompt('manipulateCardList'), {
-        shape: 'order',
-        lists: [
-          { id: 'source', itemIds: ['1'] },
-          { id: 'dest', itemIds: ['3', '0'] },
-        ],
-      }),
-    ).toEqual([3, 0]);
-    expect(replyValue(prompt('order'), { shape: 'order', lists: [{ id: 'dest', itemIds: ['2', '1', '0'] }] })).toEqual([2, 1, 0]);
-    expect(replyValue(prompt('assignCombatDamage'), { shape: 'distribute', amounts: { '0': 3, '1': 2 } })).toEqual({ '0': 3, '1': 2 });
-    expect(replyValue(prompt('showInputDialog'), { shape: 'input', value: 'Goblin' })).toBe('Goblin');
+describe('button inputs → tray', () => {
+  it('turns Keep / Mulligan into the mulligan prompt', () => {
+    const p = inputToChoice({ ...NO_INPUT, message: 'Keep?', ok: { label: 'Keep', enabled: true }, cancel: { label: 'Mulligan', enabled: true } }, view);
+    expect(p?.id.startsWith('input:mulligan:')).toBe(true);
+    expect(p).toMatchObject({ shape: 'yesNo' });
   });
-});
 
-describe('two-button inputs', () => {
-  it('become a yes/no tray with the button labels', () => {
-    const p = inputToChoice({
-      ...NO_INPUT,
-      message: 'Keep this hand?\nYou have 7 cards.',
-      ok: { label: 'Keep', enabled: true },
-      cancel: { label: 'Mulligan', enabled: true },
-    });
-    expect(p).toMatchObject({ shape: 'yesNo', title: 'Keep this hand?', yesLabel: 'Keep', noLabel: 'Mulligan' });
-    expect(p.id.startsWith('input:')).toBe(true);
+  it('turns other two-button inputs into yes/no with the button labels', () => {
+    const p = inputToChoice({ ...NO_INPUT, message: 'Use the ability?\nmore', ok: { label: 'Yes', enabled: true }, cancel: { label: 'No', enabled: true } }, view);
+    expect(p).toMatchObject({ shape: 'yesNo', title: 'Use the ability?', yesLabel: 'Yes', noLabel: 'No' });
+    expect(p?.id.startsWith('input:buttons:')).toBe(true);
+  });
+
+  it('turns the London mulligan bottom step into a pick from your hand', () => {
+    const p = inputToChoice({ ...NO_INPUT, message: 'Return 1 card(s) to the bottom of your library', ok: { label: 'OK', enabled: false }, cancel: { label: 'Auto', enabled: true } }, view);
+    expect(p?.id.startsWith('input:bottom:1:')).toBe(true);
+    expect(p).toMatchObject({ shape: 'chooseN', min: 1, max: 1 });
   });
 });

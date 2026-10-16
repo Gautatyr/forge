@@ -125,6 +125,10 @@ public final class WebMain {
         System.out.println("[web] card database ready in " + bootMs + " ms (user dir " + ForgeConstants.USER_DIR + ")");
         // a blank name makes HostedMatch ask for one through a dialog
         FModel.getPreferences().setPref(FPref.PLAYER_NAME, "You");
+        // the web client reads setWeaklySelectable: cards you may play now (never drawn), mana sources and the
+        // auto-pay plan while paying (strength 2 = listed twice)
+        FModel.getPreferences().setPref(FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS, true);
+        FModel.getPreferences().setPref(FPref.UI_SHOW_AUTOTAP_PREVIEW, true);
 
         // with --deckK files and no --decks, the other Commander slots get generated decks, not the precons
         List<String> deckNames = opt.containsKey("decks") ? Arrays.asList(opt.get("decks").split(","))

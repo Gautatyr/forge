@@ -17,8 +17,15 @@ import type {
   TargetRef,
   Zone,
   CombatState,
+  GameResult,
+  ManaColour,
+  ManaPool,
+  ManaSource,
+  MulliganState,
+  OtherZoneCastVia,
+  OutReason,
 } from '../model/types';
-import type { CardProps, CardStateProps, PhaseType, ZoneType } from '../wire/generated/wire';
+import type { CardProps, CardStateProps, PhaseType, PlayerProps, ZoneType } from '../wire/generated/wire';
 import { namedImage, parseImageKey, type ImageLookup } from './images';
 import { promptToChoice, inputToChoice } from './prompts';
 import type { LiveSession } from './session';
@@ -101,7 +108,7 @@ function face(p: CardStateProps, fallbackName: string, back: boolean, images: Im
 const sid = (n: number) => String(n);
 
 export function mapCard(s: LiveSession, id: number, images: ImageLookup = namedImage): CardView | undefined {
-  const card = s.get('card', id);
+  const card = s.get('card', id) ?? s.limboCard(id);
   if (!card) return undefined;
   const cp: CardProps = card.props;
   const current = cp.CurrentState ?? 'Original';
@@ -157,32 +164,129 @@ export function logText(text: string, cards: Record<string, CardView>): string {
   return out + text.slice(last);
 }
 
+/** "Pay Mana Cost: {2}{G}" (InputPayMana). */
+export const PAY_COST = /Pay Mana Cost:\s*(\S+)/;
+const ATTACK_CANCEL = new Set(['Alpha Strike', 'Call Back']);
+
+/** Pool keys are MagicColor bytes ("1" white … "16" green, "0" colourless). */
+const POOL_KEY: Record<string, ManaColour> = { '1': 'W', '2': 'U', '4': 'B', '8': 'R', '16': 'G', '0': 'C', W: 'W', U: 'U', B: 'B', R: 'R', G: 'G', C: 'C' };
+
+export function manaPool(mana: Record<string, number> | undefined): ManaPool | undefined {
+  const out: ManaPool = {};
+  for (const [k, n] of Object.entries(mana ?? {})) {
+    const c = POOL_KEY[k];
+    if (c && n > 0) out[c] = (out[c] ?? 0) + n;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** OrigProduceMana "W U" / "Any" → the kinds the source adds. */
+function produced(s: LiveSession, id: number): ManaColour[] {
+  const card = s.get('card', id);
+  const st = s.cardState(id, card?.props.CurrentState ?? 'Original')?.props;
+  if (!st) return [];
+  if (st.OrigProduceAnyMana) return ['W', 'U', 'B', 'R', 'G'];
+  return [...new Set((st.OrigProduceMana ?? '').split(/[\s,]+/).filter((x): x is ManaColour => /^[WUBRGC]$/.test(x)))];
+}
+
+/** A source of the live game: one click taps it (the engine asks which ability when there are several). */
+function manaSource(s: LiveSession, id: number): ManaSource {
+  const kinds = produced(s, id);
+  return { cardId: sid(id), colours: kinds.length ? [kinds[0]!] : [] };
+}
+
 function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision {
   const you = Number(view.youId);
-  if (s.prompt) return { kind: 'choice', prompt: promptToChoice(s.prompt, view.cards) };
-  const input = s.input;
-  const forYou =
-    input.ownerId === you && (input.ok.enabled || input.cancel.enabled || !!input.selectable || input.targets.length > 0);
-  if (!forYou) {
+  const holderId = () => {
     const holder = view.turn.priorityPlayerId ?? view.turn.activePlayerId;
-    const who = view.players.find((p) => p.id === holder);
-    if (s.finished) return { kind: 'waiting', forPlayerId: holder, what: 'Game over' };
-    return { kind: 'waiting', forPlayerId: holder, what: who ? `${who.name} has priority` : 'Waiting' };
-  }
+    return view.players.some((p) => p.id === holder) ? holder : view.youId;
+  };
+  const waiting = (what?: string): Decision => {
+    const id = holderId();
+    const who = view.players.find((p) => p.id === id);
+    return { kind: 'waiting', forPlayerId: id, what: what ?? (who && !who.isYou ? `${who.name} is deciding` : 'Waiting for the game') };
+  };
+  if (s.finished) return waiting('Game over');
+  const prompt = s.prompt;
+  if (prompt) return { kind: 'choice', prompt: promptToChoice(prompt, view.cards) };
+
+  const input = s.input;
+  const mine =
+    input.ownerId === you && (input.ok.enabled || input.cancel.enabled || !!input.selectable || input.targets.length > 0);
+  if (!mine) return waiting();
+
   const youView = view.players.find((p) => p.isYou)!;
-  const yourCreatures = youView.battlefield.filter((id) => view.cards[id]?.power !== undefined && !view.cards[id]?.tapped);
+  const weakly = [...s.weakly.keys()];
+
+  const pay = PAY_COST.exec(input.message);
+  if (pay) {
+    const remaining = pay[1] === '0' ? '' : pay[1]!;
+    // The engine's ref to the spell being cast can be unknown (-1): fall back to the card you clicked.
+    const known = (id: number | undefined) => (id !== undefined && id >= 0 && view.cards[sid(id)] ? sid(id) : undefined);
+    const sourceCardId = known(input.cardId) ?? known(s.lastCard) ?? '';
+    const cost = s.payment?.cost ?? remaining;
+    const sources = weakly
+      .filter((id) => view.cards[sid(id)]?.zone === 'battlefield' && !view.cards[sid(id)]?.tapped)
+      .map((id) => manaSource(s, id));
+    return {
+      kind: 'payMana',
+      sourceCardId,
+      cost,
+      remaining,
+      tax: 0,
+      sources,
+      canUndoTap: false,
+      autoTaps: [...s.weakly.entries()].filter(([, n]) => n >= 2).map(([id]) => sid(id)),
+      autoCanPay: input.ok.enabled && input.ok.label === 'Auto',
+    };
+  }
+
+  // Cards the engine shows you (an opponent's hand, a revealed card): look, then OK.
+  const shown = s.revealed.map(sid).filter((id) => view.cards[id]);
+  if (shown.length && input.ok.enabled && !/^Priority:/.test(input.message)) {
+    const msg = input.message.trim() || 'Revealed cards';
+    return {
+      kind: 'choice',
+      prompt: {
+        id: `input:ok:reveal:${shown.join(',')}`,
+        shape: 'chooseN',
+        title: msg.split('\n')[0]!,
+        instruction: msg,
+        confirmLabel: input.ok.label || 'OK',
+        min: 0,
+        max: 0,
+        options: shown.map((id) => ({ id, label: view.cards[id]!.name, cardId: id })),
+      },
+    };
+  }
+
+  // Mulligan and the London mulligan's bottom cards: tray prompts answered with buttons and hand clicks.
+  const early = inputToChoice(input, view);
+  if (early && /^input:(mulligan|bottom):/.test(early.id)) return { kind: 'choice', prompt: early };
+
   const combat = view.combat ?? { attacks: [], blocks: [] };
-  if (view.turn.step === 'declareAttackers' && view.turn.activePlayerId === view.youId && /attack/i.test(input.message) && !s.input.selectable) {
+  const yourCreatures = youView.battlefield.filter((id) => view.cards[id]?.power !== undefined && !view.cards[id]?.tapped);
+  if (view.turn.step === 'declareAttackers' && view.turn.activePlayerId === view.youId && ATTACK_CANCEL.has(input.cancel.label)) {
+    const candidates = weakly.length ? [...new Set([...weakly.map(sid), ...combat.attacks.map((a) => a.attackerId)])] : yourCreatures;
     return {
       kind: 'declareAttackers',
-      candidates: yourCreatures,
+      candidates: candidates.filter((id) => view.cards[id]?.zone === 'battlefield'),
       defenders: view.players.filter((p) => !p.isYou && !p.hasLost).map((p) => p.id),
       draft: combat.attacks,
     };
   }
-  if (view.turn.step === 'declareBlockers' && view.turn.activePlayerId !== view.youId && /block/i.test(input.message) && !s.input.selectable) {
+  if (view.turn.step === 'declareBlockers' && view.turn.activePlayerId !== view.youId && /block/i.test(input.message)) {
     const attackingYou = combat.attacks.filter((a) => a.defenderId === view.youId).map((a) => a.attackerId);
-    return { kind: 'declareBlockers', candidates: yourCreatures, attackers: attackingYou, draft: combat.blocks };
+    const blockers = youView.battlefield.filter((id) => view.cards[id]?.power !== undefined && !view.cards[id]?.tapped);
+    return { kind: 'declareBlockers', candidates: blockers, attackers: attackingYou, draft: combat.blocks };
+  }
+  // InputPassPriority: OK + End Turn / Undo.
+  if (input.ok.label === 'OK' && /^(End Turn|Undo)/.test(input.cancel.label)) {
+    const playable = weakly.map(sid).filter((id) => view.cards[id] && view.cards[id]!.zone !== 'battlefield');
+    const manaSources = weakly
+      .filter((id) => view.cards[sid(id)]?.zone === 'battlefield' && produced(s, id).length > 0)
+      .map((id) => manaSource(s, id));
+    return { kind: 'priority', playable, manaSources };
   }
   if (input.selectable || input.targets.length > 0) {
     const legal: TargetRef[] = [
@@ -198,16 +302,47 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
       instruction: input.message.trim() || 'Choose',
       legal,
       chosen,
-      min: input.selectable?.min ?? 0,
-      max: input.selectable?.max ?? 1,
+      min: input.ok.enabled ? chosen.length : Math.max(chosen.length + 1, input.selectable?.min ?? 1),
+      max: input.selectable?.max ?? Math.max(1, chosen.length + 1),
     };
   }
-  // InputPassPriority: OK + End Turn / Undo. Anything else (mulligan, pay mana, confirm…) is a two-button choice.
-  if (input.ok.label === 'OK' && /^(End Turn|Undo)/.test(input.cancel.label)) return { kind: 'priority', playable: [] };
-  return { kind: 'choice', prompt: inputToChoice(input) };
+  const buttons = early ?? inputToChoice(input, view);
+  return buttons ? { kind: 'choice', prompt: buttons } : waiting();
 }
 
-export function toGameView(s: LiveSession, images: ImageLookup = namedImage): GameView {
+/** "AI 1 (Deck) has kept a hand of 7 cards" / "… has mulliganed down to 6 cards." */
+function mulliganStates(s: LiveSession, players: { id: number; name: string }[]): Map<number, MulliganState> {
+  const out = new Map<number, MulliganState>();
+  for (const e of s.log) {
+    if (e.type !== 'MULLIGAN') continue;
+    const p = players.find((x) => e.msg.startsWith(x.name));
+    if (!p) continue;
+    const kept = /has kept a hand of (\d+) cards/.exec(e.msg);
+    const mull = /mulliganed down to (\d+) cards/.exec(e.msg);
+    if (kept) out.set(p.id, { state: 'kept', cards: Number(kept[1]) });
+    else if (mull) out.set(p.id, { state: 'mulligan', cards: Number(mull[1]) });
+  }
+  return out;
+}
+
+function outReason(s: LiveSession, p: PlayerProps, cards: Record<string, CardView>, poisonToLose = 10): OutReason {
+  for (const [cid, amount] of Object.entries(p.CommanderDamage ?? {})) {
+    if (amount >= 21) return { kind: 'commanderDamage', amount, commanderName: cards[cid]?.name ?? s.get('card', Number(cid))?.props.Name ?? 'a commander' };
+  }
+  if ((p.Counters?.POISON ?? 0) >= poisonToLose) return { kind: 'poison', count: p.Counters!.POISON! };
+  if ((p.Life ?? 0) <= 0) return { kind: 'life', life: p.Life ?? 0 };
+  return { kind: 'other', text: 'lost the game' };
+}
+
+/** Client-side settings of the live source (no wire form, or kept by the client). */
+export interface LiveLocal {
+  autoPay: boolean;
+  passingUntilYourTurn: boolean;
+}
+
+export const NO_LOCAL: LiveLocal = { autoPay: false, passingUntilYourTurn: false };
+
+export function toGameView(s: LiveSession, images: ImageLookup = namedImage, local: LiveLocal = NO_LOCAL): GameView {
   const game = s.gameObject;
   const gp = game?.props ?? {};
   const playerIds = gp.Players ?? [];
@@ -216,6 +351,7 @@ export function toGameView(s: LiveSession, images: ImageLookup = namedImage): Ga
   const youIdx = Math.max(0, playerIds.indexOf(youNum ?? -1));
   const ordered = [...playerIds.slice(youIdx), ...playerIds.slice(0, youIdx)];
   const commander = gp.IsCommander === true || gp.GameType === 'Commander';
+  const starting = !gp.Turn;
 
   const cards: Record<string, CardView> = {};
   for (const o of s.objects.values()) {
@@ -223,20 +359,29 @@ export function toGameView(s: LiveSession, images: ImageLookup = namedImage): Ga
     const c = mapCard(s, o.id, images);
     if (c) cards[c.id] = c;
   }
+  // The spell being paid for is in no zone: draw it from the copy kept when it left.
+  if (s.lastCard !== undefined && !cards[sid(s.lastCard)] && s.limboCard(s.lastCard)) {
+    const c = mapCard(s, s.lastCard, images);
+    if (c) cards[c.id] = { ...c, zone: 'stack' };
+  }
   const visible = (ids: number[] | undefined) => (ids ?? []).map(sid).filter((id) => cards[id]);
+  const names = playerIds.map((id) => ({ id, name: s.get('player', id)?.props.Name ?? '' })).filter((x) => x.name);
+  const mulligans = starting ? mulliganStates(s, names) : new Map<number, MulliganState>();
+  const startingLife = (pid: number) => s.startingLife.get(pid) ?? (commander ? 40 : 20);
 
   const players: PlayerView[] = ordered.map((pid, seat) => {
     const p = s.get('player', pid)?.props ?? {};
     const isYou = pid === youNum;
     const cmdDamage = Object.entries(p.CommanderDamage ?? {}).map(([cid, amount]) => ({ commanderId: cid, amount }));
-    return {
+    const lostAt = s.lostAt.get(pid);
+    const pv: PlayerView = {
       id: sid(pid),
       name: p.Name ?? `Player ${pid}`,
       seat,
       isYou,
       isAi: p.IsAI === true,
       life: p.Life ?? 0,
-      startingLife: commander ? 40 : 20,
+      startingLife: startingLife(pid),
       poison: p.Counters?.POISON ?? 0,
       counters: counters(p.Counters, ['POISON']),
       handCount: (p.Hand ?? []).length,
@@ -252,6 +397,11 @@ export function toGameView(s: LiveSession, images: ImageLookup = namedImage): Ga
       landsPlayedThisTurn: p.NumLandThisTurn ?? 0,
       hasLost: p.HasLost === true,
     };
+    if (pv.hasLost) pv.out = { turn: lostAt ?? gp.Turn ?? 0, reason: outReason(s, p, cards, gp.PoisonCountersToLose ?? 10) };
+    const pool = manaPool(p.Mana);
+    if (pool) pv.manaPool = pool;
+    if (starting && !pv.hasLost) pv.mulligan = mulligans.get(pid) ?? { state: 'deciding' };
+    return pv;
   });
 
   // The engine lists the stack top first; the view-model wants bottom → top.
@@ -287,6 +437,15 @@ export function toGameView(s: LiveSession, images: ImageLookup = namedImage): Ga
       }
     : undefined;
 
+  // Your cards outside hand and command zone the engine says you may play now (actionable highlights).
+  const youView = players.find((p) => p.isYou);
+  if (youView && s.input.ok.label === 'OK' && !s.prompt) {
+    const other = [...s.weakly.keys()]
+      .map(sid)
+      .filter((id) => cards[id] && cards[id]!.ownerId === youView.id && ['graveyard', 'exile', 'library'].includes(cards[id]!.zone));
+    if (other.length) youView.otherZoneCasts = other.map((cardId) => ({ cardId, via: castVia(cards[cardId]!) }));
+  }
+
   const base: Omit<GameView, 'decision'> = {
     id: `live-${s.game}`,
     format: commander ? 'commander' : 'constructed',
@@ -294,6 +453,7 @@ export function toGameView(s: LiveSession, images: ImageLookup = namedImage): Ga
     players,
     cards,
     stack,
+    ...(starting ? { starting: true } : {}),
     turn: {
       number: gp.Turn ?? 0,
       activePlayerId: sid(gp.PlayerTurn ?? youNum ?? -1),
@@ -302,10 +462,38 @@ export function toGameView(s: LiveSession, images: ImageLookup = namedImage): Ga
     },
     combat,
     autoPass: false,
+    autoPay: local.autoPay,
     autoYield: false,
     autoYieldTo: [],
-    passingUntilYourTurn: false,
-    log: s.log.map((e): LogEntry => ({ id: `w${e.id}`, turn: e.turn, text: logText(e.msg, cards) })),
+    passingUntilYourTurn: local.passingUntilYourTurn,
+    // Step changes are the strip's job, not the log's.
+    log: s.log.filter((e) => e.type !== 'PHASE').map((e): LogEntry => ({ id: `w${e.id}`, turn: e.turn, text: logText(e.msg, cards) })),
   };
-  return { ...base, decision: decisionFor(s, base) };
+  const view: GameView = { ...base, decision: decisionFor(s, base) };
+  if (s.finished) view.result = resultOf(s, view);
+  return view;
+}
+
+function castVia(c: CardView): OtherZoneCastVia {
+  const k = c.keywords.map((x) => x.name.toLowerCase());
+  if (k.includes('flashback')) return 'flashback';
+  if (k.includes('escape')) return 'escape';
+  if (k.includes('foretell')) return 'foretell';
+  if (c.zone === 'exile' && /Adventure/.test(c.back?.typeLine ?? '')) return 'adventure';
+  return 'other';
+}
+
+/** Winner: the one player still in; ranking: the winner, then the others by when they went out (last out first). */
+function resultOf(s: LiveSession, g: GameView): GameResult {
+  const inGame = g.players.filter((p) => !p.hasLost);
+  const out = g.players
+    .filter((p) => p.hasLost)
+    .sort((a, b) => (s.lostOrder.get(Number(b.id)) ?? 0) - (s.lostOrder.get(Number(a.id)) ?? 0));
+  const winnerId = inGame.length === 1 ? inGame[0]!.id : undefined;
+  return {
+    ...(winnerId ? { winnerId } : {}),
+    reason: winnerId ? 'Last player standing.' : 'The game ended in a draw.',
+    ranking: [...inGame.map((p) => p.id), ...out.map((p) => p.id)],
+    nextGame: false,
+  };
 }

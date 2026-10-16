@@ -1673,3 +1673,209 @@ export interface ProtocolReturns {
   requestResync: undefined;
   sendYieldUpdate: undefined;
 }
+
+// ---- Human seat: server -> seat (after hello and snapshot) and seat -> server ----
+
+/** A reference in a call or a prompt, in this seat's id space. */
+export interface SeatRef {
+  type: 'card' | 'player' | 'stackItem';
+  id: number;
+}
+
+/** A spell ability in a call or a prompt: its host card and its text, rendered on the server. */
+export interface SpellAbilityRef {
+  type: 'spellAbility';
+  id: number;
+  card: SeatRef | null;
+  text: string;
+}
+
+/** One choice of a prompt; which flags appear depends on the shape. */
+export interface PromptChoice {
+  i: number;
+  label: string;
+  ref?: SeatRef | SpellAbilityRef;
+  /** choose (getAbilityToPlay): the ability cannot be played now. */
+  disabled?: boolean;
+  /** A copy the engine reveals while the card stays hidden: only the label names it. */
+  revealedCopy?: boolean;
+  /** order, sideboard: the choice starts in the destination list. */
+  inDest?: boolean;
+  /** manipulateCardList: the card may move. */
+  movable?: boolean;
+  /** distribute (generic): most this choice may get. */
+  max?: number;
+  /** distribute (combat): the defending player or planeswalker (trample). */
+  defender?: boolean;
+  /** distribute (combat): damage that is lethal to this choice. */
+  lethal?: number;
+}
+
+/** A no-reply IGuiGame method: args positional, refs as SeatRef or SpellAbilityRef, enums by name. */
+export interface CallMessage {
+  t: 'call';
+  method: ServerMethod;
+  args: unknown[];
+}
+
+/** Choose between min and max choices; reply their indices (max 0: a reveal, reply []). */
+export interface PromptChoose {
+  t: 'prompt';
+  id: number;
+  method: ServerMethod;
+  shape: 'choose';
+  message?: string | null;
+  /** showOptionDialog. */
+  title?: string;
+  min: number;
+  max: number;
+  /** getAbilityToPlay: the card whose abilities these are. */
+  card?: SeatRef;
+  choices: PromptChoice[];
+  /** getChoices: indices chosen beforehand. */
+  selected?: number[];
+  /** showOptionDialog: the default index. */
+  default?: number;
+  /** DelayedReveal: cards shown with the choice. */
+  reveal?: { message: string; cards: PromptChoice[] };
+}
+
+/** Yes or no; reply a boolean. */
+export interface PromptConfirm {
+  t: 'prompt';
+  id: number;
+  method: ServerMethod;
+  shape: 'confirm';
+  message?: string | null;
+  title?: string;
+  card?: SeatRef;
+  yes: string;
+  no: string;
+  /** The engine's default answer. */
+  default: boolean;
+}
+
+/** order: reply {order: indices of the new dest list, remember}; manipulateCardList (permutation): the full permutation; sideboard: indices of the new main deck. */
+export interface PromptOrder {
+  t: 'prompt';
+  id: number;
+  method: ServerMethod;
+  shape: 'order';
+  message?: string | null;
+  destLabel?: string | null;
+  card?: SeatRef;
+  choices: PromptChoice[];
+  /** order: fewest choices that may stay out of the dest list. */
+  remainingMin?: number;
+  /** order: most choices that may stay out of the dest list. */
+  remainingMax?: number;
+  rememberOption?: boolean;
+  permutation?: true;
+  toTop?: boolean;
+  toBottom?: boolean;
+  toAnywhere?: boolean;
+}
+
+/** Reply one amount per choice, summing to amount (null skips when maySkip). */
+export interface PromptDistribute {
+  t: 'prompt';
+  id: number;
+  method: ServerMethod;
+  shape: 'distribute';
+  card?: SeatRef;
+  amount: number;
+  amountLabel: string | null;
+  atLeastOne: boolean;
+  maySkip: boolean;
+  choices: PromptChoice[];
+  /** assignCombatDamage only. */
+  lethalOrder?: 'inOrder' | 'blockersFirst' | 'free';
+}
+
+/** Reply a string (one of options when given; digits when numeric), or null to cancel. */
+export interface PromptText {
+  t: 'prompt';
+  id: number;
+  method: ServerMethod;
+  shape: 'text';
+  message?: string | null;
+  title?: string;
+  initial?: string | null;
+  options?: string[];
+  numeric: boolean;
+}
+
+/** The prompt is over on every client of the seat. */
+export interface PromptClosedMessage {
+  t: 'promptClosed';
+  id: number;
+  reason: 'answered' | 'timeout' | 'disconnected' | 'cancelled';
+}
+
+/** The reply did not fit; the prompt stays open. */
+export interface ReplyRejectedMessage {
+  t: 'replyRejected';
+  id?: number;
+  reason: string;
+}
+
+/** The action was not run. */
+export interface ActionRejectedMessage {
+  t: 'actionRejected';
+  method?: string;
+  reason: string;
+}
+
+/** Unknown message type. */
+export interface RejectedMessage {
+  t: 'rejected';
+  reason: string;
+}
+
+/** Answers the getActivateDescription action. */
+export interface ActivateDescriptionMessage {
+  t: 'activateDescription';
+  card: number;
+  text: string | null;
+}
+
+export type PromptMessage = PromptChoose | PromptConfirm | PromptOrder | PromptDistribute | PromptText;
+export type SeatMessage = CallMessage | PromptChoose | PromptConfirm | PromptOrder | PromptDistribute | PromptText | PromptClosedMessage | ReplyRejectedMessage | ActionRejectedMessage | RejectedMessage | ActivateDescriptionMessage;
+
+/** Answers an open prompt; the value's form depends on its shape. */
+export interface ReplyMessage {
+  t: 'reply';
+  id: number;
+  value: unknown;
+}
+
+/** A player action (IGameController); ids are this seat's wire ids. */
+export interface ActionMessage {
+  t: 'action';
+  method: ClientMethod;
+  /** selectCard, selectAbility, reorderHand, getActivateDescription. */
+  card?: number;
+  /** selectCard. */
+  others?: number[];
+  /** selectPlayer. */
+  player?: number;
+  /** selectAbility: the spell ability id. */
+  ability?: number;
+  /** selectStackItem. */
+  stackItem?: number;
+  /** useMana: colour mask (MagicColor). */
+  color?: number;
+  /** reorderHand. */
+  index?: number;
+  decision?: NextGameDecision;
+  action?: DrawOfferMessageAction;
+  /** sendYieldUpdate. */
+  update?: { kind: string; [field: string]: unknown };
+}
+
+/** Asks for a fresh snapshot, then the seat's greeting. */
+export interface RequestResyncMessage {
+  t: 'requestResync';
+}
+
+export type ClientMessage = ReplyMessage | ActionMessage | RequestResyncMessage;
