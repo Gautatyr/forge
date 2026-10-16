@@ -132,6 +132,21 @@ export interface PlayerView {
   mulligan?: MulliganState;
   /** Floating mana; absent or all zero when empty. */
   manaPool?: ManaPool;
+  /**
+   * Yours only: cards outside your hand and command zone you have permission to cast
+   * (flashback, escape, foretell, an adventure in exile), whatever you can afford or
+   * the timing (design pass 4, P4). Your commanders in the command zone are not
+   * repeated here: the hand always shows them.
+   */
+  otherZoneCasts?: OtherZoneCast[];
+}
+
+/** Why a card outside your hand is castable; `other` covers permissions without a caption of their own. */
+export type OtherZoneCastVia = 'flashback' | 'escape' | 'foretell' | 'adventure' | 'other';
+
+export interface OtherZoneCast {
+  cardId: CardId;
+  via: OtherZoneCastVia;
 }
 
 /**
@@ -315,17 +330,55 @@ export interface OrderPrompt extends PromptBase {
   lists: { id: string; label: string; hint: string; items: ChoiceOption[] }[];
 }
 
+/** One row of a distribute prompt: a card (thumbnail) or a player (seat shape). */
+export interface DistributeRecipient extends ChoiceOption {
+  /** The engine's minimum for this recipient, e.g. 1 for each target of divided damage. */
+  min?: number;
+  /** Combat damage: damage that is lethal to this blocker (deathtouch and marked damage counted). */
+  lethal?: number;
+}
+
+/**
+ * Divide `total` among the recipients; every point must be assigned (design pass 4 §2.3).
+ * With `combat` it is a combat damage assignment and opens on the automatic assignment.
+ */
 export interface DistributePrompt extends PromptBase {
   shape: 'distribute';
   total: number;
-  recipients: ChoiceOption[];
+  recipients: DistributeRecipient[];
+  combat?: {
+    attackerId: CardId;
+    /** The attacker has deathtouch: 1 damage is lethal ("Lethal 1 · deathtouch"). */
+    deathtouch: boolean;
+    /**
+     * Trample: id of the recipient (player or planeswalker) the excess goes to. It may
+     * get damage only once every blocker has lethal damage. Absent without trample.
+     */
+    trampleId?: string;
+  };
 }
 
+/** A name the engine accepts when you name a card. */
+export interface CardNameOption {
+  name: string;
+  manaCost: string;
+  typeLine: string;
+  image?: CardImage;
+}
+
+/** Type a number (X, "choose a number") or a text; `cardName` names a card. */
 export interface InputPrompt extends PromptBase {
   shape: 'input';
-  kind: 'number' | 'text';
+  kind: 'number' | 'text' | 'cardName';
+  /** Number: the range, shown as "0–7". */
   min?: number;
   max?: number;
+  /** The engine's default; the field opens on it. */
+  defaultValue?: string;
+  /** Name a card: the engine's constraint, shown under the field ("Name a nonland card"). */
+  constraint?: string;
+  /** Name a card: every name the engine accepts. Confirm needs an exact one. */
+  cardNames?: CardNameOption[];
 }
 
 export type ChoicePrompt = ChooseNPrompt | YesNoPrompt | OrderPrompt | DistributePrompt | InputPrompt;
@@ -389,6 +442,10 @@ export interface LogEntry {
   playerId?: PlayerId;
   /** Text with card references as {card:<id>} tokens so names are hoverable. */
   text: string;
+  /** Player whose turn it was: Recent draws a divider per turn (design pass 4, P6). */
+  turnPlayerId?: PlayerId;
+  /** The event made you lose life or a permanent: drawn bold in Recent (design pass 4, P6). */
+  youLost?: 'life' | 'permanent';
 }
 
 export interface GameView {

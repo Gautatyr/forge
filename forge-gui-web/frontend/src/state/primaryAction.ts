@@ -2,6 +2,7 @@ import type { Intent, PromptAnswer } from '../model/intents';
 import { stepInfo } from '../model/phases';
 import { player } from '../model/selectors';
 import type { ChoicePrompt, GameView, StepId } from '../model/types';
+import { distributeConfirm, inputConfirm, inputStart, startAmounts } from '../components/tray/numberLogic';
 import { trayConfirm, trayDraft } from '../components/tray/trayLogic';
 import { watching } from './gameEnd';
 import type { StopPrefs } from './prefs';
@@ -38,9 +39,9 @@ export function answerFromDraft(prompt: ChoicePrompt, draft: ChoiceDraft): Promp
     case 'yesNo':
       return { shape: 'yesNo', yes: draft.selected[0] !== 'no' };
     case 'distribute':
-      return { shape: 'distribute', amounts: {} };
+      return distributeConfirm(prompt, draft.amounts ?? startAmounts(prompt)).answer;
     case 'input':
-      return { shape: 'input', value: draft.selected[0] ?? '' };
+      return inputConfirm(prompt, draft.selected[0] ?? inputStart(prompt)).answer;
   }
 }
 

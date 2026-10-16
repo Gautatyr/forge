@@ -22,6 +22,7 @@ import type {
   CardView,
   Decision,
   GameView,
+  LogEntry,
   ManaColour,
   ManaPool,
   ManaSource,
@@ -73,9 +74,25 @@ export interface EotEffect {
 
 const ref = (id: CardId) => `{card:${id}}`;
 
-function log(g: MockGame, text: string, playerId?: PlayerId) {
+/** `youLost`: the event costs you life or a permanent (bold in Recent, design pass 4 P6). */
+function log(g: MockGame, text: string, playerId?: PlayerId, youLost?: LogEntry['youLost']) {
   g.seq += 1;
-  g.log.push({ id: `l${g.seq}`, turn: g.turn.number, playerId, text });
+  g.log.push({ id: `l${g.seq}`, turn: g.turn.number, turnPlayerId: g.turn.activePlayerId, playerId, text, ...(youLost ? { youLost } : {}) });
+}
+
+/** `youLost` for a permanent leaving `c`'s controller's battlefield. */
+const yoursGone = (g: MockGame, c: CardView): LogEntry['youLost'] =>
+  c.zone === 'battlefield' && c.controllerId === g.youId ? 'permanent' : undefined;
+
+/**
+ * Your cast permissions outside the hand and command zone (design pass 4, P4):
+ * every graveyard card with flashback, whatever you can afford.
+ */
+export function refreshOtherZoneCasts(g: MockGame) {
+  const you = player(g, g.youId);
+  you.otherZoneCasts = you.graveyard
+    .filter((id) => rule(g.cards[id]!).flashback)
+    .map((cardId) => ({ cardId, via: 'flashback' as const }));
 }
 
 function zoneList(p: PlayerView, zone: CardView['zone']): CardId[] | undefined {
@@ -337,18 +354,20 @@ function startSpell(g: MockGame, c: CardView, x?: number) {
   if (hasX && x === undefined) {
     const max = Math.max(0, availableMana(g, g.youId) - manaValue(c.front.manaCost));
     g.casting = undefined;
+    g.seq += 1; // a new prompt id per cast, so the field opens on the default again
     g.decision = {
       kind: 'choice',
       prompt: {
-        id: `x:${c.id}`,
+        id: `x:${c.id}:${g.seq}`,
         shape: 'input',
         kind: 'number',
         title: `Choose X for ${c.name}`,
-        instruction: `Choose X for ${c.name} (0–${max}). You pay the cost next.`,
+        instruction: 'You pay the cost next.',
         sourceCardId: c.id,
         confirmLabel: 'Continue to payment',
         min: 0,
         max,
+        defaultValue: String(max),
       },
     };
     return;
@@ -577,7 +596,7 @@ function destroy(g: MockGame, id: CardId, verb = 'is destroyed') {
     log(g, `${ref(id)} is indestructible and survives.`);
     return;
   }
-  log(g, `${ref(id)} ${verb}.`);
+  log(g, `${ref(id)} ${verb}.`, undefined, yoursGone(g, c));
   moveCard(g, id, c.isCommander ? 'command' : 'graveyard');
 }
 
@@ -611,6 +630,10 @@ function resolveTop(g: MockGame) {
         log(g, `${ref(src.id)} deals 3 damage to ${ref(tc.id)}.`, caster.id);
         recompute(g);
         if (tc.toughness !== undefined && tc.damage >= tc.toughness) destroy(g, tc.id, 'dies');
+      } else if (t?.kind === 'player') {
+        const tp = player(g, t.id);
+        tp.life -= 3;
+        log(g, `${ref(src.id)} deals 3 damage to ${tp.name}.`, caster.id, tp.isYou ? 'life' : undefined);
       }
       break;
     case 'Swords to Plowshares':
@@ -620,8 +643,8 @@ function resolveTop(g: MockGame) {
         const ctrl = player(g, tc.controllerId);
         if (src.name === 'Swords to Plowshares') {
           ctrl.life += tc.power ?? 0;
-          log(g, `${ref(tc.id)} is exiled; ${ctrl.name} gains ${tc.power ?? 0} life.`, caster.id);
-        } else log(g, `${ref(tc.id)} is exiled; ${ctrl.name} may search for a basic land.`, caster.id);
+          log(g, `${ref(tc.id)} is exiled; ${ctrl.name} gains ${tc.power ?? 0} life.`, caster.id, yoursGone(g, tc));
+        } else log(g, `${ref(tc.id)} is exiled; ${ctrl.name} may search for a basic land.`, caster.id, yoursGone(g, tc));
         moveCard(g, tc.id, tc.isCommander ? 'command' : 'exile');
       }
       break;
@@ -687,7 +710,7 @@ function resolveAbility(g: MockGame, item: StackItem, src: CardView, t: TargetRe
       if (t?.kind === 'player') {
         const p = player(g, t.id);
         p.life -= 1;
-        log(g, `${ref(src.id)} deals 1 damage to ${p.name}.`, caster.id);
+        log(g, `${ref(src.id)} deals 1 damage to ${p.name}.`, caster.id, p.isYou ? 'life' : undefined);
       } else if (t?.kind === 'card') {
         const tc = g.cards[t.id]!;
         tc.damage += 1;
@@ -762,7 +785,7 @@ function resolveCombatDamage(g: MockGame) {
         if (cd) cd.amount += dmg;
         else def.commanderDamageTaken.push({ commanderId: att.id, amount: dmg });
       }
-      log(g, `${ref(att.id)} deals ${dmg} damage to ${def.name}.`, att.controllerId);
+      log(g, `${ref(att.id)} deals ${dmg} damage to ${def.name}.`, att.controllerId, def.isYou && dmg > 0 ? 'life' : undefined);
     } else {
       let left = att.power ?? 0;
       for (const b of blockers) {
@@ -802,7 +825,7 @@ function answerTrayPrompt(g: MockGame, prompt: import('../model/types').ChoicePr
     for (const id of answer.optionIds) {
       const c = g.cards[id];
       if (!c) continue;
-      log(g, `You sacrifice ${ref(id)}.`, you.id);
+      log(g, `You sacrifice ${ref(id)}.`, you.id, yoursGone(g, c));
       moveCard(g, id, c.isCommander ? 'command' : 'graveyard');
     }
     return true;
@@ -818,6 +841,23 @@ function answerTrayPrompt(g: MockGame, prompt: import('../model/types').ChoicePr
   if (prompt.shape === 'order' && answer.shape === 'order' && prompt.lists.length === 1) {
     const names = answer.lists[0]?.itemIds.map((id) => (prompt.lists[0]!.items.find((i) => i.id === id)?.label ?? id).replace(/\.$/, '')) ?? [];
     log(g, `Your triggers resolve in this order: ${names.join(', ')}.`, you.id);
+    return true;
+  }
+  if (prompt.shape === 'distribute' && answer.shape === 'distribute') {
+    const name = (id: string) => {
+      const r = prompt.recipients.find((x) => x.id === id);
+      return r?.cardId ? ref(r.cardId) : (r?.label ?? id);
+    };
+    const parts = Object.entries(answer.amounts)
+      .filter(([, n]) => n > 0)
+      .map(([id, n], i) => `${n}${i === 0 ? ' damage' : ''} to ${name(id)}`);
+    const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : (parts[0] ?? 'no damage');
+    const source = prompt.combat?.attackerId ?? prompt.sourceCardId;
+    log(g, `${source ? ref(source) : 'You'} deals ${list}.`, you.id);
+    return true;
+  }
+  if (prompt.shape === 'input' && answer.shape === 'input' && !prompt.id.startsWith('x:')) {
+    log(g, prompt.kind === 'cardName' ? `You name ${answer.value}.` : `You answer: ${answer.value}.`, you.id);
     return true;
   }
   const ownBranch = prompt.id === 'cultivate' || prompt.id.startsWith('face:');
@@ -876,10 +916,10 @@ function answerPrompt(g: MockGame, answer: PromptAnswer) {
       return;
     }
   } else if (answer.shape === 'input' && prompt.shape === 'input' && prompt.id.startsWith('x:')) {
-    const n = Number(answer.value);
-    // The tray's number field (§2.3) is not drawn yet: an empty answer takes the largest X.
-    const x = answer.value.trim() !== '' && Number.isInteger(n) && n >= 0 ? Math.min(n, prompt.max ?? n) : (prompt.max ?? 0);
-    startSpell(g, g.cards[prompt.id.slice(2)]!, x);
+    // The number prompt (§2.3) sends a whole number in range; anything else keeps it open.
+    const x = /^\d+$/.test(answer.value) ? Number(answer.value) : -1;
+    if (x < (prompt.min ?? 0) || x > (prompt.max ?? x)) return;
+    startSpell(g, g.cards[prompt.sourceCardId!]!, x);
     return;
   } else if (answer.shape === 'yesNo') {
     const said = prompt.shape === 'yesNo' ? (answer.yes ? prompt.yesLabel : prompt.noLabel) : answer.yes ? 'Yes' : 'No';
@@ -897,7 +937,10 @@ function answerPrompt(g: MockGame, answer: PromptAnswer) {
  */
 export function applyIntent(prev: MockGame, intent: Intent): MockGame {
   const g = applyOne(prev, intent);
-  if (g !== prev) checkOut(g);
+  if (g !== prev) {
+    checkOut(g);
+    refreshOtherZoneCasts(g);
+  }
   return g;
 }
 

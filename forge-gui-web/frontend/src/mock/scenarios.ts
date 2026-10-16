@@ -1,7 +1,7 @@
-import { isCreature } from '../model/selectors';
-import type { ChoicePrompt } from '../model/types';
+import { isCreature, isLand } from '../model/selectors';
+import type { ChoicePrompt, DistributeRecipient } from '../model/types';
 import { GameBuilder, ref } from './builder';
-import type { CardKey } from './cardDb';
+import { cardNames, type CardKey } from './cardDb';
 import { applyIntent, cultivatePrompt, type MockGame } from './engine';
 import { START_END_SCENARIOS } from './scenariosStartEnd';
 
@@ -115,8 +115,8 @@ function commanderTable(b: GameBuilder, opts: { sythisInCommand?: boolean } = {}
   b.p('ana').commanderDamageTaken = [{ commanderId: krenko, amount: 5 }];
 
   b.log(`${ref(krenko)} creates 5 Goblin tokens.`, 'mira', 8)
-    .log(`Impact Tremors deals 5 damage to each opponent.`, 'mira', 8)
-    .log(`${ref(meren)} attacks Hugo; Hugo takes 3 damage.`, 'ana', 8);
+    .log(`Impact Tremors deals 5 damage to each opponent.`, 'mira', 8, 'life')
+    .log(`${ref(meren)} attacks Hugo; Hugo takes 3 damage.`, 'ana', 8, 'life');
 
   return { sythis, eidolon, knight, champion, spirit, krenko, chieftain, prospector, goblins, meren, talrand };
 }
@@ -388,6 +388,127 @@ const TRAY_SCENARIOS: Scenario[] = [
   }),
 ];
 
+/** Combat damage assignment (§2.3): `attacker` (yours) is blocked by `blockers`; the prompt opens after P/T are computed. */
+function combatDamagePrompt(g: MockGame, attacker: string, blockers: string[], defenderId: string): ChoicePrompt {
+  const a = g.cards[attacker]!;
+  const has = (k: string) => a.keywords.some((x) => x.name === k);
+  const deathtouch = has('Deathtouch');
+  const trample = has('Trample');
+  const defender = g.players.find((p) => p.id === defenderId)!;
+  const recipients: DistributeRecipient[] = blockers.map((id) => {
+    const c = g.cards[id]!;
+    const left = Math.max(0, (c.toughness ?? 0) - c.damage);
+    return { id, label: c.name, cardId: id, lethal: deathtouch ? Math.min(1, left) : left };
+  });
+  if (trample) recipients.push({ id: defenderId, label: defender.name, playerId: defenderId });
+  const names = blockers.map((id) => g.cards[id]!.name).join(' and ');
+  return {
+    id: `combat-damage:${attacker}`,
+    shape: 'distribute',
+    title: `Assign ${a.name}'s ${a.power ?? 0} damage`,
+    instruction: trample
+      ? `Blocked by ${names}. With trample, damage beyond lethal can go to ${defender.name}.`
+      : `Blocked by ${names}.`,
+    sourceCardId: attacker,
+    confirmLabel: 'Assign damage',
+    total: a.power ?? 0,
+    recipients,
+    combat: { attackerId: attacker, deathtouch, trampleId: trample ? defenderId : undefined },
+  };
+}
+
+/** Number shapes (design pass 4 §2.3, issue #31): distribute, combat damage, X, name a card. */
+const NUMBER_SCENARIOS: Scenario[] = [
+  trayScenario('divide', '7a · Divide 5 damage among 3 targets', "Fiery Justice: one row per target with a stepper, at least 1 each; confirm at 0 left. Tab, ↑/↓, Shift+↑/↓.", (b, ids) => {
+    const justice = b.card('Fiery Justice', 'you', 'graveyard');
+    b.log(`Hugo casts ${ref(justice)}.`, 'you');
+    return {
+      id: 'divide',
+      shape: 'distribute',
+      title: 'Divide 5 damage among 3 targets',
+      instruction: 'Fiery Justice deals 5 damage divided as you choose. Each target gets at least 1.',
+      sourceCardId: justice,
+      confirmLabel: 'Divide damage',
+      total: 5,
+      recipients: [
+        { id: ids.krenko, label: 'Krenko, Mob Boss', cardId: ids.krenko, min: 1 },
+        { id: ids.chieftain, label: 'Goblin Chieftain', cardId: ids.chieftain, min: 1 },
+        { id: 'mira', label: 'Mira', playerId: 'mira', min: 1 },
+      ],
+    };
+  }),
+  {
+    id: 'combat-damage',
+    label: '7b · Combat damage: trample',
+    description:
+      'Knight of Autumn (6/3 trample with Rancor) is blocked by two of Ana\'s creatures. Opens on the automatic assignment: Space accepts it. Ana\'s row waits for lethal on every blocker.',
+    build: () => {
+      const b = new GameBuilder('combat-damage', 'commander');
+      const ids = commanderTable(b);
+      yourHand(b, HAND_7);
+      b.turn(9, 'you', 'combatDamage', undefined);
+      const blockers = ['Vampire Nighthawk', 'Sakura-Tribe Elder'].map((n) => b.p('ana').battlefield.find((id) => b.g.cards[id]!.name === n)!);
+      b.g.cards[ids.knight]!.tapped = true;
+      b.g.combat = { attacks: [{ attackerId: ids.knight, defenderId: 'ana' }], blocks: blockers.map((blockerId) => ({ blockerId, attackerId: ids.knight })) };
+      b.log(`Hugo attacks Ana with ${ref(ids.knight)}.`, 'you').log('Ana blocks with Vampire Nighthawk and Sakura-Tribe Elder.', 'ana');
+      const g = b.done();
+      g.decision = { kind: 'choice', prompt: combatDamagePrompt(g, ids.knight, blockers, 'ana') };
+      return g;
+    },
+  },
+  {
+    id: 'combat-deathtouch',
+    label: '7c · Combat damage: deathtouch',
+    description: 'Questing Beast (deathtouch, no trample) is blocked by two creatures: "Lethal 1 · deathtouch", the rest on the last blocker.',
+    build: () => {
+      const b = new GameBuilder('combat-deathtouch', 'constructed');
+      b.player('you', 'Hugo', 17, { libraryCount: 47, isAi: false }).player('ai', 'Forge AI', 12, { libraryCount: 46, handCount: 3 });
+      const beast = b.card('Questing Beast', 'you', 'battlefield'); // vigilance: attacks untapped
+      b.many(4, 'Forest', 'you', 'battlefield');
+      const giant = b.card('Bonecrusher Giant', 'ai', 'battlefield');
+      const hero = b.card('Heartfire Hero', 'ai', 'battlefield', { counters: [{ kind: '+1/+1', count: 2 }] });
+      b.many(3, 'Mountain', 'ai', 'battlefield');
+      yourHand(b, ['Ram Through', 'Forest', 'Beast Within']);
+      b.turn(6, 'you', 'combatDamage', undefined);
+      b.g.combat = { attacks: [{ attackerId: beast, defenderId: 'ai' }], blocks: [giant, hero].map((blockerId) => ({ blockerId, attackerId: beast })) };
+      b.log(`Hugo attacks with ${ref(beast)}.`, 'you').log(`Forge AI blocks with ${ref(giant)} and ${ref(hero)}.`, 'ai');
+      const g = b.done();
+      g.decision = { kind: 'choice', prompt: combatDamagePrompt(g, beast, [giant, hero], 'ai') };
+      return g;
+    },
+  },
+  {
+    id: 'x-cost',
+    label: "7d · Number: X for Green Sun's Zenith",
+    description: 'Casting an X spell asks for X first: stepper and typed field, range shown, opens on the default. Then payment opens with X in the cost.',
+    build: () => {
+      const b = new GameBuilder('x-cost', 'commander');
+      commanderTable(b, { sythisInCommand: true });
+      yourHand(b, ["Green Sun's Zenith", 'Heroic Intervention', 'Path to Exile', 'Cultivate', 'Forest']);
+      b.turn(9, 'you', 'main1', 'you');
+      b.p('you').landsPlayedThisTurn = 1;
+      const g = b.done();
+      const gsz = g.players[0]!.hand.find((id) => g.cards[id]!.name === "Green Sun's Zenith")!;
+      return applyIntent(g, { type: 'play', cardId: gsz });
+    },
+  },
+  trayScenario('name-card', '7e · Name a card', 'Meddling Mage enters: type a name, up to 8 suggestions with cost and type line, ↑/↓ shows each preview, Enter picks.', (b) => {
+    const mage = b.card('Meddling Mage', 'you', 'battlefield', { sick: true });
+    b.log(`Hugo casts ${ref(mage)}.`, 'you');
+    return {
+      id: 'name-card',
+      shape: 'input',
+      kind: 'cardName',
+      title: 'Choose a card name',
+      instruction: "Meddling Mage: spells with the chosen name can't be cast.",
+      sourceCardId: mage,
+      confirmLabel: 'Name this card',
+      constraint: 'Name a nonland card',
+      cardNames: cardNames().filter((n) => !/\bLand\b/.test(n.typeLine)),
+    };
+  }),
+];
+
 export const SCENARIOS: Scenario[] = [
   {
     id: 'priority',
@@ -599,6 +720,7 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   ...TRAY_SCENARIOS,
+  ...NUMBER_SCENARIOS,
   {
     id: 'duel',
     label: '4 · 1v1: your main phase',
@@ -692,6 +814,59 @@ export const SCENARIOS: Scenario[] = [
     HAND_12,
   ),
   handScenario('hand15', '5d · Hand of 15 (overflow)', 'Fifteen cards, still staggered at full size.', HAND_15),
+  {
+    id: 'board',
+    label: '5e · Catching up: Mira’s Bolt at you',
+    description:
+      'Mira’s turn 10. Recent has a divider per turn; lines where you lost life or a permanent are bold. Pass: the Bolt resolves and your plate shows ▼ −3 for 4 s. Sythis shows only beside the hand; Moment’s Peace stays there although every land is tapped. Commander damage chips name their source (Theo’s Krenko chip is past 15); Mira has {R}{R} floating.',
+    build: () => {
+      const b = new GameBuilder('board', 'commander');
+      const ids = commanderTable(b, { sythisInCommand: true });
+      yourHand(b, HAND_7);
+      for (const id of b.p('you').battlefield) {
+        const c = b.g.cards[id]!;
+        if (isLand(c) || c.name === 'Elvish Mystic') c.tapped = true;
+      }
+      b.turn(10, 'mira', 'main1', 'you');
+      b.p('you').landsPlayedThisTurn = 0;
+      b.p('mira').manaPool = { R: 2 };
+      b.p('theo').commanderDamageTaken = [
+        { commanderId: ids.sythis, amount: 3 },
+        { commanderId: ids.krenko, amount: 16 },
+      ];
+      b.p('ana').commanderDamageTaken = [
+        { commanderId: ids.krenko, amount: 5 },
+        { commanderId: ids.sythis, amount: 2 },
+      ];
+      const oldBolt = b.card('Lightning Bolt', 'mira', 'graveyard');
+      // Cast from Mira's hand: built in her graveyard (keeps her hand count), then moved to the stack.
+      const bolt = b.card('Lightning Bolt', 'mira', 'graveyard');
+      const mira = b.p('mira');
+      mira.graveyard.splice(mira.graveyard.indexOf(bolt), 1);
+      b.g.cards[bolt]!.zone = 'stack';
+      b.g.stack = [
+        {
+          id: 's1',
+          sourceCardId: bolt,
+          controllerId: 'mira',
+          kind: 'spell',
+          text: 'Lightning Bolt deals 3 damage to any target.',
+          targets: [{ kind: 'player', id: 'you' }],
+        },
+      ];
+      b.log('Hugo draws a card.', 'you', 9)
+        .log(`Hugo casts ${ref(ids.eidolon)}.`, 'you', 9)
+        .log(`Mira casts ${ref(oldBolt)} targeting ${ref(ids.sythis)}.`, 'mira', 9)
+        .log(`${ref(ids.sythis)} dies; Hugo moves it to the command zone.`, 'you', 9, 'permanent')
+        .log('Hugo ends the turn.', 'you', 9)
+        .log('Mira draws a card.', 'mira', 10)
+        .log(`${ref(ids.krenko)} creates 5 Goblin tokens.`, 'mira', 10)
+        .log('Impact Tremors deals 5 damage to each opponent.', 'mira', 10, 'life')
+        .log('Mira adds {R}{R}.', 'mira', 10)
+        .log(`Mira casts ${ref(bolt)} targeting Hugo.`, 'mira', 10);
+      return b.done();
+    },
+  },
   {
     id: 'payment',
     label: '6 · Payment: Sythis with tax, {G}{G} floating',

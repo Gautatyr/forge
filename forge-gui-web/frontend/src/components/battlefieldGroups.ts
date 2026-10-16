@@ -1,5 +1,5 @@
-import { groupKey, isCreature, isLand, typeLine } from '../model/selectors';
-import type { CardView, GameView } from '../model/types';
+import { commanderTax, groupKey, isCreature, isLand, typeLine } from '../model/selectors';
+import type { CardView, GameView, PlayerView } from '../model/types';
 import type { Prefs } from '../state/prefs';
 import type { UiState } from '../state/ui';
 import { cardStatusWithChoice } from './tray/inPlace';
@@ -30,6 +30,21 @@ export function hiddenInCompact(cards: CardView[], all: Record<string, CardView 
   });
   const lands = hidden.filter(isLand);
   return { others: hidden.length - lands.length, lands: lands.length, untappedLands: lands.filter((c) => !c.tapped).length };
+}
+
+/**
+ * An opponent's command zone, drawn at the end of their support row. Yours is
+ * empty: your commander shows only in the group beside the hand, where you cast
+ * it from (design pass 4, P3).
+ */
+export function commandEntries(player: PlayerView, game: GameView): Entry[] {
+  if (player.isYou) return [];
+  return player.command.flatMap((id) => {
+    const c = game.cards[id];
+    if (!c) return [];
+    const tax = commanderTax(player, id);
+    return [{ card: c, ids: [id], caption: { label: 'Command zone', detail: tax > 0 ? `tax +${tax}` : '' } }];
+  });
 }
 
 /** Collapse identical tokens and lands into one entry with a count. */
