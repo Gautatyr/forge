@@ -668,6 +668,24 @@ public class SeatSessionTest {
     }
 
     @Test
+    public void aReplacedSeatClosesItsOpenPromptsAndSendsNothingMore() throws Exception {
+        start();
+        Future<List<String>> f = onGameThread(() -> gui.getChoices("Pick", 1, 2, List.of("a", "b", "c"), null, null));
+        client.next("prompt");
+        seats.newSeat(0); // another match takes the seat while this game still runs
+        assertEquals(get(f), List.of("a"), "the open prompt gets its engine default at once");
+
+        Future<Boolean> g = onGameThread(() -> gui.confirm(null, "Q?", true, null));
+        assertTrue(get(g), "later prompts of the old game: their default, without asking");
+        gui.showPromptMessage(p0.getView(), "old game", null);
+        onGameThread(() -> {
+            gui.handleGameEvents(List.of());
+            return null;
+        }).get(5, TimeUnit.SECONDS);
+        assertNull(client.msgs.poll(300, TimeUnit.MILLISECONDS), "the seat's page belongs to the new match");
+    }
+
+    @Test
     public void openViewIsTheSeatsOwnPlayer() throws Exception {
         start();
         Client c = new Client();

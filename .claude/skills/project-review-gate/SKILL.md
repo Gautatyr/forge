@@ -12,7 +12,8 @@ updates. Root `CLAUDE.md` rules apply on top (upstream ban, branches, pushing).
 **Gates (both agents).**
 - Run `make check` from the worktree root. It runs only the gates the branch's changes
   need (vs `origin/develop`): `web-front-check` for `forge-gui-web/frontend/`,
-  `web-java-test` for `forge-gui-web` Java (or upstream modules), `desktop-test` only
+  `web-java-test` for `forge-gui-web` Java (or upstream modules), `web-desktop-test` for
+  `forge-gui-desktop-web` (or `forge-gui-web` main code, or upstream modules), `desktop-test` only
   when an upstream module (`forge-core`, `forge-game`, `forge-ai`, `forge-gui`,
   `forge-gui-desktop`) or the root `pom.xml` changes. Nothing depends on
   `forge-gui-web`, so the desktop suite cannot fail because of it: never run it for

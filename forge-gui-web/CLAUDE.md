@@ -3,7 +3,7 @@
 Fork-owned module: the bridge between the Forge engine and the web match screen. It boots
 the engine headless, attaches web UIs to matches, and serves HTTP + a WebSocket on
 127.0.0.1. Package root `forge.web` (never reuse `forge-gui` package names). Depends on
-`forge-gui` and `forge-ai` only; nothing depends on it.
+`forge-gui` and `forge-ai` only; only the `forge-gui-desktop-web` launcher depends on it.
 
 Background: `docs/fork/architecture/web-ui.md` (the seam, the protocol, the 13 prompts in
 5 shapes) and `docs/fork/architecture/spike-report.md` (wire format, measurements, the

@@ -51,7 +51,8 @@ public final class WebServer {
 
     private static final Map<String, String> TYPES = Map.of(
             "html", "text/html; charset=utf-8", "js", "text/javascript; charset=utf-8",
-            "css", "text/css; charset=utf-8", "json", "application/json", "png", "image/png", "svg", "image/svg+xml");
+            "css", "text/css; charset=utf-8", "json", "application/json", "png", "image/png", "svg", "image/svg+xml",
+            "woff2", "font/woff2", "woff", "font/woff", "jpg", "image/jpeg", "ico", "image/x-icon");
 
     private final int requestedPort;
     private final Path webRoot;

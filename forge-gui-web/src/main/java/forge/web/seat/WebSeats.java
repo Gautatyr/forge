@@ -47,7 +47,7 @@ public final class WebSeats implements GameStream.SeatHooks {
         SeatSession s = new SeatSession(seat, this);
         SeatSession previous = sessions.put(seat, s);
         if (previous != null) {
-            previous.close(); // the seat's previous game (--games N)
+            previous.close(); // the seat's previous game (--games N), or a match still running (launcher)
         }
         return new WebGuiGame(s);
     }
