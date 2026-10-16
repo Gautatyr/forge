@@ -26,4 +26,7 @@ prompt-bridging design and its 9 traps). Frontend rules: `frontend/CLAUDE.md`.
 
 ## Gates and running
 - `make web-java-test` while iterating on this module; `make check` before the PR.
-- `make web-server ARGS="--mode commander"` runs a live game on a per-worktree port.
+- `make web-server ARGS="--mode commander"` runs a live game on a per-worktree port; add
+  `--human-seat 0` to play seat 0 over the WebSocket (options: `WebMain` javadoc).
+- End-to-end check of a human seat: `spike-viewer/check/human-run.sh <outdir> <label> <port>
+  <server args>` (scripted seat 0 + `ws-check.mjs` on the other views; exit 0 = passed).

@@ -63,10 +63,8 @@
 
   function connect(attempt = 0) {
     if (!token) { setStatus('no token: open the URL the server printed', 'down'); return; }
-    // ?seat=N watches as that player (index in the game's player list); no seat = spectator
-    const seat = params.get('seat');
-    const seatQuery = seat !== null ? `&seat=${encodeURIComponent(seat)}` : '';
-    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws?token=${encodeURIComponent(token)}${seatQuery}`);
+    // the token decides the view: the server prints one URL per seat and one for the spectator
+    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws?token=${encodeURIComponent(token)}`);
     socket = ws;
     let opened = false;
     ws.onopen = () => { opened = true; setStatus('live', 'live'); attempt = 0; };

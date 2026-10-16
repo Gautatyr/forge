@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.gson.JsonObject;
+
 import forge.web.bridge.ClientSink;
 
 /** Stand-in for {@code GameStream}: greets each client with "hello" then "snapshot N". */
@@ -67,5 +69,13 @@ final class FakeHub implements StreamHub {
     @Override
     public String metricsJson() {
         return "{}";
+    }
+
+    /** {@code seat:message} of every {@link #clientMessage}, in order. */
+    final List<String> messages = new CopyOnWriteArrayList<>();
+
+    @Override
+    public void clientMessage(int seat, JsonObject msg, ClientSink from) {
+        messages.add(seat + ":" + msg);
     }
 }
