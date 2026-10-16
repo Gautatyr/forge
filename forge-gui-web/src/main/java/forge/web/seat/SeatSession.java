@@ -8,6 +8,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -35,6 +37,7 @@ import forge.player.PlayerControllerHuman;
 import forge.trackable.TrackableCollection;
 import forge.util.ThreadUtil;
 import forge.web.bridge.ClientSink;
+import forge.web.bridge.SeatRefs;
 
 /**
  * One human seat: the {@link IRemote} behind its {@link WebGuiGame}, and the inbound side of its
@@ -66,6 +69,9 @@ final class SeatSession implements IRemote {
     private volatile IGameController controller;
     private volatile GameView gameView;
     private volatile int clients;
+    /** Set by {@link #close}; guarded by {@link #out} for sends, so nothing reaches the seat once it is set. */
+    private volatile boolean closed;
+    private final Object out = new Object();
 
     SeatSession(int seat, WebSeats match) {
         this.seat = seat;
@@ -81,9 +87,18 @@ final class SeatSession implements IRemote {
         return seat;
     }
 
-    /** Stops the action thread once queued actions ran; later actions are rejected ("seat closed"). */
+    /**
+     * Another game took the seat (the next game of a match, or a new match while this one still runs): stops
+     * the action thread once queued actions ran (later actions are rejected, "seat closed"), closes the open
+     * prompts with their engine defaults, and sends nothing more to the seat, whose page shows the new game.
+     * Later prompts of this game get their default at once.
+     */
     void close() {
+        synchronized (out) {
+            closed = true;
+        }
         actions.shutdown();
+        prompts.closeAll(PendingPrompts.Close.CANCELLED);
     }
 
     boolean isClosed() {
@@ -100,7 +115,9 @@ final class SeatSession implements IRemote {
         }
         gameView = gv;
         sticky.clear();
-        match.bindGame(this, gv);
+        if (!closed) {
+            match.bindGame(this, gv);
+        }
     }
 
     void bindController(IGameController c) {
@@ -108,11 +125,22 @@ final class SeatSession implements IRemote {
     }
 
     void publish(List<forge.game.event.GameEvent> events) {
-        match.publish(this, events);
+        if (!closed) {
+            match.publish(this, events);
+        }
     }
 
     void flush() {
-        match.flush();
+        if (!closed) {
+            match.flush();
+        }
+    }
+
+    /** {@code GameStream.sendToSeat} unless this session is closed (then null: not sent). */
+    private String toSeat(Function<SeatRefs, JsonObject> build, Consumer<String> sent) {
+        synchronized (out) {
+            return closed ? null : match.stream().sendToSeat(seat, build, sent);
+        }
     }
 
     // --- IRemote: game to client ---
@@ -141,11 +169,14 @@ final class SeatSession implements IRemote {
         if (method == ProtocolMethod.applyDelta || method == ProtocolMethod.setGameView) {
             return; // state travels on the stream
         }
+        if (closed) {
+            return;
+        }
         if (ThreadUtil.isGameThread()) {
             match.flush(); // the call may name objects changed since the last batch
         }
         String key = stickyKey(method, args);
-        match.stream().sendToSeat(seat, refs -> {
+        toSeat(refs -> {
             JsonObject j = new JsonObject();
             j.addProperty("t", "call");
             j.addProperty("method", method.name());
@@ -160,10 +191,13 @@ final class SeatSession implements IRemote {
 
     /** Blocks the calling thread (the game thread, or this seat's action thread) until answered, timed out or abandoned. */
     Object ask(Prompt p) {
+        if (closed) {
+            return p.fallback();
+        }
         // must-fix: a reveal for this prompt (tempShowCards) has no event of its own; flush so the seat sees the cards
-        match.flush();
+        flush();
         PendingPrompts.Pending pd = prompts.open(p);
-        String text = match.stream().sendToSeat(seat, refs -> p.toJson(pd.id, refs), t -> pd.text = t);
+        String text = toSeat(refs -> p.toJson(pd.id, refs), t -> pd.text = t);
         if (text == null) {
             prompts.close(pd, PendingPrompts.Close.CANCELLED);
         } else if (clients == 0) {
@@ -171,14 +205,17 @@ final class SeatSession implements IRemote {
         }
         Object[] r = prompts.await(pd, match.timeouts().promptMs());
         PendingPrompts.Close how = (PendingPrompts.Close) r[1];
+        if (closed) {
+            return r[0];
+        }
         if (how != PendingPrompts.Close.ANSWERED) {
             System.out.println("[web] seat " + seat + " prompt " + pd.id + " (" + p.method + ") closed: " + how + "; engine default used");
         }
-        JsonObject closed = new JsonObject();
-        closed.addProperty("t", "promptClosed");
-        closed.addProperty("id", pd.id);
-        closed.addProperty("reason", how.name().toLowerCase());
-        match.stream().sendToSeat(seat, refs -> closed);
+        JsonObject done = new JsonObject();
+        done.addProperty("t", "promptClosed");
+        done.addProperty("id", pd.id);
+        done.addProperty("reason", how.name().toLowerCase());
+        toSeat(refs -> done, null);
         return r[0];
     }
 

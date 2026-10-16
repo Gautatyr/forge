@@ -41,6 +41,11 @@ public final class WebGuiGame extends ProtocolGuiGame {
         return session;
     }
 
+    /** Ends this seat's part in its game: open prompts get their engine defaults, nothing more reaches the seat. */
+    public void close() {
+        session.close();
+    }
+
     @Override
     public void openView(final TrackableCollection<PlayerView> myPlayers) {
         session.openView(getGameView(), myPlayers);
