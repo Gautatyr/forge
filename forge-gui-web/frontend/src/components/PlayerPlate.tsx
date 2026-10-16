@@ -1,4 +1,4 @@
-import { poolEntries } from '../model/mana';
+import { useRef } from 'react';
 import { commanderTax } from '../model/selectors';
 import type { PlayerView } from '../model/types';
 import { playerTargetSpot, spotlightItem } from '../state/cardStatus';
@@ -12,6 +12,8 @@ import { Icon, SeatGlyph, type IconName } from './Icon';
 import { useLifeChange } from './lifeMarker';
 import { ManaSymbol, manaName } from './ManaSymbol';
 import styles from './PlayerPlate.module.css';
+import { poolGroups } from './poolGroups';
+import { useRoomForNames } from './useRoomForNames';
 
 interface Props {
   player: PlayerView;
@@ -71,9 +73,12 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
   };
 
   const cmdDamage = commanderChips(game, p);
+  const plateRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLDivElement>(null);
+  useRoomForNames(plateRef, mainRef, !p.isYou && !vertical && cmdDamage.length > 0);
   const lifeChange = useLifeChange(p.life, game.id);
   // An opponent's floating mana, only while their pool is not empty (yours sits above the prompt).
-  const floating = p.isYou ? [] : poolEntries(p.manaPool);
+  const floating = p.isYou ? [] : poolGroups(p.manaPool);
   const ring = chosenTarget || choice?.chosen
     ? styles.ringSelected
     : isDefender
@@ -91,6 +96,7 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
       className={[styles.plate, density === 'compact' && styles.compact, vertical ? styles.vertical : styles.inline, active && styles.active, ring]
         .filter(Boolean)
         .join(' ')}
+      ref={plateRef}
       data-player-id={p.id}
       data-arrow-occluder
       role={clickable ? 'button' : undefined}
@@ -117,20 +123,21 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
             life
           </span>
           {lifeChange !== 0 ? (
-            <span
-              key={`${lifeChange}`}
-              className={`${styles.lifeChange} ${lifeChange < 0 ? styles.lifeLoss : styles.lifeGain}`}
-              aria-label={`${p.isYou ? 'You' : p.name} ${lifeChange < 0 ? 'lost' : 'gained'} ${Math.abs(lifeChange)} life`}
-            >
+            <span key={`${lifeChange}`} className={`${styles.lifeChange} ${lifeChange < 0 ? styles.lifeLoss : styles.lifeGain}`}>
               <span aria-hidden>{lifeChange < 0 ? '▼' : '▲'}</span>
-              {lifeChange < 0 ? '−' : '+'}
-              {Math.abs(lifeChange)}
+              <span aria-hidden>
+                {lifeChange < 0 ? '−' : '+'}
+                {Math.abs(lifeChange)}
+              </span>
+              <span className={styles.srOnly}>
+                {`${p.isYou ? 'You' : p.name} ${lifeChange < 0 ? 'lost' : 'gained'} ${Math.abs(lifeChange)} life`}
+              </span>
             </span>
           ) : null}
         </span>
       </div>
 
-      <div className={styles.main}>
+      <div className={styles.main} ref={mainRef}>
         <div className={styles.nameRow}>
           <span className={styles.glyph}>
             <SeatGlyph seat={p.seat} />
@@ -237,17 +244,25 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
               <span className={styles.zoneCount}>{k.count}</span>
             </span>
           ))}
-          {floating.length > 0 ? (
-            <span
-              className={`${styles.zone} ${styles.floating}`}
-              title={`${p.name}'s floating mana: ${floating.map(([c, n]) => `${n} ${manaName(c)}`).join(', ')}`}
-            >
-              <span className={styles.zoneLabel}>Floating</span>
-              {floating.flatMap(([c, n]) => Array.from({ length: n }, (_, i) => <ManaSymbol key={`${c}${i}`} symbol={c} />))}
-            </span>
-          ) : null}
         </div>
-
+        {/* Outside the zone chips, so in a one-line header it flows beside the name and tags. */}
+        {floating.length > 0 ? (
+          <span
+            className={`${styles.zone} ${styles.floating}`}
+            title={`${p.name}'s floating mana: ${floating.map((g) => `${g.times ?? g.symbols} ${manaName(g.colour)}`).join(', ')}`}
+          >
+            <Icon name="mana" />
+            <span className={styles.zoneLabel}>Floating</span>
+            {floating.map((g) => (
+              <span key={g.colour} className={styles.poolGroup}>
+                {Array.from({ length: g.symbols }, (_, i) => (
+                  <ManaSymbol key={i} symbol={g.colour} />
+                ))}
+                {g.times ? <span className={styles.zoneCount}>×{g.times}</span> : null}
+              </span>
+            ))}
+          </span>
+        ) : null}
       </div>
 
       {/* Full seats show the commander in the battlefield's support row; compact seats keep a chip. */}

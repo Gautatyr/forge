@@ -10,7 +10,7 @@ export interface CommanderChip {
   commanderId: CardId;
   /** Name before the comma: "Krenko". */
   shortName: string;
-  /** Seat of the commander's controller (its shape on the chip). */
+  /** Seat of the commander's owner (its shape on the chip): stable when the commander is stolen. */
   seat: number;
   amount: number;
   danger: boolean;

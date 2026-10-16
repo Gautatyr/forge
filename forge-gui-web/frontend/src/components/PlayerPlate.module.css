@@ -264,15 +264,21 @@
   margin-left: -0.25rem;
 }
 
-/* An opponent's floating mana, only while not empty. */
+/* An opponent's floating mana, only while not empty: {R}{R}, {G}×3 from three of a
+   colour (pass-3 §2). The mana icon names the chip when its label is hidden. */
 .floating {
+  align-self: flex-start;
   border-color: var(--c-line);
+  gap: var(--sp-1);
+  font-size: var(--fs-sm);
+  color: var(--c-text-2);
+}
+.poolGroup {
+  display: inline-flex;
+  align-items: center;
   gap: var(--sp-0);
 }
-.floating .zoneLabel {
-  margin-right: var(--sp-1);
-}
-.floating > [role='img'] {
+.poolGroup > [role='img'] {
   --pip: 1.15rem;
 }
 
@@ -415,6 +421,10 @@
   order: 2;
   margin-left: 0;
 }
+.inline .floating {
+  order: 2;
+  align-self: auto;
+}
 .inline .cmdLabel {
   display: none;
 }
@@ -422,14 +432,19 @@
   order: 3;
 }
 
-/* Narrow headers (Columns at 1366, Focus side seats): zones and commander
-   damage keep their icon and number; the full text is in the tooltip. */
+/* Narrow headers (Columns at 1366, Focus side seats): zones (and your own commander
+   damage) keep their icon and number; the full text is in the tooltip. */
 @container (max-width: 40rem) {
   .inline .zoneLabel,
-  .inline .cmdName,
-  .inline .of21 {
+  .inline:not([data-cmd-names]) .cmdName,
+  .inline:not([data-cmd-names]) .of21 {
     display: none;
   }
+}
+/* Opponents: commander names join the chips only when they add no line (`useRoomForNames`). */
+.inline[data-cmd-names='off'] .cmdName,
+.inline[data-cmd-names='off'] .of21 {
+  display: none;
 }
 @container (max-width: 30rem) {
   .inline .tagText {
@@ -438,4 +453,14 @@
   .inline .tag {
     padding: 0.05rem var(--sp-1);
   }
+}
+
+/* Read by screen readers only (the life-change sentence). */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
