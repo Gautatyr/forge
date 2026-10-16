@@ -4,7 +4,7 @@
  * menu placement. Components stay thin around these.
  */
 import type { PromptAnswer } from '../../model/intents';
-import type { CardId, ChoiceOption, ChoicePrompt, ChooseNPrompt, GameView, PlayerId } from '../../model/types';
+import type { CardId, ChoiceOption, ChoicePrompt, ChooseNPrompt, GameView, PlayerId, YesNoPrompt } from '../../model/types';
 import { answerFromDraft, draftFor } from '../../state/primaryAction';
 import type { ChoiceDraft } from '../../state/ui';
 import { distributeConfirm, inputConfirm, inputStart, startAmounts } from './numberLogic';
@@ -38,6 +38,7 @@ export function toggleOption(p: ChooseNPrompt, d: ChoiceDraft, id: string): Choi
 }
 
 export function counterText(p: ChooseNPrompt, n: number): string {
+  if (p.progress) return `${n} of ${p.max} chosen`;
   if (p.min === p.max) return `Choose exactly ${p.max}`;
   if (p.min === 0) return `${n} chosen · up to ${p.max}`;
   return `${n} chosen · ${p.min}–${p.max}`;
@@ -58,7 +59,7 @@ export function trayConfirm(p: ChoicePrompt, d: ChoiceDraft): Confirm {
   if (p.shape === 'chooseN' && !isReveal(p)) {
     const n = d.selected.length;
     if (n < p.min) return { enabled: false, label: `Choose ${p.min - n} more` };
-    return { enabled: answer !== undefined, label: `${p.confirmLabel} (${n})`, answer };
+    return { enabled: answer !== undefined, label: p.progress ? p.confirmLabel : `${p.confirmLabel} (${n})`, answer };
   }
   return { enabled: answer !== undefined, label: p.confirmLabel, answer };
 }
@@ -141,6 +142,11 @@ export function inPlaceRefs(game: GameView, p: ChoicePrompt): InPlaceRefs | unde
   return refs;
 }
 
+/** The keys that answer a yes/no at once: Y / N unless the prompt names its own (the mulligan: M only). */
+export function yesNoKeys(p: YesNoPrompt): { yes?: string; no?: string } {
+  return p.keys ?? { yes: 'Y', no: 'N' };
+}
+
 export type KeyAction =
   | { kind: 'answer'; answer: PromptAnswer }
   | { kind: 'draft'; draft: ChoiceDraft }
@@ -169,8 +175,9 @@ export function keyAction(p: ChoicePrompt, d: ChoiceDraft, visible: ChoiceOption
     return undefined;
   }
   if (p.shape === 'yesNo') {
-    if (k === 'y') return { kind: 'answer', answer: { shape: 'yesNo', yes: true } };
-    if (k === 'n') return { kind: 'answer', answer: { shape: 'yesNo', yes: false } };
+    const keys = yesNoKeys(p);
+    if (keys.yes && k === keys.yes.toLowerCase()) return { kind: 'answer', answer: { shape: 'yesNo', yes: true } };
+    if (keys.no && k === keys.no.toLowerCase()) return { kind: 'answer', answer: { shape: 'yesNo', yes: false } };
   }
   if (k === ' ') {
     const c = trayConfirm(p, d);

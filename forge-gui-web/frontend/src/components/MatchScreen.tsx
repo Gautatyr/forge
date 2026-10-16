@@ -1,10 +1,12 @@
 import { useEffect, useEffectEvent } from 'react';
 import { currentDefender } from '../state/focus';
+import { gameEndView, watching } from '../state/gameEnd';
 import { useMatch } from '../state/MatchContext';
 import { primaryAction } from '../state/primaryAction';
 import { Arrows } from './Arrows';
 import { Board } from './Board';
 import { ChoiceTray } from './ChoiceTray';
+import { ConcedeDialog, GameOverPanel, LeftMatch, OutToast, YouAreOut } from './GameEnd';
 import { Hand } from './Hand';
 import { HoverPreview } from './HoverPreview';
 import { Inspector } from './Inspector';
@@ -30,6 +32,8 @@ export function MatchScreen() {
       if (e.key !== 'Escape') return;
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    // A game-end dialog or panel owns the keyboard while open (GameEnd.tsx).
+    if (gameEndView(game, ui) || ui.leftMatch) return;
     const d = game.decision;
     const key = e.key;
     const manaChoice = liveManaChoice(game, ui);
@@ -70,6 +74,7 @@ export function MatchScreen() {
       case 'p':
         return send({ type: 'setAutoPass', on: !game.autoPass });
       case 'z':
+        if (game.result || watching(game)) return;
         // While paying, Z undoes the last tap (design pass 4, §2.1).
         return send(d.kind === 'payMana' ? { type: 'undoTap' } : { type: 'undo' });
       case 'a':
@@ -97,6 +102,8 @@ export function MatchScreen() {
     return () => window.removeEventListener('keydown', h);
   }, []);
 
+  if (match.ui.leftMatch) return <LeftMatch />;
+
   return (
     <div className={styles.screen}>
       <TopBar />
@@ -104,6 +111,8 @@ export function MatchScreen() {
         <Board />
         <ChoiceTray />
         <StopsPanel />
+        <OutToast />
+        <YouAreOut />
       </main>
       <Rail />
       <Hand />
@@ -115,6 +124,8 @@ export function MatchScreen() {
       <DisplaySettings />
       <GameMenu />
       <ShortcutsOverlay />
+      <ConcedeDialog />
+      <GameOverPanel />
       <DevPanel />
     </div>
   );

@@ -130,6 +130,8 @@
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --dur-fast: 120ms;
   --dur-med: 220ms;
+  /* A player who is out: their column leaves the board (design pass 4 §2.6). */
+  --dur-leave: 250ms;
 
   /* --- Z layers -------------------------------------------------------------- */
   --z-arrows: 20;

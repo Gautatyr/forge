@@ -4,6 +4,7 @@ import { player } from '../model/selectors';
 import type { ChoicePrompt, GameView, StepId } from '../model/types';
 import { distributeConfirm, inputConfirm, inputStart, startAmounts } from '../components/tray/numberLogic';
 import { trayConfirm, trayDraft } from '../components/tray/trayLogic';
+import { watching } from './gameEnd';
 import type { StopPrefs } from './prefs';
 import { nextStopLabel } from './stops';
 import type { ChoiceDraft, UiState } from './ui';
@@ -51,6 +52,9 @@ function nextStopDetail(game: GameView, stops: StopPrefs): string {
 }
 
 export function primaryAction(game: GameView, ui: UiState, stops: StopPrefs): PrimaryAction {
+  // Out of the game, or the game is over: nothing to answer (design pass 4 §2.6).
+  if (game.result) return { label: 'Game over', enabled: false, tone: 'neutral' };
+  if (watching(game)) return { label: 'Watching', enabled: false, tone: 'neutral' };
   const d = game.decision;
   switch (d.kind) {
     case 'waiting': {
@@ -152,8 +156,9 @@ function stepPhrase(step: StepId): string {
   }
 }
 
-/** What the game is waiting for, in one sentence. */
+/** What the game is waiting for, in one sentence; empty when you are out or the game is over (no prompts). */
 export function promptText(game: GameView): string {
+  if (game.result || watching(game)) return '';
   const d = game.decision;
   switch (d.kind) {
     case 'waiting':

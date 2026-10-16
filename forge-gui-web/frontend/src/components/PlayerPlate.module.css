@@ -455,6 +455,29 @@
   }
 }
 
+/* Opening hands (design pass 4 §2.4): opponents' mulligan tags. */
+.mulliganDeciding {
+  border: 1px solid var(--c-line-strong);
+  color: var(--c-text-2);
+}
+.mulliganTaken {
+  border: 1px solid var(--c-text-2);
+  color: var(--c-text);
+}
+.mulliganKept {
+  background: var(--c-block);
+  color: var(--c-text-on-accent);
+}
+
+/* Life totals fit 3 digits (Commander starts at 40) without the box shrinking. */
+.lifeBox {
+  flex: none;
+}
+.life {
+  min-width: 3ch;
+  text-align: center;
+}
+
 /* Read by screen readers only (the life-change sentence). */
 .srOnly {
   position: absolute;
