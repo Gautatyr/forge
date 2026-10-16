@@ -144,3 +144,9 @@ Newest last. Each entry: the decision, why, and what it implies.
 - The launcher serves `/img` from Forge's image cache (`ForgeImages`, the user's real cache; downloads land there as the desktop app's would). The frontend uses `/img` for every live card and token, with Scryfall by name as the fallback.
 - Frontend: an input that names no card (`showPromptMessage` card null: discard to hand size, who starts) is for no spell; the last clicked card is the source only when the engine names one it can't resolve (-1).
 - Tray words: an engine message never shows the same line as title and instruction (`promptWords`): first line (without the engine's card id) and the rest; one line is the title alone; a long single "Card: rule text" line is split at the colon.
+
+## 2026-10-16 — All cards must work: fix mechanisms, verify across the card pool
+- Owner: "I don't want my cards to be playable, I want ALL the cards to be playable … it isn't a per card problem."
+- Gameplay bugs in the web screen are fixed at the mechanism (how the human seat answers the engine's questions), never per card.
+- Every engine question to a human seat must be bridged or deliberately automated. Silent defaults (fallbacks, timeouts, unbridged methods) are logged loudly and fail tests.
+- Acceptance for gameplay work includes a card-pool sweep: many full games with a scripted human seat across many decks, asserting zero silent defaults and that the human's triggers resolve.
