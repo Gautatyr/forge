@@ -73,6 +73,13 @@ describe('choose N: counter and confirm (§2.2)', () => {
     expect(c.answer).toBeUndefined();
   });
 
+  it('shows no counter and a plain confirm for a quiet prompt (who plays first)', () => {
+    const p = { ...chooseN({ min: 1, max: 1 }), quiet: true };
+    expect(counterText(p, 0)).toBe('');
+    expect(trayConfirm(p, initialDraft(p))).toMatchObject({ enabled: false, label: 'Confirm' });
+    expect(trayConfirm(p, toggleOption(p, initialDraft(p), 'a'))).toMatchObject({ enabled: true, label: 'Confirm' });
+  });
+
   it('shows a range when min and max differ and min > 0', () => {
     expect(counterText(chooseN({ min: 1, max: 3 }), 2)).toBe('2 chosen · 1–3');
   });

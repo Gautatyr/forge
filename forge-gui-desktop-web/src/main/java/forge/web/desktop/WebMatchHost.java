@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import forge.game.event.GameEvent;
 import forge.web.bridge.GameStream;
 import forge.web.images.ForgeImages;
 import forge.web.seat.WebGuiGame;
@@ -51,6 +52,8 @@ public final class WebMatchHost {
     private WebServer server;
     /** The last web match started, until it hands back to the lobby. */
     private WebHostedMatch running;
+    /** Called when a web match hands back to the lobby (the app's music, {@link WebMatchAudio}). */
+    private volatile Runnable onWebMatchOver;
 
     /** @param openPage opens a seat's page URL (the system browser); called when a match starts and no page is connected */
     public WebMatchHost(Options options, Consumer<String> openPage) {
@@ -120,10 +123,31 @@ public final class WebMatchHost {
     }
 
     /** A web match handed back to the lobby. */
-    synchronized void matchOver(WebHostedMatch match) {
-        if (running == match) {
+    void matchOver(WebHostedMatch match) {
+        synchronized (this) {
+            if (running != match) {
+                return;
+            }
             running = null;
         }
+        Runnable r = onWebMatchOver;
+        if (r != null) {
+            r.run();
+        }
+    }
+
+    /** A web match is running: started, not yet handed back to the lobby. */
+    synchronized boolean webMatchRunning() {
+        return running != null;
+    }
+
+    void setOnWebMatchOver(Runnable r) {
+        onWebMatchOver = r;
+    }
+
+    /** Hears the web seat's game events (the app's sounds, {@link WebMatchAudio}). */
+    void setEventSink(Consumer<List<GameEvent>> sink) {
+        seats.setEventSink(sink);
     }
 
     /**

@@ -38,6 +38,7 @@ export function toggleOption(p: ChooseNPrompt, d: ChoiceDraft, id: string): Choi
 }
 
 export function counterText(p: ChooseNPrompt, n: number): string {
+  if (p.quiet) return '';
   if (p.progress) return `${n} of ${p.max} chosen`;
   if (p.min === p.max) return `Choose exactly ${p.max}`;
   if (p.min === 0) return `${n} chosen · up to ${p.max}`;
@@ -58,8 +59,8 @@ export function trayConfirm(p: ChoicePrompt, d: ChoiceDraft): Confirm {
   const answer = answerFromDraft(p, d);
   if (p.shape === 'chooseN' && !isReveal(p)) {
     const n = d.selected.length;
-    if (n < p.min) return { enabled: false, label: `Choose ${p.min - n} more` };
-    return { enabled: answer !== undefined, label: p.progress ? p.confirmLabel : `${p.confirmLabel} (${n})`, answer };
+    if (n < p.min) return { enabled: false, label: p.quiet ? p.confirmLabel : `Choose ${p.min - n} more` };
+    return { enabled: answer !== undefined, label: p.progress || p.quiet ? p.confirmLabel : `${p.confirmLabel} (${n})`, answer };
   }
   return { enabled: answer !== undefined, label: p.confirmLabel, answer };
 }

@@ -1,4 +1,3 @@
-import type { MouseEvent } from 'react';
 import { useMatch } from '../state/MatchContext';
 import { logParts } from './logParts';
 import { ManaSymbol } from './ManaSymbol';
@@ -21,9 +20,8 @@ export function LogText({ text }: { text: string }) {
         const id = part.id;
         const c = game.cards[id];
         const name = c?.name ?? 'a card';
-        const show = (e: MouseEvent) => {
-          const r = e.currentTarget.getBoundingClientRect();
-          if (c) setUi({ hover: { cardId: id, side: r.left < window.innerWidth / 2 ? 'right' : 'left' } });
+        const show = () => {
+          if (c) setUi({ hover: { cardId: id } });
         };
         return c ? (
           <button

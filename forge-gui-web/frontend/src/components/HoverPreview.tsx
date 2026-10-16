@@ -5,7 +5,7 @@ import { CardArt } from './CardArt';
 import { Icon } from './Icon';
 import styles from './HoverPreview.module.css';
 
-/** Large card image on the half of the screen away from the pointer. */
+/** Large card image, always in the same place (HoverPreview.module.css). */
 export function HoverPreview() {
   const { game, ui } = useMatch();
   if (!ui.hover || ui.inspectId) return null;
@@ -27,7 +27,7 @@ export function HoverPreview() {
   if (c.attachments.length) notes.push(`Attached: ${c.attachments.map((a) => game.cards[a]?.name).join(', ')}`);
 
   return (
-    <div className={`${styles.preview} ${styles[ui.hover.side]}`} aria-hidden>
+    <div className={styles.preview} aria-hidden>
       {img ? <CardArt key={img.large} image={img} size="large" alt="" className={styles.img} /> : null}
       <div className={styles.info}>
         {notes.map((n) => (

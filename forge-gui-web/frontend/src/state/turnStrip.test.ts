@@ -1,32 +1,50 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { scenarioById } from '../mock/scenarios';
-import { PRIORITY_STEPS, STEP_RUNS } from '../model/phases';
+import { GROUP_CAPTIONS, PRIORITY_STEPS, STEPS, STEP_RUNS } from '../model/phases';
 import { AI_CHIP_DELAY_MS, fitLevel, nextPlayer, SettleGate, waitingOn, type FitWidths } from './turnStrip';
 
-describe('turn strip steps', () => {
-  it('drops Untap and Cleanup and renames Begin to Start', () => {
-    expect(PRIORITY_STEPS.map((s) => s.label)).toEqual([
-      'Upkeep',
-      'Draw',
-      'Main 1',
-      'Start',
-      'Attack',
-      'Block',
-      'Damage',
-      'End',
-      'Main 2',
+describe('turn strip steps (official Comprehensive Rules names, playtest 1)', () => {
+  it('drops Untap and Cleanup and uses the CR step and phase names', () => {
+    // CR 501.1, 502–504, 505.1 (first / second main phase), 506.1, 507–511, 512–513.
+    expect(PRIORITY_STEPS.map((s) => s.longLabel)).toEqual([
+      'Upkeep step',
+      'Draw step',
+      'First main phase',
+      'Beginning of combat step',
+      'Declare attackers step',
+      'Declare blockers step',
+      'Combat damage step',
+      'End of combat step',
+      'Second main phase',
       'End step',
     ]);
   });
 
-  it('groups the steps under the Beginning and Combat captions', () => {
+  it('shortens a name only by dropping its last word ("step" / "phase")', () => {
+    expect(PRIORITY_STEPS.map((s) => s.label)).toEqual([
+      'Upkeep',
+      'Draw',
+      'First main',
+      'Beginning of combat',
+      'Declare attackers',
+      'Declare blockers',
+      'Combat damage',
+      'End of combat',
+      'Second main',
+      'End',
+    ]);
+    for (const s of STEPS) expect(s.longLabel.startsWith(`${s.label} `)).toBe(true);
+  });
+
+  it('groups the steps under the Beginning, Combat and Ending phase captions', () => {
     expect(STEP_RUNS.map((r) => [r.group ?? null, r.steps.map((s) => s.id)])).toEqual([
       ['beginning', ['upkeep', 'draw']],
       [null, ['main1']],
       ['combat', ['beginCombat', 'declareAttackers', 'declareBlockers', 'combatDamage', 'endCombat']],
       [null, ['main2']],
-      [null, ['end']],
+      ['ending', ['end']],
     ]);
+    expect(GROUP_CAPTIONS).toEqual({ beginning: 'Beginning phase', combat: 'Combat phase', ending: 'Ending phase' });
   });
 });
 
@@ -50,18 +68,23 @@ describe('whose turn and who is waited for', () => {
 });
 
 describe('top bar fit (1366 px and French)', () => {
-  const w: FitWidths = { available: 1000, left: 200, track: 600, tools: 180, toolWords: 120, gaps: 20 };
+  // track: the strip with full names; trackShort: what short names save.
+  const w: FitWidths = { available: 1000, left: 200, track: 600, trackShort: 150, tools: 180, toolWords: 120, gaps: 20 };
 
-  it('keeps everything when it fits', () => {
+  it('keeps everything, full step names included, when it fits', () => {
     expect(fitLevel(w)).toBe(0);
   });
   it('drops the tool words first', () => {
     expect(fitLevel({ ...w, available: 950 })).toBe(1);
     expect(fitLevel({ ...w, available: 880 })).toBe(1);
   });
-  it('then folds the combat steps', () => {
+  it('then shortens the step names', () => {
     expect(fitLevel({ ...w, available: 879 })).toBe(2);
-    expect(fitLevel({ ...w, available: 500 })).toBe(2);
+    expect(fitLevel({ ...w, available: 730 })).toBe(2);
+  });
+  it('then folds the combat steps', () => {
+    expect(fitLevel({ ...w, available: 729 })).toBe(3);
+    expect(fitLevel({ ...w, available: 500 })).toBe(3);
   });
 });
 

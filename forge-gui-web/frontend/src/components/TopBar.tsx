@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState }
 import { player } from '../model/selectors';
 import { useMatch } from '../state/MatchContext';
 import { turnHeading } from '../state/gameStart';
-import { AI_CHIP_DELAY_MS, fitLevel, SettleGate, waitingOn } from '../state/turnStrip';
+import { AI_CHIP_DELAY_MS, fitLevel, SettleGate, waitingOn, type FitLevel } from '../state/turnStrip';
 import type { Overlay } from '../state/ui';
 import { Icon, SeatGlyph, type IconName } from './Icon';
 import { GameOverChip } from './GameEnd';
@@ -36,7 +36,7 @@ function useFit() {
   const leftRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLElement>(null);
   const toolsRef = useRef<HTMLDivElement>(null);
-  const [level, setLevel] = useState<0 | 1 | 2>(0);
+  const [level, setLevel] = useState<FitLevel>(0);
 
   const measure = useCallback(() => {
     const bar = barRef.current;
@@ -50,9 +50,23 @@ function useFit() {
     const leftW = Math.max(0, ...[...left.children].map(natural));
     // Folded: swap the fold pill's run for the full combat run.
     const folded = track.querySelector('[data-combat-run="fold"]');
-    const trackW = folded
+    const drawnW = folded
       ? outer(track) - outer(folded) + outer(track.querySelector('[data-combat-run="measure"]'))
       : outer(track);
+    // Each step's width with its full and its short name (the unused one is laid out out of flow).
+    let fullMinusDrawn = 0;
+    let trackShort = 0;
+    for (const b of track.querySelectorAll<HTMLElement>('[data-strip-step]')) {
+      const full = outer(b.querySelector('[data-step-name="full"]'));
+      const short = outer(b.querySelector('[data-step-name="short"]'));
+      const shortDrawn = b.dataset.names === 'short';
+      const minW = parseFloat(getComputedStyle(b).minWidth) || 0;
+      const fullW = shortDrawn ? b.offsetWidth - short + full : b.offsetWidth;
+      const shortW = Math.max(minW, fullW - full + short);
+      if (shortDrawn) fullMinusDrawn += fullW - b.offsetWidth;
+      trackShort += fullW - shortW;
+    }
+    const trackW = drawnW + fullMinusDrawn;
     let toolWords = 0;
     for (const w of tools.querySelectorAll('[data-tool-word]')) {
       const gap = parseFloat(getComputedStyle(w.parentElement!).columnGap) || 0;
@@ -60,7 +74,7 @@ function useFit() {
     }
     const wordsHidden = tools.dataset.words === 'hidden';
     const toolsW = outer(tools) + (wordsHidden ? toolWords : 0);
-    setLevel(fitLevel({ available, left: leftW, track: trackW, tools: toolsW, toolWords, gaps }));
+    setLevel(fitLevel({ available, left: leftW, track: trackW, trackShort, tools: toolsW, toolWords, gaps }));
   }, []);
 
   useLayoutEffect(() => {
@@ -134,7 +148,7 @@ export function TopBar() {
           </span>
         )}
       </div>
-      <PhaseTrack ref={trackRef} foldCombat={level >= 2} />
+      <PhaseTrack ref={trackRef} shortNames={level >= 2} foldCombat={level >= 3} />
       <div className={styles.tools}>
         <div ref={toolsRef} className={styles.toolsInner} data-words={wordsHidden ? 'hidden' : 'shown'}>
           {tool('log', 'Log', 'L', ui.logOpen, () => setUi((u) => ({ ...u, logOpen: !u.logOpen })), 'Log (L)')}
