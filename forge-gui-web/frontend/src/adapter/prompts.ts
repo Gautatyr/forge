@@ -8,7 +8,7 @@ import type { PromptAnswer } from '../model/intents';
 import type { CardId, CardView, ChoiceOption, ChoicePrompt, DistributeRecipient, GameView, TargetRef } from '../model/types';
 import { bottomPrompt, mulliganPrompt, tossTitle, type TossChooser } from '../state/gameStart';
 import type { PromptChoice, PromptMessage } from './protocol';
-import type { InputState } from './session';
+import { londonLeft, type InputState } from './session';
 
 /** View-model id of a wire prompt. */
 export const promptViewId = (id: number) => `prompt:${id}`;
@@ -219,19 +219,16 @@ export function tossChooser(message: string): TossChooser | undefined {
 
 /** Opening hand: Keep / Mulligan buttons. */
 const isMulligan = (i: InputState) => i.ok.label === 'Keep' && i.cancel.label === 'Mulligan';
-/** London mulligan: "Return N card(s) to the bottom of your library", OK / Auto. */
-const LONDON = /^Return (\d+) card\(s\) to the bottom/;
-
-/** Cards the London mulligan puts on the bottom (left to choose + already chosen); undefined for another input. */
+/** Cards the London mulligan puts on the bottom, as its first message asked; undefined for another input. */
 function londonCount(input: InputState): number | undefined {
-  const london = LONDON.exec(input.message.trim());
-  return london ? Number(london[1]) + input.highlighted.filter((h) => h.type === 'card').length : undefined;
+  const left = londonLeft(input.message);
+  return left === undefined ? undefined : (input.london ?? left + input.highlighted.filter((h) => h.type === 'card').length);
 }
 
 /**
  * After a free mulligan Forge still asks to put 0 cards on the bottom (InputLondonMulligan): nothing
- * to decide, so the screen answers it without a prompt (playtest 1). A pick never reads as 0 left and
- * 0 chosen: InputLondonMulligan highlights a pick before it sends its new message.
+ * to decide, so the screen answers it without a prompt (playtest 1). Judged on the input's first
+ * message (InputState.london): a paid one also reads "Return 0", nothing chosen, as it ends.
  */
 export const freeMulliganKeep = (input: InputState): boolean => londonCount(input) === 0;
 

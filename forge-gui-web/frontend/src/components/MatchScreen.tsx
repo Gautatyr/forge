@@ -8,7 +8,6 @@ import { Board } from './Board';
 import { ChoiceTray } from './ChoiceTray';
 import { ConcedeDialog, GameOverPanel, LeftMatch, OutToast, YouAreOut } from './GameEnd';
 import { Hand } from './Hand';
-import { HoverPreview } from './HoverPreview';
 import { Inspector } from './Inspector';
 import { liveManaChoice, ManaChooser } from './ManaChooser';
 import { DevPanel, DisplaySettings, GameMenu, LogDrawer, ShortcutsOverlay } from './Overlays';
@@ -119,7 +118,6 @@ export function MatchScreen() {
       <Rail />
       <Hand />
       <Arrows />
-      <HoverPreview />
       <Inspector />
       <ManaChooser />
       <LogDrawer />

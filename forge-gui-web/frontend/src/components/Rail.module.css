@@ -8,9 +8,20 @@
   background: var(--c-bg);
 }
 
-/* Everything above the action block. It takes the height the action block
-   leaves; scrolling here is the last resort (each region scrolls its own
-   body first) and never moves the action block. */
+/* Everything above the action block: the regions, and the hover preview over
+   them (HoverPreview.module.css sizes itself from this container). */
+.upper {
+  flex: 1 1 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  container-type: size;
+}
+
+/* It takes the height the action block leaves; scrolling here is the last
+   resort (each region scrolls its own body first) and never moves the action
+   block. */
 .regions {
   flex: 1 1 0;
   display: flex;

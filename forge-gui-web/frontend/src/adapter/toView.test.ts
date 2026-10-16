@@ -151,6 +151,27 @@ describe('no prompt when there is nothing to do (playtest 1)', () => {
     expect(autoAnswer(s)).toBeUndefined();
   });
 
+  it('never answers a paid bottom step as it ends (its last reset reads "Return 0", nothing chosen)', () => {
+    const s = session();
+    london(s, 1);
+    london(s, 0, [10]);
+    // InputLondonMulligan.done(): resetCardHighlights() before stop(); OK is still enabled.
+    s.apply({ t: 'call', method: 'setHighlighted', args: [[card(10)], false] });
+    expect(autoAnswer(s)).toBeUndefined();
+    expect(toGameView(s).decision).not.toMatchObject({ what: 'Drawing your new hand' });
+    // The next London input (after awaitNextInput) is judged on its own first message.
+    s.apply({ t: 'call', method: 'awaitNextInput', args: [] });
+    london(s, 0);
+    expect(autoAnswer(s)).toEqual({ key: expect.any(String), frames: [act('selectButtonOk')] });
+  });
+
+  it('judges a London input by its first message even without awaitNextInput before it', () => {
+    const s = session();
+    buttons(s, 'Keep', 'Mulligan', 'Keep your hand?');
+    london(s, 0);
+    expect(autoAnswer(s)).toBeDefined();
+  });
+
   it('answers nothing for another player’s input or any other prompt', () => {
     const s = session();
     buttons(s, 'Keep', 'Mulligan', 'Keep your hand?');

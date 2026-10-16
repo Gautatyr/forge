@@ -5,6 +5,7 @@ import { useMatch } from '../state/MatchContext';
 import { ActionPanel } from './ActionPanel';
 import { Card } from './Card';
 import { CombatPanel } from './CombatPanel';
+import { HoverPreview } from './HoverPreview';
 import { Icon, SeatGlyph } from './Icon';
 import { LogText } from './LogText';
 import { recentRows } from './recentRows';
@@ -17,16 +18,20 @@ import styles from './Rail.module.css';
  * Recent, which takes the height left. Bottom: the action block, sized to its
  * content and anchored to the bottom edge, so its persistent controls never
  * move. Each region keeps its header in view and scrolls its own body, so an
- * open zone never pushes the log out of reach.
+ * open zone never pushes the log out of reach. The hover preview shows over
+ * the regions, never over the board, the seats, the hand or the action block.
  */
 export function Rail() {
   return (
     <aside className={styles.rail}>
-      <div className={styles.regions}>
-        <StackPanel />
-        <CombatPanel />
-        <ZoneViewer />
-        <RecentEvents />
+      <div className={styles.upper}>
+        <div className={styles.regions}>
+          <StackPanel />
+          <CombatPanel />
+          <ZoneViewer />
+          <RecentEvents />
+        </div>
+        <HoverPreview />
       </div>
       <ActionPanel />
     </aside>

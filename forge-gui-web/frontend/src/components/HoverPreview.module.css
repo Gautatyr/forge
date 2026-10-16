@@ -1,23 +1,27 @@
-/* One fixed place whatever the card's position (playtest 1 ruling): the board's
-   bottom-right corner, beside the rail and above the hand, so it never covers
-   the hand. The image's height leaves room under the top bar for two rows of notes. */
+/* One fixed place whatever the card's position (playtest 1 ruling): over the
+   rail, above the action block (Rail.module.css .upper is the container), so it
+   never covers the board, the seats, the hand, the choice tray or the action
+   block. The image sits at the bottom, as wide as the rail allows, in the same
+   rect for every card; the notes stack above it. Its height leaves the notes
+   room under the top of the rail. */
 .preview {
-  --pv-h: min(66vh, 58rem, calc(100vh - var(--topbar-h) - var(--hand-h) - 2 * var(--sp-2) - 3.5rem));
-  position: fixed;
-  right: calc(var(--rail-w) + var(--sp-4));
-  bottom: calc(var(--hand-h) + var(--sp-2));
+  --pv-notes: 5rem;
+  position: absolute;
+  inset: var(--sp-2);
   z-index: var(--z-preview);
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
   gap: var(--sp-2);
-  width: calc(var(--pv-h) * var(--card-ratio));
   pointer-events: none;
-  transform-origin: bottom right;
+  transform-origin: bottom center;
   animation: appear var(--dur-fast) 70ms both var(--ease-out);
 }
 
 .img {
-  width: 100%;
+  order: 1;
+  width: min(100%, calc((100cqh - 2 * var(--sp-2) - var(--pv-notes)) * var(--card-ratio)));
   aspect-ratio: 0.716;
   border-radius: var(--r-card);
   box-shadow: var(--shadow-float);
@@ -26,6 +30,7 @@
 .info {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: var(--sp-1);
 }
 
