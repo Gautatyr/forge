@@ -72,6 +72,19 @@ public class DesktopImageCacheTest {
         assertTrue(Files.isDirectory(first), "the old target is left alone");
     }
 
+    /** A profile link whose old --image-cache folder was deleted is repointed, not reported as an error. */
+    @Test
+    public void danglingProfileLinkIsRepointed() throws Exception {
+        Path home = Files.createTempDirectory("forge-web-home");
+        Path old = Files.createTempDirectory("forge-web-old");
+        Path desktop = Files.createTempDirectory("forge-web-desktop");
+        DesktopImageCache.link(home, old, LINUX);
+        Files.delete(old);
+        String said = DesktopImageCache.link(home, desktop, LINUX);
+        assertEquals(said, "image cache " + desktop);
+        assertTrue(Files.isSameFile(home.resolve(".cache/forge/pics"), desktop));
+    }
+
     /** --image-cache <home>/.cache/forge/pics, or --home ~ with no desktop cache yet: never a self-link. */
     @Test
     public void targetThatIsTheProfileFolderIsUsedAsIs() throws Exception {

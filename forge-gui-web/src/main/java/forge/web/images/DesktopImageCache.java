@@ -81,10 +81,10 @@ public final class DesktopImageCache {
             }
             Files.createDirectories(to);
             if (Files.isSymbolicLink(link)) {
-                if (Files.isSameFile(link, to)) {
+                if (Files.exists(link) && Files.isSameFile(link, to)) {
                     return "image cache " + to;
                 }
-                Files.delete(link);
+                Files.delete(link); // the profile's own link, repointed (dangling or elsewhere)
             } else if (Files.exists(link, LinkOption.NOFOLLOW_LINKS)) {
                 // the same folder reached through another path (a symlinked parent): use it as it is
                 if (Files.isSameFile(link, to)) {
