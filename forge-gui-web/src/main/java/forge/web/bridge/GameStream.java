@@ -25,6 +25,7 @@ import forge.game.GameView;
 import forge.game.card.CardView;
 import forge.game.event.GameEvent;
 import forge.game.event.GameEventShuffle;
+import forge.game.event.GameEventSnapshotRestored;
 import forge.game.player.PlayerView;
 import forge.game.zone.ZoneType;
 import forge.gamemodes.net.DeltaPacket;
@@ -331,6 +332,14 @@ public final class GameStream {
                 return;
             }
             long t0 = System.nanoTime();
+            if (restored(events)) {
+                // Undo rewrites the game's fields in place (GameMemento), the views' properties, dirty bits and
+                // consumer registrations included: a delta collection sees nothing changed, and an object registered
+                // after the restored checkpoint would stay silent for good. Upstream's ProtocolGuiGame resends its
+                // full state for the same reason. Re-register everything: every object goes out whole and replaces
+                // the viewers' copy (ViewerStream), and what is no longer reachable is pruned.
+                dsm.reset();
+            }
             DeltaPacket packet = dsm.collectDeltas(gameView);
             List<Flush.Entry> news = new ArrayList<>();
             for (Map.Entry<Integer, Map<TrackableProperty, Object>> e : packet.getNewObjects().entrySet()) {
@@ -465,6 +474,16 @@ public final class GameStream {
         }
         logIndex = all.size();
         return out;
+    }
+
+    /** The batch holds the end of an undo or a snapshot restore. */
+    private static boolean restored(List<GameEvent> events) {
+        for (GameEvent ev : events) {
+            if (ev instanceof GameEventSnapshotRestored r && !r.start()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static JsonArray eventNames(List<GameEvent> events) {
