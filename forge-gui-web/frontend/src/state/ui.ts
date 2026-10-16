@@ -30,10 +30,12 @@ export interface UiState {
 
 export interface ChoiceDraft {
   promptId: string;
-  /** chooseN: chosen option ids. */
+  /** chooseN: chosen option ids. input: the field's text as the only item. */
   selected: string[];
   /** order: list id → item ids in order. */
   lists: Record<string, string[]>;
+  /** distribute: recipient id → amount assigned. */
+  amounts?: Record<string, number>;
 }
 
 export const INITIAL_UI: UiState = { trayPeek: false, logOpen: false };

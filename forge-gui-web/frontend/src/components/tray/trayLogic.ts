@@ -7,6 +7,7 @@ import type { PromptAnswer } from '../../model/intents';
 import type { CardId, ChoiceOption, ChoicePrompt, ChooseNPrompt, GameView, PlayerId } from '../../model/types';
 import { answerFromDraft, draftFor } from '../../state/primaryAction';
 import type { ChoiceDraft } from '../../state/ui';
+import { distributeConfirm, inputConfirm, inputStart, startAmounts } from './numberLogic';
 
 /** Lists longer than this get a filter box. */
 export const FILTER_FROM = 12;
@@ -18,6 +19,8 @@ export const isAbilityMenu = (p: ChoicePrompt): boolean => p.shape === 'chooseN'
 export function initialDraft(p: ChoicePrompt): ChoiceDraft {
   const d = draftFor(p, undefined);
   if (p.shape === 'yesNo') return { ...d, selected: [p.defaultAnswer ?? 'yes'] };
+  if (p.shape === 'distribute') return { ...d, amounts: startAmounts(p) };
+  if (p.shape === 'input') return { ...d, selected: [inputStart(p)] };
   return d;
 }
 
@@ -49,6 +52,8 @@ export interface Confirm {
 
 /** The tray's confirm. Same answer and enablement as the main button (`answerFromDraft`). */
 export function trayConfirm(p: ChoicePrompt, d: ChoiceDraft): Confirm {
+  if (p.shape === 'distribute') return distributeConfirm(p, d.amounts ?? startAmounts(p));
+  if (p.shape === 'input') return inputConfirm(p, d.selected[0] ?? inputStart(p));
   const answer = answerFromDraft(p, d);
   if (p.shape === 'chooseN' && !isReveal(p)) {
     const n = d.selected.length;

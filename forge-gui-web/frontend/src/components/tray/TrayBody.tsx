@@ -17,7 +17,7 @@ export interface BodyProps<P extends ChoicePrompt = ChoicePrompt> {
   send: (intent: Intent) => void;
 }
 
-/** One body per prompt shape. The number shapes (distribute, number, name a card) are issue #31. */
+/** One body per prompt shape. NumberShapes draws distribute, number and name a card (§2.3). */
 export function TrayBody(props: BodyProps) {
   const { prompt } = props;
   switch (prompt.shape) {

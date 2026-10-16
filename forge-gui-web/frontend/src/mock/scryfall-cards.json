@@ -1858,6 +1858,53 @@
    }
   }
  },
+ "Fiery Justice": {
+  "key": "Fiery Justice",
+  "scryfallId": "144668d6-cab6-45e6-8498-ab7cd927f9df",
+  "set": "2x2",
+  "collectorNumber": "212",
+  "artist": "Mathias Kollros",
+  "layout": "normal",
+  "colors": [
+   "G",
+   "R",
+   "W"
+  ],
+  "front": {
+   "name": "Fiery Justice",
+   "manaCost": "{R}{G}{W}",
+   "typeLine": "Sorcery",
+   "oracleText": "Fiery Justice deals 5 damage divided as you choose among any number of targets. Target opponent gains 5 life.",
+   "image": {
+    "normal": "https://cards.scryfall.io/normal/front/1/4/144668d6-cab6-45e6-8498-ab7cd927f9df.jpg?1783921834",
+    "large": "https://cards.scryfall.io/large/front/1/4/144668d6-cab6-45e6-8498-ab7cd927f9df.jpg?1783921834"
+   }
+  }
+ },
+ "Meddling Mage": {
+  "key": "Meddling Mage",
+  "scryfallId": "de734753-e102-489b-9160-b3f3d10be4f1",
+  "set": "2xm",
+  "collectorNumber": "210",
+  "artist": "Todd Lockwood",
+  "layout": "normal",
+  "colors": [
+   "U",
+   "W"
+  ],
+  "front": {
+   "name": "Meddling Mage",
+   "manaCost": "{W}{U}",
+   "typeLine": "Creature — Human Wizard",
+   "oracleText": "As this creature enters, choose a nonland card name.\nSpells with the chosen name can't be cast.",
+   "power": "2",
+   "toughness": "2",
+   "image": {
+    "normal": "https://cards.scryfall.io/normal/front/d/e/de734753-e102-489b-9160-b3f3d10be4f1.jpg?1783930129",
+    "large": "https://cards.scryfall.io/large/front/d/e/de734753-e102-489b-9160-b3f3d10be4f1.jpg?1783930129"
+   }
+  }
+ },
  "Angel token": {
   "key": "Angel token",
   "scryfallId": "1159d02c-0291-42de-91e6-e9a49d5ed968",
