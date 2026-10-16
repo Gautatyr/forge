@@ -53,14 +53,24 @@ public final class WebGuiGame extends ProtocolGuiGame {
         super.openView(myPlayers);
     }
 
-    /** As the desktop GUI: a card with one playable ability plays it without asking. */
+    /**
+     * As the desktop GUI ({@code CMatchUI}): a single ability is played without asking. Without a trigger event (every
+     * call from this seat, and the engine's own calls: a triggered ability going on the stack, a spell cast by an
+     * effect) it is returned as is; its {@code canPlay} is false for a triggered ability, and checking it dropped the
+     * seat's triggers (issue #46). The engine has already removed what may not be played.
+     */
     @Override
     public SpellAbilityView getAbilityToPlay(final CardView hostCard, final List<SpellAbilityView> abilities, final ITriggerEvent triggerEvent) {
         if (abilities.isEmpty()) {
             return null;
         }
-        if (abilities.size() == 1 && !abilities.get(0).promptIfOnlyPossibleAbility()) {
-            return abilities.get(0).canPlay() ? abilities.get(0) : null;
+        if (abilities.size() == 1) {
+            if (triggerEvent == null) {
+                return abilities.get(0);
+            }
+            if (!abilities.get(0).promptIfOnlyPossibleAbility()) {
+                return abilities.get(0).canPlay() ? abilities.get(0) : null;
+            }
         }
         return super.getAbilityToPlay(hostCard, abilities, triggerEvent);
     }
