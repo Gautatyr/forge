@@ -2,7 +2,6 @@ package forge.web.seat;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -78,8 +77,11 @@ final class TriggerAudit {
             } finally {
                 audit.inPut = false;
             }
+            List<SpellAbility> casts = new ArrayList<>(audit.putting);
             for (SpellAbility t : triggers) {
-                audit.handed(t, audit.putting.stream().anyMatch(cast -> same(cast, t)));
+                SpellAbility cast = casts.stream().filter(c -> same(c, t)).findFirst().orElse(null);
+                casts.remove(cast);
+                audit.handed(t, cast);
             }
         }
 
@@ -98,7 +100,13 @@ final class TriggerAudit {
     private final List<SpellAbility> putting = new ArrayList<>();
     /** View ids of this seat's triggers cast, with a description. */
     private final Map<Integer, String> cast = new HashMap<>();
-    private final Set<Integer> left = new HashSet<>();
+    /**
+     * Triggers cast and still to leave the stack, by view id and count: the engine reuses a trigger's id when it
+     * triggers again (e.g. twice at once), and matches stack instances by that id too.
+     */
+    private final Map<Integer, Integer> left = new HashMap<>();
+    /** The last spell or ability that resolved: its own removal from the stack follows. */
+    private int justResolved = -1;
 
     int handed;
     int onStack;
@@ -174,13 +182,16 @@ final class TriggerAudit {
         return false;
     }
 
-    private void handed(SpellAbility t, boolean wasCast) {
+    /** A trigger handed to the seat's controller, and what it cast for it (null: nothing). */
+    private void handed(SpellAbility t, SpellAbility cast) {
         handed++;
         if (t.getHostCard() != null) {
             triggerCards.add(t.getHostCard().getName());
         }
-        if (wasCast) {
+        if (cast != null) {
             onStack++;
+            this.cast.put(cast.getView().getId(), describe(cast));
+            left.merge(cast.getView().getId(), 1, Integer::sum);
         } else if (game.isGameOver()) {
             afterGameOver++;
         } else if (noLegalTarget(t)) {
@@ -218,10 +229,7 @@ final class TriggerAudit {
                     if (inPut) {
                         putting.add(sa);
                     }
-                    if (sa.isTrigger() && sa.getActivatingPlayer() == me) {
-                        cast.put(c.sa().getId(), describe(sa));
-                        left.add(c.sa().getId());
-                    } else if (sa.getActivatingPlayer() == me && sa.getHostCard() != null) {
+                    if (!sa.isTrigger() && sa.getActivatingPlayer() == me && sa.getHostCard() != null) {
                         if (sa.isSpell()) {
                             spellsCast++;
                         } else {
@@ -232,12 +240,16 @@ final class TriggerAudit {
                 }
             }
         } else if (ev instanceof GameEventSpellResolved r) {
-            if (left.remove(r.spell().getId())) {
-                resolved++;
-            }
+            justResolved = r.spell().getId();
+            leave(justResolved);
         } else if (ev instanceof GameEventSpellRemovedFromStack r) {
-            if (left.remove(r.sa().getId())) {
-                resolved++;
+            if (r.sa() == null) { // MagicStack.clear
+                left.values().forEach(n -> resolved += n);
+                left.clear();
+            } else if (r.sa().getId() == justResolved) {
+                justResolved = -1; // the removal that follows its resolution (finishResolving)
+            } else {
+                leave(r.sa().getId()); // countered, exiled from the stack...
             }
         } else if (ev instanceof forge.game.event.GameEventLandPlayed l) {
             if (l.player() == me.getView() && l.land() != null) {
@@ -253,17 +265,30 @@ final class TriggerAudit {
         }
     }
 
+    /** One of this seat's triggers with view id {@code id} left the stack. */
+    private void leave(int id) {
+        Integer n = left.get(id);
+        if (n != null) {
+            resolved++;
+            if (n == 1) {
+                left.remove(id);
+            } else {
+                left.put(id, n - 1);
+            }
+        }
+    }
+
     /** After game over: triggers cast and neither resolved nor still on the stack. */
     void finish() {
-        Set<Integer> onStackNow = new HashSet<>();
+        Map<Integer, Integer> onStackNow = new HashMap<>();
         for (SpellAbilityStackInstance si : game.getStack()) {
-            onStackNow.add(si.getSpellAbility().getView().getId());
+            onStackNow.merge(si.getSpellAbility().getView().getId(), 1, Integer::sum);
         }
-        for (int id : left) {
-            if (onStackNow.contains(id)) {
-                stillOnStackAtEnd++;
-            } else {
-                unresolved.add(cast.get(id));
+        for (Map.Entry<Integer, Integer> e : left.entrySet()) {
+            int still = Math.min(e.getValue(), onStackNow.getOrDefault(e.getKey(), 0));
+            stillOnStackAtEnd += still;
+            for (int i = still; i < e.getValue(); i++) {
+                unresolved.add(cast.get(e.getKey()));
             }
         }
     }
