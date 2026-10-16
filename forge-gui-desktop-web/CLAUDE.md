@@ -3,11 +3,14 @@
 Fork-owned launcher (issue #14): Forge's desktop app with lobby matches in the web match screen.
 Depends on `forge-gui-desktop` and `forge-gui-web`; nothing depends on it. Package `forge.web.desktop`.
 
-- `Main`: desktop app start (no Sentry), `GuiDesktopWeb` installed, menu-bar toggle added at runtime.
+- `Main`: desktop app start (no Sentry), `GuiDesktopWeb` installed, menu-bar toggle added at runtime
+  (`MatchScreenToggle.Placement` wraps the bar's SpringLayout: between the tabs and the window buttons).
 - `GuiDesktopWeb.hostMatch()` returns a `WebHostedMatch`: on `startMatch`, a Constructed-type match
   (lobby, any variant incl. Commander) with exactly one human and the toggle on gets that human's GUI
   replaced by a `WebGuiGame` seat (seat 0: `HostedMatch` sorts humans first). Other modes stay Swing.
   A web match quits after its game (end-game hook) and hands back to the lobby.
+  A match started while a web match runs ends that one first (`WebHostedMatch.supersede`); the ended match
+  does not hand back to the lobby.
 - `WebMatchHost`: one in-process `WebServer` per launch, serving `forge-gui-web/frontend/dist`; per-launch
   tokens (spectator + seats 0–7); opens the seat page (`/#token=…`) when no page is connected.
 - `MatchScreenPref`: `<user dir>/preferences/fork-web.preferences`, key `useNewMatchScreen` (default true).

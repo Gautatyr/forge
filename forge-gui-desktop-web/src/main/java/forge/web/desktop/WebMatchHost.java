@@ -17,7 +17,8 @@ import forge.web.server.WebServer;
 
 /**
  * The in-process bridge of the desktop launcher: one loopback server for the app's lifetime, serving the
- * built frontend and the seat's WebSocket. One web match at a time; the human is a seat of that match.
+ * built frontend and the seat's WebSocket. One web match at a time (a new match ends a running one); the human
+ * is a seat of that match.
  * Tokens are per launch (spectator first, then one per seat), so the seat's page URL stays the same from
  * one match to the next and an open page receives the next match's snapshot.
  */
@@ -39,6 +40,8 @@ public final class WebMatchHost {
     private final List<String> seatTokens = new ArrayList<>();
     private final Consumer<String> openPage;
     private WebServer server;
+    /** The last web match started, until it hands back to the lobby. */
+    private WebHostedMatch running;
 
     /** @param openPage opens a seat's page URL (the system browser); called when a match starts and no page is connected */
     public WebMatchHost(Options options, Consumer<String> openPage) {
@@ -92,6 +95,26 @@ public final class WebMatchHost {
             System.out.println("[web] seat " + seat + " page already open: it gets the new match");
         }
         return gui;
+    }
+
+    /** Any match is starting (EDT): a web match still running from an earlier Start ends first. */
+    synchronized void matchStarting(WebHostedMatch next) {
+        WebHostedMatch previous = running;
+        if (previous != null && previous != next) {
+            running = null;
+            previous.supersede();
+        }
+    }
+
+    synchronized void webMatchStarted(WebHostedMatch match) {
+        running = match;
+    }
+
+    /** A web match handed back to the lobby. */
+    synchronized void matchOver(WebHostedMatch match) {
+        if (running == match) {
+            running = null;
+        }
     }
 
     /** The page of one seat, token in the URL fragment (after {@link #start}). */

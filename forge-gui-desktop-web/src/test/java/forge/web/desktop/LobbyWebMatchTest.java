@@ -1,6 +1,8 @@
 package forge.web.desktop;
 
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertSame;
 import static org.testng.Assert.assertTrue;
 
 import java.net.URI;
@@ -14,12 +16,14 @@ import java.util.List;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 
 import org.testng.annotations.Test;
 
 import forge.deck.Deck;
 import forge.deck.DeckgenUtil;
+import forge.game.Game;
 import forge.game.GameType;
 import forge.game.player.Player;
 import forge.gamemodes.match.HostedMatch;
@@ -87,6 +91,54 @@ public class LobbyWebMatchTest {
         } finally {
             HeadlessEngine.matches = HostedMatch::new;
             host.stop();
+        }
+    }
+
+    @Test(timeOut = 300_000)
+    public void startDuringAWebMatchEndsItAndTheLobbyKeepsTheNewMatch() throws Exception {
+        HeadlessEngine.boot();
+        Path dist = Files.createTempDirectory("forge-dist");
+        Files.writeString(dist.resolve("index.html"), PAGE);
+        List<String> opened = new CopyOnWriteArrayList<>();
+        WebMatchHost host = new WebMatchHost(new WebMatchHost.Options(0, dist, new WebSeats.Timeouts(120_000, 120_000)), opened::add);
+        HeadlessEngine.matches = () -> new WebHostedMatch(host, () -> true);
+        try {
+            LocalLobby lobby = LobbyRun.commanderLobby(List.of(DeckgenUtil.generateCommanderDeck(true, GameType.Commander),
+                    DeckgenUtil.generateCommanderDeck(true, GameType.Commander)));
+            host.start();
+            Client seat = Client.connect(host.port(), host.seatUrl(0).substring(host.seatUrl(0).indexOf("#token=") + 7));
+            LobbyRun.pressStart(lobby);
+            HostedMatch first = lobby.getHostedMatch();
+            Game firstGame = first.getGame();
+            seat.await(m -> m.startsWith("{\"t\":\"call\"") && m.contains("\"openView\""), 60);
+            Thread.sleep(3000); // the first game waits on the connected seat (mulligan)
+
+            LobbyRun.pressStart(lobby);
+            HostedMatch second = lobby.getHostedMatch();
+            assertTrue(second instanceof WebHostedMatch && second != first, String.valueOf(second));
+            waitFor(firstGame::isGameOver, 30, "the first game ends");
+            waitFor(first::isMatchOver, 30, "the first match quits");
+            Thread.sleep(500);
+            assertSame(lobby.getHostedMatch(), second, "the first match's end does not hand the lobby back");
+            assertFalse(second.getGame().isGameOver(), "the new match runs on");
+            assertEquals(opened.size(), 0, "the seat's page is open: no browser");
+
+            seat.socket.sendText("{\"t\":\"action\",\"method\":\"concede\"}", true).get(10, TimeUnit.SECONDS);
+            waitFor(() -> lobby.getHostedMatch() == null, 60, "the new match hands back to the lobby");
+            seat.socket.abort();
+        } finally {
+            HeadlessEngine.matches = HostedMatch::new;
+            host.stop();
+        }
+    }
+
+    private static void waitFor(BooleanSupplier c, int seconds, String what) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + seconds * 1000L;
+        while (!c.getAsBoolean()) {
+            if (System.currentTimeMillis() > deadline) {
+                throw new AssertionError(what + ": not within " + seconds + " s");
+            }
+            Thread.sleep(100);
         }
     }
 

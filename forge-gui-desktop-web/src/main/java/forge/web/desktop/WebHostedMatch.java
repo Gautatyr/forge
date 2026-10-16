@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 
+import forge.game.Game;
+import forge.game.GameEndReason;
 import forge.game.GameRules;
 import forge.game.GameType;
 import forge.game.player.RegisteredPlayer;
@@ -28,7 +30,9 @@ import forge.web.seat.WebGuiGame;
  * keep Swing: their rewards and win/lose screens live in the Swing match UI.
  *
  * <p>A web match lasts one game: when it ends, the match quits and hands back to the lobby (the lobby's
- * {@code onMatchOver}), so the next Start begins a new match.
+ * {@code onMatchOver}), so the next Start begins a new match. A match started while a web match still
+ * runs (Start pressed again in the lobby) ends that web match first; the ended match no longer hands back
+ * to the lobby, which holds the new match.
  */
 public class WebHostedMatch extends HostedMatch {
 
@@ -37,6 +41,8 @@ public class WebHostedMatch extends HostedMatch {
 
     private final WebMatchHost host;
     private final BooleanSupplier enabled;
+    /** A later match replaced this one: its end no longer reaches the lobby. */
+    private volatile boolean superseded;
 
     public WebHostedMatch(WebMatchHost host, BooleanSupplier enabled) {
         this.host = host;
@@ -46,6 +52,7 @@ public class WebHostedMatch extends HostedMatch {
     @Override
     public void startMatch(final GameRules gameRules, final Set<GameType> appliedVariants, final List<RegisteredPlayer> players,
             final Map<RegisteredPlayer, IGuiGame> guis, final MusicPlaylist playlist) {
+        host.matchStarting(this);
         super.startMatch(gameRules, appliedVariants, players, withWebSeat(gameRules, players, guis), playlist);
     }
 
@@ -64,7 +71,45 @@ public class WebHostedMatch extends HostedMatch {
         Map<RegisteredPlayer, IGuiGame> web = new LinkedHashMap<>(guis);
         web.put(human, seat);
         setEndGameHook(this::quitWhenGameEnds);
+        host.webMatchStarted(this);
         return web;
+    }
+
+    /** The lobby's hand-back, skipped once a later match replaced this one (the lobby then holds that match). */
+    @Override
+    public void setOnMatchOver(final Runnable callback) {
+        super.setOnMatchOver(callback == null ? null : () -> {
+            if (!superseded) {
+                host.matchOver(this);
+                callback.run();
+            }
+        });
+    }
+
+    /**
+     * Another match starts while this one may still run (EDT): the seat's page stops receiving this match
+     * (its open prompts get their engine defaults), and a running game ends at once, as upstream ends a game
+     * whose humans left while AIs remain. The game thread then runs the end-game hook, which quits the match.
+     */
+    void supersede() {
+        superseded = true;
+        List<PlayerControllerHuman> humans = new ArrayList<>(getHumanControllers());
+        for (PlayerControllerHuman hc : humans) {
+            if (hc.getGui() instanceof WebGuiGame web) {
+                web.close();
+            }
+        }
+        final Game game = getGame();
+        if (game == null || game.isGameOver()) {
+            return;
+        }
+        System.out.println("[web] a new match starts: ending the web match still running");
+        game.getAction().invoke(() -> {
+            game.setGameOver(GameEndReason.AllHumansLost);
+            for (PlayerControllerHuman hc : humans) {
+                hc.getInputQueue().onGameOver(true); // a seat's input waiting for the page
+            }
+        });
     }
 
     /** The human who plays in the web match screen, or null when this match stays in Swing. */

@@ -118,6 +118,7 @@ Newest last. Each entry: the decision, why, and what it implies.
 - Packaging for now: the system browser. The launcher runs Forge's desktop app; the bridge server runs in the same process on 127.0.0.1 and serves the built frontend (`forge-gui-web/frontend/dist`). JCEF/Electron not chosen yet; friend install (issue acceptance) is not covered.
 - The web seat is attached in `HostedMatch.startMatch` (the launcher's `hostMatch()` subclass), not in `getNewGuiGame()`: only there are the game type and the seat index known. Web seat only for Constructed-type matches (lobby, incl. Commander) with exactly one human; quest, gauntlet, draft, puzzle, hotseat and AI-only matches stay in Swing.
 - A web match is one game: when it ends, the match quits and the lobby is ready for the next Start (the lobby's games-per-match setting is ignored for web matches).
-- Toggle "Use the new match screen": a checkbox in Forge's menu bar (navigation bar), default on, saved in `<user dir>/preferences/fork-web.preferences` (fork-owned; `forge.preferences` untouched).
+- One web match at a time: a match started while a web match runs ends that game at once (`setGameOver(AllHumansLost)`, as upstream's concede when AIs remain); its seat session stops sending to the page and its open prompts get their engine defaults; its end no longer hands the lobby back.
+- Toggle "Use the new match screen": a checkbox in Forge's menu bar (navigation bar, between the tabs and the window buttons; shorter label or checkbox alone when the window is narrow), default on, saved in `<user dir>/preferences/fork-web.preferences` (fork-owned; `forge.preferences` untouched).
 - The launcher does not initialise Sentry (upstream's crash reporting).
 
