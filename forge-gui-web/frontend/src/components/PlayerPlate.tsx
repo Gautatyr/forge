@@ -1,11 +1,26 @@
+import { useRef } from 'react';
 import { commanderTax } from '../model/selectors';
-import type { PlayerView } from '../model/types';
+import type { MulliganState, PlayerView } from '../model/types';
 import { playerTargetSpot, spotlightItem } from '../state/cardStatus';
+import { mulliganTag, turnPlayerId } from '../state/gameStart';
 import { currentDefender } from '../state/focus';
 import { useMatch } from '../state/MatchContext';
+import { playerChoice } from './tray/inPlace';
+import { useInPlacePick } from './tray/useInPlacePick';
 import type { ViewableZone } from '../state/ui';
+import { commanderChips, COMMANDER_LETHAL } from './commanderChips';
 import { Icon, SeatGlyph, type IconName } from './Icon';
+import { useLifeChange } from './lifeMarker';
+import { ManaSymbol, manaName } from './ManaSymbol';
 import styles from './PlayerPlate.module.css';
+import { poolGroups } from './poolGroups';
+import { useRoomForNames } from './useRoomForNames';
+
+const MULLIGAN_TAG_CLASS: Record<MulliganState['state'], string | undefined> = {
+  deciding: styles.mulliganDeciding,
+  mulligan: styles.mulliganTaken,
+  kept: styles.mulliganKept,
+};
 
 interface Props {
   player: PlayerView;
@@ -19,15 +34,20 @@ interface Props {
 export function PlayerPlate({ player: p, density, vertical = false, onExpand }: Props) {
   const { game, ui, prefs, setUi, activatePlayer } = useMatch();
   const d = game.decision;
-  const active = game.turn.activePlayerId === p.id;
-  const priority = game.turn.priorityPlayerId === p.id;
+  // No turn before turn 1 or after the game: no "Your turn" or "Priority" tag then.
+  const turnOf = turnPlayerId(game);
+  const active = turnOf === p.id;
+  const priority = turnOf !== undefined && game.turn.priorityPlayerId === p.id;
   const legalTarget = d.kind === 'chooseTargets' && d.legal.some((t) => t.kind === 'player' && t.id === p.id);
   const chosenTarget = d.kind === 'chooseTargets' && d.chosen.some((t) => t.kind === 'player' && t.id === p.id);
   const defenderPick = d.kind === 'declareAttackers' && d.defenders.includes(p.id);
   const isDefender = defenderPick && currentDefender(game, ui, prefs.layout) === p.id;
   const incoming = game.combat?.attacks.filter((a) => a.defenderId === p.id).length ?? 0;
   const draftIncoming = d.kind === 'declareAttackers' ? d.draft.filter((a) => a.defenderId === p.id).length : 0;
-  const clickable = legalTarget || defenderPick;
+  const pickInPlace = useInPlacePick();
+  const choice = playerChoice(game, ui, p.id);
+  const clickable = legalTarget || defenderPick || choice !== undefined;
+  const onActivate = () => (choice ? pickInPlace({ kind: 'player', id: p.id }) : activatePlayer(p.id));
   const stackSpot = playerTargetSpot(game, ui, p.id);
   const spotSource = stackSpot ? game.cards[spotlightItem(game, ui)?.sourceCardId ?? '']?.name : undefined;
 
@@ -61,12 +81,20 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
     );
   };
 
-  const cmdDamage = p.commanderDamageTaken.filter((x) => x.amount > 0);
-  const ring = chosenTarget
+  const cmdDamage = commanderChips(game, p);
+  const plateRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLDivElement>(null);
+  useRoomForNames(plateRef, mainRef, !p.isYou && !vertical && cmdDamage.length > 0);
+  const lifeChange = useLifeChange(p.life, game.id);
+  // An opponent's floating mana, only while their pool is not empty (yours sits above the prompt).
+  const floating = p.isYou ? [] : poolGroups(p.manaPool);
+  // Opening hands (design pass 4 §2.4): opponents' "Deciding…", "Kept 7", "Mulligan → 6".
+  const mulligan = p.mulligan && !p.isYou ? mulliganTag(p.mulligan) : undefined;
+  const ring = chosenTarget || choice?.chosen
     ? styles.ringSelected
     : isDefender
       ? styles.ringDefender
-      : legalTarget || defenderPick
+      : legalTarget || defenderPick || choice
         ? styles.ringActionable
         : stackSpot === 'hover'
           ? styles.ringTargetedStrong
@@ -76,27 +104,51 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
 
   return (
     <div
-      className={`${styles.plate} ${styles[density]} ${vertical ? styles.vertical : styles.inline} ${active ? styles.active : ''} ${ring}`}
+      className={[styles.plate, density === 'compact' && styles.compact, vertical ? styles.vertical : styles.inline, active && styles.active, ring]
+        .filter(Boolean)
+        .join(' ')}
+      ref={plateRef}
       data-player-id={p.id}
       data-arrow-occluder
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
-      onClick={clickable ? () => activatePlayer(p.id) : undefined}
-      onKeyDown={clickable ? (e) => e.key === 'Enter' && activatePlayer(p.id) : undefined}
+      onClick={clickable ? onActivate : undefined}
+      onKeyDown={clickable ? (e) => e.key === 'Enter' && onActivate() : undefined}
+      aria-pressed={choice ? choice.chosen : undefined}
       aria-label={
         clickable
-          ? legalTarget
-            ? `Target ${p.name}`
-            : `Attack ${p.name} with the next creatures you choose`
+          ? choice
+            ? `Choose ${p.name}`
+            : legalTarget
+              ? `Target ${p.name}`
+              : `Attack ${p.name} with the next creatures you choose`
           : undefined
       }
     >
       <div className={styles.lifeBox} title={`${p.name}: ${p.life} life`}>
         <span className={styles.life}>{p.life}</span>
-        <span className={styles.lifeLabel}>life</span>
+        {/* Life change for 4 s (design pass 4, P6): ▼ loss / ▲ gain, never colour alone.
+            It takes the "life" label's place, whose slot is sized for it, so nothing moves. */}
+        <span className={styles.lifeTag} role="status">
+          <span className={styles.lifeLabel} style={lifeChange !== 0 ? { visibility: 'hidden' } : undefined}>
+            life
+          </span>
+          {lifeChange !== 0 ? (
+            <span key={`${lifeChange}`} className={`${styles.lifeChange} ${lifeChange < 0 ? styles.lifeLoss : styles.lifeGain}`}>
+              <span aria-hidden>{lifeChange < 0 ? '▼' : '▲'}</span>
+              <span aria-hidden>
+                {lifeChange < 0 ? '−' : '+'}
+                {Math.abs(lifeChange)}
+              </span>
+              <span className={styles.srOnly}>
+                {`${p.isYou ? 'You' : p.name} ${lifeChange < 0 ? 'lost' : 'gained'} ${Math.abs(lifeChange)} life`}
+              </span>
+            </span>
+          ) : null}
+        </span>
       </div>
 
-      <div className={styles.main}>
+      <div className={styles.main} ref={mainRef}>
         <div className={styles.nameRow}>
           <span className={styles.glyph}>
             <SeatGlyph seat={p.seat} />
@@ -116,6 +168,14 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
               <Icon name="eye" />
               Show board
             </button>
+          ) : null}
+          {mulligan ? (
+            <span className={`${styles.tag} ${MULLIGAN_TAG_CLASS[p.mulligan!.state]}`} title={mulligan.title}>
+              <Icon name={mulligan.icon} />
+              {/* Not .tagText: the words stay on narrow headers (§2.4 names the tags). */}
+              <span>{mulligan.text}</span>
+              {mulligan.count}
+            </span>
           ) : null}
           {active ? (
             <span className={`${styles.tag} ${styles.tagTurn}`} title={p.isYou ? 'Your turn' : 'Their turn'}>
@@ -149,6 +209,12 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
               <span className={styles.tagText}>Targeted</span>
             </span>
           ) : null}
+          {choice?.chosen ? (
+            <span className={`${styles.tag} ${styles.tagChosen}`} title="Chosen">
+              <Icon name="check" />
+              <span className={styles.tagText}>Chosen</span>
+            </span>
+          ) : null}
           {legalTarget && !chosenTarget ? (
             <span className={`${styles.tag} ${styles.tagTarget}`} title="Target">
               <Icon name="target" />
@@ -158,22 +224,23 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
           {cmdDamage.length > 0 ? (
             <span className={styles.cmdGroup}>
               <span className={styles.cmdLabel}>Commander damage taken</span>
-              {cmdDamage.map((x) => {
-                const src = game.cards[x.commanderId];
-                const danger = x.amount >= 15;
-                return (
-                  <span
-                    key={x.commanderId}
-                    className={`${styles.cmd} ${danger ? styles.warn : ''}`}
-                    title={`${x.amount} of 21 commander damage from ${src?.name ?? 'a commander'}`}
-                  >
-                    <Icon name={danger ? 'burst' : 'crown'} />
-                    <span className={styles.cmdName}>{src?.name.split(',')[0]}</span>
-                    <b>{x.amount}</b>
-                    <span className={styles.of21}>/21</span>
+              {cmdDamage.map((x) => (
+                <span
+                  key={x.commanderId}
+                  className={`${styles.cmd} ${x.danger ? styles.warn : ''}`}
+                  title={x.title}
+                  aria-label={x.title}
+                  role="img"
+                >
+                  <Icon name={x.danger ? 'burst' : 'crown'} />
+                  <span className={styles.cmdSeat}>
+                    <SeatGlyph seat={x.seat} />
                   </span>
-                );
-              })}
+                  <span className={styles.cmdName}>{x.shortName}</span>
+                  <b>{x.amount}</b>
+                  <span className={styles.of21}>/{COMMANDER_LETHAL}</span>
+                </span>
+              ))}
             </span>
           ) : null}
         </div>
@@ -197,7 +264,24 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
             </span>
           ))}
         </div>
-
+        {/* Outside the zone chips, so in a one-line header it flows beside the name and tags. */}
+        {floating.length > 0 ? (
+          <span
+            className={`${styles.zone} ${styles.floating}`}
+            title={`${p.name}'s floating mana: ${floating.map((g) => `${g.times ?? g.symbols} ${manaName(g.colour)}`).join(', ')}`}
+          >
+            <Icon name="mana" />
+            <span className={styles.zoneLabel}>Floating</span>
+            {floating.map((g) => (
+              <span key={g.colour} className={styles.poolGroup}>
+                {Array.from({ length: g.symbols }, (_, i) => (
+                  <ManaSymbol key={i} symbol={g.colour} />
+                ))}
+                {g.times ? <span className={styles.zoneCount}>×{g.times}</span> : null}
+              </span>
+            ))}
+          </span>
+        ) : null}
       </div>
 
       {/* Full seats show the commander in the battlefield's support row; compact seats keep a chip. */}

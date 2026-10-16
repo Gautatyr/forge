@@ -1,8 +1,8 @@
-import { groupKey, isCreature, isLand, typeLine } from '../model/selectors';
-import type { CardView, GameView } from '../model/types';
-import { cardStatus } from '../state/cardStatus';
+import { commanderTax, groupKey, isCreature, isLand, typeLine } from '../model/selectors';
+import type { CardView, GameView, PlayerView } from '../model/types';
 import type { Prefs } from '../state/prefs';
 import type { UiState } from '../state/ui';
+import { cardStatusWithChoice } from './tray/inPlace';
 
 export interface Entry {
   card: CardView;
@@ -32,6 +32,21 @@ export function hiddenInCompact(cards: CardView[], all: Record<string, CardView 
   return { others: hidden.length - lands.length, lands: lands.length, untappedLands: lands.filter((c) => !c.tapped).length };
 }
 
+/**
+ * An opponent's command zone, drawn at the end of their support row. Yours is
+ * empty: your commander shows only in the group beside the hand, where you cast
+ * it from (design pass 4, P3).
+ */
+export function commandEntries(player: PlayerView, game: GameView): Entry[] {
+  if (player.isYou) return [];
+  return player.command.flatMap((id) => {
+    const c = game.cards[id];
+    if (!c) return [];
+    const tax = commanderTax(player, id);
+    return [{ card: c, ids: [id], caption: { label: 'Command zone', detail: tax > 0 ? `tax +${tax}` : '' } }];
+  });
+}
+
 /** Collapse identical tokens and lands into one entry with a count. */
 export function groupPermanents(cards: CardView[], game: GameView, ui: UiState, prefs: Prefs): Entry[] {
   const out: Entry[] = [];
@@ -45,7 +60,7 @@ export function groupPermanents(cards: CardView[], game: GameView, ui: UiState, 
       out.push({ card: c, ids: [c.id] });
       continue;
     }
-    const s = cardStatus(game, ui, c.id);
+    const s = cardStatusWithChoice(game, ui, c.id);
     const key = groupKey(c, JSON.stringify([s.attacking, s.blocking, s.selected, s.actionKind, s.dimmed]));
     const e = byKey.get(key);
     if (e) e.ids.push(c.id);

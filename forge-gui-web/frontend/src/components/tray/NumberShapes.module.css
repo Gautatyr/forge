@@ -1,0 +1,276 @@
+/* Number shapes of the choice tray (design pass 4 §2.3). */
+
+/* --- Distribute and combat damage --------------------------------------- */
+.distribute {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  max-width: 40rem;
+}
+
+.left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-4);
+  margin: 0;
+  font-size: var(--fs-md);
+}
+
+.left strong {
+  font-size: var(--fs-lg);
+}
+
+.keys {
+  font-size: var(--fs-xs);
+  color: var(--c-text-3);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--r-md);
+  border: 1px solid var(--c-line-strong);
+  background: var(--c-panel-raised);
+}
+
+.row:focus-within {
+  outline: var(--outline-w) solid var(--c-actionable);
+  outline-offset: 1px;
+}
+
+/* The trample row while a blocker lacks lethal damage: dashed edge, note says why. */
+.rowDisabled {
+  border-style: dashed;
+  background: transparent;
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.glyph {
+  display: inline-flex;
+  width: 1.75rem;
+  /* As tall as a row's card thumbnail, so every row has the same height. */
+  height: calc(1.75rem / var(--card-ratio));
+  align-items: center;
+  justify-content: center;
+  color: var(--c-text-2);
+}
+
+.name {
+  font-weight: var(--fw-bold);
+  overflow-wrap: anywhere;
+}
+
+.kind {
+  font-weight: var(--fw-regular);
+  color: var(--c-text-2);
+}
+
+.note {
+  font-size: var(--fs-sm);
+  color: var(--c-text-2);
+  text-align: right;
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.stepper button {
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-line-strong);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  line-height: 1;
+}
+
+.stepper button:not(:disabled):hover {
+  background: var(--c-panel-hover);
+}
+
+.stepper button:disabled {
+  opacity: 0.35;
+}
+
+.value {
+  min-width: 2.5rem;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--r-sm);
+  background: var(--c-bg);
+  text-align: center;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.value:focus-visible {
+  outline: var(--outline-w) solid var(--c-actionable);
+  outline-offset: 1px;
+}
+
+.value[aria-disabled] {
+  color: var(--c-text-3);
+}
+
+/* --- Number ---------------------------------------------------------------- */
+.number {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-4);
+}
+
+.numberInput {
+  width: 4.5rem;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-line-strong);
+  background: var(--c-bg);
+  color: var(--c-text);
+  font: inherit;
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.numberInput:focus,
+.textInput:focus {
+  outline: var(--outline-w) solid var(--c-actionable);
+  outline-offset: 1px;
+}
+
+.range {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  color: var(--c-text-2);
+}
+
+/* --- Name a card / text ------------------------------------------------------- */
+/*
+ * A fixed height (--name-h, the preview's; NameCard lowers it to what the tray body
+ * has), so the tray does not jump when suggestions appear and the body never
+ * scrolls: only the suggestion list does.
+ */
+.nameCard {
+  --name-h: calc(10rem / var(--card-ratio));
+  display: flex;
+  gap: var(--sp-4);
+  height: var(--name-h);
+}
+
+.nameMain {
+  flex: 1;
+  min-width: 0;
+  max-width: 40rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.nameMain > * {
+  flex: none;
+}
+
+.textInput {
+  width: 100%;
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--c-line-strong);
+  background: var(--c-bg);
+  color: var(--c-text);
+  font: inherit;
+  font-size: var(--fs-md);
+}
+
+.textInput::placeholder {
+  color: var(--c-text-3);
+}
+
+.constraint {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--c-text-2);
+}
+
+.nameMain > .suggestions {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+.suggestions {
+  position: relative;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: var(--r-md);
+  border: 1px solid var(--c-line);
+}
+
+.suggestion {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-0) var(--sp-2);
+  font-size: var(--fs-sm);
+  line-height: 1.25;
+  border-left: var(--outline-w) solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* Highlighted: a bar on the left edge plus the raised surface. */
+.highlighted {
+  border-left-color: var(--c-actionable);
+  background: var(--c-panel-hover);
+}
+
+.suggestionName {
+  font-weight: var(--fw-bold);
+}
+
+.suggestionType {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--fs-sm);
+  color: var(--c-text-2);
+}
+
+.preview {
+  flex: none;
+  width: calc(var(--name-h) * var(--card-ratio));
+}
+
+.previewImg {
+  display: block;
+  width: 100%;
+  aspect-ratio: var(--card-ratio);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
+}

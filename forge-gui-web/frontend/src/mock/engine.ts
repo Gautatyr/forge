@@ -1,9 +1,10 @@
 /**
  * A fake engine: answers the player's intents with plausible state changes so
- * the mockup is clickable. It is deliberately shallow (no real mana, no real
+ * the mockup is clickable. It is deliberately shallow (simple mana, no real
  * rules). The real Forge engine replaces it behind the same Intent type.
  */
 import type { Intent, PromptAnswer } from '../model/intents';
+import { addGeneric, formatCost, isPaid, MANA_ORDER, parseCost, payOne, poolTotal, usefulColours, withX } from '../model/mana';
 import { nextStep } from '../model/phases';
 import {
   currentFace,
@@ -21,13 +22,18 @@ import type {
   CardView,
   Decision,
   GameView,
+  LogEntry,
+  ManaColour,
+  ManaPool,
+  ManaSource,
   PlayerId,
   PlayerView,
   StackItem,
   TargetRef,
 } from '../model/types';
 import { lookup, type CardKey } from './cardDb';
-import { producesMana, rule, type TargetSpec } from './cardRules';
+import { manaAbility, producesMana, rule, type ManaAbility, type TargetSpec } from './cardRules';
+import { answerGameStart, checkOut, concede, startNextGame, type OpeningState } from './gameFlow';
 import { keyword, printedKeywords } from './keywords';
 
 export interface MockGame extends GameView {
@@ -35,6 +41,27 @@ export interface MockGame extends GameView {
   eotEffects: Record<CardId, EotEffect[]>;
   /** Counter for new ids. */
   seq: number;
+  /** The spell or ability between its first click and the stack (X, targets, payment). */
+  casting?: Casting;
+  /** Game start: mulligans taken and who plays first (gameFlow.ts). */
+  opening?: OpeningState;
+  /** Players in the order they went out, for the ranking. */
+  outOrder?: PlayerId[];
+  /** Game number in the match (1 when absent), and games left after this one. */
+  gameNumber?: number;
+  gamesLeft?: number;
+}
+
+export interface Casting {
+  cardId: CardId;
+  kind: 'spell' | 'ability';
+  x?: number;
+  targets: TargetRef[];
+  cost: string;
+  remaining: string;
+  tax: number;
+  /** State before each tap or pool spend, for Z; the first one is the state before payment. */
+  steps: { pool: ManaPool; remaining: string; tapped?: CardId }[];
 }
 
 export interface EotEffect {
@@ -47,9 +74,25 @@ export interface EotEffect {
 
 const ref = (id: CardId) => `{card:${id}}`;
 
-function log(g: MockGame, text: string, playerId?: PlayerId) {
+/** `youLost`: the event costs you life or a permanent (bold in Recent, design pass 4 P6). */
+function log(g: MockGame, text: string, playerId?: PlayerId, youLost?: LogEntry['youLost']) {
   g.seq += 1;
-  g.log.push({ id: `l${g.seq}`, turn: g.turn.number, playerId, text });
+  g.log.push({ id: `l${g.seq}`, turn: g.turn.number, turnPlayerId: g.turn.activePlayerId, playerId, text, ...(youLost ? { youLost } : {}) });
+}
+
+/** `youLost` for a permanent leaving `c`'s controller's battlefield. */
+const yoursGone = (g: MockGame, c: CardView): LogEntry['youLost'] =>
+  c.zone === 'battlefield' && c.controllerId === g.youId ? 'permanent' : undefined;
+
+/**
+ * Your cast permissions outside the hand and command zone (design pass 4, P4):
+ * every graveyard card with flashback, whatever you can afford.
+ */
+export function refreshOtherZoneCasts(g: MockGame) {
+  const you = player(g, g.youId);
+  you.otherZoneCasts = you.graveyard
+    .filter((id) => rule(g.cards[id]!).flashback)
+    .map((cardId) => ({ cardId, via: 'flashback' as const }));
 }
 
 function zoneList(p: PlayerView, zone: CardView['zone']): CardId[] | undefined {
@@ -173,25 +216,249 @@ function hexproofAgainst(c: CardView, source: CardView | undefined): boolean {
 }
 
 function availableMana(g: MockGame, pid: PlayerId): number {
-  return player(g, pid)
-    .battlefield.map((id) => g.cards[id]!)
-    .filter((c) => !c.tapped)
-    .reduce((s, c) => s + producesMana(c), 0);
+  const p = player(g, pid);
+  return p.battlefield.map((id) => g.cards[id]!).reduce((s, c) => s + producesMana(c), 0) + poolTotal(p.manaPool);
 }
 
-function payMana(g: MockGame, pid: PlayerId, amount: number) {
-  let left = amount;
-  const sources = player(g, pid)
-    .battlefield.map((id) => g.cards[id]!)
-    .filter((c) => !c.tapped && producesMana(c) > 0)
-    .sort((a, b) => Number(isLand(b)) - Number(isLand(a)));
-  for (const s of sources) {
-    if (left <= 0) break;
-    s.tapped = true;
-    left -= producesMana(s);
+/* ---------------------------------------------------------------------------
+ * Mana: sources, pool, payment (design pass 4, §2.1).
+ * ------------------------------------------------------------------------- */
+
+/** Colours of a player's commanders: what "your commander's color identity" means. */
+function identity(g: MockGame, pid: PlayerId): ManaColour[] {
+  const p = player(g, pid);
+  const cost = p.commanders.map((id) => g.cards[id]?.front.manaCost ?? '').join('');
+  return MANA_ORDER.filter((c) => c !== 'C' && cost.includes(`{${c}}`));
+}
+
+interface Source extends ManaAbility {
+  cardId: CardId;
+}
+
+/** Untapped permanents of `pid` that can add mana now, with what they add. */
+function sourcesOf(g: MockGame, pid: PlayerId): Source[] {
+  const id = identity(g, pid);
+  return player(g, pid).battlefield.flatMap((cid) => {
+    const c = g.cards[cid]!;
+    if (producesMana(c) === 0) return [];
+    const a = manaAbility(c, id);
+    return a ? [{ cardId: cid, ...a }] : [];
+  });
+}
+
+/** Sources that still help pay `remaining`, with only the kinds that help. */
+function usefulSources(g: MockGame, pid: PlayerId, remaining: string): ManaSource[] {
+  const cost = parseCost(remaining);
+  return sourcesOf(g, pid).flatMap((s) => {
+    const colours = usefulColours(cost, s.colours);
+    return colours.length ? [{ cardId: s.cardId, colours }] : [];
+  });
+}
+
+function addToPool(p: PlayerView, colour: ManaColour, n: number) {
+  p.manaPool = { ...p.manaPool, [colour]: (p.manaPool?.[colour] ?? 0) + n };
+}
+
+function emptyPools(g: MockGame) {
+  for (const p of g.players) if (p.manaPool) p.manaPool = {};
+}
+
+/** Mana added while paying pays what it can; the rest floats. */
+function payWith(g: MockGame, cast: Casting, colour: ManaColour, amount: number) {
+  let cost = parseCost(cast.remaining);
+  for (let i = 0; i < amount; i++) {
+    const next = payOne(cost, colour);
+    if (next) cost = next;
+    else addToPool(player(g, g.youId), colour, 1);
   }
+  cast.remaining = formatCost(cost);
 }
 
+interface AutoPlan {
+  spend: ManaColour[];
+  taps: { cardId: CardId; colour: ManaColour; amount: number }[];
+  ok: boolean;
+}
+
+/**
+ * What "Pay automatically" does: floating mana first, then each coloured
+ * symbol from the least flexible source that adds it, then the generic part
+ * from colourless sources, then the least flexible ones (a dual land last).
+ */
+function autoPlan(g: MockGame, remaining: string): AutoPlan {
+  let cost = parseCost(remaining);
+  const pool = { ...player(g, g.youId).manaPool };
+  const plan: AutoPlan = { spend: [], taps: [], ok: false };
+  const spend = (colour: ManaColour) => {
+    const next = payOne(cost, colour);
+    if (!next || !((pool[colour] ?? 0) > 0)) return false;
+    cost = next;
+    pool[colour] = pool[colour]! - 1;
+    plan.spend.push(colour);
+    return true;
+  };
+  for (const colour of [...cost.coloured]) spend(colour);
+  for (const colour of ['C', ...MANA_ORDER.filter((c) => c !== 'C')] as ManaColour[]) while (cost.generic > 0 && spend(colour));
+
+  const flexibility = (s: Source) => (s.colours.length === 1 && s.colours[0] === 'C' ? 0 : s.colours.length);
+  const sources = sourcesOf(g, g.youId).sort(
+    (a, b) =>
+      flexibility(a) - flexibility(b) || Number(isLand(g.cards[b.cardId]!)) - Number(isLand(g.cards[a.cardId]!)),
+  );
+  const used = new Set<CardId>();
+  const tap = (s: Source, colour: ManaColour) => {
+    used.add(s.cardId);
+    plan.taps.push({ cardId: s.cardId, colour, amount: s.amount });
+    for (let i = 0; i < s.amount; i++) cost = payOne(cost, colour) ?? cost;
+  };
+  for (const colour of [...cost.coloured]) {
+    if (!cost.coloured.includes(colour)) continue;
+    const s = sources.find((x) => !used.has(x.cardId) && x.colours.includes(colour));
+    if (s) tap(s, colour);
+  }
+  for (const s of sources) {
+    if (cost.generic === 0) break;
+    if (!used.has(s.cardId)) tap(s, s.colours[0]!);
+  }
+  plan.ok = isPaid(cost);
+  return plan;
+}
+
+function paymentDecision(g: MockGame, cast: Casting): Decision {
+  const plan = autoPlan(g, cast.remaining);
+  return {
+    kind: 'payMana',
+    sourceCardId: cast.cardId,
+    ability: cast.kind === 'ability' ? rule(g.cards[cast.cardId]!).ability?.label : undefined,
+    cost: cast.cost,
+    remaining: cast.remaining,
+    tax: cast.tax,
+    x: cast.x,
+    sources: usefulSources(g, g.youId, cast.remaining),
+    canUndoTap: cast.steps.length > 0,
+    autoTaps: plan.taps.map((t) => t.cardId),
+    autoCanPay: plan.ok,
+  };
+}
+
+/** Cost of casting `c` now: alternative cost from the graveyard, X, commander tax. */
+function spellCost(g: MockGame, c: CardView, x: number): { cost: string; tax: number } {
+  const base = c.zone === 'graveyard' ? (rule(c).flashback ?? c.front.manaCost) : c.front.manaCost;
+  const tax = c.zone === 'command' ? 2 * (player(g, c.ownerId).commanderCasts[c.id] ?? 0) : 0;
+  return { cost: addGeneric(withX(base, x), tax), tax };
+}
+
+/** First step of casting a spell: X, then targets, then payment. */
+function startSpell(g: MockGame, c: CardView, x?: number) {
+  const hasX = /\{X\}/i.test(c.front.manaCost);
+  if (hasX && x === undefined) {
+    const max = Math.max(0, availableMana(g, g.youId) - manaValue(c.front.manaCost));
+    g.casting = undefined;
+    g.seq += 1; // a new prompt id per cast, so the field opens on the default again
+    g.decision = {
+      kind: 'choice',
+      prompt: {
+        id: `x:${c.id}:${g.seq}`,
+        shape: 'input',
+        kind: 'number',
+        title: `Choose X for ${c.name}`,
+        instruction: 'You pay the cost next.',
+        sourceCardId: c.id,
+        confirmLabel: 'Continue to payment',
+        min: 0,
+        max,
+        defaultValue: String(max),
+      },
+    };
+    return;
+  }
+  g.casting = { cardId: c.id, kind: 'spell', x: hasX ? x : undefined, targets: [], cost: '', remaining: '', tax: 0, steps: [] };
+  const t = rule(c).target;
+  if (t) {
+    g.decision = {
+      kind: 'chooseTargets',
+      sourceCardId: c.id,
+      instruction: t.instruction,
+      legal: legalTargets(g, t.spec, g.youId, c),
+      chosen: [],
+      min: 1,
+      max: 1,
+    };
+    return;
+  }
+  beginPayment(g);
+}
+
+/** Targets are chosen: open payment mode, or pay at once with auto-pay on. */
+function beginPayment(g: MockGame) {
+  const cast = g.casting;
+  if (!cast) return;
+  const c = g.cards[cast.cardId]!;
+  const { cost, tax } =
+    cast.kind === 'spell' ? spellCost(g, c, cast.x ?? 0) : { cost: rule(c).ability?.cost ?? '', tax: 0 };
+  cast.cost = cost;
+  cast.remaining = formatCost(parseCost(cost));
+  cast.tax = tax;
+  cast.steps = [];
+  if (isPaid(parseCost(cost))) {
+    finishCasting(g, []);
+    return;
+  }
+  if (g.autoPay) {
+    payAutomatically(g, cast);
+    return;
+  }
+  g.decision = paymentDecision(g, cast);
+}
+
+/** Apply the auto-pay plan and finish. False (payment mode stays open) when untapped sources and the pool fall short. */
+function payAutomatically(g: MockGame, cast: Casting): boolean {
+  const plan = autoPlan(g, cast.remaining);
+  if (!plan.ok) {
+    g.decision = paymentDecision(g, cast);
+    return false;
+  }
+  const you = player(g, g.youId);
+  for (const colour of plan.spend) {
+    you.manaPool = { ...you.manaPool, [colour]: (you.manaPool?.[colour] ?? 0) - 1 };
+    payWith(g, cast, colour, 1);
+  }
+  for (const t of plan.taps) {
+    g.cards[t.cardId]!.tapped = true;
+    payWith(g, cast, t.colour, t.amount);
+  }
+  finishCasting(g, plan.taps.map((t) => t.cardId));
+  return true;
+}
+
+/** The cost is paid: the spell or ability goes on the stack. */
+function finishCasting(g: MockGame, autoTapped: CardId[]) {
+  const cast = g.casting;
+  if (!cast) return;
+  g.casting = undefined;
+  const c = g.cards[cast.cardId]!;
+  const tapped = autoTapped.length ? ` Tapped: ${autoTapped.map((id) => g.cards[id]!.name).join(', ')}.` : '';
+  if (cast.kind === 'spell') castFromZone(g, c, cast.targets, tapped);
+  else activateAbility(g, c, cast.targets, tapped);
+  afterPriorityChange(g);
+}
+
+function activateAbility(g: MockGame, c: CardView, targets: TargetRef[], tapped: string) {
+  const ability = rule(c).ability!;
+  if (ability.sacrifice) moveCard(g, c.id, 'graveyard');
+  g.seq += 1;
+  g.stack.push({
+    id: `s${g.seq}`,
+    sourceCardId: c.id,
+    controllerId: g.youId,
+    kind: 'ability',
+    text: targets.length ? `${ability.label} → ${targets.map((t) => targetName(g, t)).join(', ')}` : ability.label,
+    targets,
+  });
+  log(g, `You activate ${ref(c.id)}: ${ability.label}.${tapped}`, g.youId);
+}
+
+/** Mana value of casting `c` now, for what you can afford (X counts as 0). */
 function castCost(g: MockGame, c: CardView): number {
   if (c.zone === 'graveyard') return manaValue(rule(c).flashback ?? c.front.manaCost);
   const base = manaValue(c.front.manaCost);
@@ -256,8 +523,9 @@ export function legalTargets(g: MockGame, spec: TargetSpec, casterId: PlayerId, 
     .map((c) => ({ kind: 'card' as const, id: c.id }));
 }
 
-function priorityDecision(g: MockGame): Decision {
-  return { kind: 'priority', playable: computePlayable(g) };
+export function priorityDecision(g: MockGame): Decision {
+  const manaSources = sourcesOf(g, g.youId).map((s) => ({ cardId: s.cardId, colours: s.colours }));
+  return { kind: 'priority', playable: computePlayable(g), manaSources };
 }
 
 function newCard(g: MockGame, key: CardKey, ownerId: PlayerId, zone: CardView['zone'], token = false): CardView {
@@ -285,10 +553,10 @@ function newCard(g: MockGame, key: CardKey, ownerId: PlayerId, zone: CardView['z
   return c;
 }
 
-function castFromZone(g: MockGame, c: CardView, targets: TargetRef[]) {
+/** Put a paid spell on the stack. `tapped`: auto-pay's " Tapped: …" for the log. */
+function castFromZone(g: MockGame, c: CardView, targets: TargetRef[], tapped = '') {
   const you = player(g, c.ownerId);
   const fromZone = c.zone;
-  payMana(g, c.ownerId, castCost(g, c));
   if (fromZone === 'command') you.commanderCasts[c.id] = (you.commanderCasts[c.id] ?? 0) + 1;
   const list = zoneList(you, fromZone)!;
   list.splice(list.indexOf(c.id), 1);
@@ -305,7 +573,7 @@ function castFromZone(g: MockGame, c: CardView, targets: TargetRef[]) {
   };
   g.stack.push(item);
   const how = fromZone === 'graveyard' ? ' with flashback' : fromZone === 'command' ? ' from the command zone' : '';
-  log(g, `You cast ${ref(c.id)}${how}${targets.length ? ` targeting ${targets.map((t) => (t.kind === 'card' ? ref(t.id) : targetName(g, t))).join(', ')}` : ''}.`, c.ownerId);
+  log(g, `You cast ${ref(c.id)}${how}${targets.length ? ` targeting ${targets.map((t) => (t.kind === 'card' ? ref(t.id) : targetName(g, t))).join(', ')}` : ''}.${tapped}`, c.ownerId);
   // Sigil of the Empty Throne: enchantment spells make an Angel.
   const sigil = you.battlefield.map((id) => g.cards[id]!).find((x) => x.name === 'Sigil of the Empty Throne');
   if (sigil && /\bEnchantment\b/.test(c.front.typeLine)) {
@@ -328,7 +596,7 @@ function destroy(g: MockGame, id: CardId, verb = 'is destroyed') {
     log(g, `${ref(id)} is indestructible and survives.`);
     return;
   }
-  log(g, `${ref(id)} ${verb}.`);
+  log(g, `${ref(id)} ${verb}.`, undefined, yoursGone(g, c));
   moveCard(g, id, c.isCommander ? 'command' : 'graveyard');
 }
 
@@ -362,6 +630,10 @@ function resolveTop(g: MockGame) {
         log(g, `${ref(src.id)} deals 3 damage to ${ref(tc.id)}.`, caster.id);
         recompute(g);
         if (tc.toughness !== undefined && tc.damage >= tc.toughness) destroy(g, tc.id, 'dies');
+      } else if (t?.kind === 'player') {
+        const tp = player(g, t.id);
+        tp.life -= 3;
+        log(g, `${ref(src.id)} deals 3 damage to ${tp.name}.`, caster.id, tp.isYou ? 'life' : undefined);
       }
       break;
     case 'Swords to Plowshares':
@@ -371,8 +643,8 @@ function resolveTop(g: MockGame) {
         const ctrl = player(g, tc.controllerId);
         if (src.name === 'Swords to Plowshares') {
           ctrl.life += tc.power ?? 0;
-          log(g, `${ref(tc.id)} is exiled; ${ctrl.name} gains ${tc.power ?? 0} life.`, caster.id);
-        } else log(g, `${ref(tc.id)} is exiled; ${ctrl.name} may search for a basic land.`, caster.id);
+          log(g, `${ref(tc.id)} is exiled; ${ctrl.name} gains ${tc.power ?? 0} life.`, caster.id, yoursGone(g, tc));
+        } else log(g, `${ref(tc.id)} is exiled; ${ctrl.name} may search for a basic land.`, caster.id, yoursGone(g, tc));
         moveCard(g, tc.id, tc.isCommander ? 'command' : 'exile');
       }
       break;
@@ -415,11 +687,30 @@ function resolveAbility(g: MockGame, item: StackItem, src: CardView, t: TargetRe
       log(g, `${ref(src.id)} creates a 4/4 Angel token.`, caster.id);
       return;
     }
+    case 'Swiftfoot Boots':
+      if (t?.kind === 'card' && src.zone === 'battlefield') {
+        const old = src.attachedTo ? g.cards[src.attachedTo] : undefined;
+        if (old) old.attachments = old.attachments.filter((a) => a !== src.id);
+        src.attachedTo = t.id;
+        g.cards[t.id]!.attachments.push(src.id);
+        log(g, `${ref(src.id)} is attached to ${ref(t.id)}.`, caster.id);
+        recompute(g);
+      }
+      return;
+    case 'Selfless Spirit':
+      for (const id of caster.battlefield) {
+        if (!isCreature(g.cards[id]!)) continue;
+        const e = { sourceId: src.id, sourceName: src.name, power: 0, toughness: 0, keywords: ['Indestructible'] };
+        g.eotEffects[id] = [...(g.eotEffects[id] ?? []), e];
+      }
+      log(g, `Your creatures gain indestructible until end of turn.`, caster.id);
+      recompute(g);
+      return;
     case 'Goblin Bombardment':
       if (t?.kind === 'player') {
         const p = player(g, t.id);
         p.life -= 1;
-        log(g, `${ref(src.id)} deals 1 damage to ${p.name}.`, caster.id);
+        log(g, `${ref(src.id)} deals 1 damage to ${p.name}.`, caster.id, p.isYou ? 'life' : undefined);
       } else if (t?.kind === 'card') {
         const tc = g.cards[t.id]!;
         tc.damage += 1;
@@ -472,8 +763,10 @@ function afterPriorityChange(g: MockGame) {
   g.decision = priorityDecision(g);
 }
 
+/** Mana pools empty at the end of each step. */
 function goToStep(g: MockGame, step: GameView['turn']['step']) {
   g.turn.step = step;
+  emptyPools(g);
 }
 
 function resolveCombatDamage(g: MockGame) {
@@ -492,7 +785,7 @@ function resolveCombatDamage(g: MockGame) {
         if (cd) cd.amount += dmg;
         else def.commanderDamageTaken.push({ commanderId: att.id, amount: dmg });
       }
-      log(g, `${ref(att.id)} deals ${dmg} damage to ${def.name}.`, att.controllerId);
+      log(g, `${ref(att.id)} deals ${dmg} damage to ${def.name}.`, att.controllerId, def.isYou && dmg > 0 ? 'life' : undefined);
     } else {
       let left = att.power ?? 0;
       for (const b of blockers) {
@@ -511,11 +804,82 @@ function resolveCombatDamage(g: MockGame) {
   }
 }
 
+/**
+ * Answers to the choice-tray scenarios (design pass 4 §2.2, issue #30).
+ * Returns false for prompts it does not own.
+ */
+function answerTrayPrompt(g: MockGame, prompt: import('../model/types').ChoicePrompt, answer: PromptAnswer): boolean {
+  const you = player(g, g.youId);
+  const label = (id: string) => (prompt.shape === 'chooseN' ? prompt.options.find((o) => o.id === id)?.label : undefined) ?? id;
+  if (prompt.id.startsWith('ability:') && answer.shape === 'chooseN') {
+    const c = g.cards[prompt.id.slice(8)];
+    const picked = answer.optionIds[0];
+    if (c && picked) {
+      c.tapped = true;
+      log(g, `You activate ${ref(c.id)}: ${label(picked)}`, you.id);
+      if (picked === 'search') moveCard(g, c.id, 'graveyard');
+    }
+    return true;
+  }
+  if (prompt.id === 'sacrifice' && answer.shape === 'chooseN') {
+    for (const id of answer.optionIds) {
+      const c = g.cards[id];
+      if (!c) continue;
+      log(g, `You sacrifice ${ref(id)}.`, you.id, yoursGone(g, c));
+      moveCard(g, id, c.isCommander ? 'command' : 'graveyard');
+    }
+    return true;
+  }
+  if (prompt.id.startsWith('commander-zone:') && answer.shape === 'yesNo') {
+    const c = g.cards[prompt.id.slice(15)];
+    if (c) {
+      moveCard2(g, c, answer.yes ? 'command' : 'graveyard');
+      log(g, answer.yes ? `You move ${ref(c.id)} to the command zone.` : `${ref(c.id)} goes to your graveyard.`, you.id);
+    }
+    return true;
+  }
+  if (prompt.shape === 'order' && answer.shape === 'order' && prompt.lists.length === 1) {
+    const names = answer.lists[0]?.itemIds.map((id) => (prompt.lists[0]!.items.find((i) => i.id === id)?.label ?? id).replace(/\.$/, '')) ?? [];
+    log(g, `Your triggers resolve in this order: ${names.join(', ')}.`, you.id);
+    return true;
+  }
+  if (prompt.shape === 'distribute' && answer.shape === 'distribute') {
+    const name = (id: string) => {
+      const r = prompt.recipients.find((x) => x.id === id);
+      return r?.cardId ? ref(r.cardId) : (r?.label ?? id);
+    };
+    const parts = Object.entries(answer.amounts)
+      .filter(([, n]) => n > 0)
+      .map(([id, n], i) => `${n}${i === 0 ? ' damage' : ''} to ${name(id)}`);
+    const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : (parts[0] ?? 'no damage');
+    const source = prompt.combat?.attackerId ?? prompt.sourceCardId;
+    log(g, `${source ? ref(source) : 'You'} deals ${list}.`, you.id);
+    return true;
+  }
+  if (prompt.shape === 'input' && answer.shape === 'input' && !prompt.id.startsWith('x:')) {
+    log(g, prompt.kind === 'cardName' ? `You name ${answer.value}.` : `You answer: ${answer.value}.`, you.id);
+    return true;
+  }
+  const ownBranch = prompt.id === 'cultivate' || prompt.id.startsWith('face:');
+  if (prompt.shape === 'chooseN' && answer.shape === 'chooseN' && !ownBranch) {
+    // Reveals are logged when they happen; other choices name what was chosen.
+    const chosen = answer.optionIds.map((id) => label(id).replace(/\.$/, '')).join(', ');
+    if (prompt.max > 0) log(g, chosen ? `You choose: ${chosen}.` : 'You choose nothing.', you.id);
+    return true;
+  }
+  return false;
+}
+
 function answerPrompt(g: MockGame, answer: PromptAnswer) {
   if (g.decision.kind !== 'choice') return;
   const prompt = g.decision.prompt;
   const you = player(g, g.youId);
-  if (answer.shape === 'order') {
+  if (answerGameStart(g, prompt, answer)) return;
+  if (prompt.id.startsWith('face:') && answer.shape === 'chooseN' && answer.optionIds.length === 0) {
+    // Ability menu closed (Esc): back to priority, nothing played.
+  } else if (answerTrayPrompt(g, prompt, answer)) {
+    // Handled above.
+  } else if (answer.shape === 'order') {
     const top = answer.lists.find((l) => l.id === 'top')?.itemIds.length ?? 0;
     const bottom = answer.lists.find((l) => l.id === 'bottom')?.itemIds.length ?? 0;
     log(g, `You scry 2: ${top} on top, ${bottom} on the bottom.`, you.id);
@@ -548,11 +912,18 @@ function answerPrompt(g: MockGame, answer: PromptAnswer) {
       you.landsPlayedThisTurn += 1;
       log(g, `You play ${ref(cardId)}.`, you.id);
     } else {
-      g.decision = { kind: 'priority', playable: [] };
-      castFromZone(g, c, []);
+      startSpell(g, c);
+      return;
     }
+  } else if (answer.shape === 'input' && prompt.shape === 'input' && prompt.id.startsWith('x:')) {
+    // The number prompt (§2.3) sends a whole number in range; anything else keeps it open.
+    const x = /^\d+$/.test(answer.value) ? Number(answer.value) : -1;
+    if (x < (prompt.min ?? 0) || x > (prompt.max ?? x)) return;
+    startSpell(g, g.cards[prompt.sourceCardId!]!, x);
+    return;
   } else if (answer.shape === 'yesNo') {
-    log(g, `You choose ${answer.yes ? prompt.shape === 'yesNo' ? prompt.yesLabel : 'yes' : 'no'}.`, you.id);
+    const said = prompt.shape === 'yesNo' ? (answer.yes ? prompt.yesLabel : prompt.noLabel) : answer.yes ? 'Yes' : 'No';
+    log(g, `You choose: ${said}.`, you.id);
   } else {
     log(g, `You answer: ${prompt.title}.`, you.id);
   }
@@ -560,8 +931,20 @@ function answerPrompt(g: MockGame, answer: PromptAnswer) {
   afterPriorityChange(g);
 }
 
-/** Apply one player intent. Returns a new game; the input is not mutated. */
+/**
+ * Apply one player intent. Returns a new game; the input is not mutated.
+ * After every change, players who should lose leave the game (gameFlow.ts).
+ */
 export function applyIntent(prev: MockGame, intent: Intent): MockGame {
+  const g = applyOne(prev, intent);
+  if (g !== prev) {
+    checkOut(g);
+    refreshOtherZoneCasts(g);
+  }
+  return g;
+}
+
+function applyOne(prev: MockGame, intent: Intent): MockGame {
   const g = structuredClone(prev);
   const you = player(g, g.youId);
   const d = g.decision;
@@ -580,13 +963,13 @@ export function applyIntent(prev: MockGame, intent: Intent): MockGame {
             title: `Play ${c.front.name}`,
             instruction: 'This card has two faces. Choose how to play it.',
             sourceCardId: c.id,
-            confirmLabel: 'Play',
+            confirmLabel: 'Choose a face',
             min: 1,
             max: 1,
+            // Faces use the ability menu at the card (design pass 4 P2).
+            abilityMenu: true,
             options: [
-              ...(canCast
-                ? [{ id: 'spell', label: `Cast ${c.front.name}`, detail: `${c.front.typeLine} · ${c.front.manaCost}` }]
-                : []),
+              ...(canCast ? [{ id: 'spell', label: `Cast ${c.front.name}`, cost: c.front.manaCost, detail: c.front.typeLine }] : []),
               { id: 'land', label: `Play ${c.back.name}`, detail: `${c.back.typeLine} · enters tapped` },
             ],
           },
@@ -600,21 +983,74 @@ export function applyIntent(prev: MockGame, intent: Intent): MockGame {
         afterPriorityChange(g);
         return g;
       }
-      const t = rule(c).target;
-      if (t) {
-        g.decision = {
-          kind: 'chooseTargets',
-          sourceCardId: c.id,
-          instruction: t.instruction,
-          legal: legalTargets(g, t.spec, g.youId, c),
-          chosen: [],
-          min: 1,
-          max: 1,
-        };
+      startSpell(g, c);
+      return g;
+    }
+    case 'activate': {
+      if (d.kind !== 'priority') return prev;
+      const c = g.cards[intent.cardId];
+      const ability = c ? rule(c).ability : undefined;
+      if (!c || !ability || c.zone !== 'battlefield' || c.controllerId !== g.youId) return prev;
+      const sorcerySpeed =
+        g.turn.activePlayerId === g.youId && (g.turn.step === 'main1' || g.turn.step === 'main2') && g.stack.length === 0;
+      if (ability.sorcerySpeed && !sorcerySpeed) return prev;
+      g.casting = { cardId: c.id, kind: 'ability', targets: [], cost: '', remaining: '', tax: 0, steps: [] };
+      if (ability.target) {
+        const legal = legalTargets(g, ability.target.spec, g.youId, c).filter((t) => t.id !== c.attachedTo);
+        if (legal.length === 0) return prev;
+        g.decision = { kind: 'chooseTargets', sourceCardId: c.id, instruction: ability.target.instruction, legal, chosen: [], min: 1, max: 1 };
         return g;
       }
-      castFromZone(g, c, []);
-      afterPriorityChange(g);
+      beginPayment(g);
+      return g;
+    }
+    case 'tapForMana': {
+      if (d.kind !== 'priority' && d.kind !== 'payMana') return prev;
+      const offered = d.kind === 'payMana' ? d.sources : (d.manaSources ?? []);
+      const src = offered.find((s) => s.cardId === intent.cardId);
+      const colour = intent.colour ?? (src?.colours.length === 1 ? src.colours[0] : undefined);
+      if (!src || !colour || !src.colours.includes(colour)) return prev;
+      const c = g.cards[src.cardId]!;
+      const amount = manaAbility(c)?.amount ?? 1;
+      if (d.kind === 'priority') {
+        c.tapped = true;
+        addToPool(you, colour, amount);
+        afterPriorityChange(g);
+        return g;
+      }
+      const cast = g.casting;
+      if (!cast) return prev;
+      cast.steps.push({ pool: { ...you.manaPool }, remaining: cast.remaining, tapped: c.id });
+      c.tapped = true;
+      payWith(g, cast, colour, amount);
+      if (isPaid(parseCost(cast.remaining))) finishCasting(g, []);
+      else g.decision = paymentDecision(g, cast);
+      return g;
+    }
+    case 'spendPool': {
+      const cast = g.casting;
+      if (d.kind !== 'payMana' || !cast) return prev;
+      const next = payOne(parseCost(cast.remaining), intent.colour);
+      if (!next || !((you.manaPool?.[intent.colour] ?? 0) > 0)) return prev;
+      cast.steps.push({ pool: { ...you.manaPool }, remaining: cast.remaining });
+      you.manaPool = { ...you.manaPool, [intent.colour]: you.manaPool![intent.colour]! - 1 };
+      cast.remaining = formatCost(next);
+      if (isPaid(next)) finishCasting(g, []);
+      else g.decision = paymentDecision(g, cast);
+      return g;
+    }
+    case 'payAuto': {
+      if (d.kind !== 'payMana' || !g.casting) return prev;
+      return payAutomatically(g, g.casting) ? g : prev;
+    }
+    case 'undoTap': {
+      const cast = g.casting;
+      const step = cast?.steps.pop();
+      if (d.kind !== 'payMana' || !cast || !step) return prev;
+      you.manaPool = step.pool;
+      cast.remaining = step.remaining;
+      if (step.tapped) g.cards[step.tapped]!.tapped = false;
+      g.decision = paymentDecision(g, cast);
       return g;
     }
     case 'toggleTarget': {
@@ -627,6 +1063,16 @@ export function applyIntent(prev: MockGame, intent: Intent): MockGame {
     }
     case 'cancel': {
       if (d.kind === 'chooseTargets') {
+        g.casting = undefined;
+        afterPriorityChange(g);
+        return g;
+      }
+      if (d.kind === 'payMana' && g.casting) {
+        // The card never left its zone: its sources untap and spent floating mana comes back.
+        const first = g.casting.steps[0];
+        if (first) you.manaPool = first.pool;
+        for (const s of g.casting.steps) if (s.tapped) g.cards[s.tapped]!.tapped = false;
+        g.casting = undefined;
         afterPriorityChange(g);
         return g;
       }
@@ -639,13 +1085,24 @@ export function applyIntent(prev: MockGame, intent: Intent): MockGame {
     case 'primary': {
       if (d.kind === 'chooseTargets') {
         if (d.chosen.length < d.min) return prev;
-        castFromZone(g, g.cards[d.sourceCardId]!, d.chosen);
-        afterPriorityChange(g);
+        g.casting ??= { cardId: d.sourceCardId, kind: 'spell', targets: [], cost: '', remaining: '', tax: 0, steps: [] };
+        g.casting.targets = d.chosen;
+        beginPayment(g);
         return g;
       }
       if (d.kind === 'priority') {
         if (g.stack.length > 0) {
           resolveTop(g);
+          afterPriorityChange(g);
+          return g;
+        }
+        // An opponent's attack, blocks declared: passing deals the combat damage.
+        if (g.combat && g.turn.step === 'declareBlockers' && g.turn.activePlayerId !== g.youId) {
+          log(g, 'You pass priority.', you.id);
+          goToStep(g, 'combatDamage');
+          resolveCombatDamage(g);
+          g.combat = undefined;
+          goToStep(g, 'endCombat');
           afterPriorityChange(g);
           return g;
         }
@@ -758,6 +1215,9 @@ export function applyIntent(prev: MockGame, intent: Intent): MockGame {
     case 'setAutoYield':
       g.autoYield = intent.on;
       return g;
+    case 'setAutoPay':
+      g.autoPay = intent.on;
+      return g;
     case 'toggleAutoYieldTo':
       g.autoYieldTo = g.autoYieldTo.includes(intent.key)
         ? g.autoYieldTo.filter((k) => k !== intent.key)
@@ -765,5 +1225,11 @@ export function applyIntent(prev: MockGame, intent: Intent): MockGame {
       return g;
     case 'undo':
       return prev; // handled by the store's history
+    case 'concede':
+      return concede(g) ? g : prev;
+    case 'leaveMatch':
+      return prev; // the screen shows the lobby note; nothing left to play
+    case 'nextGame':
+      return startNextGame(g) ? g : prev;
   }
 }

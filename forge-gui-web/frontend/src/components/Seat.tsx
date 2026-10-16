@@ -1,4 +1,5 @@
 import type { PlayerView } from '../model/types';
+import { turnPlayerId } from '../state/gameStart';
 import { useMatch } from '../state/MatchContext';
 import { Battlefield } from './Battlefield';
 import { hiddenInCompact } from './battlefieldGroups';
@@ -16,7 +17,7 @@ interface Props {
 
 export function Seat({ player, density, orientation = 'stacked', onExpand }: Props) {
   const { game } = useMatch();
-  const active = game.turn.activePlayerId === player.id;
+  const active = turnPlayerId(game) === player.id;
   const compact = density === 'compact';
   const side = orientation === 'side' && !compact;
   const hidden = hiddenInCompact(

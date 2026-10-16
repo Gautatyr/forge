@@ -1,7 +1,7 @@
 import { isCreature } from '../model/selectors';
-import type { CardView, Counter, PlayerId, PlayerView, StepId, Zone } from '../model/types';
+import type { CardView, Counter, LogEntry, PlayerId, PlayerView, StepId, Zone } from '../model/types';
 import { lookup, type CardKey } from './cardDb';
-import { computePlayable, recompute, type MockGame } from './engine';
+import { priorityDecision, recompute, refreshOtherZoneCasts, type MockGame } from './engine';
 
 export interface CardOpts {
   tapped?: boolean;
@@ -31,6 +31,7 @@ export class GameBuilder {
       turn: { number: 1, activePlayerId: 'you', step: 'main1', priorityPlayerId: 'you' },
       decision: { kind: 'priority', playable: [] },
       autoPass: false,
+      autoPay: false,
       autoYield: false,
       autoYieldTo: [],
       passingUntilYourTurn: false,
@@ -138,9 +139,10 @@ export class GameBuilder {
     return this;
   }
 
-  log(text: string, playerId?: PlayerId, turn?: number): this {
+  /** `youLost`: the event cost you life or a permanent (bold in Recent). */
+  log(text: string, playerId?: PlayerId, turn?: number, youLost?: LogEntry['youLost']): this {
     this.g.seq += 1;
-    this.g.log.push({ id: `l${this.g.seq}`, turn: turn ?? this.g.turn.number, playerId, text });
+    this.g.log.push({ id: `l${this.g.seq}`, turn: turn ?? this.g.turn.number, playerId, text, ...(youLost ? { youLost } : {}) });
     return this;
   }
 
@@ -150,8 +152,17 @@ export class GameBuilder {
       if (!isCreature(c)) c.summoningSick = false;
     }
     recompute(this.g);
+    refreshOtherZoneCasts(this.g);
+    // Whose turn each entry was: players take turns in seat order, so count back from the current turn.
+    const n = this.g.players.length;
+    const active = this.g.players.findIndex((p) => p.id === this.g.turn.activePlayerId);
+    for (const e of this.g.log) {
+      if (e.turnPlayerId || n === 0 || active < 0) continue;
+      const back = this.g.turn.number - e.turn;
+      e.turnPlayerId = this.g.players[(((active - back) % n) + n) % n]!.id;
+    }
     if (this.g.decision.kind === 'priority') {
-      this.g.decision = { kind: 'priority', playable: computePlayable(this.g) };
+      this.g.decision = priorityDecision(this.g);
     }
     return this.g;
   }

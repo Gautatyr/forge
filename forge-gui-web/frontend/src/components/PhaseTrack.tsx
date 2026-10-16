@@ -1,5 +1,6 @@
 import type { Ref } from 'react';
 import { GROUP_CAPTIONS, STEPS, STEP_RUNS, type StepInfo, type StepRun } from '../model/phases';
+import { turnPlayerId } from '../state/gameStart';
 import { useMatch } from '../state/MatchContext';
 import { stepHint } from '../state/stops';
 import { Icon } from './Icon';
@@ -19,7 +20,8 @@ interface Props {
  */
 export function PhaseTrack({ foldCombat, ref }: Props) {
   const { game, ui, prefs, setUi } = useMatch();
-  const currentIndex = STEPS.findIndex((s) => s.id === game.turn.step);
+  // No current step before turn 1 or after the game.
+  const currentIndex = turnPlayerId(game) ? STEPS.findIndex((s) => s.id === game.turn.step) : -1;
   const stopsOpen = ui.overlay === 'stops';
   const openStops = () => setUi({ overlay: 'stops' });
   const fold = foldCombat && !STEPS[currentIndex]?.combat;

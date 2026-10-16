@@ -1,7 +1,10 @@
 import type { Intent, PromptAnswer } from '../model/intents';
 import { stepInfo } from '../model/phases';
 import { player } from '../model/selectors';
-import type { ChoicePrompt, GameView } from '../model/types';
+import type { ChoicePrompt, GameView, StepId } from '../model/types';
+import { distributeConfirm, inputConfirm, inputStart, startAmounts } from '../components/tray/numberLogic';
+import { trayConfirm, trayDraft } from '../components/tray/trayLogic';
+import { watching } from './gameEnd';
 import type { StopPrefs } from './prefs';
 import { nextStopLabel } from './stops';
 import type { ChoiceDraft, UiState } from './ui';
@@ -36,9 +39,9 @@ export function answerFromDraft(prompt: ChoicePrompt, draft: ChoiceDraft): Promp
     case 'yesNo':
       return { shape: 'yesNo', yes: draft.selected[0] !== 'no' };
     case 'distribute':
-      return { shape: 'distribute', amounts: {} };
+      return distributeConfirm(prompt, draft.amounts ?? startAmounts(prompt)).answer;
     case 'input':
-      return { shape: 'input', value: draft.selected[0] ?? '' };
+      return inputConfirm(prompt, draft.selected[0] ?? inputStart(prompt)).answer;
   }
 }
 
@@ -49,6 +52,9 @@ function nextStopDetail(game: GameView, stops: StopPrefs): string {
 }
 
 export function primaryAction(game: GameView, ui: UiState, stops: StopPrefs): PrimaryAction {
+  // Out of the game, or the game is over: nothing to answer (design pass 4 §2.6).
+  if (game.result) return { label: 'Game over', enabled: false, tone: 'neutral' };
+  if (watching(game)) return { label: 'Watching', enabled: false, tone: 'neutral' };
   const d = game.decision;
   switch (d.kind) {
     case 'waiting': {
@@ -110,22 +116,49 @@ export function primaryAction(game: GameView, ui: UiState, stops: StopPrefs): Pr
         intent: { type: 'primary' },
       };
     }
-    case 'choice': {
-      const draft = draftFor(d.prompt, ui.choiceDraft);
-      const answer = answerFromDraft(d.prompt, draft);
+    case 'payMana': {
+      const taps = d.autoTaps.map((id) => game.cards[id]?.name ?? '?').join(', ');
       return {
-        label: d.prompt.confirmLabel,
-        detail: d.prompt.title,
-        enabled: answer !== undefined,
+        label: 'Pay automatically',
+        detail: !d.autoCanPay ? 'Not enough untapped mana' : taps ? `Taps: ${taps}` : 'Uses your floating mana',
+        enabled: d.autoCanPay,
         tone: 'priority',
-        intent: answer ? { type: 'answer', promptId: d.prompt.id, answer } : undefined,
+        intent: { type: 'payAuto' },
+      };
+    }
+    case 'choice': {
+      // Mirrors the tray's confirm: "Sacrifice (1)", "Choose 1 more".
+      const c = trayConfirm(d.prompt, trayDraft(d.prompt, ui.choiceDraft));
+      return {
+        label: c.label,
+        detail: d.prompt.title,
+        enabled: c.enabled,
+        tone: 'priority',
+        intent: c.enabled && c.answer ? { type: 'answer', promptId: d.prompt.id, answer: c.answer } : undefined,
       };
     }
   }
 }
 
-/** What the game is waiting for, in one sentence. */
+/** "combat", "upkeep"…: the step as the prompt line names it. */
+function stepPhrase(step: StepId): string {
+  if (stepInfo(step).combat) return 'combat';
+  switch (step) {
+    case 'main1':
+    case 'main2':
+      return 'main phase';
+    case 'draw':
+      return 'draw step';
+    case 'end':
+      return 'end step';
+    default:
+      return stepInfo(step).label.toLowerCase();
+  }
+}
+
+/** What the game is waiting for, in one sentence; empty when you are out or the game is over (no prompts). */
 export function promptText(game: GameView): string {
+  if (game.result || watching(game)) return '';
   const d = game.decision;
   switch (d.kind) {
     case 'waiting':
@@ -134,14 +167,17 @@ export function promptText(game: GameView): string {
       const top = game.stack.at(-1);
       if (top) {
         const who = top.controllerId === game.youId ? 'Your' : `${player(game, top.controllerId).name}'s`;
-        return `${who} ${game.cards[top.sourceCardId]?.name ?? 'spell'} is on top of the stack. Respond with a lit card, or let it resolve.`;
+        return `${who} ${game.cards[top.sourceCardId]?.name ?? 'spell'} is on top of the stack. Respond, or let it resolve.`;
       }
-      if (game.turn.activePlayerId === game.youId && (game.turn.step === 'main1' || game.turn.step === 'main2'))
-        return 'Your main phase. Play a land or cast a lit card.';
-      return `You have priority in the ${stepInfo(game.turn.step).longLabel.toLowerCase()}.`;
+      const yours = game.turn.activePlayerId === game.youId;
+      if (yours && (game.turn.step === 'main1' || game.turn.step === 'main2')) return 'Your main phase.';
+      const whose = yours ? 'Your' : `${player(game, game.turn.activePlayerId).name}'s`;
+      return `${whose} turn · ${stepPhrase(game.turn.step)}.`;
     }
     case 'chooseTargets':
-      return `${d.instruction} for ${game.cards[d.sourceCardId]?.name ?? 'this spell'}. Lit cards are legal.`;
+      return `${d.instruction} for ${game.cards[d.sourceCardId]?.name ?? 'this spell'}.`;
+    case 'payMana':
+      return 'Click your lands or creatures that add mana.';
     case 'declareAttackers':
       return 'Click creatures to attack with them. Click an opponent first to change who they attack.';
     case 'declareBlockers':
