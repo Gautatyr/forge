@@ -33,6 +33,7 @@ public final class HeadlessWebGui implements IGuiBase {
 
     private final String assetsDir;
     private final Supplier<IGuiGame> guiFactory;
+    private final Supplier<HostedMatch> matchFactory;
     private volatile Thread edtThread;
     private final ExecutorService edt = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "web-edt");
@@ -48,8 +49,14 @@ public final class HeadlessWebGui implements IGuiBase {
     };
 
     public HeadlessWebGui(String assetsDir, Supplier<IGuiGame> guiFactory) {
+        this(assetsDir, guiFactory, HostedMatch::new);
+    }
+
+    /** @param matchFactory what {@link #hostMatch()} returns (a launcher's own {@code HostedMatch}) */
+    public HeadlessWebGui(String assetsDir, Supplier<IGuiGame> guiFactory, Supplier<HostedMatch> matchFactory) {
         this.assetsDir = assetsDir;
         this.guiFactory = guiFactory;
+        this.matchFactory = matchFactory;
     }
 
     @Override public boolean isRunningOnDesktop() { return true; }
@@ -144,7 +151,7 @@ public final class HeadlessWebGui implements IGuiBase {
     @Override public void showBazaar() { }
 
     @Override public IGuiGame getNewGuiGame() { return guiFactory.get(); }
-    @Override public HostedMatch hostMatch() { return new HostedMatch(); }
+    @Override public HostedMatch hostMatch() { return matchFactory.get(); }
     @Override public UpnpServiceConfiguration getUpnpPlatformService() { return null; }
     @Override public boolean hasNetGame() { return false; }
 
