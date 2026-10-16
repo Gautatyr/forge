@@ -92,17 +92,40 @@ public class DesktopImageCacheTest {
         }
     }
 
+    /** --home ~ where the user made ~/.cache/forge/pics a symlink (cache on another disk): the link is kept as it is. */
     @Test
-    public void targetThatIsTheProfileFolderReplacesAnOldLink() throws Exception {
+    public void targetThatIsTheProfileFolderKeepsAUserSymlink() throws Exception {
         Path home = Files.createTempDirectory("forge-web-home");
-        Path desktop = Files.createTempDirectory("forge-web-desktop");
-        Files.writeString(desktop.resolve("x.jpg"), "x");
-        DesktopImageCache.link(home, desktop, LINUX);
+        Path big = Files.createTempDirectory("forge-web-big");
+        Files.createDirectories(big.resolve("cards"));
+        Files.writeString(big.resolve("cards/x.jpg"), "x");
         Path pics = home.resolve(".cache/forge/pics");
-        DesktopImageCache.link(home, pics, LINUX);
-        assertFalse(Files.isSymbolicLink(pics));
-        assertTrue(Files.isDirectory(pics));
-        assertEquals(Files.readString(desktop.resolve("x.jpg")), "x", "the old target is left alone");
+        Files.createDirectories(pics.getParent());
+        Files.createSymbolicLink(pics, big);
+
+        for (int run = 0; run < 2; run++) {
+            String said = DesktopImageCache.link(home, DesktopImageCache.desktopPics(home.toString(), LINUX), LINUX);
+            assertTrue(Files.isSymbolicLink(pics), said);
+            assertEquals(Files.readSymbolicLink(pics), big, said);
+            assertEquals(Files.readString(pics.resolve("cards/x.jpg")), "x", said);
+            assertEquals(said, "image cache " + pics);
+        }
+    }
+
+    /** A symlink there whose target is gone is reported and left alone, never deleted. */
+    @Test
+    public void targetThatIsTheProfileFolderLeavesADanglingSymlink() throws Exception {
+        Path home = Files.createTempDirectory("forge-web-home");
+        Path gone = Files.createTempDirectory("forge-web-gone");
+        Files.delete(gone);
+        Path pics = home.resolve(".cache/forge/pics");
+        Files.createDirectories(pics.getParent());
+        Files.createSymbolicLink(pics, gone);
+
+        String said = DesktopImageCache.link(home, pics, LINUX);
+        assertTrue(Files.isSymbolicLink(pics), said);
+        assertEquals(Files.readSymbolicLink(pics), gone, said);
+        assertTrue(said.contains("cannot use"), said);
     }
 
     @Test

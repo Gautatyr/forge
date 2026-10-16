@@ -50,7 +50,8 @@ public final class DesktopImageCache {
     /**
      * Points the engine's {@code pics} folder under {@code profileHome} at {@code target} (created if
      * missing). An existing folder there is replaced only if it holds no files; otherwise it is kept and
-     * used. A target that is that folder itself is used as a plain folder (never a self-link). When the
+     * used. A target that is that folder itself is used as it is (never a self-link; a symlink there is
+     * kept). When the
      * engine's folder does not derive from the home (Windows with {@code %LOCALAPPDATA%}/{@code %APPDATA%}),
      * it already is the desktop's: nothing is linked and {@code target} is ignored.
      *
@@ -67,8 +68,10 @@ public final class DesktopImageCache {
         String inside = "image cache " + link + " (cannot link to " + to + ": it is inside " + link + ")";
         try {
             if (to.equals(link)) {
-                if (Files.isSymbolicLink(link)) {
-                    Files.delete(link);
+                // used as it is: a symlink there may be the user's own (e.g. --home ~), never delete it
+                if (Files.isSymbolicLink(link) && !Files.isDirectory(link)) {
+                    return "image cache " + link + " (cannot use: symlink to " + Files.readSymbolicLink(link)
+                            + ", which is not a folder)";
                 }
                 Files.createDirectories(link);
                 return "image cache " + link;
