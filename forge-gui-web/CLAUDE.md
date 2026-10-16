@@ -28,5 +28,9 @@ prompt-bridging design and its 9 traps). Frontend rules: `frontend/CLAUDE.md`.
 - `make web-java-test` while iterating on this module; `make check` before the PR.
 - `make web-server ARGS="--mode commander"` runs a live game on a per-worktree port; add
   `--human-seat 0` to play seat 0 over the WebSocket (options: `WebMain` javadoc).
+- Every engine question to a human seat is bridged or deliberately automated (`docs/fork/audit/human-seat.md`);
+  a default used instead of the player is a `SilentDefaults.report` (strict in tests: `-Dforge.web.strictPrompts=true`).
+- `make web-sweep`: card-pool sweep (36 full games, scripted seat, strict; `SHARDS=8` ~8 min on 8 cores; not in `make check`). Run it for
+  changes to how the seat answers the engine; summary in `forge-gui-web/target/sweep/summary.txt`.
 - End-to-end check of a human seat: `spike-viewer/check/human-run.sh <outdir> <label> <port>
   <server args>` (scripted seat 0 + `ws-check.mjs` on the other views; exit 0 = passed).

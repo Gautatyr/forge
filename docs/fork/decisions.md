@@ -150,3 +150,9 @@ Newest last. Each entry: the decision, why, and what it implies.
 - Gameplay bugs in the web screen are fixed at the mechanism (how the human seat answers the engine's questions), never per card.
 - Every engine question to a human seat must be bridged or deliberately automated. Silent defaults (fallbacks, timeouts, unbridged methods) are logged loudly and fail tests.
 - Acceptance for gameplay work includes a card-pool sweep: many full games with a scripted human seat across many decks, asserting zero silent defaults and that the human's triggers resolve.
+
+## 2026-10-16 — Human-seat coverage, silent defaults, card-pool sweep (issue #46)
+- Audit of every `IGuiGame` method and `Input` a human seat can meet: `docs/fork/audit/human-seat.md`; `SeatCoverageTest` fails when upstream moves one.
+- `SilentDefaults`: a seat prompt closed by timeout, disconnect or a closed seat, a method without a prompt shape, and every `HeadlessWebGui` question dialog log `[web] SILENT DEFAULT`; strict mode (`-Dforge.web.strictPrompts=true`) throws. Strict in `HumanSeatTriggersTest` and the sweep.
+- `getAbilityToPlay` with 2+ abilities disables none (as `CMatchUI` without a trigger event). The `disabled` field stays in the wire schema, unused; removing it is a frontend change.
+- `make web-sweep` (`HumanSeatSweep`, not in `make check`): full games with a scripted seat, strict. A game fails on a silent default, a seat error, a seat trigger dropped (not cast, with a legal target) or not resolved, or an exception in seat code. AI loops and engine exceptions without a seat frame are upstream bugs, and a `ConcurrentModificationException` on a game thread is a threading race (audit, "Known gaps"): listed, not failed.

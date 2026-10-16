@@ -1,6 +1,6 @@
 # Fork-owned entry points (upstream Card-Forge has no Makefile).
 # Gates log to target/gate-logs/<name>.log and print a summary plus the real exit code.
-.PHONY: help check web-java-test web-desktop-test web-front-check desktop-test web-dev web-server play
+.PHONY: help check web-java-test web-desktop-test web-front-check desktop-test web-sweep web-dev web-server play
 
 GATE := scripts/gate.sh
 
@@ -21,6 +21,9 @@ web-front-check: ## Frontend: install, type-check, lint, unit tests, build
 
 desktop-test: ## Engine/AI/desktop suite (~2 min); needed only when upstream modules or the root pom change
 	@$(GATE) desktop-test mvn -B -pl forge-gui-desktop -am test
+
+web-sweep: ## Card-pool sweep: full games with a scripted human web seat, strict (SHARDS=4; ARGS="-Dforge.web.sweep.duel=40")
+	@$(GATE) web-sweep scripts/web-sweep.sh $(ARGS)
 
 web-dev: ## Frontend dev server on a per-worktree port; /ws proxies to this worktree's web-server (live: ?live=1#token=…)
 	@port=$$(scripts/dev-port.sh 5200); bridge=$$(scripts/dev-port.sh 7700); echo "Vite on http://localhost:$$port/ (live: http://localhost:$$port/?live=1#token=<bridge token>)"; \
