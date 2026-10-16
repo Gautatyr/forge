@@ -22,6 +22,7 @@ import type {
   CardView,
   Decision,
   GameView,
+  LogEntry,
   ManaColour,
   ManaPool,
   ManaSource,
@@ -65,9 +66,25 @@ export interface EotEffect {
 
 const ref = (id: CardId) => `{card:${id}}`;
 
-function log(g: MockGame, text: string, playerId?: PlayerId) {
+/** `youLost`: the event costs you life or a permanent (bold in Recent, design pass 4 P6). */
+function log(g: MockGame, text: string, playerId?: PlayerId, youLost?: LogEntry['youLost']) {
   g.seq += 1;
-  g.log.push({ id: `l${g.seq}`, turn: g.turn.number, playerId, text });
+  g.log.push({ id: `l${g.seq}`, turn: g.turn.number, turnPlayerId: g.turn.activePlayerId, playerId, text, ...(youLost ? { youLost } : {}) });
+}
+
+/** `youLost` for a permanent leaving `c`'s controller's battlefield. */
+const yoursGone = (g: MockGame, c: CardView): LogEntry['youLost'] =>
+  c.zone === 'battlefield' && c.controllerId === g.youId ? 'permanent' : undefined;
+
+/**
+ * Your cast permissions outside the hand and command zone (design pass 4, P4):
+ * every graveyard card with flashback, whatever you can afford.
+ */
+export function refreshOtherZoneCasts(g: MockGame) {
+  const you = player(g, g.youId);
+  you.otherZoneCasts = you.graveyard
+    .filter((id) => rule(g.cards[id]!).flashback)
+    .map((cardId) => ({ cardId, via: 'flashback' as const }));
 }
 
 function zoneList(p: PlayerView, zone: CardView['zone']): CardId[] | undefined {
@@ -571,7 +588,7 @@ function destroy(g: MockGame, id: CardId, verb = 'is destroyed') {
     log(g, `${ref(id)} is indestructible and survives.`);
     return;
   }
-  log(g, `${ref(id)} ${verb}.`);
+  log(g, `${ref(id)} ${verb}.`, undefined, yoursGone(g, c));
   moveCard(g, id, c.isCommander ? 'command' : 'graveyard');
 }
 
@@ -605,6 +622,10 @@ function resolveTop(g: MockGame) {
         log(g, `${ref(src.id)} deals 3 damage to ${ref(tc.id)}.`, caster.id);
         recompute(g);
         if (tc.toughness !== undefined && tc.damage >= tc.toughness) destroy(g, tc.id, 'dies');
+      } else if (t?.kind === 'player') {
+        const tp = player(g, t.id);
+        tp.life -= 3;
+        log(g, `${ref(src.id)} deals 3 damage to ${tp.name}.`, caster.id, tp.isYou ? 'life' : undefined);
       }
       break;
     case 'Swords to Plowshares':
@@ -614,8 +635,8 @@ function resolveTop(g: MockGame) {
         const ctrl = player(g, tc.controllerId);
         if (src.name === 'Swords to Plowshares') {
           ctrl.life += tc.power ?? 0;
-          log(g, `${ref(tc.id)} is exiled; ${ctrl.name} gains ${tc.power ?? 0} life.`, caster.id);
-        } else log(g, `${ref(tc.id)} is exiled; ${ctrl.name} may search for a basic land.`, caster.id);
+          log(g, `${ref(tc.id)} is exiled; ${ctrl.name} gains ${tc.power ?? 0} life.`, caster.id, yoursGone(g, tc));
+        } else log(g, `${ref(tc.id)} is exiled; ${ctrl.name} may search for a basic land.`, caster.id, yoursGone(g, tc));
         moveCard(g, tc.id, tc.isCommander ? 'command' : 'exile');
       }
       break;
@@ -681,7 +702,7 @@ function resolveAbility(g: MockGame, item: StackItem, src: CardView, t: TargetRe
       if (t?.kind === 'player') {
         const p = player(g, t.id);
         p.life -= 1;
-        log(g, `${ref(src.id)} deals 1 damage to ${p.name}.`, caster.id);
+        log(g, `${ref(src.id)} deals 1 damage to ${p.name}.`, caster.id, p.isYou ? 'life' : undefined);
       } else if (t?.kind === 'card') {
         const tc = g.cards[t.id]!;
         tc.damage += 1;
@@ -756,7 +777,7 @@ function resolveCombatDamage(g: MockGame) {
         if (cd) cd.amount += dmg;
         else def.commanderDamageTaken.push({ commanderId: att.id, amount: dmg });
       }
-      log(g, `${ref(att.id)} deals ${dmg} damage to ${def.name}.`, att.controllerId);
+      log(g, `${ref(att.id)} deals ${dmg} damage to ${def.name}.`, att.controllerId, def.isYou && dmg > 0 ? 'life' : undefined);
     } else {
       let left = att.power ?? 0;
       for (const b of blockers) {
@@ -796,7 +817,7 @@ function answerTrayPrompt(g: MockGame, prompt: import('../model/types').ChoicePr
     for (const id of answer.optionIds) {
       const c = g.cards[id];
       if (!c) continue;
-      log(g, `You sacrifice ${ref(id)}.`, you.id);
+      log(g, `You sacrifice ${ref(id)}.`, you.id, yoursGone(g, c));
       moveCard(g, id, c.isCommander ? 'command' : 'graveyard');
     }
     return true;
@@ -903,6 +924,12 @@ function answerPrompt(g: MockGame, answer: PromptAnswer) {
 
 /** Apply one player intent. Returns a new game; the input is not mutated. */
 export function applyIntent(prev: MockGame, intent: Intent): MockGame {
+  const g = applyIntentInner(prev, intent);
+  if (g !== prev) refreshOtherZoneCasts(g);
+  return g;
+}
+
+function applyIntentInner(prev: MockGame, intent: Intent): MockGame {
   const g = structuredClone(prev);
   const you = player(g, g.youId);
   const d = g.decision;

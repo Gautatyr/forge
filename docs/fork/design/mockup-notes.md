@@ -249,3 +249,25 @@ Contrast (WCAG): row notes / "(player)" 7.3:1 (`--c-text-2` on `--c-panel-raised
 Verified (Playwright, desktop context, 1920×1080 and 1366×768): 7a–7e tray body never scrolls, nothing leaves the tray; 7e: name body 223 px at 1080p, 152 px at 1366×768 (preview 109×152), re-fits after window resizes; distribute rows all 49 px at 1080p; key flows above; no console errors.
 
 Known gaps: 8 suggestions do not all fit the list (about 7 at 1080p, 5.5 at 1366×768; the 20 px mana pips set the row height), so the list scrolls. No Cancel on the X prompt (Esc does not back out of the cast; not in §2.3). The `?` overlay does not list the distribute / number keys (the tray shows them). Live adapter: `cardNames` would carry every legal name (thousands); a lookup may suit the bridge better.
+Known gaps: the tray does not draw the `input` shape yet (§2.3), so the X prompt shows the tray's placeholder and its confirm takes the largest X. The engine's "which ability" menu (P2) is #30. Opponents' floating mana: see pass 4 (#33).
+
+## Pass 4: board and cards, P3–P6 (issue #33)
+
+Spec: `product-decisions-pass-4.md` P3, P4, P5, P6.
+
+| Item | Change | Code |
+|---|---|---|
+| P3 | Your commander in the command zone shows only in the group beside the hand; opponents' stay at the end of their support row (`commandEntries`). | `battlefieldGroups.ts`, `Battlefield.tsx` |
+| P4 | Group beside the hand = your command zone + `PlayerView.otherZoneCasts` (`{cardId, via: flashback/escape/foretell/adventure/other}`), independent of mana and timing. Captions "Command zone · tax +2", "Graveyard · flashback", "Exile · adventure"; `other` shows the zone only. Mock: graveyard cards with flashback, refreshed after every intent. | `model/types.ts`, `otherZoneGroup.ts`, `Hand.tsx`, `mock/engine.ts` (`refreshOtherZoneCasts`) |
+| P5 | One chip per source commander (partners: two): crown/burst + owner's seat shape + amount; "Krenko … /21" where the header has room. Hover: "Krenko, Mob Boss (▲ Mira) has dealt Theo 3 commander damage. 21 eliminates." Burst from 15. The shape is the commander's owner. | `commanderChips.ts`, `seatChar.ts`, `PlayerPlate.tsx` |
+| P6 Recent | Divider above each turn's entries ("▲ Mira's turn 10"; "Turn 8" when `LogEntry.turnPlayerId` is absent). `LogEntry.youLost: 'life' \| 'permanent'` → bold line. Mock stamps both (life lost: Bolt, Bombardment, combat; permanent: destroy, exile, sacrifice). | `recentRows.ts`, `Rail.*`, `mock/engine.ts`, `mock/builder.ts` |
+| P6 plates | Life change "▼−3" / "▲+4" for 4 s in the "life" label's slot (sized for "▼−12", so the header never moves); changes within the 4 s add up; reset on scenario switch. Tokens `--c-life-loss` / `--c-life-gain`. | `lifeMarker.ts`, `PlayerPlate.*`, `styles/tokens.css` |
+| Floating mana | An opponent's pool on their header only while not empty: mana icon + "Floating" (the word hides in narrow headers) + {R}{R}, "{G}×3" from three of a colour (pass-3 §2). Its own header item, beside the name and tags, so a large pool adds at most the header's second line. | `poolGroups.ts`, `PlayerPlate.*` |
+| P5 names | Opponents' chips show the commander name ("Krenko 16/21") whenever it adds no line to the header, measured per render and resize (`data-cmd-names`); your inline plate keeps the 40rem rule. | `useRoomForNames.ts`, `PlayerPlate.*` |
+| Log mana | `{R}`, `{2}`, `{X}` in log text draw as mana symbols, sized so the line keeps its height ("Mira adds {R}{R}."). | `logParts.ts`, `LogText.*` |
+| Fix | Plate class list no longer contains a literal `undefined` (`styles[density]` had no `full` class). | `PlayerPlate.tsx` |
+| Mock | Scenario `board` (5e): Mira's turn 10, her Bolt at you on the stack (Space: you take 3, plate shows ▼−3), every land of yours tapped (Sythis and Moment's Peace still beside the hand), Theo at 16 from Krenko (burst), Mira {R}{R} floating, Recent across turns 8–10 with bold lines. | `mock/scenarios.ts` |
+
+Contrast (WCAG): loss text on `--c-bg` 8.9:1, gain 9.6:1; divider text (`--c-text-3` on `--c-panel`) 5.8:1; bold lines `--c-text` on `--c-panel` 13.3:1.
+
+Known gaps: no partner pair in the mock card DB (two chips per partner are unit-tested only). The live adapter (#11) does not fill `otherZoneCasts`, `turnPlayerId` or `youLost` yet: without them the group shows only the command zone, dividers read "Turn N" and no line is bold.
