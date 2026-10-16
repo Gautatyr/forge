@@ -114,6 +114,7 @@ public class SeatSessionTest {
     @AfterMethod(alwaysRun = true)
     public void drain() {
         controllerCalls.clear();
+        SilentDefaults.setStrict(null);
         if (gameThread != null) {
             gameThread.shutdownNow(); // interrupts a prompt left open: it returns its default
         }
@@ -221,6 +222,130 @@ public class SeatSessionTest {
         assertEquals(client.next("promptClosed").get("reason").getAsString(), "answered");
         reply(p, json("[0]"));
         assertTrue(client.next("replyRejected").get("reason").getAsString().startsWith("no open prompt"));
+    }
+
+    /**
+     * An engine call with several abilities and no trigger event (a spell cast by an effect, an optional additional
+     * cost, a mana source with two abilities): as the desktop ({@code CMatchUI}), every ability is offered, even when
+     * its {@code canPlay} (normal timing) is false.
+     */
+    /**
+     * {@code PlayerControllerHuman.chooseCardsPile} offers two header {@code CardView}s that are no game card ("-- Pile
+     * 1 (n cards) --") among the piles' cards, and asks again until one header is picked: the seat must see their
+     * names to answer it.
+     */
+    @Test
+    public void pileHeadersAreNamedAndPickable() throws Exception {
+        start();
+        Card mine = TestEngine.add("Grizzly Bears", p0, ZoneType.Hand);
+        CardView pile1 = new CardView(Integer.MIN_VALUE, null, "-- Pile 1 (1 cards) --");
+        CardView pile2 = new CardView(Integer.MIN_VALUE + 1, null, "-- Pile 2 (0 cards) --");
+        List<CardView> choices = List.of(pile1, mine.getView(), pile2);
+        Future<CardView> f = onGameThread(() -> gui.one("Choose a pile", choices));
+        JsonObject p = client.next("prompt");
+        assertEquals(labels(p), List.of("-- Pile 1 (1 cards) --", String.valueOf(mine.getView()), "-- Pile 2 (0 cards) --"));
+        reply(p, json("[2]"));
+        assertSame(get(f), pile2);
+    }
+
+    @Test
+    public void abilityChoiceOffersEveryAbilityTheEngineOffers() throws Exception {
+        start();
+        Card factory = TestEngine.add("Mishra's Factory", p0, ZoneType.Library);
+        List<forge.game.spellability.SpellAbilityView> abilities = new ArrayList<>();
+        for (forge.game.spellability.SpellAbility sa : factory.getSpellAbilities()) {
+            if (!sa.isManaAbility()) {
+                sa.getView().updateCanPlay(sa);
+                assertFalse(sa.getView().canPlay(), "from the library: " + sa);
+                abilities.add(sa.getView());
+            }
+        }
+        assertTrue(abilities.size() >= 2, abilities.toString());
+        Future<forge.game.spellability.SpellAbilityView> f = onGameThread(() -> gui.getAbilityToPlay(factory.getView(), abilities, null));
+        JsonObject p = client.next("prompt");
+        assertEquals(p.get("method").getAsString(), "getAbilityToPlay");
+        for (JsonElement c : p.getAsJsonArray("choices")) {
+            assertFalse(c.getAsJsonObject().has("disabled"), "offered: " + c);
+        }
+        reply(p, json("[1]"));
+        assertSame(get(f), abilities.get(1));
+    }
+
+    // --- silent defaults: logged, and fatal in strict mode ---
+
+    @Test
+    public void answeredPromptsAreNoSilentDefault() throws Exception {
+        start();
+        SilentDefaults.reset();
+        Future<Boolean> f = onGameThread(() -> gui.confirm(null, "Q?", true, null));
+        reply(client.next("prompt"), json("false"));
+        assertFalse(get(f));
+        assertEquals(SilentDefaults.count(), 0);
+    }
+
+    @Test
+    public void aTimedOutPromptIsReportedAndFailsInStrictMode() throws Exception {
+        start(new WebSeats.Timeouts(200, 10_000));
+        SilentDefaults.reset();
+        Future<List<String>> f = onGameThread(() -> gui.getChoices("Pick", 1, 2, List.of("a", "b", "c"), null, null));
+        client.next("prompt");
+        assertEquals(get(f), List.of("a"), "not strict: the engine default");
+        assertEquals(SilentDefaults.count(), 1);
+        assertTrue(SilentDefaults.recent().get(0).contains("getChoices") && SilentDefaults.recent().get(0).contains("TIMEOUT"),
+                SilentDefaults.recent().toString());
+
+        SilentDefaults.setStrict(true);
+        Future<Boolean> g = onGameThread(() -> gui.confirm(null, "Q?", true, null));
+        client.next("prompt");
+        try {
+            g.get(5, TimeUnit.SECONDS);
+            fail("strict mode answers nothing for the player");
+        } catch (java.util.concurrent.ExecutionException e) {
+            assertTrue(e.getCause() instanceof SilentDefaults.SilentDefaultException, String.valueOf(e.getCause()));
+        }
+        assertEquals(client.next("promptClosed").get("reason").getAsString(), "timeout", "the seat still learns the prompt closed");
+    }
+
+    @Test
+    public void aMethodWithoutAPromptShapeIsReported() throws Exception {
+        start();
+        SilentDefaults.reset();
+        Object r = onGameThread(() -> gui.session().sendAndWait(
+                new forge.gamemodes.net.event.GuiGameEvent(forge.gamemodes.net.ProtocolMethod.setCard, (Object) null))).get(5, TimeUnit.SECONDS);
+        assertNull(r);
+        assertEquals(SilentDefaults.count(), 1);
+        SilentDefaults.setStrict(true);
+        try {
+            gui.session().sendAndWait(new forge.gamemodes.net.event.GuiGameEvent(forge.gamemodes.net.ProtocolMethod.setCard, (Object) null));
+            fail("strict mode");
+        } catch (SilentDefaults.SilentDefaultException expected) {
+            assertTrue(expected.getMessage().contains("setCard"), expected.getMessage());
+        }
+    }
+
+    @Test
+    public void aClosedSeatsDefaultsAreReported() throws Exception {
+        start();
+        SilentDefaults.reset();
+        seats.newSeat(0);
+        assertTrue(get(onGameThread(() -> gui.confirm(null, "Q?", true, null))));
+        assertEquals(SilentDefaults.count(), 1);
+    }
+
+    @Test
+    public void headlessDialogsAreReported() {
+        SilentDefaults.reset();
+        forge.web.HeadlessWebGui headless = new forge.web.HeadlessWebGui("forge-gui/", () -> null);
+        assertEquals(headless.getChoices("Whose graveyard?", 0, 1, List.of("a", "b"), null, null), List.of());
+        assertEquals(headless.showOptionDialog("Sure?", "T", null, List.of("Yes", "No"), 0), -1);
+        assertEquals(SilentDefaults.count(), 2);
+        SilentDefaults.setStrict(true);
+        try {
+            headless.order("Order", "Top", 0, 0, List.of("a", "b"), List.of());
+            fail("strict mode");
+        } catch (SilentDefaults.SilentDefaultException expected) {
+            assertTrue(expected.getMessage().contains("order"), expected.getMessage());
+        }
     }
 
     @Test
@@ -470,6 +595,45 @@ public class SeatSessionTest {
         Future<Integer> f = onGameThread(() -> gui.showOptionDialog("Which?", "T", null, List.of("a", "b"), 1));
         assertEquals(get(f), Integer.valueOf(1));
         assertTrue(System.currentTimeMillis() - t0 < 4000, "closed by the disconnect grace, not the prompt timeout");
+    }
+
+    /** A browser waiting for the game connects before the seat and the game exist: its prompts are not "disconnected". */
+    @Test
+    public void aClientConnectedBeforeTheGameKeepsItsPromptsPastTheGrace() throws Exception {
+        gameThread = Executors.newSingleThreadExecutor(r -> new Thread(r, "Game-test"));
+        game = TestEngine.newGame(2);
+        p0 = game.getPlayers().get(0);
+        stream = new GameStream(HiddenPolicy.REDACT, null);
+        seats = new WebSeats(stream, new WebSeats.Timeouts(10_000, 200));
+        client = new Client();
+        stream.addClient(client, 0);
+        gui = seats.newSeat(0);
+        gui.setGameView(game.getView());
+        gui.openView(new TrackableCollection<>(p0.getView()));
+        gui.setOriginalGameController(p0.getView(), recordingController());
+        assertPromptOutlivesTheGrace();
+    }
+
+    /** The seat's next game (--games N, or the launcher's next match) while the browser stays connected. */
+    @Test
+    public void theSeatsNextGameKeepsItsConnectedClientsPromptsPastTheGrace() throws Exception {
+        start(new WebSeats.Timeouts(10_000, 200));
+        gui = seats.newSeat(0);
+        gui.setGameView(game.getView());
+        gui.openView(new TrackableCollection<>(p0.getView()));
+        gui.setOriginalGameController(p0.getView(), recordingController());
+        assertPromptOutlivesTheGrace();
+    }
+
+    private void assertPromptOutlivesTheGrace() throws Exception {
+        SilentDefaults.reset();
+        Future<Boolean> f = onGameThread(() -> gui.confirm(null, "Q?", true, null));
+        JsonObject p = client.next("prompt");
+        Thread.sleep(800); // 4 disconnect graces
+        assertFalse(f.isDone(), "still waiting for the connected player");
+        reply(p, json("false"));
+        assertFalse(get(f), "the player's answer");
+        assertEquals(SilentDefaults.count(), 0, SilentDefaults.recent().toString());
     }
 
     @Test

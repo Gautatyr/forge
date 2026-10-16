@@ -35,6 +35,11 @@ public final class TestEngine {
     private TestEngine() { }
 
     public static synchronized void boot() {
+        boot(true);
+    }
+
+    /** {@code lazyCardScripts} false loads every card script (deck generation draws from the whole pool). */
+    public static synchronized void boot(boolean lazyCardScripts) {
         if (booted) {
             return;
         }
@@ -54,7 +59,7 @@ public final class TestEngine {
             throw new IllegalStateException("engine profile is " + ForgeConstants.USER_DIR + ", expected under " + home);
         }
         FModel.initialize(null, prefs -> {
-            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
+            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, lazyCardScripts);
             prefs.setPref(FPref.UI_LANGUAGE, "en-US");
             return null;
         });

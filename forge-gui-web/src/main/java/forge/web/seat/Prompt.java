@@ -20,7 +20,6 @@ import forge.game.card.CardView.CardStateView;
 import forge.game.card.CounterEnumType;
 import forge.game.player.DelayedReveal;
 import forge.game.player.PlayerView;
-import forge.game.spellability.SpellAbilityView;
 import forge.gamemodes.net.ProtocolMethod;
 import forge.gui.interfaces.IGuiGame;
 import forge.item.PaperCard;
@@ -56,6 +55,12 @@ abstract class Prompt {
             super(message);
         }
     }
+
+    /** The methods {@link #of} has a shape for. */
+    static final Set<ProtocolMethod> SHAPED = java.util.EnumSet.of(ProtocolMethod.getChoices, ProtocolMethod.chooseSingleEntityForEffect,
+            ProtocolMethod.chooseEntitiesForEffect, ProtocolMethod.getAbilityToPlay, ProtocolMethod.showOptionDialog, ProtocolMethod.confirm,
+            ProtocolMethod.showConfirmDialog, ProtocolMethod.order, ProtocolMethod.manipulateCardList, ProtocolMethod.sideboard,
+            ProtocolMethod.assignCombatDamage, ProtocolMethod.assignGenericAmount, ProtocolMethod.showInputDialog);
 
     final ProtocolMethod method;
 
@@ -96,7 +101,7 @@ abstract class Prompt {
                 boolean reveal = min < 0 && max < 0; // AbstractGuiGame.reveal: nothing to pick, acknowledge
                 Choose p = new Choose(m, str(a[0]), choices, reveal ? 0 : clamp(min, choices.size()),
                         reveal ? 0 : Math.max(0, Math.min(max < 0 ? choices.size() : max, choices.size())),
-                        (FSerializableFunction) a[5], null, null, false) {
+                        (FSerializableFunction) a[5], null, null) {
                     @Override
                     Object result(List<Object> picked) {
                         return picked;
@@ -109,7 +114,7 @@ abstract class Prompt {
                 List<Object> options = list(a[1]);
                 boolean optional = (Boolean) a[3];
                 return new Choose(m, str(a[0]), options, optional || options.isEmpty() ? 0 : 1, Math.min(1, options.size()),
-                        null, (DelayedReveal) a[2], null, false) {
+                        null, (DelayedReveal) a[2], null) {
                     @Override
                     Object result(List<Object> picked) {
                         return picked.isEmpty() ? null : picked.get(0);
@@ -119,7 +124,7 @@ abstract class Prompt {
             case chooseEntitiesForEffect: {
                 List<Object> options = list(a[1]);
                 return new Choose(m, str(a[0]), options, clamp((Integer) a[2], options.size()),
-                        Math.min(Math.max(0, (Integer) a[3]), options.size()), null, (DelayedReveal) a[4], null, false) {
+                        Math.min(Math.max(0, (Integer) a[3]), options.size()), null, (DelayedReveal) a[4], null) {
                     @Override
                     Object result(List<Object> picked) {
                         return new ArrayList<GameEntityView>((List) picked);
@@ -128,7 +133,9 @@ abstract class Prompt {
             }
             case getAbilityToPlay: {
                 List<Object> abilities = list(a[1]);
-                return new Choose(m, null, abilities, 0, Math.min(1, abilities.size()), null, null, (CardView) a[0], true) {
+                // nothing disabled, as CMatchUI without a trigger event: the engine passes only what it allows here
+                // (an effect's cast ignores timing, so canPlay may be false for every ability it offers)
+                return new Choose(m, null, abilities, 0, Math.min(1, abilities.size()), null, null, (CardView) a[0]) {
                     @Override
                     Object result(List<Object> picked) {
                         return picked.isEmpty() ? null : picked.get(0);
@@ -138,7 +145,7 @@ abstract class Prompt {
             case showOptionDialog: {
                 List<Object> options = list(a[3]);
                 int def = (Integer) a[4];
-                Choose p = new Choose(m, str(a[0]), options, options.isEmpty() ? 0 : 1, Math.min(1, options.size()), null, null, null, false) {
+                Choose p = new Choose(m, str(a[0]), options, options.isEmpty() ? 0 : 1, Math.min(1, options.size()), null, null, null) {
                     @Override
                     Object result(List<Object> picked) {
                         return picked.isEmpty() ? def : options.indexOf(picked.get(0));
@@ -191,14 +198,13 @@ abstract class Prompt {
         final FSerializableFunction display;
         final DelayedReveal reveal;
         final CardView card;
-        final boolean checkPlayable;
         List<Object> selected = List.of();
         String title;
         int defaultIndex = -1;
 
         @SuppressWarnings("rawtypes")
         Choose(ProtocolMethod m, String message, List<Object> items, int min, int max, FSerializableFunction display,
-                DelayedReveal reveal, CardView card, boolean checkPlayable) {
+                DelayedReveal reveal, CardView card) {
             super(m);
             this.message = message;
             this.items = items;
@@ -207,7 +213,6 @@ abstract class Prompt {
             this.display = display;
             this.reveal = reveal;
             this.card = card;
-            this.checkPlayable = checkPlayable;
         }
 
         abstract Object result(List<Object> picked);
@@ -230,11 +235,7 @@ abstract class Prompt {
             }
             JsonArray cs = new JsonArray();
             for (int i = 0; i < items.size(); i++) {
-                JsonObject c = WireArgs.choice(i, items.get(i), display, refs);
-                if (checkPlayable && items.get(i) instanceof SpellAbilityView sa && !sa.canPlay()) {
-                    c.addProperty("disabled", true);
-                }
-                cs.add(c);
+                cs.add(WireArgs.choice(i, items.get(i), display, refs));
             }
             j.add("choices", cs);
             if (!selected.isEmpty()) {
@@ -271,9 +272,6 @@ abstract class Prompt {
             }
             List<Object> picked = new ArrayList<>();
             for (int i : idx) {
-                if (checkPlayable && items.get(i) instanceof SpellAbilityView sa && !sa.canPlay()) {
-                    throw new BadReply("choice " + i + " is disabled");
-                }
                 picked.add(items.get(i));
             }
             return result(picked);

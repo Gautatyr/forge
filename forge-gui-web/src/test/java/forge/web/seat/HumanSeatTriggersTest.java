@@ -79,6 +79,16 @@ public class HumanSeatTriggersTest {
             inbox.add(JsonParser.parseString(json).getAsJsonObject());
         }
 
+        /** The last call {@code method} the seat received, as text. */
+        synchronized String lastCall(String method) {
+            for (int i = frames.size() - 1; i >= 0; i--) {
+                if (frames.get(i).contains("\"method\":\"" + method + "\"")) {
+                    return frames.get(i);
+                }
+            }
+            return null;
+        }
+
         synchronized String all() {
             return String.join("\n", frames);
         }
@@ -112,10 +122,18 @@ public class HumanSeatTriggersTest {
         if (gameThread != null) {
             gameThread.shutdownNow();
         }
+        SilentDefaults.setStrict(null);
+    }
+
+    /** No question to the seat may be answered for it: strict mode throws on the game thread, and the count must stay 0. */
+    private void assertNoSilentDefault() {
+        assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
     }
 
     /** As {@code HostedMatch.startGame} wires a {@code ProtocolGuiGame} human, then seat 0's client connects. */
     private void start() {
+        SilentDefaults.reset();
+        SilentDefaults.setStrict(true);
         gameThread = Executors.newSingleThreadExecutor(r -> new Thread(r, "Game-46"));
         List<RegisteredPlayer> rps = new ArrayList<>();
         rps.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerHuman("You")));
@@ -195,7 +213,7 @@ public class HumanSeatTriggersTest {
         long end = System.currentTimeMillis() + 30_000;
         while (!loop.isDone()) {
             if (System.currentTimeMillis() > end) {
-                fail("game loop stuck; seen " + seen + "; input " + pch.getInputQueue().getInput());
+                fail("game loop stuck; seen " + seen + "; input " + pch.getInputQueue().getInput() + "; last message " + seat.lastCall("showPromptMessage"));
             }
             JsonObject m = seat.inbox.poll(10, TimeUnit.MILLISECONDS);
             if (m != null && "prompt".equals(m.get("t").getAsString())) {
@@ -264,6 +282,7 @@ public class HumanSeatTriggersTest {
         assertEquals(opp2.getLife(), 18);
         assertEquals(me.getLife(), 24);
         assertNotNull(stackText("Gray Merchant"), "the seat saw the trigger on the stack: " + seat.stackItems());
+        assertNoSilentDefault();
     }
 
     @Test
@@ -279,6 +298,39 @@ public class HumanSeatTriggersTest {
         assertEquals(me.getCardsIn(ZoneType.Hand).size(), hand + 1, "drew a card; seen " + seen);
         assertEquals(me.getLife(), 19);
         assertNotNull(stackText("Phyrexian Arena"), "the seat saw the trigger on the stack: " + seat.stackItems());
+        assertNoSilentDefault();
+    }
+
+    /** Cumulative upkeep paid from a single graveyard: the seat picks the player, then the cards, through its inputs. */
+    @Test
+    public void jotunGruntsUpkeepIsPaidFromTheGraveyardTheSeatPicks() throws Exception {
+        start();
+        Card grunt = add("Jötun Grunt", me, ZoneType.Battlefield);
+        List<Card> plains = new ArrayList<>();
+        for (int i = 0; i < 2; i++) {
+            plains.add(add("Plains", opp1, ZoneType.Graveyard));
+        }
+        game.getPhaseHandler().devModeSet(PhaseType.UNTAP, me);
+        Future<?> f = gameThread.submit(() -> game.getPhaseHandler().devAdvanceToPhase(PhaseType.UPKEEP));
+        f.get(10, TimeUnit.SECONDS);
+        game.getPhaseHandler().onStackResolved();
+        List<String> seen = play(() -> opp1.getCardsIn(ZoneType.Graveyard).isEmpty() && game.getStack().isEmpty()
+                        || !game.getCardState(grunt).isInZone(ZoneType.Battlefield)
+                        || game.getPhaseHandler().getPhase() != PhaseType.UPKEEP,
+                in -> {
+                    if (in instanceof forge.gamemodes.match.input.InputSelectCardsFromList) {
+                        return () -> plains.forEach(this::select); // then OK
+                    }
+                    if (in instanceof forge.gamemodes.match.input.InputSelectEntitiesFromList) {
+                        return () -> action("selectPlayer", "\"player\":" + opp1.getId());
+                    }
+                    return null;
+                },
+                p -> "confirm".equals(p.get("shape").getAsString()) ? JsonParser.parseString("true") : null);
+        assertNoSilentDefault();
+        assertTrue(game.getCardState(grunt).isInZone(ZoneType.Battlefield), "upkeep paid; seen " + seen);
+        assertTrue(opp1.getCardsIn(ZoneType.Graveyard).isEmpty(), "the two Plains left ai1's graveyard; seen " + seen);
+        assertEquals(grunt.getCounters(forge.game.card.CounterEnumType.AGE), 1);
     }
 
     @Test
@@ -304,6 +356,7 @@ public class HumanSeatTriggersTest {
         assertEquals(me.getCardsIn(ZoneType.Hand).size(), hand + 2, "drew two");
         assertEquals(me.getLife(), 18);
         assertNotNull(stackText("Triarch Praetorian"), "the seat saw the trigger on the stack: " + seat.stackItems());
+        assertNoSilentDefault();
     }
 
     /** Declares {@code attacker} through the seat's attack input, then plays on until {@code done}. */
@@ -363,6 +416,7 @@ public class HumanSeatTriggersTest {
         assertEquals(offered.size(), 1, "the seat chose among the milled cards: " + offered + "; seen " + seen);
         assertTrue(game.getCardState(ornithopter).isInZone(ZoneType.Hand), "Ornithopter offered and put in hand: " + offered + "; seen " + seen);
         assertNotNull(stackText("Szarekh"), "the seat saw the trigger on the stack: " + seat.stackItems());
+        assertNoSilentDefault();
     }
 
     @Test
@@ -391,5 +445,6 @@ public class HumanSeatTriggersTest {
         assertTrue(seen.contains("InputConfirm"), "the optional trigger asked the seat: " + seen);
         assertEquals(me.getLife(), 18, "paid life equal to its mana value");
         assertNotNull(stackText("Anrakyr"), "the seat saw the trigger on the stack: " + seat.stackItems());
+        assertNoSilentDefault();
     }
 }
