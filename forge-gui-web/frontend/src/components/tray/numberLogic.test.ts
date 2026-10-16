@@ -12,6 +12,9 @@ import {
   rangeText,
   startAmounts,
   stepAmount,
+  fitHeight,
+  rowTabTarget,
+  scrollToShow,
   stepNumber,
   suggestNames,
 } from './numberLogic';
@@ -123,6 +126,17 @@ describe('number', () => {
     expect(stepNumber(xPrompt, '', 1)).toBe('0');
   });
 
+  it('out of range: the step away from the range does nothing, the step towards it clamps', () => {
+    expect(stepNumber(xPrompt, '12', 1)).toBe('12');
+    expect(stepNumber(xPrompt, '12', 5)).toBe('12');
+    expect(stepNumber(xPrompt, '12', -1)).toBe('7');
+    expect(stepNumber(xPrompt, '7', 1)).toBe('7');
+    expect(stepNumber(xPrompt, '0', -1)).toBe('0');
+    const neg: InputPrompt = { ...xPrompt, min: -2 };
+    expect(stepNumber(neg, '-5', -1)).toBe('-5');
+    expect(stepNumber(neg, '-5', 1)).toBe('-2');
+  });
+
   it('confirms a whole number in range only', () => {
     expect(inputConfirm(xPrompt, '3')).toEqual({ enabled: true, label: 'Continue to payment', answer: { shape: 'input', value: '3' } });
     expect(inputConfirm(xPrompt, ' 03 ').answer).toEqual({ shape: 'input', value: '3' });
@@ -145,6 +159,31 @@ const NAMES: CardNameOption[] = [
   'Goblin Rabblemaster',
   'Siege-Gang Commander',
 ].map((name) => ({ name, manaCost: '{R}', typeLine: 'Creature — Goblin' }));
+
+describe('distribute: Tab between rows', () => {
+  it('moves row to row, leaves after the last row only when the confirm can take focus', () => {
+    expect(rowTabTarget(0, 3, false, false)).toBe(1);
+    expect(rowTabTarget(2, 3, false, true)).toBeUndefined();
+    expect(rowTabTarget(2, 3, false, false)).toBe(0);
+    expect(rowTabTarget(1, 3, true, false)).toBe(0);
+    expect(rowTabTarget(0, 3, true, false)).toBeUndefined();
+  });
+});
+
+describe('name a card: fitting the tray', () => {
+  it('shrinks to what the tray body has, never below the floor', () => {
+    expect(fitHeight(212, 0, 96)).toBe(212);
+    expect(fitHeight(212, 44, 96)).toBe(168);
+    expect(fitHeight(212, 180, 96)).toBe(96);
+  });
+
+  it('scrolls the list just enough to show the highlighted row', () => {
+    // row top, row bottom, list scrollTop, list height
+    expect(scrollToShow(40, 60, 0, 100)).toBe(0);
+    expect(scrollToShow(140, 160, 0, 100)).toBe(60);
+    expect(scrollToShow(20, 40, 50, 100)).toBe(20);
+  });
+});
 
 describe('name a card', () => {
   it('suggests up to 8 names, those starting with the text first', () => {

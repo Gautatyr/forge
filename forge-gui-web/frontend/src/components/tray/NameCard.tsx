@@ -1,10 +1,47 @@
-import { useId, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { CardNameOption, InputPrompt } from '../../model/types';
 import { ManaCost } from '../ManaCost';
 import { useOpenFocus, useSubmit } from './NumberField';
-import { exactName, inputStart, suggestNames } from './numberLogic';
+import { exactName, fitHeight, inputStart, scrollToShow, suggestNames } from './numberLogic';
 import type { BodyProps } from './TrayBody';
 import styles from './NumberShapes.module.css';
+
+/** Lowest height of the body, in rem: the field, the constraint and two suggestions. */
+const FLOOR_REM = 6;
+
+/**
+ * Keeps the body as tall as the preview, shrunk to what the tray body has (small
+ * screens, a short board share), so the tray body never scrolls: the field, the
+ * constraint and the preview stay in view and only the suggestion list scrolls.
+ * The tray does not jump when suggestions appear.
+ */
+function useFitTray() {
+  const root = useRef<HTMLDivElement>(null);
+  const fit = () => {
+    const el = root.current;
+    const body = el?.parentElement;
+    if (!el || !body) return;
+    el.style.removeProperty('--name-h');
+    const over = body.scrollHeight - body.clientHeight;
+    if (over <= 0) return;
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    // Floored: scrollHeight rounds up, a fractional height would leave 1px of body scroll.
+    el.style.setProperty('--name-h', `${Math.floor(fitHeight(el.getBoundingClientRect().height, over, FLOOR_REM * rem))}px`);
+  };
+  // Every render: the tray's height follows the board split, which re-renders the tray.
+  useLayoutEffect(fit);
+  // And when the area the tray sits in or the tray's header or footer resizes (window,
+  // board layout, the header's animated thumbnail): none of them depends on this body.
+  useEffect(() => {
+    const body = root.current?.parentElement;
+    const tray = body?.parentElement;
+    if (!body || !tray) return;
+    const ro = new ResizeObserver(fit);
+    for (const el of [tray.offsetParent, ...tray.children]) if (el && el !== body) ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return root;
+}
 
 /**
  * Name a card: a field with up to 8 suggestions (cost and type line). The
@@ -25,6 +62,7 @@ export function NameCard(props: BodyProps<InputPrompt>) {
   const field = useOpenFocus();
   const listId = useId();
   const listRef = useRef<HTMLUListElement>(null);
+  const root = useFitTray();
 
   const type = (t: string) => {
     setDraft({ ...draft, selected: [t] });
@@ -42,8 +80,10 @@ export function NameCard(props: BodyProps<InputPrompt>) {
       e.preventDefault();
       const next = (at + (e.key === 'ArrowDown' ? 1 : -1) + list.length) % list.length;
       setHi(next);
-      // Keep it in view when the tray body scrolls (small screens).
-      listRef.current?.children[next]?.scrollIntoView({ block: 'nearest' });
+      // Only the list scrolls: keep the highlighted row in it.
+      const ul = listRef.current;
+      const li = ul?.children[next] as HTMLElement | undefined;
+      if (ul && li) ul.scrollTop = scrollToShow(li.offsetTop, li.offsetTop + li.offsetHeight, ul.scrollTop, ul.clientHeight);
     } else if (e.key === 'Enter') {
       e.preventDefault();
       const h = list[at];
@@ -57,7 +97,7 @@ export function NameCard(props: BodyProps<InputPrompt>) {
   };
 
   return (
-    <div className={styles.nameCard}>
+    <div ref={root} className={styles.nameCard}>
       <div className={styles.nameMain}>
         <input
           ref={field}

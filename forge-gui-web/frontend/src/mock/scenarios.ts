@@ -462,7 +462,7 @@ const NUMBER_SCENARIOS: Scenario[] = [
     build: () => {
       const b = new GameBuilder('combat-deathtouch', 'constructed');
       b.player('you', 'Hugo', 17, { libraryCount: 47, isAi: false }).player('ai', 'Forge AI', 12, { libraryCount: 46, handCount: 3 });
-      const beast = b.card('Questing Beast', 'you', 'battlefield', { tapped: true });
+      const beast = b.card('Questing Beast', 'you', 'battlefield'); // vigilance: attacks untapped
       b.many(4, 'Forest', 'you', 'battlefield');
       const giant = b.card('Bonecrusher Giant', 'ai', 'battlefield');
       const hero = b.card('Heartfire Hero', 'ai', 'battlefield', { counters: [{ kind: '+1/+1', count: 2 }] });
@@ -470,7 +470,7 @@ const NUMBER_SCENARIOS: Scenario[] = [
       yourHand(b, ['Ram Through', 'Forest', 'Beast Within']);
       b.turn(6, 'you', 'combatDamage', undefined);
       b.g.combat = { attacks: [{ attackerId: beast, defenderId: 'ai' }], blocks: [giant, hero].map((blockerId) => ({ blockerId, attackerId: beast })) };
-      b.log(`Hugo attacks with ${ref(beast)}.`, 'you').log('Forge AI blocks with Bonecrusher Giant and Heartfire Hero.', 'ai');
+      b.log(`Hugo attacks with ${ref(beast)}.`, 'you').log(`Forge AI blocks with ${ref(giant)} and ${ref(hero)}.`, 'ai');
       const g = b.done();
       g.decision = { kind: 'choice', prompt: combatDamagePrompt(g, beast, [giant, hero], 'ai') };
       return g;

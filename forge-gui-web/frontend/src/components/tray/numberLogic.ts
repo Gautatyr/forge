@@ -66,6 +66,17 @@ export function stepAmount(p: DistributePrompt, a: Amounts, id: string, by: numb
 
 export const canStep = (p: DistributePrompt, a: Amounts, id: string, by: number) => stepAmount(p, a, id, by) !== a;
 
+/**
+ * Where Tab goes from row `i` of `n`: the next (or previous) row. Past the last row it
+ * leaves for the confirm when that can take focus, else wraps to the first row;
+ * before the first row it leaves (undefined) for the tray's header.
+ */
+export function rowTabTarget(i: number, n: number, back: boolean, canLeave: boolean): number | undefined {
+  const j = i + (back ? -1 : 1);
+  if (j >= 0 && j < n) return j;
+  return back || canLeave ? undefined : 0;
+}
+
 export function distributeConfirm(p: DistributePrompt, a: Amounts): Confirm {
   const left = leftToAssign(p, a);
   const under = p.recipients.some((r) => (a[r.id] ?? 0) < (r.min ?? 0));
@@ -94,11 +105,15 @@ function parseWhole(text: string): number | undefined {
 
 const inRange = (p: InputPrompt, n: number) => n >= (p.min ?? 0) && (p.max === undefined || n <= p.max);
 
-/** The field after ↑/↓ (±1) or Shift+↑/↓ (±5), kept in the range. */
+/**
+ * The field after ↑/↓ (±1) or Shift+↑/↓ (±5), kept in the range. Already at or past
+ * an end, a step further out leaves the text as is (that button is disabled).
+ */
 export function stepNumber(p: InputPrompt, text: string, by: number): string {
   const lo = p.min ?? 0;
   const n = parseWhole(text);
   if (n === undefined) return String(lo);
+  if ((by > 0 && p.max !== undefined && n >= p.max) || (by < 0 && n <= lo)) return text;
   const next = Math.max(lo, n + by);
   return String(p.max === undefined ? next : Math.min(p.max, next));
 }
@@ -123,6 +138,16 @@ export function suggestNames(names: CardNameOption[], query: string, limit = MAX
     .sort((a, b) => a.r - b.r || a.n.name.localeCompare(b.n.name))
     .slice(0, limit)
     .map((x) => x.n);
+}
+
+/** Name a card's height: its preferred height less what overflows the tray body, kept at least `floor`. */
+export const fitHeight = (preferred: number, overflow: number, floor: number) => Math.max(floor, preferred - Math.max(0, overflow));
+
+/** The list's scrollTop that shows the row [top, bottom), moving as little as possible. */
+export function scrollToShow(top: number, bottom: number, scrollTop: number, height: number): number {
+  if (top < scrollTop) return top;
+  if (bottom > scrollTop + height) return bottom - height;
+  return scrollTop;
 }
 
 export function exactName(names: CardNameOption[], text: string): CardNameOption | undefined {

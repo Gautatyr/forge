@@ -4,7 +4,7 @@ import type { DistributePrompt, DistributeRecipient } from '../../model/types';
 import { useMatch } from '../../state/MatchContext';
 import { Card } from '../Card';
 import { SeatGlyph } from '../Icon';
-import { canStep, everyBlockerLethal, leftToAssign, startAmounts, stepAmount } from './numberLogic';
+import { canStep, distributeConfirm, everyBlockerLethal, leftToAssign, rowTabTarget, startAmounts, stepAmount } from './numberLogic';
 import type { BodyProps } from './TrayBody';
 import styles from './NumberShapes.module.css';
 
@@ -24,13 +24,15 @@ export function Distribute({ prompt, draft, setDraft }: BodyProps<DistributeProm
   useEffect(() => {
     fields()[0]?.focus({ preventScroll: true });
   }, []);
-  // Tab goes from row to row, skipping the thumbnails; it leaves the list after the last row.
+  // Tab goes from row to row, skipping the thumbnails. After the last row it moves on to
+  // the confirm when enabled, else wraps to the first row so focus stays in the tray.
+  const canLeave = distributeConfirm(prompt, amounts).enabled;
   const onTab = (e: KeyboardEvent) => {
     const all = fields();
-    const next = all[all.indexOf(e.currentTarget as HTMLElement) + (e.shiftKey ? -1 : 1)];
-    if (!next) return;
+    const to = rowTabTarget(all.indexOf(e.currentTarget as HTMLElement), all.length, e.shiftKey, canLeave);
+    if (to === undefined) return;
     e.preventDefault();
-    next.focus();
+    all[to]?.focus();
   };
 
   return (

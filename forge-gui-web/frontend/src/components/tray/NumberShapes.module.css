@@ -67,6 +67,9 @@
 .glyph {
   display: inline-flex;
   width: 1.75rem;
+  /* As tall as a row's card thumbnail, so every row has the same height. */
+  height: calc(1.75rem / var(--card-ratio));
+  align-items: center;
   justify-content: center;
   color: var(--c-text-2);
 }
@@ -166,12 +169,16 @@
 }
 
 /* --- Name a card / text ------------------------------------------------------- */
-/* As tall as the preview from the start, so the tray does not jump when suggestions appear. */
+/*
+ * A fixed height (--name-h, the preview's; NameCard lowers it to what the tray body
+ * has), so the tray does not jump when suggestions appear and the body never
+ * scrolls: only the suggestion list does.
+ */
 .nameCard {
+  --name-h: calc(10rem / var(--card-ratio));
   display: flex;
   gap: var(--sp-4);
-  align-items: flex-start;
-  min-height: calc(9.5rem / var(--card-ratio));
+  height: var(--name-h);
 }
 
 .nameMain {
@@ -181,6 +188,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-1);
+}
+
+.nameMain > * {
+  flex: none;
 }
 
 .textInput {
@@ -204,7 +215,14 @@
   color: var(--c-text-2);
 }
 
+.nameMain > .suggestions {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
 .suggestions {
+  position: relative;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   margin: 0;
@@ -246,7 +264,7 @@
 
 .preview {
   flex: none;
-  width: 9.5rem;
+  width: calc(var(--name-h) * var(--card-ratio));
 }
 
 .previewImg {

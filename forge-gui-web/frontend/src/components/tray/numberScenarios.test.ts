@@ -71,6 +71,9 @@ describe('combat damage assignment', () => {
     expect(p.combat).toMatchObject({ deathtouch: true, trampleId: undefined });
     expect(p.recipients.map((r) => r.lethal)).toEqual([1, 1]);
     expect(initialDraft(p).amounts).toEqual({ [p.recipients[0]!.id]: 1, [p.recipients[1]!.id]: 3 });
+    expect(p.recipients[0]!.label).toBe('Bonecrusher Giant');
+    // Vigilance: the attacker stays untapped.
+    expect(g.cards[p.combat!.attackerId]!.tapped).toBe(false);
   });
 });
 
@@ -94,6 +97,12 @@ describe('name a card', () => {
     const p = promptOf(g) as InputPrompt;
     expect(p.cardNames!.some((n) => n.name === 'Lightning Bolt')).toBe(true);
     expect(p.cardNames!.some((n) => n.name === 'Forest')).toBe(false);
+    // An adventure card goes by its creature half, as in Forge.
+    expect(p.cardNames!.find((n) => n.name.startsWith('Bonecrusher'))).toMatchObject({
+      name: 'Bonecrusher Giant',
+      manaCost: '{2}{R}',
+      typeLine: 'Creature — Giant',
+    });
     const d = { ...initialDraft(p), selected: ['lightning bolt'] };
     const c = trayConfirm(p, d);
     expect(c.answer).toEqual({ shape: 'input', value: 'Lightning Bolt' });
