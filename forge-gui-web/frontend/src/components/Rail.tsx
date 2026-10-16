@@ -7,6 +7,7 @@ import { Card } from './Card';
 import { CombatPanel } from './CombatPanel';
 import { Icon, SeatGlyph } from './Icon';
 import { LogText } from './LogText';
+import { recentRows } from './recentRows';
 import styles from './Rail.module.css';
 
 /**
@@ -133,7 +134,7 @@ const RECENT_EVENTS = 20;
 
 function RecentEvents() {
   const { game, setUi } = useMatch();
-  const recent = game.log.slice(-RECENT_EVENTS).reverse();
+  const rows = recentRows(game, RECENT_EVENTS);
   return (
     <section className={`${styles.block} ${styles.recent}`} aria-label="Recent events">
       <header className={styles.head}>
@@ -143,18 +144,27 @@ function RecentEvents() {
         </button>
       </header>
       <ol className={`${styles.body} ${styles.events}`} data-scroll-region>
-        {recent.map((e) => (
-          <li key={e.id}>
-            {e.playerId ? (
-              <span className={styles.eventSeat}>
-                <SeatGlyph seat={player(game, e.playerId).seat} />
+        {rows.map((r) =>
+          r.kind === 'divider' ? (
+            <li key={r.key} className={styles.turnDivider}>
+              <span className={styles.turnLabel}>
+                {r.seat !== undefined ? <SeatGlyph seat={r.seat} /> : null}
+                {r.label}
               </span>
-            ) : null}
-            <span>
-              <LogText text={e.text} />
-            </span>
-          </li>
-        ))}
+            </li>
+          ) : (
+            <li key={r.key} className={r.bold ? styles.eventLoss : undefined}>
+              {r.entry.playerId ? (
+                <span className={styles.eventSeat}>
+                  <SeatGlyph seat={player(game, r.entry.playerId).seat} />
+                </span>
+              ) : null}
+              <span>
+                <LogText text={r.entry.text} />
+              </span>
+            </li>
+          ),
+        )}
       </ol>
     </section>
   );

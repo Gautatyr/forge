@@ -1,4 +1,4 @@
-import { isCreature } from '../model/selectors';
+import { isCreature, isLand } from '../model/selectors';
 import type { ChoicePrompt } from '../model/types';
 import { GameBuilder, ref } from './builder';
 import type { CardKey } from './cardDb';
@@ -114,8 +114,8 @@ function commanderTable(b: GameBuilder, opts: { sythisInCommand?: boolean } = {}
   b.p('ana').commanderDamageTaken = [{ commanderId: krenko, amount: 5 }];
 
   b.log(`${ref(krenko)} creates 5 Goblin tokens.`, 'mira', 8)
-    .log(`Impact Tremors deals 5 damage to each opponent.`, 'mira', 8)
-    .log(`${ref(meren)} attacks Hugo; Hugo takes 3 damage.`, 'ana', 8);
+    .log(`Impact Tremors deals 5 damage to each opponent.`, 'mira', 8, 'life')
+    .log(`${ref(meren)} attacks Hugo; Hugo takes 3 damage.`, 'ana', 8, 'life');
 
   return { sythis, eidolon, knight, champion, spirit, krenko, chieftain, prospector, goblins, meren, talrand };
 }
@@ -691,6 +691,59 @@ export const SCENARIOS: Scenario[] = [
     HAND_12,
   ),
   handScenario('hand15', '5d · Hand of 15 (overflow)', 'Fifteen cards, still staggered at full size.', HAND_15),
+  {
+    id: 'board',
+    label: '5e · Catching up: Mira’s Bolt at you',
+    description:
+      'Mira’s turn 10. Recent has a divider per turn; lines where you lost life or a permanent are bold. Pass: the Bolt resolves and your plate shows ▼ −3 for 4 s. Sythis shows only beside the hand; Moment’s Peace stays there although every land is tapped. Commander damage chips name their source (Theo’s Krenko chip is past 15); Mira has {R}{R} floating.',
+    build: () => {
+      const b = new GameBuilder('board', 'commander');
+      const ids = commanderTable(b, { sythisInCommand: true });
+      yourHand(b, HAND_7);
+      for (const id of b.p('you').battlefield) {
+        const c = b.g.cards[id]!;
+        if (isLand(c) || c.name === 'Elvish Mystic') c.tapped = true;
+      }
+      b.turn(10, 'mira', 'main1', 'you');
+      b.p('you').landsPlayedThisTurn = 0;
+      b.p('mira').manaPool = { R: 2 };
+      b.p('theo').commanderDamageTaken = [
+        { commanderId: ids.sythis, amount: 3 },
+        { commanderId: ids.krenko, amount: 16 },
+      ];
+      b.p('ana').commanderDamageTaken = [
+        { commanderId: ids.krenko, amount: 5 },
+        { commanderId: ids.sythis, amount: 2 },
+      ];
+      const oldBolt = b.card('Lightning Bolt', 'mira', 'graveyard');
+      // Cast from Mira's hand: built in her graveyard (keeps her hand count), then moved to the stack.
+      const bolt = b.card('Lightning Bolt', 'mira', 'graveyard');
+      const mira = b.p('mira');
+      mira.graveyard.splice(mira.graveyard.indexOf(bolt), 1);
+      b.g.cards[bolt]!.zone = 'stack';
+      b.g.stack = [
+        {
+          id: 's1',
+          sourceCardId: bolt,
+          controllerId: 'mira',
+          kind: 'spell',
+          text: 'Lightning Bolt deals 3 damage to any target.',
+          targets: [{ kind: 'player', id: 'you' }],
+        },
+      ];
+      b.log('Hugo draws a card.', 'you', 9)
+        .log(`Hugo casts ${ref(ids.eidolon)}.`, 'you', 9)
+        .log(`Mira casts ${ref(oldBolt)} targeting ${ref(ids.sythis)}.`, 'mira', 9)
+        .log(`${ref(ids.sythis)} dies; Hugo moves it to the command zone.`, 'you', 9, 'permanent')
+        .log('Hugo ends the turn.', 'you', 9)
+        .log('Mira draws a card.', 'mira', 10)
+        .log(`${ref(ids.krenko)} creates 5 Goblin tokens.`, 'mira', 10)
+        .log('Impact Tremors deals 5 damage to each opponent.', 'mira', 10, 'life')
+        .log('Mira adds {R}{R}.', 'mira', 10)
+        .log(`Mira casts ${ref(bolt)} targeting Hugo.`, 'mira', 10);
+      return b.done();
+    },
+  },
   {
     id: 'payment',
     label: '6 · Payment: Sythis with tax, {G}{G} floating',
