@@ -11,9 +11,11 @@ design-token file. Data comes from mock scenarios, a recorded game, or the live 
 - `src/wire/generated/` — wire types generated from the engine (issue #9). Only
   `src/wire/` and `src/adapter/` may import them; ESLint blocks imports elsewhere.
 - `src/adapter/` — live source: WebSocket client, wire → view-model (`toView.ts`), prompts,
-  intents → commands. Message shapes it expects from the bridge: `protocol.ts`.
-  - Live: `make web-server ARGS="--mode commander"` + `make web-dev`, open
-    `http://localhost:<vite port>/?live=1&seat=0#token=<token the bridge printed>` (Vite proxies `/ws`).
+  intents → commands. Seat messages (call, prompt, reply, action…) are generated with the wire
+  types (`WireEnvelope`); `protocol.ts` names the unions.
+  - Live: `make web-server ARGS="--human-seat 0 --mode commander --players 4 --life 40"` + `make web-dev`, open
+    `http://localhost:<vite port>/?live=1&seat=0#token=<seat 0 token the bridge printed>` (Vite proxies `/ws`).
+    A new token needs a reload (only the hash changes). Dev builds expose the view-model as `window.__liveGame`.
   - Replay without the engine: `?replay=commander4&at=<messages>&play=<ms per message>`.
     Record another: `node scripts/record-stream.mjs --url ws://127.0.0.1:<port>/ws --token <t> --seat 0 --out x.jsonl`.
 

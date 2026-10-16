@@ -119,3 +119,9 @@ Newest last. Each entry: the decision, why, and what it implies.
 - A prompt falls back to the engine default after 15 min unanswered, or 60 s without a connected client (both flags of `WebMain`).
 - Phase stops: the client sends `sendYieldUpdate` `SkipPhase` per stop; the server skips none until told. This is the wire message #20 left open.
 - Details: [architecture/web-ui.md](architecture/web-ui.md#bridge-human-seat-issue-8).
+
+## 2026-10-16 — Live adapter on the human-seat protocol (issue #11, supersedes parts of the #11 entry)
+- The client speaks the bridge's seat protocol (#8): `{"t":"action","method",…}` and `{"t":"reply","id","value"}`; prompts by `shape`. Its message types are generated with the wire types (`WireEnvelope.SEAT_MESSAGES` / `CLIENT_MESSAGES`), not hand-written in `protocol.ts`.
+- Phase stops: on connect and on every edit the client sends `SkipPhase` for every player and step from `prefs.stops`. "To my turn" is a `SetMarker` at your upkeep.
+- `WebMain` turns on `UI_SHOW_ACTIONABLE_HIGHLIGHTS` and `UI_SHOW_AUTOTAP_PREVIEW` (in memory): the client reads `setWeaklySelectable` as data (playable cards, attack candidates, payment sources, the auto-pay plan, strength 2), never drawn as hints. A launcher that opens web matches from the desktop lobby needs the same two prefs.
+- Auto-pay mana is a client setting: one `selectButtonOk` ("Auto") per payment.

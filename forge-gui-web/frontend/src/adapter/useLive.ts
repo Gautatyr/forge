@@ -112,6 +112,11 @@ export function useLive(config: SourceConfig, stops: StopPrefs = DEFAULT_STOPS):
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config, source, error, version, imagesVersion, images, local]);
 
+  // Dev only: the current view-model, for checks from the browser console or Playwright.
+  useEffect(() => {
+    if (import.meta.env.DEV && game) Object.assign(window, { __liveGame: game });
+  }, [game]);
+
   const send = useCallback(
     (intent: Intent) => {
       if (!source || !game) return;

@@ -62,6 +62,7 @@ export function connectLive(
       for (const f of frames) {
         if (f.t === 'reply') source.session.answered(f.id);
         if (f.t === 'action' && f.method === 'selectCard' && f.card !== undefined) source.session.clicked(f.card);
+        if (f.t === 'action' && f.method === 'concede') source.session.conceded = true;
       }
       changed();
     },

@@ -204,6 +204,19 @@ export function inputToChoice(input: InputState, view: Pick<GameView, 'players' 
     const chosen = input.highlighted.filter((h) => h.type === 'card').length;
     const n = Number(london[1]) + chosen;
     const hand = you?.hand ?? [];
+    if (n === 0) {
+      // A free mulligan: nothing goes to the bottom; the engine then asks Keep / Mulligan again.
+      return {
+        id: `${INPUT_PROMPT_PREFIX}ok:keep:${hand.join(',')}`,
+        shape: 'chooseN',
+        title: `New hand · ${hand.length} cards`,
+        instruction: 'Nothing to put on the bottom: this mulligan is free.',
+        confirmLabel: 'OK',
+        options: [],
+        min: 0,
+        max: 0,
+      };
+    }
     return bottomPrompt(hand, n, (id) => view.cards[id]?.name ?? 'Card', `${INPUT_PROMPT_PREFIX}bottom:${n}:${hand.join(',')}`);
   }
   const lines = msg.split('\n');

@@ -89,7 +89,8 @@ export function intentToFrames(intent: Intent, s: LiveSession, view: GameView): 
     case 'undo':
       return [action('undoLastAction')];
     case 'concede':
-      return [action('concede')];
+      // The engine marks the loss; it is applied once the game moves on, so give up priority too.
+      return d.kind === 'priority' ? [action('concede'), action('selectButtonOk')] : [action('concede')];
     case 'setAutoPass':
     case 'setAutoYield':
     case 'setAutoPay':

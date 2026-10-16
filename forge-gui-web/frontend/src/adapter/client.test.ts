@@ -86,7 +86,10 @@ describe('connectLive', () => {
     const ws = sockets[0]!;
     ws.open();
     ws.receive(snapshot);
+    ws.receive({ t: 'call', method: 'showPromptMessage', args: [{ type: 'player', id: 0 }, 'Priority: You\nTurn: 3 (You)', null] });
     src.send([{ t: 'action', method: 'selectCard', card: 6 }]);
+    ws.receive({ t: 'call', method: 'showPromptMessage', args: [{ type: 'player', id: 0 }, 'Siege - Choose target\n\nSelect target creature', null] });
+    src.send([{ t: 'action', method: 'selectCard', card: 20 }]);
     ws.receive({ t: 'call', method: 'showPromptMessage', args: [{ type: 'player', id: 0 }, 'Siege\n\nPay Mana Cost: {2}{U}', { type: 'card', id: -1 }] });
     src.send([{ t: 'action', method: 'selectCard', card: 10 }]);
     expect(src.session.lastCard).toBe(6);

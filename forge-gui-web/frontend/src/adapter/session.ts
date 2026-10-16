@@ -97,6 +97,8 @@ export class LiveSession {
   lastCard?: number;
   /** That card's objects while it is in no zone (cast, being paid for). */
   limbo = new Map<string, WireObject>();
+  /** This client conceded the game (the view has no loss reason). */
+  conceded = false;
   /** Game over (final delta or finishGame). */
   finished = false;
   /** The payment being made: its full cost, as the first "Pay Mana Cost" message of the input showed it. */
@@ -138,9 +140,9 @@ export class LiveSession {
     return (this.objects.get(key) ?? this.limbo.get(key)) as Extract<WireObject, { type: 'cardState' }> | undefined;
   }
 
-  /** This client sent selectCard: remember the card unless it pays for the spell being cast. */
+  /** This client sent selectCard: remember the card it casts or activates (a click with priority, not a target or a mana source). */
   clicked(card: number) {
-    if (this.payment || card === this.lastCard) return;
+    if (!/^Priority:/.test(this.input.message) || card === this.lastCard) return;
     this.lastCard = card;
     this.limbo = new Map();
   }
@@ -184,6 +186,7 @@ export class LiveSession {
           this.revealed = [];
           this.lastCard = undefined;
           this.limbo = new Map();
+          this.conceded = false;
           this.weakly = new Map();
           this.finished = false;
           this.payment = undefined;

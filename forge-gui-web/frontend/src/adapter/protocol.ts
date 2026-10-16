@@ -30,4 +30,4 @@ export function asRef(v: unknown): SeatRef | undefined {
 }
 
 /** Colour masks of `useMana` (forge.card.MagicColor). */
-export const COLOUR_MASK = { W: 1, U: 2, B: 4, R: 8, G: 16, C: 0 } as const;
+export const COLOUR_MASK = { W: 1, U: 2, B: 4, R: 8, G: 16, C: 32 } as const;

@@ -169,7 +169,7 @@ export const PAY_COST = /Pay Mana Cost:\s*(\S+)/;
 const ATTACK_CANCEL = new Set(['Alpha Strike', 'Call Back']);
 
 /** Pool keys are MagicColor bytes ("1" white … "16" green, "0" colourless). */
-const POOL_KEY: Record<string, ManaColour> = { '1': 'W', '2': 'U', '4': 'B', '8': 'R', '16': 'G', '0': 'C', W: 'W', U: 'U', B: 'B', R: 'R', G: 'G', C: 'C' };
+const POOL_KEY: Record<string, ManaColour> = { '1': 'W', '2': 'U', '4': 'B', '8': 'R', '16': 'G', '32': 'C', '0': 'C', W: 'W', U: 'U', B: 'B', R: 'R', G: 'G', C: 'C' };
 
 export function manaPool(mana: Record<string, number> | undefined): ManaPool | undefined {
   const out: ManaPool = {};
@@ -186,7 +186,17 @@ function produced(s: LiveSession, id: number): ManaColour[] {
   const st = s.cardState(id, card?.props.CurrentState ?? 'Original')?.props;
   if (!st) return [];
   if (st.OrigProduceAnyMana) return ['W', 'U', 'B', 'R', 'G'];
-  return [...new Set((st.OrigProduceMana ?? '').split(/[\s,]+/).filter((x): x is ManaColour => /^[WUBRGC]$/.test(x)))];
+  const listed = (st.OrigProduceMana ?? '').split(/[\s,]+/).filter((x): x is ManaColour => /^[WUBRGC]$/.test(x));
+  if (listed.length) return [...new Set(listed)];
+  // Not a land (Sol Ring, mana rocks, dorks): read the rules text's mana abilities.
+  const kinds = new Set<ManaColour>();
+  for (const line of (st.OracleText || st.AbilityText || '').split(/\n/)) {
+    const add = /:\s*Add\s+(.*)/i.exec(line)?.[1];
+    if (!add) continue;
+    if (/any colou?r|any combination of colou?rs/i.test(add)) for (const c of ['W', 'U', 'B', 'R', 'G'] as const) kinds.add(c);
+    for (const m of add.matchAll(/\{([WUBRGC])\}/g)) kinds.add(m[1] as ManaColour);
+  }
+  return [...kinds];
 }
 
 /** A source of the live game: one click taps it (the engine asks which ability when there are several). */
@@ -217,13 +227,14 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
 
   const youView = view.players.find((p) => p.isYou)!;
   const weakly = [...s.weakly.keys()];
+  // The engine's ref to the spell being cast can be unknown (-1): fall back to the card you clicked.
+  const known = (id: number | undefined) => (id !== undefined && id >= 0 && view.cards[sid(id)] ? sid(id) : undefined);
+  const castCard = () => known(input.cardId) ?? known(s.lastCard) ?? '';
 
   const pay = PAY_COST.exec(input.message);
   if (pay) {
     const remaining = pay[1] === '0' ? '' : pay[1]!;
-    // The engine's ref to the spell being cast can be unknown (-1): fall back to the card you clicked.
-    const known = (id: number | undefined) => (id !== undefined && id >= 0 && view.cards[sid(id)] ? sid(id) : undefined);
-    const sourceCardId = known(input.cardId) ?? known(s.lastCard) ?? '';
+    const sourceCardId = castCard();
     const cost = s.payment?.cost ?? remaining;
     const sources = weakly
       .filter((id) => view.cards[sid(id)]?.zone === 'battlefield' && !view.cards[sid(id)]?.tapped)
@@ -262,7 +273,7 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
 
   // Mulligan and the London mulligan's bottom cards: tray prompts answered with buttons and hand clicks.
   const early = inputToChoice(input, view);
-  if (early && /^input:(mulligan|bottom):/.test(early.id)) return { kind: 'choice', prompt: early };
+  if (early && /^input:(mulligan|bottom|ok:keep):/.test(early.id)) return { kind: 'choice', prompt: early };
 
   const combat = view.combat ?? { attacks: [], blocks: [] };
   const yourCreatures = youView.battlefield.filter((id) => view.cards[id]?.power !== undefined && !view.cards[id]?.tapped);
@@ -275,7 +286,7 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
       draft: combat.attacks,
     };
   }
-  if (view.turn.step === 'declareBlockers' && view.turn.activePlayerId !== view.youId && /block/i.test(input.message)) {
+  if (view.turn.step === 'declareBlockers' && view.turn.activePlayerId !== view.youId && !/^Priority:/.test(input.message) && /block/i.test(input.message)) {
     const attackingYou = combat.attacks.filter((a) => a.defenderId === view.youId).map((a) => a.attackerId);
     const blockers = youView.battlefield.filter((id) => view.cards[id]?.power !== undefined && !view.cards[id]?.tapped);
     return { kind: 'declareBlockers', candidates: blockers, attackers: attackingYou, draft: combat.blocks };
@@ -283,9 +294,10 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
   // InputPassPriority: OK + End Turn / Undo.
   if (input.ok.label === 'OK' && /^(End Turn|Undo)/.test(input.cancel.label)) {
     const playable = weakly.map(sid).filter((id) => view.cards[id] && view.cards[id]!.zone !== 'battlefield');
-    const manaSources = weakly
-      .filter((id) => view.cards[sid(id)]?.zone === 'battlefield' && produced(s, id).length > 0)
-      .map((id) => manaSource(s, id));
+    // Your untapped permanents with a mana ability (actionable highlights leave mana abilities out).
+    const manaSources = youView.battlefield
+      .filter((id) => !view.cards[id]?.tapped && produced(s, Number(id)).length > 0)
+      .map((id) => manaSource(s, Number(id)));
     return { kind: 'priority', playable, manaSources };
   }
   if (input.selectable || input.targets.length > 0) {
@@ -298,8 +310,9 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
     );
     return {
       kind: 'chooseTargets',
-      sourceCardId: input.cardId !== undefined ? sid(input.cardId) : '',
-      instruction: input.message.trim() || 'Choose',
+      sourceCardId: castCard(),
+      // "Bolt (12) - Deal 3 damage…\n\nSelect any target": the last line is the instruction.
+      instruction: input.message.trim().split('\n').filter((l) => l.trim()).at(-1)?.trim() || 'Choose',
       legal,
       chosen,
       min: input.ok.enabled ? chosen.length : Math.max(chosen.length + 1, input.selectable?.min ?? 1),
@@ -397,7 +410,10 @@ export function toGameView(s: LiveSession, images: ImageLookup = namedImage, loc
       landsPlayedThisTurn: p.NumLandThisTurn ?? 0,
       hasLost: p.HasLost === true,
     };
-    if (pv.hasLost) pv.out = { turn: lostAt ?? gp.Turn ?? 0, reason: outReason(s, p, cards, gp.PoisonCountersToLose ?? 10) };
+    if (pv.hasLost) {
+      const reason: OutReason = isYou && s.conceded ? { kind: 'conceded' } : outReason(s, p, cards, gp.PoisonCountersToLose ?? 10);
+      pv.out = { turn: lostAt ?? gp.Turn ?? 0, reason };
+    }
     const pool = manaPool(p.Mana);
     if (pool) pv.manaPool = pool;
     if (starting && !pv.hasLost) pv.mulligan = mulligans.get(pid) ?? { state: 'deciding' };
@@ -424,7 +440,7 @@ export function toGameView(s: LiveSession, images: ImageLookup = namedImage, loc
     ];
   });
 
-  const priority = playerIds.find((pid) => s.get('player', pid)?.props.HasPriority);
+  const priority = playerIds.find((pid) => s.get('player', pid)?.props.HasPriority && !s.get('player', pid)?.props.HasLost);
   const combat: CombatState | undefined = gp.CombatView?.length
     ? {
         attacks: gp.CombatView.flatMap((band) => {
@@ -469,7 +485,11 @@ export function toGameView(s: LiveSession, images: ImageLookup = namedImage, loc
     // Step changes are the strip's job, not the log's.
     log: s.log.filter((e) => e.type !== 'PHASE').map((e): LogEntry => ({ id: `w${e.id}`, turn: e.turn, text: logText(e.msg, cards) })),
   };
-  const view: GameView = { ...base, decision: decisionFor(s, base) };
+  const decision = decisionFor(s, base);
+  const view: GameView = { ...base, decision };
+  // The engine's HasPriority can lag (it keeps the last holder through turn-based actions): your own input wins.
+  if (decision.kind === 'priority') view.turn = { ...view.turn, priorityPlayerId: view.youId };
+  else if (decision.kind !== 'waiting') view.turn = { ...view.turn, priorityPlayerId: undefined };
   if (s.finished) view.result = resultOf(s, view);
   return view;
 }

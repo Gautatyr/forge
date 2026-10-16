@@ -143,6 +143,8 @@ describe('intents → frames', () => {
     expect(intentToFrames({ type: 'spendPool', colour: 'G' }, s, g)).toEqual([act('useMana', { color: 16 })]);
     expect(intentToFrames({ type: 'undo' }, s, g)).toEqual([act('undoLastAction')]);
     expect(intentToFrames({ type: 'concede' }, s, g)).toEqual([act('concede')]);
+    buttons(s, 'OK', 'End Turn', 'Priority: Hugo');
+    expect(intentToFrames({ type: 'concede' }, s, toGameView(s))).toEqual([act('concede'), act('selectButtonOk')]);
     expect(intentToFrames({ type: 'setAutoPass', on: true }, s, g)).toEqual([]);
   });
 
@@ -192,6 +194,7 @@ describe('payment and reveals', () => {
   it('turns "Pay Mana Cost" into payMana with the sources and the auto-pay plan', () => {
     const s = session();
     s.apply({ t: 'delta', game: 1, seq: 1, ts: 0, new: [{ type: 'card', id: 40, props: { Owner: 0, Controller: 0, Zone: 'Battlefield', CurrentState: 'Original' } }, { type: 'cardState', id: 40, state: 'Original', props: { Name: 'Forest', Type: 'Basic Land - Forest', OrigProduceMana: 'G' } }], changed: [{ type: 'player', id: 0, props: { Battlefield: [10, 30, 40] } }], removed: [], log: [], events: [] });
+    buttons(s, 'OK', 'End Turn', 'Priority: Hugo');
     s.clicked(10);
     s.apply({ t: 'call', method: 'setWeaklySelectable', args: [[card(40), card(40)]] });
     s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'Auto', 'Cancel', true, true, true] });
@@ -213,6 +216,7 @@ describe('payment and reveals', () => {
 
   it('keeps naming the spell being paid for while it is in no zone', () => {
     const s = session();
+    buttons(s, 'OK', 'End Turn', 'Priority: Hugo');
     s.clicked(10);
     s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'Auto', 'Cancel', true, true, true] });
     s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Bears\n\nPay Mana Cost: {2}', card(-1)] });
@@ -233,6 +237,14 @@ describe('payment and reveals', () => {
     expect(intentToFrames({ type: 'answer', promptId: id, answer: { shape: 'chooseN', optionIds: [] } }, s, g)).toEqual([act('selectButtonOk')]);
     s.apply({ t: 'call', method: 'hideRevealedCards', args: [] });
     expect(toGameView(s).decision.kind).not.toBe('choice');
+  });
+});
+
+describe('combat inputs', () => {
+  it('reads priority in the declare blockers step as priority, not as a block declaration', () => {
+    const s = session('COMBAT_DECLARE_BLOCKERS', 1);
+    buttons(s, 'OK', 'End Turn', 'Priority: Hugo\nTurn: 5 (AI)\nPhase: Declare Blockers Step\nStack: Empty');
+    expect(toGameView(s).decision.kind).toBe('priority');
   });
 });
 
