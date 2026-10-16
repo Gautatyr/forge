@@ -45,7 +45,10 @@ public final class WebSeats implements GameStream.SeatHooks {
     /** The GUI for the human player at {@code seat} (index in the game's player list). */
     public WebGuiGame newSeat(int seat) {
         SeatSession s = new SeatSession(seat, this);
-        sessions.put(seat, s);
+        SeatSession previous = sessions.put(seat, s);
+        if (previous != null) {
+            previous.close(); // the seat's previous game (--games N)
+        }
         return new WebGuiGame(s);
     }
 

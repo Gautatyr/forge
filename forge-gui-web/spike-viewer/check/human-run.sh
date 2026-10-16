@@ -10,7 +10,7 @@ set -uo pipefail
 cd "$(dirname "$0")/../.."
 out="$1"; label="$2"; port="$3"; shift 3
 mkdir -p "$out"
-./run-spike.sh --port "$port" --human-seat 0 --wait-client 120 --exit --label "$label" "$@" > "$out/$label.server.log" 2>&1 &
+./run-spike.sh --port "$port" --human-seat 0 --ai-seat-urls --wait-client 120 --exit --label "$label" "$@" > "$out/$label.server.log" 2>&1 &
 srv=$!
 until grep -q "^\[web\] seat 0 (" "$out/$label.server.log" && [ "$(grep -c '^\[web\] seat ' "$out/$label.server.log")" -ge 2 ]; do
   kill -0 "$srv" 2>/dev/null || { echo "server died"; exit 1; }

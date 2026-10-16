@@ -37,6 +37,10 @@ public final class WebGuiGame extends ProtocolGuiGame {
         return session.seat();
     }
 
+    SeatSession session() {
+        return session;
+    }
+
     @Override
     public void openView(final TrackableCollection<PlayerView> myPlayers) {
         session.openView(getGameView(), myPlayers);

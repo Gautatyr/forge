@@ -1,5 +1,6 @@
 // Scripted human seat (Node >= 22). Plays one human seat of a running server (WebMain --human-seat K)
-// through the WebSocket until the game ends: answers every prompt with its first legal option, plays
+// through the WebSocket until the game ends: answers every prompt with a legal option (first choices;
+// scry: first card to the bottom; combat damage: lethal in order, the rest to the last target), plays
 // lands and spells it may play in its main phases (auto-paying mana with OK), attacks with everything,
 // picks the first selectable cards an input asks for, otherwise presses OK (pass priority, keep, confirm)
 // or Cancel. Validates the seat's stream like ws-check.mjs, and checks that prompts and calls never name
@@ -21,7 +22,7 @@ class HumanSeat extends Stream {
     this.buttons = null; this.message = ''; this.selectables = null; this.targets = []; this.picked = new Set(); this.weakly = [];
     this.prompts = new Map(); this.epoch = 0; this.actedEpoch = -1; this.lastMessageAt = Date.now();
     this.tried = new Set(); this.attacked = new Set(); this.sameState = 0; this.lastState = '';
-    this.stats = { prompts: {}, shapes: {}, calls: {}, actions: {}, closed: {}, replyRejected: 0, actionRejected: [], callCardRefs: 0, promptCardRefs: 0, hiddenPromptRefs: 0, danglingRefs: 0 };
+    this.stats = { prompts: {}, shapes: {}, calls: {}, actions: {}, closed: {}, replyRejected: 0, actionRejected: [], callCardRefs: 0, promptCardRefs: 0, hiddenPromptRefs: 0, revealedCopies: 0, danglingRefs: 0 };
     this.timer = null; this.gameEnded = false; this.lastLog = [];
   }
 
@@ -54,11 +55,20 @@ class HumanSeat extends Stream {
   }
 
   // A card reference sent to this seat: a hidden card is never named by engine id, and its label never names it.
-  checkRef(ref, label, where) {
+  // Exception: a copy the engine reveals while the card itself stays hidden (Player.revealFaceDownCards' LKI
+  // copies when a player loses) keeps the hidden card's unseen id or alias, carries its name and is flagged
+  // revealedCopy; it may only appear where nothing is picked (a reveal, max 0).
+  checkRef(ref, label, where, choice, prompt) {
     if (!ref || ref.type !== 'card' || ref.id === -1) return;
     const c = this.objects.get(`card:${ref.id}`);
     const hasState = [...this.objects.keys()].some((k) => k.startsWith(`cardState:${ref.id}:`));
     const placeholder = c && !hasState && Object.keys(c.props).every((k) => PLACEHOLDER.has(k));
+    if (choice?.revealedCopy) {
+      this.stats.revealedCopies++;
+      if (ref.id < ALIAS_BASE) this.fail(`${where}: revealed copy named by engine id ${ref.id}`);
+      if (prompt?.shape !== 'choose' || prompt.max !== 0) this.fail(`${where}: revealed copy ${ref.id} in a prompt that picks`);
+      return;
+    }
     if (ref.id >= ALIAS_BASE) {
       this.stats.hiddenPromptRefs++;
       if (label !== undefined && !HIDDEN_LABELS.has(label)) this.fail(`${where}: hidden card ${ref.id} labelled "${label}"`);
@@ -101,8 +111,8 @@ class HumanSeat extends Stream {
     this.prompts.set(m.id, m);
     this.bump(this.stats.prompts, m.method);
     this.bump(this.stats.shapes, m.shape);
-    for (const c of m.choices ?? []) { if (c.ref?.type === 'card') this.stats.promptCardRefs++; this.checkRef(c.ref, c.label, `prompt ${m.method}`); }
-    for (const c of m.reveal?.cards ?? []) this.checkRef(c.ref, c.label, `prompt ${m.method} reveal`);
+    for (const c of m.choices ?? []) { if (c.ref?.type === 'card') this.stats.promptCardRefs++; this.checkRef(c.ref, c.label, `prompt ${m.method}`, c, m); }
+    for (const c of m.reveal?.cards ?? []) this.checkRef(c.ref, c.label, `prompt ${m.method} reveal`, c, { shape: 'choose', max: 0 });
     if (m.card) this.walkRefs(m.card, `prompt ${m.method} card`);
     this.send({ t: 'reply', id: m.id, value: this.answer(m) });
   }
@@ -118,12 +128,24 @@ class HumanSeat extends Stream {
       }
       case 'confirm': return m.default;
       case 'order':
-        if (m.method === 'manipulateCardList') return [...Array(n).keys()];
+        if (m.method === 'manipulateCardList') {
+          // scry: the first movable card to the bottom, behind the cards that may not move
+          const order = [...Array(n).keys()];
+          const first = m.choices.findIndex((c) => c.movable);
+          if (m.toBottom && first >= 0 && m.choices.some((c) => !c.movable)) { order.splice(first, 1); order.push(first); }
+          return order;
+        }
         if (m.method === 'sideboard') return m.choices.filter((c) => c.inDest).map((c) => c.i);
         return { order: [...Array(n - m.remainingMin).keys()], remember: false };
       case 'distribute': {
         const out = new Array(n).fill(0);
         let left = m.amount;
+        if (m.choices.every((c) => Number.isInteger(c.lethal))) {
+          // combat: lethal damage to each target in order, the rest to the last (the defender when it is one)
+          for (let i = 0; i < n && left > 0; i++) { out[i] = Math.min(m.choices[i].lethal, left); left -= out[i]; }
+          if (n) out[n - 1] += left;
+          return out;
+        }
         if (m.atLeastOne) for (let i = 0; i < n && left > 0; i++) { out[i] = 1; left--; }
         for (let i = 0; i < n && left > 0; i++) { const add = Math.min((m.choices[i].max ?? m.amount) - out[i], left); out[i] += add; left -= add; }
         return out;

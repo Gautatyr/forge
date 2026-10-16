@@ -15,7 +15,8 @@ import com.google.gson.JsonElement;
 /**
  * Open prompts of one seat. Ids come from an {@link AtomicLong}; each prompt waits on its own
  * future with a timeout and always yields a value: the client's validated answer, or the prompt's
- * engine default on timeout, disconnect or game end. Entries are removed when the waiter returns.
+ * engine default on timeout, disconnect, or cancel (the waiting thread is interrupted, or the
+ * stream's current game has no such seat). Entries are removed when the waiter returns.
  * Not {@code ReplyPool}: that one waits forever, leaks entries and answers null.
  */
 final class PendingPrompts {
