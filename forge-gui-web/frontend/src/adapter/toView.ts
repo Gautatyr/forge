@@ -4,6 +4,8 @@
  * lists name only cards the components can draw (opponents' hands become a count).
  */
 import type {
+  BlockOption,
+  CardId,
   CardView,
   CardFace,
   CardKeyword,
@@ -231,6 +233,33 @@ function manaSource(s: LiveSession, id: number): ManaSource {
   return { cardId: sid(id), colours: kinds.length ? [kinds[0]!] : [] };
 }
 
+/**
+ * InputBlock. What may block what is the engine's (issue #48): its blockOptions, per attacker, and before they arrive
+ * the creatures it lights (setWeaklySelectable: able to block some attacker). The draft is the blocks of the creatures
+ * you declare for, as the engine holds them (plannedBlockers).
+ */
+function declareBlockers(s: LiveSession, view: Omit<GameView, 'decision'>, combat: CombatState): Decision {
+  const known = (id: number) => (view.cards[sid(id)] ? [sid(id)] : []);
+  const options: BlockOption[] | undefined = s.blockOptions?.flatMap((o) =>
+    known(o.card).map((attackerId) => ({
+      attackerId,
+      blockers: o.blockers.flatMap(known),
+      ifFreed: o.ifFreed.flatMap(known),
+      min: o.min ?? 1,
+    })),
+  );
+  const offered = options
+    ? options.flatMap((o) => [...o.blockers, ...o.ifFreed])
+    : [...s.weakly.keys()].map(sid).filter((id) => view.cards[id]?.zone === 'battlefield');
+  const mine = (id: CardId) => offered.includes(id) || view.cards[id]?.controllerId === view.youId;
+  const draft = combat.blocks.filter((b) => mine(b.blockerId));
+  const attackers = options
+    ? options.filter((o) => o.blockers.length || o.ifFreed.length || draft.some((b) => b.attackerId === o.attackerId)).map((o) => o.attackerId)
+    : combat.attacks.filter((a) => a.defenderId === view.youId).map((a) => a.attackerId);
+  const candidates = [...new Set([...offered, ...draft.map((b) => b.blockerId)])];
+  return { kind: 'declareBlockers', candidates, attackers, draft, ...(options ? { options } : {}) };
+}
+
 function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision {
   const you = Number(view.youId);
   const holderId = () => {
@@ -306,9 +335,9 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
   if (early && /^input:(mulligan|bottom):/.test(early.id)) return { kind: 'choice', prompt: early };
 
   const combat = view.combat ?? { attacks: [], blocks: [] };
-  const yourCreatures = youView.battlefield.filter((id) => view.cards[id]?.power !== undefined && !view.cards[id]?.tapped);
   if (view.turn.step === 'declareAttackers' && view.turn.activePlayerId === view.youId && ATTACK_CANCEL.has(input.cancel.label)) {
-    const candidates = weakly.length ? [...new Set([...weakly.map(sid), ...combat.attacks.map((a) => a.attackerId)])] : yourCreatures;
+    // The engine's candidates (InputAttack's setWeaklySelectable: undeclared legal attackers) and the declared ones.
+    const candidates = [...new Set([...weakly.map(sid), ...combat.attacks.map((a) => a.attackerId)])];
     return {
       kind: 'declareAttackers',
       candidates: candidates.filter((id) => view.cards[id]?.zone === 'battlefield'),
@@ -317,9 +346,7 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
     };
   }
   if (view.turn.step === 'declareBlockers' && view.turn.activePlayerId !== view.youId && !/^Priority:/.test(input.message) && /block/i.test(input.message)) {
-    const attackingYou = combat.attacks.filter((a) => a.defenderId === view.youId).map((a) => a.attackerId);
-    const blockers = youView.battlefield.filter((id) => view.cards[id]?.power !== undefined && !view.cards[id]?.tapped);
-    return { kind: 'declareBlockers', candidates: blockers, attackers: attackingYou, draft: combat.blocks };
+    return declareBlockers(s, view, combat);
   }
   // InputPassPriority: OK + End Turn / Undo.
   if (input.ok.label === 'OK' && /^(End Turn|Undo)/.test(input.cancel.label)) {
@@ -528,9 +555,11 @@ export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup,
           const attackers = band.attackers.map(sid).filter((a) => cards[a]);
           return def ? attackers.map((a) => ({ attackerId: a, defenderId: def })) : [];
         }),
+        // plannedBlockers: the blocks as they stand, also while they are declared (blockers fills only once declared).
         blocks: gp.CombatView.flatMap((band) => {
           const attacker = band.attackers.map(sid).find((a) => cards[a]);
-          return attacker ? band.blockers.map(sid).filter((b) => cards[b]).map((b) => ({ blockerId: b, attackerId: attacker })) : [];
+          const ids = [...new Set([...band.plannedBlockers, ...band.blockers])].map(sid).filter((b) => cards[b]);
+          return attacker ? ids.map((b) => ({ blockerId: b, attackerId: attacker })) : [];
         }),
       }
     : undefined;
@@ -569,6 +598,11 @@ export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup,
   };
   const decision = decisionFor(s, base);
   const view: GameView = { ...base, decision };
+  // The blocks you are declaring are the decision's draft only: drawn once, as a draft.
+  if (decision.kind === 'declareBlockers' && view.combat) {
+    const draft = decision.draft;
+    view.combat = { ...view.combat, blocks: view.combat.blocks.filter((b) => !draft.some((x) => x.blockerId === b.blockerId && x.attackerId === b.attackerId)) };
+  }
   // The engine's HasPriority can lag (it keeps the last holder through turn-based actions): your own input wins.
   if (decision.kind === 'priority') view.turn = { ...view.turn, priorityPlayerId: view.youId };
   else if (decision.kind !== 'waiting') view.turn = { ...view.turn, priorityPlayerId: undefined };

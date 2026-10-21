@@ -139,7 +139,7 @@ public class SeatCoverageTest {
             setSpectator(IGameController) = AbstractGuiGame
             setWeaklySelectable(Iterable) = ProtocolGuiGame
             showCoinFlip(boolean,String,boolean) = IGuiGame
-            showCombat() = ProtocolGuiGame
+            showCombat() = WebGuiGame
             showConfirmDialog(String,String) = IGuiGame
             showConfirmDialog(String,String,String,String) = IGuiGame
             showConfirmDialog(String,String,String,String,boolean) = ProtocolGuiGame

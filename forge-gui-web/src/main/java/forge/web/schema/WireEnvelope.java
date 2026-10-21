@@ -153,6 +153,13 @@ public final class WireEnvelope {
             new Message("rejected", "RejectedMessage", "Unknown message type.", List.of(
                     field("t", "'rejected'", null),
                     field("reason", "string", null))),
+            new Message("blockOptions", "BlockOptionsMessage",
+                    "While the seat declares blockers, after each change: the blocks the engine allows now (cleared by clearWeaklySelectable).",
+                    List.of(
+                            field("t", "'blockOptions'", null),
+                            field("attackers", "{ card: number; blockers: number[]; ifFreed: number[]; min?: number }[]",
+                                    "Attackers whose blocks the seat declares: creatures that may block each now (or already do), "
+                                            + "creatures that could once taken off the attacker they block, fewest blockers when more than 1 (menace)."))),
             new Message("activateDescription", "ActivateDescriptionMessage", "Answers the getActivateDescription action.", List.of(
                     field("t", "'activateDescription'", null),
                     field("card", "number", null),

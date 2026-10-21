@@ -62,7 +62,7 @@ ProtocolGuiGame: `showPromptMessage(PlayerView,String,CardView)`, `updateButtons
 `clearSelectables`, `setSelectableTargets` (players and stack items: `canPickStackTargets` is true), `setHighlighted`,
 `setWeaklySelectable`, `clearWeaklySelectable`, `showRevealedCards`, `hideRevealedCards`, `showManaPool`,
 `hideManaPool`, `setCard`, `setPanelSelection`, `awaitNextInput`, `updateAutoPassPrompt`, `message(String,String)`,
-`showErrorDialog(String,String)`, `flashIncorrectAction`, `alertUser`, `showCombat`, `updateDrawOffer`,
+`showErrorDialog(String,String)`, `flashIncorrectAction`, `alertUser`, `showCombat` (WebGuiGame: also sends `blockOptions` during `InputBlock`), `updateDrawOffer`,
 `applyYieldUpdate`, `enableOverlay`, `disableOverlay`, `finishGame`, `afterGameEnd`, `openView` (WebGuiGame),
 `setPlayerAvatar`. IGuiGame overloads delegating to these: `showPromptMessage(PlayerView,String)`,
 `updateButtons(…4 args)`, `message(String)`, `showErrorDialog(String)`.
@@ -98,8 +98,8 @@ would take it).
 | Input | Created by | Seat answers with |
 | --- | --- | --- |
 | `InputPassPriority` | PCH `chooseSpellAbilityToPlay` | selectCard (abilities; 2+ → `getAbilityToPlay` prompt), OK (pass), Cancel, undo; `setWeaklySelectable` = playable cards |
-| `InputAttack` | PCH `declareAttackers` | selectCard (toggle), selectPlayer / selectCard (defender), alphaStrike, OK |
-| `InputBlock` | PCH `declareBlockers` | selectCard (attacker, then blocker), OK |
+| `InputAttack` | PCH `declareAttackers` | selectCard (toggle), selectPlayer / selectCard (defender), alphaStrike, OK; `setWeaklySelectable` = legal undeclared attackers |
+| `InputBlock` | PCH `declareBlockers` | selectCard (attacker, then blocker; again: removes), OK; `blockOptions` = legal blocks per attacker (#48) |
 | `InputConfirm` | PCH, `InputConfirm.confirm` | OK / Cancel (yes / no labels) |
 | `InputConfirmMulligan`, `InputLondonMulligan` | PCH mulligan | OK / Cancel; selectCard (cards to bottom) + OK |
 | `InputChooseStartingHand` | PCH `chooseStartingHand` | selectCard (a card of the hand to keep) + OK |

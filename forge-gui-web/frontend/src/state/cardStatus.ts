@@ -1,5 +1,6 @@
 import { player } from '../model/selectors';
 import type { CardId, GameView, PlayerId, StackItem, TargetRef } from '../model/types';
+import { blockTargets } from './blockClick';
 import type { UiState } from './ui';
 
 /**
@@ -98,8 +99,10 @@ export function cardStatus(game: GameView, ui: UiState, id: CardId): CardStatus 
     s.dimmed = !cand && c.zone === 'battlefield' && c.controllerId === game.youId && !atk;
   }
   if (d.kind === 'declareBlockers') {
-    const cand = d.candidates.includes(id);
-    const incoming = d.attackers.includes(id);
+    // After a first click, only the partners the engine allows for it are lit (issue #48).
+    const lit = blockTargets(d, ui);
+    const cand = lit.blockers.includes(id);
+    const incoming = lit.attackers.includes(id);
     s.actionable = cand || incoming;
     s.actionKind = cand ? 'block' : incoming ? 'blockTarget' : undefined;
     s.selected = ui.pendingBlocker === id || ui.pendingAttacker === id;
