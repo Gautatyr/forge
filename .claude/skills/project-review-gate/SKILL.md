@@ -11,18 +11,18 @@ updates. Root `CLAUDE.md` rules apply on top (upstream ban, branches, pushing).
 
 **Gates (both agents).**
 - Run `make check` from the worktree root. It runs only the gates the branch's changes
-  need (vs `origin/develop`): `web-front-check` for `forge-gui-web/frontend/`,
-  `web-java-test` for `forge-gui-web` Java (or upstream modules), `web-desktop-test` for
-  `forge-gui-desktop-web` (or `forge-gui-web` main code, or upstream modules), `desktop-test` only
+  need (vs `origin/develop`): `web-front-check` for `fork-web/frontend/`,
+  `web-java-test` for `fork-web` Java (or upstream modules), `web-desktop-test` for
+  `fork-desktop-web` (or `fork-web` main code, or upstream modules), `desktop-test` only
   when an upstream module (`forge-core`, `forge-game`, `forge-ai`, `forge-gui`,
   `forge-gui-desktop`) or the root `pom.xml` changes. Nothing depends on
-  `forge-gui-web`, so the desktop suite cannot fail because of it: never run it for
+  `fork-web`, so the desktop suite cannot fail because of it: never run it for
   web-only changes.
 - Each gate writes its full log to `target/gate-logs/<name>.log` and prints a summary and
   the real exit code. Quote the `== <gate>: exit N` line as evidence. Read the log file
   (grep it) instead of re-running a command to see more output.
 - Run a single module's tests while iterating (e.g. one test class with
-  `mvn -B -q -pl forge-gui-web test -Dtest=ClassName`, or `pnpm vitest run <file>`),
+  `mvn -B -q -pl fork-web test -Dtest=ClassName`, or `pnpm vitest run <file>`),
   and the full `make check` once on the final state.
 - Never paste whole build or test logs into the conversation, and never pipe a check
   through `tail`/`grep` without `set -o pipefail`: redirect to a file, keep the exit code.
@@ -37,12 +37,12 @@ updates. Root `CLAUDE.md` rules apply on top (upstream ban, branches, pushing).
   one per scenario and viewport you changed. Accessibility snapshots are large: use them
   only to find an element.
 - Screenshots are never committed as PNG. Only the 9 JPEGs in
-  `forge-gui-web/frontend/docs/screenshots/` are tracked; regenerate one (same name,
+  `fork-web/frontend/docs/screenshots/` are tracked; regenerate one (same name,
   `magick in.png -strip -quality 80 out.jpg`) only if its view changed.
 - Design source of truth: `docs/fork/design/match-screen-decisions.md` (the owner's
   rulings). A visible deviation from a ruling is a finding.
 
-**Bridge review axes (`forge-gui-web` Java).**
+**Bridge review axes (`fork-web` Java).**
 - Hidden information: a client receives only what that player may see (`mayView`),
   including reveals and face-down cards. Any leak is blocking.
 - Security: no client → server input before the Origin check and per-launch token pass.

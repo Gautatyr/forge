@@ -164,3 +164,9 @@ Newest last. Each entry: the decision, why, and what it implies.
 - Root cause of #54: during `InputBlock` the engine holds the blocks in the combat band's `plannedBlockers` (`GameView.updateCombat`); `blockers` fills only once declared. The client read `blockers`, so a block the engine recorded never showed and the pending first click was cleared. The client now reads both.
 - Legal blocks come from the engine: new seat message `blockOptions` (per attacker: `CombatUtil.canBlock` now, blockers that could move to it, `min` for menace), sent from `WebGuiGame.showCombat` while the input is `InputBlock`. Attack candidates are the engine's `setWeaklySelectable` only (no local fallback).
 - `make web-sweep`: the scripted seat attacks every other turn and blocks with `blockOptions` through the page's messages; a declared block missing from the engine's combat fails the game.
+
+## 2026-10-21 — Fork modules renamed (issue #55)
+- `forge-gui-web/` → `fork-web/` (artifactId `fork-web`, package `forge.web` → `forge.fork.web`); `forge-gui-desktop-web/` → `fork-desktop-web/` (artifactId `fork-desktop-web`, package `forge.web.desktop` → `forge.fork.desktop`). Owner decision on #55.
+- **Why:** upstream is building its own `forge-gui-web` module (package `forge.web`, artifactId `forge-gui-web`); the old names would give add/add conflicts on sync.
+- Unchanged: runtime flags `-Dforge.web.strictPrompts`, `forge.web.sweep.*`, and the prefs file `preferences/fork-web.preferences`. Older entries keep the old names.
+- Fork code goes under `forge.fork.*`; never reuse upstream's `forge.web` or a `forge-gui-*` module name.

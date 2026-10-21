@@ -57,6 +57,6 @@ mvn -pl forge-gui-desktop -am compile dependency:build-classpath -Dmdep.outputFi
 java -cp "target/classes:"(cat target/cp.txt) forge.view.Main sim -D ../forge-gui/res/geneticaidecks -d "<deck1>.dck" "<deck2>.dck" -n 10 -q
 ```
 
-Play with the web match screen: `make play` (desktop lobby; Start opens the match in the browser). Steps: [PLAY.md](PLAY.md); internals: `forge-gui-desktop-web/CLAUDE.md`.
+Play with the web match screen: `make play` (desktop lobby; Start opens the match in the browser). Steps: [PLAY.md](PLAY.md); internals: `fork-desktop-web/CLAUDE.md`.
 
 The desktop app finds its `res/` folder through `GuiDesktop.getAssetsDir()` (`forge-gui-desktop/src/main/java/forge/GuiDesktop.java:87`): `../forge-gui/` when the version string contains "git", otherwise the working directory.
