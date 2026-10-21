@@ -359,9 +359,12 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
     const chosen: TargetRef[] = input.highlighted.flatMap((h) => shown(h) ?? []);
     // Picks the board can't take (library cards, graveyards…) or that are not for a spell or ability
     // (who starts): a tray list. Each pick is a selectCard / selectPlayer / selectStackItem, then OK (selectionFrames).
+    // Stack items are always targets of a spell or ability and always on screen: board path even when no cast card is
+    // known (reconnect), which also needs no max (InputSelectStackItems sends none) and keeps Cancel.
     const onBoard = (t: TargetRef) =>
       t.kind !== 'card' || ['battlefield', 'stack'].includes(view.cards[t.id]!.zone) || youView.hand.includes(t.id);
-    if (legal.length && (!castCard() || !legal.every(onBoard))) {
+    const forSpell = castCard() !== '' || legal.every((t) => t.kind === 'stackItem');
+    if (legal.length && (!forSpell || !legal.every(onBoard))) {
       const msg = input.message.replace(/\s*\(Click on the portrait\.?\)/i, '').trim();
       const source = known(input.cardId);
       const toss = tossChooser(msg);

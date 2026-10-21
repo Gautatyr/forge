@@ -40,6 +40,7 @@ import forge.gamemodes.match.input.Input;
 import forge.gamemodes.match.input.InputPassPriority;
 import forge.gamemodes.match.input.InputPayMana;
 import forge.gamemodes.match.input.InputSelectStackItems;
+import forge.gui.GuiBase;
 import forge.gui.control.GameEventForwarder;
 import forge.player.LobbyPlayerHuman;
 import forge.player.PlayerControllerHuman;
@@ -148,8 +149,15 @@ public class HumanSeatStackTargetsTest {
         });
         List<String> seen = new ArrayList<>();
         Input acted = null;
-        long actedAt = 0;
-        long end = System.currentTimeMillis() + 30_000;
+        // As the page does: act only on a shown prompt. Actions run on the seat's action thread, and some finish on
+        // the game thread (auto-pay). Each action is followed by a marker action ("sync", rejected as unknown); nothing
+        // more is sent until the marker comes back and a prompt was shown since the last action (a new input, or the
+        // same one waiting again, e.g. InputAttack after an attacker is declared). No timers: a loaded machine made
+        // timer-based re-acts land on an input not yet shown or already answered.
+        int sync = 0;
+        boolean synced = true;
+        int promptsAtAct = 0;
+        long end = System.currentTimeMillis() + 60_000;
         while (!loop.isDone()) {
             if (System.currentTimeMillis() > end) {
                 fail("game loop stuck; seen " + seen + "; input " + pch.getInputQueue().getInput() + "; last message " + seat.lastCall("showPromptMessage"));
@@ -158,19 +166,25 @@ public class HumanSeatStackTargetsTest {
             if (m != null && "prompt".equals(m.get("t").getAsString())) {
                 fail("unexpected prompt " + m + "; seen " + seen);
             }
+            if (m != null && "actionRejected".equals(m.get("t").getAsString()) && m.has("id") && m.get("id").getAsInt() == sync) {
+                synced = true;
+            }
             Input in = pch.getInputQueue().getInput();
-            if (in == null || pch.getInputProxy().getInput() != in) {
+            if (!synced || in == null || pch.getInputProxy().getInput() != in || seat.count("showPromptMessage") <= promptsAtAct) {
                 continue;
             }
             if (in != acted) {
                 seen.add(in.getClass().getSimpleName());
                 acted = in;
-            } else if (System.currentTimeMillis() - actedAt < 1000) {
-                continue;
             }
-            actedAt = System.currentTimeMillis();
+            promptsAtAct = seat.count("showPromptMessage");
+            // Let the EDT finish first: InputPayMana.updateMessage swaps the player's controller for an AI one there
+            // (runAsAi), and the game thread reading the swapped controller lets the AI decide (issue #60).
+            GuiBase.getInterface().invokeInEdtAndWait(() -> { });
             Runnable r = onInput.apply(in);
             (r == null ? (Runnable) this::ok : r).run();
+            synced = false;
+            action("sync", "\"id\":" + (++sync));
         }
         loop.get(1, TimeUnit.SECONDS);
         return seen;

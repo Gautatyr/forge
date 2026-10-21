@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { outsideAnchor, sourceY, type Box } from './arrowGeometry';
+import { lineEnd, outsideAnchor, sourceY, type Box } from './arrowGeometry';
 
 const box = (left: number, top: number, w: number, h: number): Box => ({ left, top, right: left + w, bottom: top + h });
 
@@ -90,5 +90,16 @@ describe('player target anchor at shallow angles (issue 23)', () => {
   it('ends at the source when the source is inside the gap', () => {
     const from = { x: plate.right + 5, y: centre.y };
     expect(outsideAnchor(from, plate, 17)).toEqual(from);
+  });
+});
+
+describe('target line ends (review of PR 57)', () => {
+  it('ends on a targeted card or player', () => {
+    expect(lineEnd({ kind: 'card', id: '12' })).toBe('[data-card-id="12"]');
+    expect(lineEnd({ kind: 'player', id: '1' })).toBe('[data-player-id="1"]');
+  });
+
+  it('draws no line to a stack item: its row in the stack panel is ringed instead', () => {
+    expect(lineEnd({ kind: 'stackItem', id: '7' })).toBeUndefined();
   });
 });

@@ -85,27 +85,34 @@ describe('stack items as targets', () => {
     expect(toGameView(s).decision).toMatchObject({ kind: 'chooseTargets', legal: [{ kind: 'stackItem', id: '7' }] });
   });
 
-  it('lists stack items in the tray when no spell names the input, answered by selectStackItem', () => {
+  it('keeps stack items on the board when no spell names the input (after a reconnect), with Cancel', () => {
     const s = session();
     s.apply({ t: 'call', method: 'setSelectableTargets', args: [[item(7), item(8)]] });
-    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Select a target on the stack (1 more)', null] });
-    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, false, true] });
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Select target spell or ability', null] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, true, true] });
     const g = toGameView(s);
     expect(g.decision).toMatchObject({
-      kind: 'choice',
-      prompt: {
-        shape: 'chooseN',
-        min: 1,
-        max: 1,
-        options: [
-          { id: 's7', label: 'Lightning Bolt', detail: 'Lightning Bolt deals 3 damage to Hugo' },
-          { id: 's8', label: 'Llanowar Elves (ability)', detail: 'Llanowar Elves - Add {G}' },
-        ],
-      },
+      kind: 'chooseTargets',
+      sourceCardId: '',
+      legal: [
+        { kind: 'stackItem', id: '7' },
+        { kind: 'stackItem', id: '8' },
+      ],
+      min: 1,
+      max: 1,
     });
-    const id = g.decision.kind === 'choice' ? g.decision.prompt.id : '';
-    // One of at most one: the engine ends the input on the pick (no OK after it).
-    expect(intentToFrames({ type: 'answer', promptId: id, answer: { shape: 'chooseN', optionIds: ['s7'] } }, s, g)).toEqual([act('selectStackItem', { stackItem: 7 })]);
+    expect(intentToFrames({ type: 'toggleTarget', target: { kind: 'stackItem', id: '8' } }, s, g)).toEqual([act('selectStackItem', { stackItem: 8 })]);
+    expect(intentToFrames({ type: 'cancel' }, s, g)).toEqual([act('selectButtonCancel')]);
+  });
+
+  it('offers a further stack item after a pick that left the input open ("up to two"; the engine sends no max)', () => {
+    const s = session();
+    counterspell(s);
+    s.apply({ t: 'call', method: 'setHighlighted', args: [[item(7)], true] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', true, true, true] });
+    const g = toGameView(s);
+    expect(g.decision).toMatchObject({ kind: 'chooseTargets', chosen: [{ kind: 'stackItem', id: '7' }], min: 1, max: 2 });
+    expect(intentToFrames({ type: 'toggleTarget', target: { kind: 'stackItem', id: '8' } }, s, g)).toEqual([act('selectStackItem', { stackItem: 8 })]);
   });
 
   it('shows what a stack item targets on the stack, including another stack item', () => {

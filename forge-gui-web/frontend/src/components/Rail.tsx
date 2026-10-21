@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import { player, targetName } from '../model/selectors';
 import type { TargetRef } from '../model/types';
-import { spotlightItem } from '../state/cardStatus';
+import { spotlightItem, stackTargetSpot } from '../state/cardStatus';
 import { useMatch } from '../state/MatchContext';
 import { ActionPanel } from './ActionPanel';
 import { Card } from './Card';
@@ -76,13 +76,23 @@ function StackPanel() {
           const chosen = d.kind === 'chooseTargets' && isTarget(d.chosen, item.id);
           const legal = d.kind === 'chooseTargets' && isTarget(d.legal, item.id);
           const toggle = legal || chosen ? () => send({ type: 'toggleTarget', target: { kind: 'stackItem', id: item.id } }) : undefined;
+          // Targeted by the spotlight item (a counterspell, a Stifle): ringed like a targeted card, no line.
+          const targeted = stackTargetSpot(game, ui, item.id);
           return (
             <li
               key={item.id}
               className={[
                 styles.item,
                 spot?.id === item.id ? styles.itemSpot : '',
-                chosen ? styles.itemChosen : legal ? styles.itemLegal : '',
+                chosen
+                  ? styles.itemChosen
+                  : legal
+                    ? styles.itemLegal
+                    : targeted === 'hover'
+                      ? styles.itemTargetedStrong
+                      : targeted
+                        ? styles.itemTargeted
+                        : '',
               ].join(' ')}
               onPointerEnter={() => setUi({ hoveredStackItem: item.id })}
               onPointerLeave={() => setUi({ hoveredStackItem: undefined })}
@@ -106,6 +116,12 @@ function StackPanel() {
                     {t.kind === 'card' && game.cards[t.id]?.controllerId === game.youId ? ' (yours)' : ''}
                   </span>
                 ))}
+                {targeted && spot ? (
+                  <span className={styles.targetedBy}>
+                    <Icon name="target" />
+                    Targeted by {game.cards[spot.sourceCardId]?.name ?? 'a spell'}
+                  </span>
+                ) : null}
                 {toggle ? (
                   <button
                     type="button"
