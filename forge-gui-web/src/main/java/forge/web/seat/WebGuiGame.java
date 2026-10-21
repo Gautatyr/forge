@@ -2,6 +2,7 @@ package forge.web.seat;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
 import forge.game.card.CardView;
 import forge.game.event.GameEvent;
@@ -77,10 +78,29 @@ public final class WebGuiGame extends ProtocolGuiGame {
         return super.getAbilityToPlay(hostCard, abilities, triggerEvent);
     }
 
+    /** The game thread waits for this seat's input here and runs the seat's actions meanwhile ({@link InputPump}). */
+    @Override
+    public void awaitInput(final CountDownLatch done) throws InterruptedException {
+        session.pump().await(done);
+    }
+
+    /**
+     * {@code ProtocolGuiGame} walks the game here (it flushes the batched events, which publishes on the seat's stream)
+     * and expects the game thread; inputs and timers also call it on the EDT ({@code setWeaklySelectable},
+     * {@code clearWeaklySelectable}, {@code syncAndSend}). Another thread (the EDT, or a second game thread an input
+     * started) walks only while the game thread waits for this seat's input and runs nothing; otherwise the game
+     * thread's next flush carries the changes.
+     */
+    @Override
+    public void updateGameView() {
+        session.readGame(super::updateGameView);
+    }
+
     /**
      * {@code InputBlock.showMessage} ends with this call, after each block the seat assigns or removes: send the blocks
-     * the engine allows now (issue #48). Runs on the thread that changed the blocks (the game thread or the seat's
-     * action thread), as upstream's own {@code pushBlockerCandidates} before it.
+     * the engine allows now (issue #48). Runs on the game thread (the seat's actions run there, {@link InputPump}), or on
+     * the EDT for the input's first display ({@code InputProxy}). Not routed through {@link SeatSession#readGame}, which
+     * would drop the read before the game thread waits: the combat only changes through the seat's own actions here.
      */
     @Override
     public void showCombat() {

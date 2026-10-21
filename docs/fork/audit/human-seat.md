@@ -66,6 +66,9 @@ ProtocolGuiGame: `showPromptMessage(PlayerView,String,CardView)`, `updateButtons
 `applyYieldUpdate`, `enableOverlay`, `disableOverlay`, `finishGame`, `afterGameEnd`, `openView` (WebGuiGame),
 `setPlayerAvatar`. IGuiGame overloads delegating to these: `showPromptMessage(PlayerView,String)`,
 `updateButtons(…4 args)`, `message(String)`, `showErrorDialog(String)`.
+A card list in a call leaves out cards the seat has no id for (`WireArgs.encodeCallArg`): `InputPayMana` recomputes its
+auto-pay plan only after a mana ability with a mana cost, so `setWeaklySelectable` can name a Treasure sacrificed since (the sweep's seat clicked it as
+id -1: `actionRejected` "unknown card").
 
 ### State and events (no player decision)
 - Game state travels on the per-viewer stream: `handleGameEvents` (WebGuiGame: also publishes), `handleGameEvent`,
@@ -82,12 +85,15 @@ ProtocolGuiGame: `showPromptMessage(PlayerView,String,CardView)`, `updateButtons
 - Queries: `isNetGame` true (ProtocolGuiGame); `isLibgdxPort` false (`IGuiBase`); `canPickStackTargets` true;
   `isUiSetToSkipPhase` false, unused: `PlayerControllerHuman.isRemoteClient()` (gui is a `ProtocolGuiGame`) reads
   phase stops from its `YieldController`, which the client sets (`sendYieldUpdate SkipPhase`).
-- `awaitInput` (IGuiGame default): waits for the input's latch; the seat's actions release it.
+- `awaitInput` (WebGuiGame): the game thread waits for the input's latch and runs the seat's actions meanwhile
+  (`InputPump`, see Threading); the seat's actions release it.
 
 ## Inputs
 Each input shows itself with `showPromptMessage` + `updateButtons` (+ selectables / targets / highlights). The client
 answers with seat actions (`SeatSession.act`): `selectCard`, `selectPlayer`, `selectStackItem`, `selectAbility`,
-`selectButtonOk`, `selectButtonCancel`, `useMana`, `alphaStrike`, `undoLastAction`.
+`selectButtonOk`, `selectButtonCancel`, `useMana`, `alphaStrike`, `undoLastAction` (`SeatSession.INPUT_ACTIONS`). They run
+on the game thread waiting for the input (Threading); one sent while no input waits is logged and not run (no input
+would take it).
 
 | Input | Created by | Seat answers with |
 | --- | --- | --- |
@@ -114,6 +120,36 @@ answers with seat actions (`SeatSession.act`): `selectCard`, `selectPlayer`, `se
   silent default under `HeadlessWebGui`; a Swing dialog under the launcher.
 - PCH dev-mode cheats (`getSaveFile`, `showFileDialog`, `SOptionPane.showErrorDialog`): the seat has no dev-mode action.
 
+## Threading (issue #53)
+Root cause of the `ConcurrentModificationException`s the sweep saw (about one game in 36: `StaticEffects.clearStaticEffects`,
+`TriggerHandler.collectTriggerForWaiting`, the bridge flush `NetworkChecksumUtil` → `Tracker.getDelayedPropsFor`): seat
+actions ran on the seat's own thread (`web-seat-N`), unordered with the EDT that displays the input. A mana source clicked
+while paying started `InputPayMana.activateManaAbility`, which runs the ability on a new game thread
+(`GameAction.invoke` off a game thread), while the EDT refreshed the input (`updateMessage` → `pushActionableCards`, and
+`ProtocolGuiGame.setWeaklySelectable` → `updateGameView` flushing events and publishing on the stream). Desktop: clicks and
+the refresh share the Swing EDT and the input is locked while the ability runs. Fixed in fork code
+(`InputPump`, `WebGuiGame.awaitInput`, `WebGuiGame.updateGameView`, `SeatSession.readGame`); no upstream file changed.
+- Actions run on the game thread that waits for the seat's input (`IGuiGame.awaitInput`, upstream's hook for
+  single-threaded hosts), in order; engine work they start runs inline there (`GameAction.invoke` on a game thread). An
+  action that opens another input (e.g. a cost that asks for a card) waits in it, and the next action answers it.
+- An action starts once the EDT has run what was queued before it (the input's display), and the game thread goes back
+  to waiting, or on with the game, once the EDT has run what the action queued (`updateMessage`): EDT input work reads the
+  game while the game thread waits. Each EDT wait is bounded (10 s, then logged).
+- `WebGuiGame.updateGameView` (`ProtocolGuiGame` flushes and walks the game there, from `setWeaklySelectable`,
+  `clearWeaklySelectable`, `syncAndSend`): on another thread than the one running the game (the EDT, or a second game
+  thread an input started) it runs only while the game thread waits for the seat and runs nothing
+  (`InputPump.whileIdle`); otherwise the game thread's next flush carries the changes. This covers the
+  EDT timers (`InputLockUI`, `awaitNextInput`) that fire while the game runs.
+- A call to the seat publishes what changed first (`SeatSession.call` → `flush`), under the same rule: an EDT call while
+  the game thread waits names cards created since the last flush by their ids. Before, only game-thread calls flushed,
+  and an EDT `setWeaklySelectable` (auto-pay plan) could name a card the seat was never told of (id -1; the sweep's
+  seat clicked it: `actionRejected` "unknown card").
+- Not covered: actions that need no input (`concede`, `reorderHand`, `drawOfferAction`, `sendYieldUpdate`,
+  `getActivateDescription`) run on the seat's thread when no input waits, as the desktop runs them on the EDT while the
+  game runs; EDT work an action queues can start before that action returns; an input's first display (queued by
+  `InputProxy` when the game thread sets the input) can start before the game thread reaches the wait. The sweep fails a
+  game on any `ConcurrentModificationException` on a game thread.
+
 ## Known gaps outside the bridge
 - Frontend: `setSelectableTargets` keeps players only and there is no `selectStackItem` action, so the web screen
   cannot target a spell or ability on the stack (`InputSelectTargets` with stack zones, `InputSelectStackItems`); the
@@ -121,15 +157,6 @@ answers with seat actions (`SeatSession.act`): `selectCard`, `selectPlayer`, `se
   answers them.
 - Upstream: `TargetSelection.chooseCardFromList` lists zone headers ("--CARDS ON BATTLEFIELD:--") as choices; picking
   one adds no target and asks again (desktop: same).
-- Upstream race: `InputPayMana.updateMessage` → `PlayerControllerHuman.pushActionableCards` runs on the EDT
-  (`web-edt`; desktop: the Swing EDT, same `invokeInEdtNowOrLater`) while the game thread runs; both can enter
-  `GameAction.checkStaticAbilities`; `ProtocolGuiGame.setWeaklySelectable` → `updateGameView` also flushes events and
-  walks the game state (bridge `GameStream.publish`) on the EDT. `InputPayMana.activateManaAbility` runs the mana
-  ability on a new `Game-N` thread meanwhile. A `ConcurrentModificationException` on the EDT loses one refresh; on a
-  game thread it ends the game. Seen in sweeps (about one game in 36 per run): `StaticEffects.clearStaticEffects`,
-  `TriggerHandler.collectTriggerForWaiting`, and the bridge flush (`NetworkChecksumUtil` → `Tracker.getDelayedPropsFor`).
-  Threading, not a decision; the sweep lists any game-thread CME as a race or engine exception (not failed).
-  Follow-up needed.
 - Upstream: `InputPayMana` enables Auto when `ComputerUtilMana.getManaSourcesToPayCost` finds sources, but
   `payManaCost` can still fail ("Didn't find what to pay"); Auto then does nothing and stays enabled (desktop: same).
   The player taps sources or cancels; the sweep's seat cancels after 10 tries.

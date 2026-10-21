@@ -48,7 +48,8 @@ import forge.web.bridge.visibility.TestEngine;
 
 /**
  * Card-pool sweep (issue #46): full games with a {@link ScriptedSeat} human seat 0 against AIs, across many decks,
- * in strict mode ({@link SilentDefaults}). Each game asserts no silent default, no seat error, and that every trigger
+ * in strict mode ({@link SilentDefaults}). Each game asserts no silent default, no seat error (a server refusal of the
+ * seat's messages included), no {@code ConcurrentModificationException} on a game thread, that every trigger
  * the engine hands the seat reaches the stack (or has no legal target) and resolves ({@link TriggerAudit}), and that every
  * block the seat declares is in the engine's combat (issue #54).
  * Not a default test (no {@code Test} suffix): {@code make web-sweep} runs it. Properties ({@code -D}):
@@ -72,18 +73,21 @@ public class HumanSeatSweep {
     private static final long HUNG_MS = 90_000L;
     private static final long TURN_MS = 150_000L;
     private static final String AI_LOOP = "AI loop";
-    /** The game thread died in engine or AI code (no seat frame): an upstream bug, reported, not failed. */
+    /** The game thread died in engine or AI code (no seat frame, not a race): an upstream bug, reported, not failed. */
     private static final String ENGINE_EXCEPTION = "engine exception";
     /**
-     * The game thread died of a {@code ConcurrentModificationException}, even in seat code (the bridge's flush walks
-     * the game state): another thread changed it meanwhile, e.g. upstream's {@code InputPayMana.updateMessage} on the
-     * EDT (audit, "Known gaps"). A threading race, not a question the seat answered: reported, not failed.
+     * The game thread died of a {@code ConcurrentModificationException}: another thread changed the game meanwhile. The
+     * seat's threads meet the game only while the game thread waits for them (issue #53, {@code InputPump}): failed.
      */
     private static final String RACE = "race";
 
-    /** An exception in seat code that is not a {@link #RACE}. */
+    /** An exception in seat code. */
     private static boolean seatFault(String crash) {
-        return crash.contains("at forge.web.") && !crash.lines().findFirst().orElse("").contains("java.util.ConcurrentModificationException");
+        return crash.contains("at forge.web.");
+    }
+
+    private static boolean isCme(String crash) {
+        return crash.lines().findFirst().orElse("").contains("java.util.ConcurrentModificationException");
     }
 
     /** One planned game. */
@@ -128,10 +132,12 @@ public class HumanSeatSweep {
         Map<String, Integer> prompts = new LinkedHashMap<>();
         Map<String, Integer> promptTexts = new LinkedHashMap<>();
         Map<String, Integer> actions = new LinkedHashMap<>();
+        /** Server refusals of the seat's messages by type (each is also in {@link #seatErrors}). */
+        Map<String, Integer> rejections = new LinkedHashMap<>();
         Set<String> seatDeckCards = new TreeSet<>();
 
         boolean passed() {
-            return ("finished".equals(end) || AI_LOOP.equals(end) || ENGINE_EXCEPTION.equals(end) || RACE.equals(end)) && silentDefaults == 0
+            return ("finished".equals(end) || AI_LOOP.equals(end) || ENGINE_EXCEPTION.equals(end)) && silentDefaults == 0
                     && seatErrors.isEmpty() && crashes.stream().noneMatch(HumanSeatSweep::seatFault)
                     && droppedTriggers.isEmpty() && unresolvedTriggers.isEmpty();
         }
@@ -315,9 +321,9 @@ public class HumanSeatSweep {
             } else if (SilentDefaults.count() > 0) {
                 end = "silent default";
             } else if (crashes.stream().anyMatch(c -> c.startsWith("Game"))) {
-                // an exception in seat code fails; a race, or one in engine or AI code (no forge.web frame), does not
-                end = crashes.stream().anyMatch(c -> c.startsWith("Game") && seatFault(c)) ? "crashed"
-                        : crashes.stream().anyMatch(c -> c.startsWith("Game") && c.contains("at forge.web.")) ? RACE : ENGINE_EXCEPTION;
+                // a race or an exception in seat code fails; one in engine or AI code (no forge.web frame) does not
+                end = crashes.stream().anyMatch(c -> c.startsWith("Game") && isCme(c)) ? RACE
+                        : crashes.stream().anyMatch(c -> c.startsWith("Game") && seatFault(c)) ? "crashed" : ENGINE_EXCEPTION;
             } else if (client.seat() != null && client.seat().errors.stream().anyMatch(e -> e.startsWith("input stuck") || e.startsWith("seat driver"))) {
                 end = "seat stuck";
             } else if (System.currentTimeMillis() - t0 > GAME_MS) {
@@ -368,6 +374,7 @@ public class HumanSeatSweep {
             r.prompts.putAll(seat.prompts);
             r.promptTexts.putAll(seat.promptTexts);
             r.actions.putAll(seat.actions);
+            r.rejections.putAll(seat.rejections);
         }
         stream.removeClient(client);
         r.silent.addAll(SilentDefaults.recent());
@@ -544,6 +551,10 @@ public class HumanSeatSweep {
         Map<String, Integer> byMode = new LinkedHashMap<>();
         Map<String, Integer> prompts = new java.util.TreeMap<>();
         Map<String, Integer> actions = new java.util.TreeMap<>();
+        Map<String, Integer> rejections = new java.util.TreeMap<>();
+        int seatErrors = 0;
+        int gameCme = 0;
+        int otherCme = 0;
         for (Result r : results) {
             byMode.merge(r.mode + " " + r.players + "p", 1, Integer::sum);
             decks.add(r.seatDeck);
@@ -571,7 +582,7 @@ public class HumanSeatSweep {
             if (AI_LOOP.equals(r.end)) {
                 aiLoops.add("game " + r.index + " turn " + r.turns);
             }
-            if (ENGINE_EXCEPTION.equals(r.end) || RACE.equals(r.end)) {
+            if (ENGINE_EXCEPTION.equals(r.end)) {
                 engineExceptions.add("game " + r.index + " " + r.end + " turn " + r.turns + ": " + r.crashes.get(0).lines().limit(4).toList());
             }
             if (!r.passed()) {
@@ -579,9 +590,15 @@ public class HumanSeatSweep {
             }
             r.prompts.forEach((k, v) -> prompts.merge(k, v, Integer::sum));
             r.actions.forEach((k, v) -> actions.merge(k, v, Integer::sum));
+            if (r.rejections != null) { // reports written before rejections were counted
+                r.rejections.forEach((k, v) -> rejections.merge(k, v, Integer::sum));
+            }
+            seatErrors += r.seatErrors.size();
+            gameCme += (int) r.crashes.stream().filter(HumanSeatSweep::isCme).count();
+            otherCme += (int) r.otherThreadCrashes.stream().filter(HumanSeatSweep::isCme).count();
         }
         return "[sweep] games " + results.size() + " " + byMode + ": passed " + passed + ", failed " + failed
-                + "; ended at the turn cap " + capped + "\n[sweep] not failed: AI loops " + aiLoops + "; engine exceptions and races (CME) " + engineExceptions
+                + "; ended at the turn cap " + capped + "\n[sweep] not failed: AI loops " + aiLoops + "; engine exceptions " + engineExceptions
                 + "\n[sweep] decks " + decks.size() + "; the seat's " + seatDecks.size() + ": " + seatDecks
                 + "\n[sweep] distinct cards: in the seat's decks " + seatCards.size() + ", played by the seat " + played.size()
                 + ", with seat triggers " + triggerCards.size()
@@ -593,6 +610,8 @@ public class HumanSeatSweep {
                 + " declared, " + actions.getOrDefault("(block recorded)", 0) + " recorded by the engine, "
                 + actions.getOrDefault("(block: a creature left the battlefield)", 0) + " with a creature gone"
                 + "\n[sweep] silent defaults " + silent + "; exceptions outside the game thread (not failed) " + other
+                + "\n[sweep] ConcurrentModificationException: on a game thread " + gameCme + ", on other threads " + otherCme
+                + "\n[sweep] seat errors " + seatErrors + "; server refusals " + rejections
                 + "\n[sweep] prompts " + prompts + "\n[sweep] seat actions " + actions;
     }
 }

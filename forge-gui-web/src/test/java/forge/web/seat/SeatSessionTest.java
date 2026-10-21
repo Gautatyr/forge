@@ -14,7 +14,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -35,12 +37,16 @@ import forge.game.card.Card;
 import forge.game.card.CardCopyService;
 import forge.game.card.CardView;
 import forge.game.event.GameEvent;
+import forge.game.event.GameEventCombatChanged;
 import forge.game.event.GameEventShuffle;
 import forge.game.player.Player;
 import forge.game.zone.ZoneType;
 import forge.gui.interfaces.IGuiGame;
 import forge.gamemodes.match.input.InputSelectEntitiesFromList;
+import forge.gui.FThreads;
+import forge.gui.control.GameEventForwarder;
 import forge.interfaces.IGameController;
+import forge.model.FModel;
 import forge.player.LobbyPlayerHuman;
 import forge.player.PlayerControllerHuman;
 import forge.trackable.TrackableCollection;
@@ -68,6 +74,10 @@ public class SeatSessionTest {
     private WebGuiGame gui;
     private Client client;
     private final LinkedBlockingQueue<String> controllerCalls = new LinkedBlockingQueue<>();
+    /** The thread of each controller call, in order. */
+    private final LinkedBlockingQueue<String> callThreads = new LinkedBlockingQueue<>();
+    /** Run by the recording controller on the calling thread, after recording a call of that method. */
+    private final Map<String, Callable<Void>> onCall = new ConcurrentHashMap<>();
 
     /** A seat's browser: every message, parsed. */
     static final class Client implements ClientSink {
@@ -117,6 +127,8 @@ public class SeatSessionTest {
     @AfterMethod(alwaysRun = true)
     public void drain() {
         controllerCalls.clear();
+        callThreads.clear();
+        onCall.clear();
         SilentDefaults.setStrict(null);
         if (gameThread != null) {
             gameThread.shutdownNow(); // interrupts a prompt left open: it returns its default
@@ -153,7 +165,12 @@ public class SeatSessionTest {
                                     : a instanceof forge.game.player.PlayerView pv ? "player" + pv.getId() : String.valueOf(a));
                         }
                     }
+                    callThreads.add(Thread.currentThread().getName()); // first: a test reads it once it sees the call
                     controllerCalls.add(sb.toString());
+                    Callable<Void> hook = onCall.get(m.getName());
+                    if (hook != null) {
+                        hook.call();
+                    }
                     Class<?> r = m.getReturnType();
                     return r == boolean.class ? false : r == int.class ? 0 : null;
                 });
@@ -161,6 +178,34 @@ public class SeatSessionTest {
 
     private <T> Future<T> onGameThread(Callable<T> c) {
         return gameThread.submit(c);
+    }
+
+    /** The game thread waits for an input of the seat, as {@code InputSyncronizedBase} does; counting {@code done} down ends it. */
+    private Future<Void> waitForInput(CountDownLatch done) throws Exception {
+        Future<Void> f = onGameThread(() -> {
+            gui.awaitInput(done);
+            return null;
+        });
+        awaitWaiting();
+        return f;
+    }
+
+    private void awaitWaiting() throws InterruptedException {
+        long end = System.currentTimeMillis() + 5000;
+        while (!gui.session().pump().waiting()) {
+            if (System.currentTimeMillis() > end) {
+                fail("the game thread never waited for the input");
+            }
+            Thread.sleep(2);
+        }
+    }
+
+    private static void sleep(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void reply(JsonObject prompt, JsonElement value) {
@@ -789,6 +834,8 @@ public class SeatSessionTest {
         start();
         Card mine = TestEngine.add("Grizzly Bears", p0, ZoneType.Hand);
         stream.publish(List.of(), false);
+        CountDownLatch done = new CountDownLatch(1);
+        Future<Void> waiting = waitForInput(done);
         action("{\"t\":\"action\",\"method\":\"selectButtonOk\"}");
         assertEquals(controllerCalls.poll(5, TimeUnit.SECONDS), "selectButtonOk");
         action("{\"t\":\"action\",\"method\":\"selectCard\",\"card\":" + mine.getId() + "}");
@@ -803,6 +850,8 @@ public class SeatSessionTest {
             action("{\"t\":\"action\",\"method\":\"" + m + "\"}");
             assertEquals(controllerCalls.poll(5, TimeUnit.SECONDS), m);
         }
+        done.countDown();
+        get(waiting);
     }
 
     @Test
@@ -810,6 +859,8 @@ public class SeatSessionTest {
         start();
         Card theirs = TestEngine.add("Lightning Bolt", p1, ZoneType.Hand);
         stream.publish(List.of(), false);
+        CountDownLatch done = new CountDownLatch(1);
+        Future<Void> waiting = waitForInput(done);
         action("{\"t\":\"action\",\"method\":\"selectCard\",\"card\":" + theirs.getId() + "}");
         assertEquals(client.next("actionRejected").get("reason").getAsString(), "unknown card",
                 "the engine id of a card the seat holds under an alias resolves to nothing");
@@ -822,6 +873,152 @@ public class SeatSessionTest {
         action("{\"t\":\"hello\"}");
         client.next("rejected");
         assertNull(controllerCalls.poll(200, TimeUnit.MILLISECONDS));
+        done.countDown();
+        get(waiting);
+    }
+
+    // --- threads (issue #53): only the game thread changes the game ---
+
+    @Test
+    public void actionsRunOnTheGameThreadWaitingForTheInput() throws Exception {
+        start();
+        CountDownLatch done = new CountDownLatch(1);
+        Future<Void> waiting = waitForInput(done);
+        action("{\"t\":\"action\",\"method\":\"selectButtonOk\"}");
+        assertEquals(controllerCalls.poll(5, TimeUnit.SECONDS), "selectButtonOk");
+        assertEquals(callThreads.poll(), "Game-test", "the game thread, not the seat's action thread");
+        done.countDown();
+        get(waiting);
+    }
+
+    @Test
+    public void inputActionsWithNoInputWaitingAreNotRunOthersAre() throws Exception {
+        start();
+        action("{\"t\":\"action\",\"method\":\"selectButtonOk\"}");
+        action("{\"t\":\"action\",\"method\":\"concede\"}");
+        assertEquals(controllerCalls.poll(5, TimeUnit.SECONDS), "concede", "OK found no input; concede needs none");
+        assertEquals(callThreads.poll(), "web-seat-0");
+        assertNull(controllerCalls.poll(200, TimeUnit.MILLISECONDS));
+        for (JsonObject m : client.msgs) {
+            assertFalse(m.get("t").getAsString().endsWith("ejected"), "not an error: " + m);
+        }
+    }
+
+    @Test
+    public void anActionThatOpensAnotherInputLetsTheNextActionAnswerIt() throws Exception {
+        start();
+        Card mine = TestEngine.add("Grizzly Bears", p0, ZoneType.Hand);
+        stream.publish(List.of(), false);
+        List<String> order = new CopyOnWriteArrayList<>();
+        CountDownLatch inner = new CountDownLatch(1);
+        onCall.put("selectCard", () -> {
+            order.add("card: another input");
+            gui.awaitInput(inner); // e.g. a mana ability whose cost asks for a card
+            order.add("card: done");
+            return null;
+        });
+        onCall.put("selectButtonOk", () -> {
+            order.add("ok");
+            inner.countDown();
+            return null;
+        });
+        CountDownLatch done = new CountDownLatch(1);
+        Future<Void> waiting = waitForInput(done);
+        action("{\"t\":\"action\",\"method\":\"selectCard\",\"card\":" + mine.getId() + "}");
+        action("{\"t\":\"action\",\"method\":\"selectButtonOk\"}");
+        assertEquals(controllerCalls.poll(5, TimeUnit.SECONDS), "selectCard card" + mine.getId() + " null null");
+        assertEquals(controllerCalls.poll(5, TimeUnit.SECONDS), "selectButtonOk");
+        long end = System.currentTimeMillis() + 5000;
+        while (order.size() < 3 && System.currentTimeMillis() < end) {
+            Thread.sleep(5);
+        }
+        assertEquals(order, List.of("card: another input", "ok", "card: done"));
+        assertEquals(new ArrayList<>(callThreads), List.of("Game-test", "Game-test"));
+        done.countDown();
+        get(waiting);
+    }
+
+    @Test
+    public void edtWorkQueuedBeforeAnActionRunsFirstAndWhatItQueuesRunsBeforeTheGameGoesOn() throws Exception {
+        start();
+        List<String> order = new CopyOnWriteArrayList<>();
+        CountDownLatch done = new CountDownLatch(1);
+        onCall.put("selectButtonOk", () -> {
+            order.add("action");
+            FThreads.invokeInEdtLater(() -> {
+                sleep(150);
+                order.add("refresh the action queued"); // InputPayMana.updateMessage
+            });
+            done.countDown(); // the action ends the input
+            return null;
+        });
+        Future<Void> waiting = onGameThread(() -> {
+            gui.awaitInput(done);
+            order.add("game goes on");
+            return null;
+        });
+        awaitWaiting();
+        FThreads.invokeInEdtLater(() -> {
+            sleep(150);
+            order.add("input display queued before"); // InputProxy: showMessageInitial
+        });
+        action("{\"t\":\"action\",\"method\":\"selectButtonOk\"}");
+        get(waiting);
+        assertEquals(order, List.of("input display queued before", "action", "refresh the action queued", "game goes on"));
+    }
+
+    @Test
+    public void aCallLeavesOutCardsTheSeatHasNoIdFor() throws Exception {
+        start();
+        Card land = TestEngine.add("Forest", p0, ZoneType.Battlefield);
+        // in no zone: as a Treasure sacrificed since InputPayMana computed its auto-pay plan
+        Card gone = Card.fromPaperCard(FModel.getMagicDb().getCommonCards().getCard("Forest"), p0);
+        onGameThread(() -> {
+            gui.setWeaklySelectable(List.of(land.getView(), gone.getView(), land.getView()));
+            return null;
+        }).get(5, TimeUnit.SECONDS);
+        JsonObject call;
+        do {
+            call = client.next("call");
+        } while (!"setWeaklySelectable".equals(call.get("method").getAsString()));
+        JsonArray cards = call.getAsJsonArray("args").get(0).getAsJsonArray();
+        assertEquals(cards.size(), 2, "the strength-2 entry of the land stays, the unknown card goes: " + cards);
+        for (JsonElement c : cards) {
+            assertEquals(c.getAsJsonObject().get("id").getAsInt(), land.getId());
+        }
+    }
+
+    @Test
+    public void aCallFromTheEdtWhileTheGameThreadWaitsNamesCardsNewSinceTheLastFlush() throws Exception {
+        start();
+        CountDownLatch done = new CountDownLatch(1);
+        Future<Void> waiting = waitForInput(done);
+        Card land = TestEngine.add("Forest", p0, ZoneType.Battlefield); // e.g. a mana source the auto-pay plan names
+        FThreads.invokeInEdtLater(() -> gui.setWeaklySelectable(List.of(land.getView()))); // InputPayMana.updateMessage
+        JsonObject call;
+        do {
+            call = client.next("call");
+        } while (!"setWeaklySelectable".equals(call.get("method").getAsString()));
+        assertEquals(call.getAsJsonArray("args").get(0).getAsJsonArray().get(0).getAsJsonObject().get("id").getAsInt(), land.getId(),
+                "published before the call, not -1 (a card the seat was never told of)");
+        done.countDown();
+        get(waiting);
+    }
+
+    @Test
+    public void offTheGameThreadTheSeatsGuiWalksTheGameOnlyWhileTheGameThreadWaits() throws Exception {
+        start();
+        GameEventForwarder fwd = new GameEventForwarder(gui);
+        gui.setForwarder(fwd);
+        fwd.receiveGameEvent(new GameEventCombatChanged());
+        gui.setWeaklySelectable(List.of()); // as an input refresh on the EDT, while the game may be changing
+        assertTrue(fwd.hasPendingEvents(), "not flushed off the game thread while the game runs");
+        CountDownLatch done = new CountDownLatch(1);
+        Future<Void> waiting = waitForInput(done);
+        gui.setWeaklySelectable(List.of());
+        assertFalse(fwd.hasPendingEvents(), "flushed while the game thread waits for the seat");
+        done.countDown();
+        get(waiting);
     }
 
     @Test

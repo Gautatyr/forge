@@ -14,7 +14,9 @@ prompt-bridging design and its 9 traps). Frontend rules: `frontend/CLAUDE.md`.
   reveals and face-down cards. Never rely on the client to hide anything.
 - **No client → server input** before the Origin check and the per-launch token pass.
 - **Threading:** engine state is read and changed on the game thread. Never block a Netty
-  event loop. Anything that waits (a prompt reply, a client) has an explicit timeout.
+  event loop. Anything that waits (a prompt reply, a client) has an explicit timeout. Seat
+  actions run on the game thread waiting for the seat's input; other threads read the game
+  only while it waits (`InputPump`, audit "Threading").
 - Do not use `ReplyPool` for prompts (waits forever, leaks entries, returns null); use the
   bridge's own pending map with ids from an `AtomicLong`.
 - Resolve client-sent ids through the current zone collections, never `Tracker.getObj`
