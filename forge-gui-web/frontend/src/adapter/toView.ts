@@ -29,7 +29,8 @@ import type {
 } from '../model/types';
 import type { CardProps, CardStateProps, PhaseType, PlayerProps, ZoneType } from '../wire/generated/wire';
 import { parseImageKey, scryfallLookup, type ImageLookup } from './images';
-import { promptToChoice, promptWords, inputToChoice, SELECT_PROMPT_PREFIX, targetKey } from './prompts';
+import { freeMulliganKeep, promptToChoice, promptWords, inputToChoice, SELECT_PROMPT_PREFIX, targetKey, tossChooser } from './prompts';
+import { tossTitle } from '../state/gameStart';
 import type { LiveSession } from './session';
 
 const STEP_OF: Record<PhaseType, StepId> = {
@@ -278,6 +279,8 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
   const mine =
     input.ownerId === you && (input.ok.enabled || input.cancel.enabled || !!input.selectable || input.targets.length > 0);
   if (!mine) return waiting();
+  // Nothing to decide (a free mulligan's "return 0 cards"): useLive answers it (commands.ts, autoAnswer).
+  if (freeMulliganKeep(input)) return { kind: 'waiting', forPlayerId: view.youId, what: 'Drawing your new hand' };
 
   const youView = view.players.find((p) => p.isYou)!;
   const weakly = [...s.weakly.keys()];
@@ -329,7 +332,7 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
 
   // Mulligan and the London mulligan's bottom cards: tray prompts answered with buttons and hand clicks.
   const early = inputToChoice(input, view);
-  if (early && /^input:(mulligan|bottom|ok:keep):/.test(early.id)) return { kind: 'choice', prompt: early };
+  if (early && /^input:(mulligan|bottom):/.test(early.id)) return { kind: 'choice', prompt: early };
 
   const combat = view.combat ?? { attacks: [], blocks: [] };
   if (view.turn.step === 'declareAttackers' && view.turn.activePlayerId === view.youId && ATTACK_CANCEL.has(input.cancel.label)) {
@@ -374,13 +377,14 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
     if (legal.length && (!castCard() || !legal.every(onBoard))) {
       const msg = input.message.replace(/\s*\(Click on the portrait\.?\)/i, '').trim();
       const source = known(input.cardId);
+      const toss = tossChooser(msg);
       return {
         kind: 'choice',
         prompt: {
           id: `${SELECT_PROMPT_PREFIX}${legal.map(targetKey).join(',')}|${msg}`,
           shape: 'chooseN',
           // "Cultivate (12)\nSelect up to 2 cards from your library", "Cleanup Phase\nSelect 2 card(s) to discard…"
-          ...promptWords(msg, undefined, 'Choose'),
+          ...(toss ? { title: tossTitle(toss), instruction: '', quiet: true } : promptWords(msg, undefined, 'Choose')),
           ...(source ? { sourceCardId: source } : {}),
           confirmLabel: input.ok.label || 'OK',
           options: legal.map((t) => ({

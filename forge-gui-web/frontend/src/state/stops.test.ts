@@ -95,19 +95,19 @@ describe('editing stops', () => {
 describe('next stop', () => {
   const g = scenarioById('priority').build(); // you, Mira, Theo, Ana
 
-  it('from your Main 2 with defaults: Mira’s Start of combat', () => {
+  it('from your second main phase with defaults: Mira’s beginning of combat step', () => {
     expect(nextStop(at(g, 'you', 'main2'), DEFAULT_STOPS)).toEqual({ playerId: 'mira', step: 'beginCombat' });
-    expect(nextStopLabel(at(g, 'you', 'main2'), DEFAULT_STOPS)).toBe("Mira's Start of combat");
+    expect(nextStopLabel(at(g, 'you', 'main2'), DEFAULT_STOPS)).toBe("Mira's beginning of combat step");
   });
 
   it('later in the same turn comes first', () => {
     expect(nextStop(at(g, 'theo', 'beginCombat'), DEFAULT_STOPS)).toEqual({ playerId: 'theo', step: 'declareAttackers' });
-    expect(nextStopLabel(at(g, 'theo', 'beginCombat'), DEFAULT_STOPS)).toBe("Theo's Attack step");
+    expect(nextStopLabel(at(g, 'theo', 'beginCombat'), DEFAULT_STOPS)).toBe("Theo's declare attackers step");
   });
 
   it('wraps to your own turn', () => {
     expect(nextStop(at(g, 'ana', 'end'), DEFAULT_STOPS)).toEqual({ playerId: 'you', step: 'main1' });
-    expect(nextStopLabel(at(g, 'ana', 'end'), DEFAULT_STOPS)).toBe('your Main 1');
+    expect(nextStopLabel(at(g, 'ana', 'end'), DEFAULT_STOPS)).toBe('your first main phase');
   });
 
   it('follows per-opponent rows', () => {
@@ -134,9 +134,9 @@ describe('strip hover text', () => {
   it('says on whose turns the game stops, and how to change it', () => {
     const g = scenarioById('priority').build();
     const s = setYourStop(DEFAULT_STOPS, 'upkeep', true);
-    expect(stepHint(g, s, 'upkeep')).toBe("Upkeep: the game stops here for you on your turns, not on opponents' turns. Click to change.");
+    expect(stepHint(g, s, 'upkeep')).toBe("Upkeep step: the game stops here for you on your turns, not on opponents' turns. Click to change.");
     expect(stepHint(g, DEFAULT_STOPS, 'declareBlockers')).toBe(
-      "Block step: the game stops here for you on your turns and on opponents' turns. Click to change.",
+      "Declare blockers step: the game stops here for you on your turns and on opponents' turns. Click to change.",
     );
     expect(stepHint(g, DEFAULT_STOPS, 'end')).toBe("End step: the game stops here for you on opponents' turns, not on your turns. Click to change.");
     expect(stepHint(g, DEFAULT_STOPS, 'draw')).toBe(

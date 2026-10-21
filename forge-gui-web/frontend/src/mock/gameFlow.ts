@@ -8,7 +8,7 @@ import type { PromptAnswer } from '../model/intents';
 import { isCreature, player } from '../model/selectors';
 import type { CardView, ChoicePrompt, OutReason, PlayerId, PlayerView } from '../model/types';
 import { outReasonText } from '../state/gameEnd';
-import { BOTTOM_PROMPT_ID, bottomPrompt, MULLIGAN_PROMPT_ID, mulliganPrompt } from '../state/gameStart';
+import { BOTTOM_PROMPT_ID, bottomPrompt, MULLIGAN_PROMPT_ID, mulliganPrompt, tossTitle } from '../state/gameStart';
 import { lookup, type CardKey } from './cardDb';
 import { priorityDecision, recompute, type MockGame } from './engine';
 
@@ -104,13 +104,13 @@ export function startOpeningHands(g: MockGame, starter: PlayerId, firstFree = tr
   mulliganDecision(g, g.opening);
 }
 
-/** The toss winner's question: "You go first. Play first?" */
+/** The toss winner's question (playtest 1): "You won the coin toss. Who plays first?" */
 export function tossPrompt(g: MockGame): ChoicePrompt {
   const other = g.players.find((p) => !p.isYou)!;
   return {
     id: TOSS_PROMPT_ID,
     shape: 'yesNo',
-    title: 'You go first. Play first?',
+    title: tossTitle('wonToss'),
     instruction: '',
     confirmLabel: 'Play first',
     yesLabel: 'Play first',

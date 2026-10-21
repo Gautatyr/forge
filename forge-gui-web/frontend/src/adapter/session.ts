@@ -37,6 +37,17 @@ export interface InputState {
   targets: SeatRef[];
   /** Chosen so far (setHighlighted). */
   highlighted: SeatRef[];
+  /**
+   * InputLondonMulligan: the cards it asks for, counted at its first message (left + chosen). Later
+   * messages can't tell: its end (done: resetCardHighlights, then stop) reads "Return 0", nothing chosen.
+   */
+  london?: number;
+}
+
+/** InputLondonMulligan's message: "Return N card(s) to the bottom of your library" (N left to choose). */
+export function londonLeft(message: string): number | undefined {
+  const m = /^Return (\d+) card\(s\) to the bottom/.exec(message.trim());
+  return m ? Number(m[1]) : undefined;
 }
 
 export const NO_INPUT: InputState = {
@@ -289,12 +300,16 @@ export class LiveSession {
         const pay = typeof a[1] === 'string' ? /Pay Mana Cost:\s*(\S+)/.exec(a[1]) : null;
         if (!pay) this.payment = undefined;
         else if (!this.payment || this.payment.cardId !== card) this.payment = { cardId: card, cost: pay[1]!, seq: ++this.paymentSeq };
+        const message = typeof a[1] === 'string' ? a[1] : '';
+        const left = londonLeft(message);
+        const chosen = this.input.highlighted.filter((h) => h.type === 'card').length;
         this.input = {
           ...this.input,
           ownerId: refId(a[0]) ?? this.input.ownerId,
-          message: typeof a[1] === 'string' ? a[1] : '',
+          message,
           cardId: card !== undefined && card >= 0 ? card : undefined,
           namesCard: card !== undefined,
+          london: left === undefined ? undefined : (this.input.london ?? left + chosen),
         };
         return;
       }

@@ -1,7 +1,8 @@
-import type { MouseEvent } from 'react';
+import type { PointerEvent } from 'react';
 import { useMatch } from '../state/MatchContext';
 import { logParts } from './logParts';
 import { ManaSymbol } from './ManaSymbol';
+import { previewBeside } from './previewSpot';
 import styles from './LogText.module.css';
 
 /** Renders log text; {card:<id>} tokens become hoverable card names, {R} / {2} mana symbols. */
@@ -21,9 +22,8 @@ export function LogText({ text }: { text: string }) {
         const id = part.id;
         const c = game.cards[id];
         const name = c?.name ?? 'a card';
-        const show = (e: MouseEvent) => {
-          const r = e.currentTarget.getBoundingClientRect();
-          if (c) setUi({ hover: { cardId: id, side: r.left < window.innerWidth / 2 ? 'right' : 'left' } });
+        const show = (e: PointerEvent<HTMLElement>) => {
+          if (c) setUi({ hover: { cardId: id, beside: previewBeside(e.currentTarget) } });
         };
         return c ? (
           <button

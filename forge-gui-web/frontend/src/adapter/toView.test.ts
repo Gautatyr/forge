@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { WireObject } from '../wire/generated/wire';
-import { intentToFrames, stopFrames } from './commands';
+import { autoAnswer, intentToFrames, stopFrames } from './commands';
 import { LiveSession } from './session';
 import { imageFromKey, logText, parseKeyword, passUntilYourTurnDone, toGameView } from './toView';
 
@@ -158,6 +158,66 @@ describe('toGameView', () => {
     expect(toGameView(s).decision).toMatchObject({ kind: 'choice', prompt: { shape: 'yesNo', yesLabel: 'Keep 0', noLabel: 'Mulligan' } });
     s.apply({ t: 'prompt', id: 4, method: 'getChoices', shape: 'choose', message: 'Choose a color', choices: [{ i: 0, label: 'Red' }], min: 1, max: 1 });
     expect(toGameView(s).decision).toMatchObject({ kind: 'choice', prompt: { id: 'prompt:4', shape: 'chooseN' } });
+  });
+});
+
+describe('no prompt when there is nothing to do (playtest 1)', () => {
+  /** InputLondonMulligan: "Return N card(s)…", OK when N more are chosen, else Auto. */
+  const london = (s: LiveSession, left: number, chosen: number[] = []) => {
+    s.apply({ t: 'call', method: 'setHighlighted', args: [chosen.map(card), true] });
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, `Return ${left} card(s) to the bottom of your library`, null] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Auto', left === 0, left !== 0, true] });
+  };
+
+  it('answers the free mulligan’s "return 0 cards" at once, without a tray', () => {
+    const s = session();
+    london(s, 0);
+    const g = toGameView(s);
+    expect(g.decision.kind).toBe('waiting');
+    expect(g.decision).toMatchObject({ forPlayerId: '0', what: 'Drawing your new hand' });
+    expect(autoAnswer(s)).toEqual({ key: expect.any(String), frames: [act('selectButtonOk')] });
+  });
+
+  it('still asks when cards go to the bottom, even once they are all chosen', () => {
+    const s = session();
+    london(s, 1);
+    expect(toGameView(s).decision).toMatchObject({ kind: 'choice', prompt: { shape: 'chooseN', min: 1, max: 1 } });
+    expect(autoAnswer(s)).toBeUndefined();
+    // One of one chosen: the engine says "Return 0" and enables OK; the player confirms.
+    london(s, 0, [10]);
+    expect(toGameView(s).decision).toMatchObject({ kind: 'choice', prompt: { shape: 'chooseN', min: 1, max: 1 } });
+    expect(autoAnswer(s)).toBeUndefined();
+  });
+
+  it('never answers a paid bottom step as it ends (its last reset reads "Return 0", nothing chosen)', () => {
+    const s = session();
+    london(s, 1);
+    london(s, 0, [10]);
+    // InputLondonMulligan.done(): resetCardHighlights() before stop(); OK is still enabled.
+    s.apply({ t: 'call', method: 'setHighlighted', args: [[card(10)], false] });
+    expect(autoAnswer(s)).toBeUndefined();
+    expect(toGameView(s).decision).not.toMatchObject({ what: 'Drawing your new hand' });
+    // The next London input (after awaitNextInput) is judged on its own first message.
+    s.apply({ t: 'call', method: 'awaitNextInput', args: [] });
+    london(s, 0);
+    expect(autoAnswer(s)).toEqual({ key: expect.any(String), frames: [act('selectButtonOk')] });
+  });
+
+  it('judges a London input by its first message even without awaitNextInput before it', () => {
+    const s = session();
+    buttons(s, 'Keep', 'Mulligan', 'Keep your hand?');
+    london(s, 0);
+    expect(autoAnswer(s)).toBeDefined();
+  });
+
+  it('answers nothing for another player’s input or any other prompt', () => {
+    const s = session();
+    buttons(s, 'Keep', 'Mulligan', 'Keep your hand?');
+    expect(autoAnswer(s)).toBeUndefined();
+    const t = session();
+    t.apply({ t: 'call', method: 'showPromptMessage', args: [{ type: 'player', id: 1 }, 'Return 0 card(s) to the bottom of your library', null] });
+    t.apply({ t: 'call', method: 'updateButtons', args: [{ type: 'player', id: 1 }, 'OK', 'Auto', true, false, true] });
+    expect(autoAnswer(t)).toBeUndefined();
   });
 });
 
@@ -499,6 +559,26 @@ describe('selections off the board (library searches, choosing a player)', () =>
     s.apply({ t: 'call', method: 'setHighlighted', args: [[card(71)], true] });
     const after = toGameView(s).decision;
     expect(before.kind === 'choice' && after.kind === 'choice' && before.prompt.id === after.prompt.id).toBe(true);
+  });
+
+  it('words the coin toss as "You won the coin toss. Who plays first?", with no "Choose exactly 1" (playtest 1)', () => {
+    const s = session();
+    s.apply({ t: 'call', method: 'setSelectableTargets', args: [[YOU, { type: 'player', id: 1 }]] });
+    // PlayerControllerHuman.chooseStartingPlayer, 3+ players: lblYouHaveWonTheCoinToss + lblWhoWouldYouLiketoStartthisGame
+    const msg = 'Hugo, you have won the coin toss.\n\nWho would you like to start this game? (Click on the portrait.)';
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, msg, null] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, false, true] });
+    const g = toGameView(s);
+    expect(g.decision).toMatchObject({
+      kind: 'choice',
+      prompt: { shape: 'chooseN', title: 'You won the coin toss. Who plays first?', instruction: '', quiet: true, min: 1, max: 1 },
+    });
+    const id = g.decision.kind === 'choice' ? g.decision.prompt.id : '';
+    expect(intentToFrames({ type: 'answer', promptId: id, answer: { shape: 'chooseN', optionIds: ['p0'] } }, s, g)).toEqual([act('selectPlayer', { player: 0 })]);
+
+    // A later game of the match: the loser of the last game chooses.
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Hugo, you lost the last game.\n\nWho would you like to start this game? (Click on the portrait.)', null] });
+    expect(toGameView(s).decision).toMatchObject({ prompt: { title: 'You lost the last game. Who plays first?', instruction: '', quiet: true } });
   });
 
   it('asks who starts with player options (no spell, no Cancel), answered by selectPlayer', () => {

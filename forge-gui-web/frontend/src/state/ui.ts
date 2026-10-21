@@ -5,7 +5,8 @@ export type ViewableZone = 'graveyard' | 'exile' | 'command';
 
 /** Screen-only state: never sent to the engine. */
 export interface UiState {
-  hover?: { cardId: CardId; side: 'left' | 'right' };
+  /** `beside`: hovered inside the rail or the log drawer, so the preview shows left of it (previewSpot.ts). */
+  hover?: { cardId: CardId; beside?: boolean };
   inspectId?: CardId;
   /** Blocking in either order: the first click waits here for its partner. */
   pendingBlocker?: CardId;
@@ -19,7 +20,8 @@ export interface UiState {
   trayPeek: boolean;
   logOpen: boolean;
   overlay?: Overlay;
-  zoneView?: { playerId: PlayerId; zone: ViewableZone };
+  /** An open graveyard or exile: in the side panel, or `large` over the board (playtest 1). */
+  zoneView?: { playerId: PlayerId; zone: ViewableZone; large?: boolean };
   /** Answer being built in the choice tray. */
   choiceDraft?: ChoiceDraft;
   /** Neutral note shown in the prompt line for 3 s ("You can't play … right now."); `id` restarts the timer. */

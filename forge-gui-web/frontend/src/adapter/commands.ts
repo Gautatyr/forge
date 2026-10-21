@@ -10,7 +10,7 @@ import type { Intent } from '../model/intents';
 import type { GameView, StepId } from '../model/types';
 import type { PhaseType } from '../wire/generated/wire';
 import { COLOUR_MASK, type ActionMessage, type ClientFrame } from './protocol';
-import { inputPromptKind, promptViewId, replyValue, targetOfKey } from './prompts';
+import { freeMulliganKeep, inputPromptKind, promptViewId, replyValue, targetOfKey } from './prompts';
 import type { LiveSession } from './session';
 
 const num = (id: string) => Number(id);
@@ -147,6 +147,19 @@ function answerFrames(promptId: string, answer: Extract<Intent, { type: 'answer'
       return value === undefined ? [] : [{ t: 'reply', id: p.id, value }];
     }
   }
+}
+
+/**
+ * Your input when it has nothing to decide (playtest 1: no prompt then), with the frames that answer
+ * it: the London mulligan's "return 0 cards" after a free mulligan. The key stays the same while the
+ * input is shown, so the caller answers it once.
+ */
+export function autoAnswer(s: LiveSession): { key: string; frames: ClientFrame[] } | undefined {
+  const input = s.input;
+  const you = s.viewer && 'player' in s.viewer ? s.viewer.player : undefined;
+  if (you === undefined || input.ownerId !== you || !input.ok.enabled) return undefined;
+  if (freeMulliganKeep(input)) return { key: `free-keep|${s.game}`, frames: [action('selectButtonOk')] };
+  return undefined;
 }
 
 /**

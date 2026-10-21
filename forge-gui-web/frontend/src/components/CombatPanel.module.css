@@ -7,7 +7,8 @@
   background: var(--c-panel);
   flex: 0 1 auto;
   max-height: 45%;
-  min-height: min(9rem, 45%);
+  /* A fixed floor, as the rail's other regions (playtest 1). */
+  min-height: 11rem;
   overflow: hidden;
 }
 

@@ -8,9 +8,20 @@
   background: var(--c-bg);
 }
 
-/* Everything above the action block. It takes the height the action block
-   leaves; scrolling here is the last resort (each region scrolls its own
-   body first) and never moves the action block. */
+/* Everything above the action block: the regions, and the hover preview over
+   them (HoverPreview.module.css sizes itself from this container). */
+.upper {
+  flex: 1 1 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  container-type: size;
+}
+
+/* It takes the height the action block leaves; scrolling here is the last
+   resort (each region scrolls its own body first) and never moves the action
+   block. */
 .regions {
   flex: 1 1 0;
   display: flex;
@@ -43,25 +54,27 @@
   scrollbar-color: var(--c-line-strong) transparent;
 }
 
-/* Regions size to their content and share the shortfall in proportion;
-   the floors keep every header and a few lines of each region visible. */
+/* Regions size to their content and share the shortfall in proportion.
+   Fixed floors (playtest 1: panels got too small when several were open):
+   the stack shows about two items, a zone one full row of cards, Recent
+   four events. Stack, zone and Recent fit together on a 768 px screen
+   (43 rem); with combat too, the regions scroll as a last resort. */
 .stack {
   border-color: var(--c-priority);
   flex: 0 1 auto;
   max-height: 50%;
-  min-height: min(10.5rem, 50%);
+  min-height: 14rem;
 }
 
 .zone {
   flex: 0 1 auto;
-  min-height: 9rem;
+  min-height: 14.5rem;
 }
 
-/* Takes the height left above the action block. The floor fits the header
-   and three events of up to two lines each. */
+/* Takes the height left above the action block. */
 .recent {
   flex: 1 1 auto;
-  min-height: 11rem;
+  min-height: 12rem;
 }
 
 .head {
@@ -69,6 +82,11 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-2);
+}
+
+.headTools {
+  display: inline-flex;
+  gap: var(--sp-1);
 }
 
 .head h2 {

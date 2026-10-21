@@ -316,6 +316,8 @@ export interface ChooseNPrompt extends PromptBase {
    * "(1)"): the mulligan's bottoming (design pass 4 §2.4).
    */
   progress?: boolean;
+  /** No counter and a plain confirm label: the title says it all (who plays first, playtest 1). */
+  quiet?: boolean;
 }
 
 export interface YesNoPrompt extends PromptBase {
