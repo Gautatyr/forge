@@ -59,7 +59,7 @@ final class SeatSession implements IRemote {
 
     /** Calls a reconnecting client needs to show the current input, in this order. */
     private static final List<String> STICKY_ORDER = List.of(
-            "openView", "showPromptMessage", "updateButtons", "selectables", "targets", "weakly", "revealed", "drawOffer", "finishGame");
+            "openView", "showPromptMessage", "updateButtons", "selectables", "targets", "weakly", "blockOptions", "revealed", "drawOffer", "finishGame");
 
     private final int seat;
     private final WebSeats match;
@@ -189,6 +189,14 @@ final class SeatSession implements IRemote {
         }, text -> updateSticky(method, key, text));
     }
 
+    /** The blocks the engine allows now, while this seat declares blockers; sticky until the input ends. */
+    void blockOptions(BlockOptions options) {
+        if (closed) {
+            return;
+        }
+        toSeat(options::toJson, text -> sticky.put("blockOptions", text));
+    }
+
     /** Blocks the calling thread (the game thread, or this seat's action thread) until answered, timed out or abandoned. */
     Object ask(Prompt p) {
         if (closed) {
@@ -256,7 +264,12 @@ final class SeatSession implements IRemote {
                 sticky.remove("selectables");
                 sticky.remove("targets");
                 return;
-            case clearWeaklySelectable: case hideRevealedCards: case hideManaPool:
+            case clearWeaklySelectable:
+                // InputBlock.onStop: its block options end with it
+                sticky.remove(key);
+                sticky.remove("blockOptions");
+                return;
+            case hideRevealedCards: case hideManaPool:
                 sticky.remove(key);
                 return;
             default:

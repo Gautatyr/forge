@@ -9,6 +9,7 @@ import forge.game.player.Player;
 import forge.game.player.PlayerView;
 import forge.game.spellability.SpellAbilityView;
 import forge.gamemodes.match.input.Input;
+import forge.gamemodes.match.input.InputBlock;
 import forge.gamemodes.match.input.InputSelectEntitiesFromList;
 import forge.gamemodes.net.ProtocolGuiGame;
 import forge.interfaces.IGameController;
@@ -28,6 +29,7 @@ import forge.util.ThreadUtil;
 public final class WebGuiGame extends ProtocolGuiGame {
 
     private final SeatSession session;
+    private volatile PlayerControllerHuman human;
 
     WebGuiGame(SeatSession session) {
         super(session);
@@ -75,6 +77,20 @@ public final class WebGuiGame extends ProtocolGuiGame {
         return super.getAbilityToPlay(hostCard, abilities, triggerEvent);
     }
 
+    /**
+     * {@code InputBlock.showMessage} ends with this call, after each block the seat assigns or removes: send the blocks
+     * the engine allows now (issue #48). Runs on the thread that changed the blocks (the game thread or the seat's
+     * action thread), as upstream's own {@code pushBlockerCandidates} before it.
+     */
+    @Override
+    public void showCombat() {
+        super.showCombat();
+        PlayerControllerHuman pch = human;
+        if (pch != null && pch.getInputQueue().getInput() instanceof InputBlock) {
+            session.blockOptions(BlockOptions.of(pch.getGame().getCombat(), pch.getPlayer()));
+        }
+    }
+
     @Override
     public void handleGameEvents(final List<GameEvent> events) {
         super.handleGameEvents(events);
@@ -86,6 +102,7 @@ public final class WebGuiGame extends ProtocolGuiGame {
         super.setOriginalGameController(player, gameController);
         session.bindController(gameController);
         if (gameController instanceof PlayerControllerHuman pch) {
+            human = pch;
             // The web client reads setWeaklySelectable: cards you may play now, mana sources and the auto-pay
             // plan while paying, attack candidates. This seat's own settings (YieldController overrides), so the
             // desktop app's preferences are neither read nor changed.

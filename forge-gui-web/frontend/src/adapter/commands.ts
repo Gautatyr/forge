@@ -3,7 +3,7 @@
  * (docs/fork/architecture/web-ui.md, "Bridge: human seat"). Board interaction follows Forge's
  * inputs: a card click is selectCard, a player click selectPlayer, the main button selectButtonOk,
  * cancel selectButtonCancel (InputAttack: selectPlayer picks the defender, a creature click toggles
- * it; InputBlock: click the attacker, then the blocker; InputPayMana: a source click taps it,
+ * it; InputBlock: click the attacker, then the blocker (again: removes the block); InputPayMana: a source click taps it,
  * useMana spends floating mana, OK is "Auto").
  */
 import type { Intent } from '../model/intents';
@@ -72,8 +72,11 @@ export function intentToFrames(intent: Intent, s: LiveSession, view: GameView): 
     case 'assignBlock':
       return [selectCard(intent.attackerId), selectCard(intent.blockerId)];
     case 'removeBlock': {
-      const block = d.kind === 'declareBlockers' ? d.draft.find((b) => b.blockerId === intent.blockerId) : undefined;
-      return block ? [selectCard(block.attackerId), selectCard(intent.blockerId)] : [];
+      // InputBlock: clicking an attacker, then a creature already blocking it, removes that block.
+      const blocks = d.kind === 'declareBlockers' ? d.draft : [];
+      return blocks
+        .filter((b) => b.blockerId === intent.blockerId && (intent.attackerId === undefined || b.attackerId === intent.attackerId))
+        .flatMap((b) => [selectCard(b.attackerId), selectCard(b.blockerId)]);
     }
     case 'answer':
       return answerFrames(intent.promptId, intent.answer, s);

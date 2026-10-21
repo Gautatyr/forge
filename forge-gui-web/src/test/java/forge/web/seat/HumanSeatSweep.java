@@ -49,7 +49,8 @@ import forge.web.bridge.visibility.TestEngine;
 /**
  * Card-pool sweep (issue #46): full games with a {@link ScriptedSeat} human seat 0 against AIs, across many decks,
  * in strict mode ({@link SilentDefaults}). Each game asserts no silent default, no seat error, and that every trigger
- * the engine hands the seat reaches the stack (or has no legal target) and resolves ({@link TriggerAudit}).
+ * the engine hands the seat reaches the stack (or has no legal target) and resolves ({@link TriggerAudit}), and that every
+ * block the seat declares is in the engine's combat (issue #54).
  * Not a default test (no {@code Test} suffix): {@code make web-sweep} runs it. Properties ({@code -D}):
  * <pre>
  * forge.web.sweep.duel N         1v1 Constructed games, geneticaidecks for both seats (default 16)
@@ -588,6 +589,9 @@ public class HumanSeatSweep {
                 + "\n[sweep] seat triggers: " + handed + " handed to the seat, " + onStack + " on the stack, " + stat + " static (no stack), "
                 + noTarget + " without legal target, " + afterOver + " handed as the game ended, " + dropped + " dropped; of those on the stack "
                 + resolved + " resolved or removed, " + stillOnStack + " still there at game over, " + unresolved + " lost"
+                + "\n[sweep] seat blocks (the page's clicks; a missing one fails its game): " + actions.getOrDefault("(block declared)", 0)
+                + " declared, " + actions.getOrDefault("(block recorded)", 0) + " recorded by the engine, "
+                + actions.getOrDefault("(block: a creature left the battlefield)", 0) + " with a creature gone"
                 + "\n[sweep] silent defaults " + silent + "; exceptions outside the game thread (not failed) " + other
                 + "\n[sweep] prompts " + prompts + "\n[sweep] seat actions " + actions;
     }

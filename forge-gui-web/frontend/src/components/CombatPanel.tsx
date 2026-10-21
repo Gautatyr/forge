@@ -95,7 +95,7 @@ export function CombatPanel() {
                       type="button"
                       className={styles.remove}
                       aria-label={`Remove block by ${game.cards[b.blockerId]?.name}`}
-                      onClick={() => send({ type: 'removeBlock', blockerId: b.blockerId })}
+                      onClick={() => send({ type: 'removeBlock', blockerId: b.blockerId, attackerId: b.attackerId })}
                     >
                       <Icon name="close" />
                     </button>

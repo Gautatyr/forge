@@ -58,6 +58,7 @@ Server to seat (after `hello` and `snapshot`):
   - `distribute`: `amount`, `amountLabel`, `atLeastOne`, `maySkip`, `choices:[{i,label,ref?,max?,defender?,lethal?}]`; `assignCombatDamage` adds `lethalOrder`: `inOrder` (a choice gets damage only once every earlier choice has its `lethal`), `blockersFirst` (blockers in any order, the defender only once every blocker has lethal), `free`. As on the desktop, the defender is a choice only for a trampler (or divided damage with overrideOrder).
   - `text`: `message`, `initial`, `options?`, `numeric`.
 - `{"t":"promptClosed","id","reason":"answered|timeout|disconnected|cancelled"}` closes a prompt on every client of the seat.
+- `{"t":"blockOptions","attackers":[{card,blockers,ifFreed,min?}]}` (#48): with each `InputBlock` refresh (`WebGuiGame.showCombat`), per attacker whose blocks the seat declares, the creatures `CombatUtil.canBlock` allows now (or already blocking it), those that could once taken off the attacker they block, and `min` when more than 1 (menace). Sticky; ends with `clearWeaklySelectable` (`InputBlock.onStop`). While blocks are declared the engine holds them in the combat band's `plannedBlockers`; `blockers` fills once they are declared (#54).
 - A client that (re)connects gets, after its snapshot, the seat's current input calls and its open prompts again.
 
 Seat to server (dropped from a spectator token):

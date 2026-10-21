@@ -245,6 +245,17 @@ export interface Block {
   attackerId: CardId;
 }
 
+/** Per attacker, what the engine lets you block it with (issue #48). Live only; mock scenarios allow any pair. */
+export interface BlockOption {
+  attackerId: CardId;
+  /** May block it now, or already does. */
+  blockers: CardId[];
+  /** Block another attacker now and could block this one once taken off it (a click moves the block). */
+  ifFreed: CardId[];
+  /** Fewest blockers the engine accepts for it (menace: 2). */
+  min: number;
+}
+
 export interface CombatState {
   attacks: Attack[];
   blocks: Block[];
@@ -410,7 +421,7 @@ export type Decision =
     }
   /** `draft` is the attack being built; the engine validates on confirm. */
   | { kind: 'declareAttackers'; candidates: CardId[]; defenders: PlayerId[]; draft: Attack[] }
-  | { kind: 'declareBlockers'; candidates: CardId[]; attackers: CardId[]; draft: Block[] }
+  | { kind: 'declareBlockers'; candidates: CardId[]; attackers: CardId[]; draft: Block[]; options?: BlockOption[] }
   | { kind: 'choice'; prompt: ChoicePrompt }
   /**
    * Paying the mana cost of a spell or ability (design pass 4, §2.1). The spell

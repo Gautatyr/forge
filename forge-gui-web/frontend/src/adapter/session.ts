@@ -4,7 +4,7 @@
  * human seat"). `apply` returns 'resync' when the stream broke (seq gap); the caller then asks for a
  * snapshot and the session drops deltas until it comes.
  */
-import type { HelloMessage, LogEntry as WireLogEntry, SnapshotMessage, WireObject } from '../wire/generated/wire';
+import type { BlockOptionsMessage, HelloMessage, LogEntry as WireLogEntry, SnapshotMessage, WireObject } from '../wire/generated/wire';
 import { hasDrift, schemaDrift, type SchemaDrift } from '../wire/schemaDrift';
 import { asRef, type PromptMessage, type SeatRef, type ServerFrame } from './protocol';
 
@@ -111,6 +111,8 @@ export class LiveSession {
    * you may play now (priority), the mana sources (paying; 2 = in the auto-pay plan), attack candidates.
    */
   weakly = new Map<number, number>();
+  /** blockOptions: while you declare blockers, the blocks the engine allows now (issue #48). */
+  blockOptions?: BlockOptionsMessage['attackers'];
   /** showRevealedCards: cards the engine shows you until the input ends (e.g. an opponent's hand). */
   revealed: number[] = [];
   /** Last card this client clicked (selectCard): names the spell being paid for when the engine's ref is unknown. */
@@ -208,6 +210,7 @@ export class LiveSession {
         this.answering.clear();
         this.revealed = [];
         this.weakly = new Map();
+        this.blockOptions = undefined;
         if (newGame) {
           this.lastCard = undefined;
           this.limbo = new Map();
@@ -270,6 +273,9 @@ export class LiveSession {
       case 'actionRejected':
         this.notice(`${frame.method ?? 'Action'}: ${frame.reason}`);
         return 'ok';
+      case 'blockOptions':
+        this.blockOptions = frame.attackers;
+        return 'ok';
       case 'rejected':
         this.notice(frame.reason);
         return 'ok';
@@ -317,6 +323,7 @@ export class LiveSession {
       case 'awaitNextInput':
         // The input ended; the next one re-sends its prompt, buttons and selectables.
         this.input = { ...NO_INPUT, ownerId: this.input.ownerId };
+        this.blockOptions = undefined;
         return;
       case 'setSelectables':
         this.input = {
@@ -348,7 +355,9 @@ export class LiveSession {
         return;
       }
       case 'clearWeaklySelectable':
+        // Also InputBlock.onStop: its block options end with it.
         this.weakly = new Map();
+        this.blockOptions = undefined;
         return;
       case 'showRevealedCards':
         this.revealed = toRefs(a[0], 'card').flatMap((r) => (r.type === 'card' ? [r.id] : []));

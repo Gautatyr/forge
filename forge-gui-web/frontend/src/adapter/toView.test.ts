@@ -83,14 +83,52 @@ describe('toGameView', () => {
   it('turns InputAttack into declareAttackers and InputBlock into declareBlockers', () => {
     const a = session('COMBAT_DECLARE_ATTACKERS', 0);
     buttons(a, 'OK', 'Alpha Strike', 'Select creatures to attack AI or select player/card you wish to attack.');
+    a.apply({ t: 'call', method: 'setWeaklySelectable', args: [[card(10)]] }); // InputAttack: the engine's attack candidates
     expect(toGameView(a).decision).toMatchObject({ kind: 'declareAttackers', candidates: ['10'], defenders: ['1'], draft: [] });
 
     const b = session('COMBAT_DECLARE_BLOCKERS', 1);
-    b.apply({ t: 'delta', game: 1, seq: 1, ts: 0, new: [], changed: [{ type: 'game', id: 1, props: { CombatView: [{ attackers: [20], defender: { type: 'player', id: 0 }, blockers: [10], plannedBlockers: [] }] } }], removed: [], log: [], events: [] });
+    // While blocks are declared the engine holds them in plannedBlockers; blockers fills once they are declared.
+    b.apply({ t: 'delta', game: 1, seq: 1, ts: 0, new: [], changed: [{ type: 'game', id: 1, props: { CombatView: [{ attackers: [20], defender: { type: 'player', id: 0 }, blockers: [], plannedBlockers: [10] }] } }], removed: [], log: [], events: [] });
     buttons(b, 'OK', 'Cancel', 'Select creatures to block Dragon (20) or select another attacker to declare blockers for.');
     const g = toGameView(b);
-    expect(g.combat).toEqual({ attacks: [{ attackerId: '20', defenderId: '0' }], blocks: [{ blockerId: '10', attackerId: '20' }] });
+    // Your blocks being built are the draft only (drawn once, as a draft).
+    expect(g.combat).toEqual({ attacks: [{ attackerId: '20', defenderId: '0' }], blocks: [] });
     expect(g.decision).toMatchObject({ kind: 'declareBlockers', attackers: ['20'], draft: [{ blockerId: '10', attackerId: '20' }] });
+
+    // Declared: the engine fills blockers too; at priority they are the combat's blocks.
+    b.apply({ t: 'delta', game: 1, seq: 2, ts: 0, new: [], changed: [{ type: 'game', id: 1, props: { CombatView: [{ attackers: [20], defender: { type: 'player', id: 0 }, blockers: [10], plannedBlockers: [10] }] } }], removed: [], log: [], events: [] });
+    buttons(b, 'OK', 'End Turn', 'Priority: Hugo');
+    expect(toGameView(b).combat?.blocks).toEqual([{ blockerId: '10', attackerId: '20' }]);
+  });
+
+  it('offers the blocks the engine allows (blockOptions), per attacker', () => {
+    const b = session('COMBAT_DECLARE_BLOCKERS', 1);
+    b.apply({ t: 'delta', game: 1, seq: 1, ts: 0, new: [], changed: [{ type: 'game', id: 1, props: { CombatView: [{ attackers: [20], defender: { type: 'player', id: 0 }, blockers: [], plannedBlockers: [] }] } }], removed: [], log: [], events: [] });
+    buttons(b, 'OK', 'Cancel', 'Select another attacker to declare blockers for.');
+    // Before the engine's options arrive: the creatures it lights (setWeaklySelectable), never every untapped creature.
+    b.apply({ t: 'call', method: 'setWeaklySelectable', args: [[]] });
+    expect(toGameView(b).decision).toMatchObject({ kind: 'declareBlockers', candidates: [], attackers: ['20'] });
+    b.apply({ t: 'blockOptions', attackers: [{ card: 20, blockers: [10], ifFreed: [], min: 2 }] });
+    expect(toGameView(b).decision).toEqual({
+      kind: 'declareBlockers',
+      candidates: ['10'],
+      attackers: ['20'],
+      draft: [],
+      options: [{ attackerId: '20', blockers: ['10'], ifFreed: [], min: 2 }],
+    });
+    // An attacker nothing may block is not lit.
+    b.apply({ t: 'blockOptions', attackers: [{ card: 20, blockers: [], ifFreed: [] }] });
+    expect(toGameView(b).decision).toMatchObject({ kind: 'declareBlockers', candidates: [], attackers: [] });
+    // InputBlock.onStop clears the actionable cards: its options go with it.
+    b.apply({ t: 'call', method: 'clearWeaklySelectable', args: [] });
+    expect(b.blockOptions).toBeUndefined();
+  });
+
+  it('offers as attackers what the engine allows, not every untapped creature', () => {
+    const a = session('COMBAT_DECLARE_ATTACKERS', 0);
+    buttons(a, 'OK', 'Alpha Strike', 'Select creatures to attack AI or select player/card you wish to attack.');
+    a.apply({ t: 'call', method: 'setWeaklySelectable', args: [[]] }); // nothing may attack (e.g. summoning sickness)
+    expect(toGameView(a).decision).toMatchObject({ kind: 'declareAttackers', candidates: [] });
   });
 
   it('turns selectables into chooseTargets', () => {
@@ -214,6 +252,23 @@ describe('intents → frames', () => {
     buttons(s, 'OK', 'Cancel', 'Select creatures to block');
     expect(intentToFrames({ type: 'removeBlock', blockerId: '10' }, s, toGameView(s))).toEqual([
       act('selectCard', { card: 20 }),
+      act('selectCard', { card: 10 }),
+    ]);
+  });
+
+  it('removes one block of a creature blocking two attackers, or all of them', () => {
+    const s = session('COMBAT_DECLARE_BLOCKERS', 1);
+    s.apply({ t: 'delta', game: 1, seq: 1, ts: 0, new: [], changed: [{ type: 'game', id: 1, props: { CombatView: [
+      { attackers: [20], defender: { type: 'player', id: 0 }, blockers: [], plannedBlockers: [10] },
+      { attackers: [30], defender: { type: 'player', id: 0 }, blockers: [], plannedBlockers: [10] },
+    ] } }], removed: [], log: [], events: [] });
+    buttons(s, 'OK', 'Cancel', 'Select creatures to block');
+    const g = toGameView(s);
+    expect(intentToFrames({ type: 'removeBlock', blockerId: '10', attackerId: '30' }, s, g)).toEqual([act('selectCard', { card: 30 }), act('selectCard', { card: 10 })]);
+    expect(intentToFrames({ type: 'removeBlock', blockerId: '10' }, s, g)).toEqual([
+      act('selectCard', { card: 20 }),
+      act('selectCard', { card: 10 }),
+      act('selectCard', { card: 30 }),
       act('selectCard', { card: 10 }),
     ]);
   });
