@@ -46,6 +46,7 @@ import forge.gamemodes.match.input.InputSelectEntitiesFromList;
 import forge.gui.FThreads;
 import forge.gui.control.GameEventForwarder;
 import forge.interfaces.IGameController;
+import forge.model.FModel;
 import forge.player.LobbyPlayerHuman;
 import forge.player.PlayerControllerHuman;
 import forge.trackable.TrackableCollection;
@@ -164,8 +165,8 @@ public class SeatSessionTest {
                                     : a instanceof forge.game.player.PlayerView pv ? "player" + pv.getId() : String.valueOf(a));
                         }
                     }
+                    callThreads.add(Thread.currentThread().getName()); // first: a test reads it once it sees the call
                     controllerCalls.add(sb.toString());
-                    callThreads.add(Thread.currentThread().getName());
                     Callable<Void> hook = onCall.get(m.getName());
                     if (hook != null) {
                         hook.call();
@@ -964,6 +965,44 @@ public class SeatSessionTest {
         action("{\"t\":\"action\",\"method\":\"selectButtonOk\"}");
         get(waiting);
         assertEquals(order, List.of("input display queued before", "action", "refresh the action queued", "game goes on"));
+    }
+
+    @Test
+    public void aCallLeavesOutCardsTheSeatHasNoIdFor() throws Exception {
+        start();
+        Card land = TestEngine.add("Forest", p0, ZoneType.Battlefield);
+        // in no zone: as a Treasure sacrificed since InputPayMana computed its auto-pay plan
+        Card gone = Card.fromPaperCard(FModel.getMagicDb().getCommonCards().getCard("Forest"), p0);
+        onGameThread(() -> {
+            gui.setWeaklySelectable(List.of(land.getView(), gone.getView(), land.getView()));
+            return null;
+        }).get(5, TimeUnit.SECONDS);
+        JsonObject call;
+        do {
+            call = client.next("call");
+        } while (!"setWeaklySelectable".equals(call.get("method").getAsString()));
+        JsonArray cards = call.getAsJsonArray("args").get(0).getAsJsonArray();
+        assertEquals(cards.size(), 2, "the strength-2 entry of the land stays, the unknown card goes: " + cards);
+        for (JsonElement c : cards) {
+            assertEquals(c.getAsJsonObject().get("id").getAsInt(), land.getId());
+        }
+    }
+
+    @Test
+    public void aCallFromTheEdtWhileTheGameThreadWaitsNamesCardsNewSinceTheLastFlush() throws Exception {
+        start();
+        CountDownLatch done = new CountDownLatch(1);
+        Future<Void> waiting = waitForInput(done);
+        Card land = TestEngine.add("Forest", p0, ZoneType.Battlefield); // e.g. a mana source the auto-pay plan names
+        FThreads.invokeInEdtLater(() -> gui.setWeaklySelectable(List.of(land.getView()))); // InputPayMana.updateMessage
+        JsonObject call;
+        do {
+            call = client.next("call");
+        } while (!"setWeaklySelectable".equals(call.get("method").getAsString()));
+        assertEquals(call.getAsJsonArray("args").get(0).getAsJsonArray().get(0).getAsJsonObject().get("id").getAsInt(), land.getId(),
+                "published before the call, not -1 (a card the seat was never told of)");
+        done.countDown();
+        get(waiting);
     }
 
     @Test

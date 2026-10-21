@@ -144,9 +144,23 @@ final class SeatSession implements IRemote {
         }
     }
 
+    /** Publishes what changed on the stream, when this thread may read the game ({@link #readGame}). */
     void flush() {
         if (!closed) {
-            match.flush();
+            readGame(match::flush);
+        }
+    }
+
+    /**
+     * Runs {@code read} now if this thread runs the game (the game thread, or the one waiting for this seat's input
+     * while it runs an action); on another thread (the EDT, a second game thread an input started) only while the game
+     * thread waits for this seat and runs nothing ({@link InputPump#whileIdle}), else not at all.
+     */
+    void readGame(Runnable read) {
+        if (pump.onWaitingThread() || ThreadUtil.isGameThread() && !pump.waiting()) {
+            read.run();
+        } else {
+            pump.whileIdle(read);
         }
     }
 
@@ -187,9 +201,7 @@ final class SeatSession implements IRemote {
         if (closed) {
             return;
         }
-        if (ThreadUtil.isGameThread()) {
-            match.flush(); // the call may name objects changed since the last batch
-        }
+        flush(); // the call may name objects changed since the last batch
         String key = stickyKey(method, args);
         toSeat(refs -> {
             JsonObject j = new JsonObject();
@@ -197,7 +209,7 @@ final class SeatSession implements IRemote {
             j.addProperty("method", method.name());
             JsonArray a = new JsonArray();
             for (Object o : args) {
-                a.add(WireArgs.encode(o, refs));
+                a.add(WireArgs.encodeCallArg(o, refs));
             }
             j.add("args", a);
             return j;

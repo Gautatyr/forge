@@ -66,6 +66,9 @@ ProtocolGuiGame: `showPromptMessage(PlayerView,String,CardView)`, `updateButtons
 `applyYieldUpdate`, `enableOverlay`, `disableOverlay`, `finishGame`, `afterGameEnd`, `openView` (WebGuiGame),
 `setPlayerAvatar`. IGuiGame overloads delegating to these: `showPromptMessage(PlayerView,String)`,
 `updateButtons(…4 args)`, `message(String)`, `showErrorDialog(String)`.
+A card list in a call leaves out cards the seat has no id for (`WireArgs.encodeCallArg`): `InputPayMana` recomputes its
+auto-pay plan only after a mana ability with a mana cost, so `setWeaklySelectable` can name a Treasure sacrificed since (the sweep's seat clicked it as
+id -1: `actionRejected` "unknown card").
 
 ### State and events (no player decision)
 - Game state travels on the per-viewer stream: `handleGameEvents` (WebGuiGame: also publishes), `handleGameEvent`,
@@ -125,7 +128,7 @@ while paying started `InputPayMana.activateManaAbility`, which runs the ability 
 (`GameAction.invoke` off a game thread), while the EDT refreshed the input (`updateMessage` → `pushActionableCards`, and
 `ProtocolGuiGame.setWeaklySelectable` → `updateGameView` flushing events and publishing on the stream). Desktop: clicks and
 the refresh share the Swing EDT and the input is locked while the ability runs. Fixed in fork code
-(`InputPump`, `WebGuiGame.awaitInput`, `WebGuiGame.updateGameView`); no upstream file changed.
+(`InputPump`, `WebGuiGame.awaitInput`, `WebGuiGame.updateGameView`, `SeatSession.readGame`); no upstream file changed.
 - Actions run on the game thread that waits for the seat's input (`IGuiGame.awaitInput`, upstream's hook for
   single-threaded hosts), in order; engine work they start runs inline there (`GameAction.invoke` on a game thread). An
   action that opens another input (e.g. a cost that asks for a card) waits in it, and the next action answers it.
@@ -137,6 +140,10 @@ the refresh share the Swing EDT and the input is locked while the ability runs. 
   thread an input started) it runs only while the game thread waits for the seat and runs nothing
   (`InputPump.whileIdle`); otherwise the game thread's next flush carries the changes. This covers the
   EDT timers (`InputLockUI`, `awaitNextInput`) that fire while the game runs.
+- A call to the seat publishes what changed first (`SeatSession.call` → `flush`), under the same rule: an EDT call while
+  the game thread waits names cards created since the last flush by their ids. Before, only game-thread calls flushed,
+  and an EDT `setWeaklySelectable` (auto-pay plan) could name a card the seat was never told of (id -1; the sweep's
+  seat clicked it: `actionRejected` "unknown card").
 - Not covered: actions that need no input (`concede`, `reorderHand`, `drawOfferAction`, `sendYieldUpdate`,
   `getActivateDescription`) run on the seat's thread when no input waits, as the desktop runs them on the EDT while the
   game runs; EDT work an action queues can start before that action returns; an input's first display (queued by

@@ -107,6 +107,26 @@ final class WireArgs {
         return new JsonPrimitive(String.valueOf(o));
     }
 
+    /**
+     * An argument of a call (no answer): as {@link #encode}, but a list leaves out the cards the seat has no id for (-1:
+     * never told of it, e.g. a Treasure sacrificed since {@code InputPayMana} computed its auto-pay plan, which it
+     * recomputes only after a mana ability with a mana cost). Such an entry names nothing the seat can show or click.
+     */
+    static JsonElement encodeCallArg(Object o, SeatRefs refs) {
+        JsonElement e = encode(o, refs);
+        if (!(e instanceof JsonArray a)) {
+            return e;
+        }
+        JsonArray kept = new JsonArray();
+        for (JsonElement x : a) {
+            if (!(x instanceof JsonObject r && r.has("type") && "card".equals(r.get("type").getAsString())
+                    && r.get("id").getAsInt() < 0)) {
+                kept.add(x);
+            }
+        }
+        return kept;
+    }
+
     static JsonObject ref(String type, int id) {
         JsonObject j = new JsonObject();
         j.addProperty("type", type);

@@ -91,12 +91,7 @@ public final class WebGuiGame extends ProtocolGuiGame {
      */
     @Override
     public void updateGameView() {
-        InputPump pump = session.pump();
-        if (pump.onWaitingThread() || ThreadUtil.isGameThread() && !pump.waiting()) {
-            super.updateGameView();
-        } else {
-            pump.whileIdle(super::updateGameView);
-        }
+        session.readGame(super::updateGameView);
     }
 
     @Override
