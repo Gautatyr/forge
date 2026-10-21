@@ -170,3 +170,13 @@ Newest last. Each entry: the decision, why, and what it implies.
 - **Why:** upstream is building its own `forge-gui-web` module (package `forge.web`, artifactId `forge-gui-web`); the old names would give add/add conflicts on sync.
 - Unchanged: runtime flags `-Dforge.web.strictPrompts`, `forge.web.sweep.*`, and the prefs file `preferences/fork-web.preferences`. Older entries keep the old names.
 - Fork code goes under `forge.fork.*`; never reuse upstream's `forge.web` or a `forge-gui-*` module name.
+
+## 2026-10-21 — Upstream sync: the prompt's selection is one call (issue #56)
+- Upstream replaced `IGuiGame.setSelectables` / `clearSelectables` / `setSelectableTargets` / `setHighlighted` with `setSelection(Selection)` (cards with min/max, players and stack items, chosen; each prompt sends it when shown, after each pick and when it stops; `ProtocolGuiGame` skips one equal to the last). The bridge forwards it as one sticky call; the page keeps the last one across `awaitNextInput`. Fork-side workaround for player picks removed: upstream's `InputSelectEntitiesFromList` now names its players.
+- Upstream's `InputSelectTargets` now also takes targets that may be on the stack (`canPickStackTargets`) and offers a targetable spell as its card and its stack entry; the page shows the stack entry only.
+- Macro calls moved to a `MACRO` protocol mode (client to the controller's macro system); the wire generator treats it as client. The web seat offers no macros.
+
+## 2026-10-21 — Desktop suite runs in alphabetical class order (issue #43)
+- Cause (upstream test isolation; reproduces on pure `upstream/master`): `CardMockTestCase.useStaticData` (and every `new StaticData`) repoints the process-wide `StaticData` singleton and never restores it, while `AITest` loads the real database once per JVM. A card-mock class that runs after one `AITest` class and before `StickerSheetTest` / `StickerAbilityTest` leaves them reading a lazily loaded database: 3 failures. Surefire's default class order is the file-system order, which differs between checkouts.
+- Repro: `mvn -B -pl forge-gui-desktop -am test -Dtest='GameEventForwarderTest,CardDbLazyCardLoadingCardMockTestCase,StickerSheetTest,StickerAbilityTest' -Dsurefire.failIfNoSpecifiedTests=false -Dsurefire.runOrder=reversealphabetical`.
+- `make desktop-test` passes `-Dsurefire.runOrder=alphabetical` (all `forge.ai` classes run before the `forge.card` mocks). Upstream test files stay unedited.
