@@ -67,6 +67,7 @@ public final class Main {
                 return;
             }
             MatchScreenToggle.install(gui.pref());
+            WebMatchAudio.install(Singletons.getView().getFrame(), gui.host());
         });
     }
 

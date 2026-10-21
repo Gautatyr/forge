@@ -119,6 +119,14 @@ const PATHS = {
       <path d="M20 4v4h-4M4 20v-4h4" />
     </g>
   ),
+  /** Open at a large size (the zone view). */
+  expand: (
+    <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+  ),
+  /** Back to the side panel. */
+  shrink: (
+    <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+  ),
   up: <path d="M12 5l7 9H5z" fill="currentColor" />,
   down: <path d="M12 19l7-9H5z" fill="currentColor" />,
   library: (

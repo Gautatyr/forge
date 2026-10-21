@@ -176,6 +176,20 @@ describe('button inputs → tray', () => {
     expect(p?.id.startsWith('input:buttons:')).toBe(true);
   });
 
+  it('words the two-player toss (Play / Draw) as who plays first (playtest 1)', () => {
+    const duel = { players: [{ id: '0', isYou: true, hand: [] }, { id: '1', isYou: false, hasLost: false, hand: [] }], cards } as never;
+    const msg = 'Hugo, you have won the coin toss.\n\nWould you like to play or draw?';
+    const p = inputToChoice({ ...NO_INPUT, message: msg, ok: { label: 'Play', enabled: true }, cancel: { label: 'Draw', enabled: true } }, duel);
+    expect(p).toMatchObject({
+      shape: 'yesNo',
+      title: 'You won the coin toss. Who plays first?',
+      instruction: '',
+      yesLabel: 'Play first',
+      noLabel: 'Let {player:1} start',
+    });
+    expect(p?.id.startsWith('input:buttons:')).toBe(true);
+  });
+
   it('turns the London mulligan bottom step into a pick from your hand', () => {
     const p = inputToChoice({ ...NO_INPUT, message: 'Return 1 card(s) to the bottom of your library', ok: { label: 'OK', enabled: false }, cancel: { label: 'Auto', enabled: true } }, view);
     expect(p?.id.startsWith('input:bottom:1:')).toBe(true);

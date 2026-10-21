@@ -2,13 +2,16 @@ import type { StepId } from './types';
 
 export interface StepInfo {
   id: StepId;
-  /** Word shown on the turn strip and in the Stops editor. */
+  /**
+   * Short name: the official one without its last word ("Declare attackers"). The turn strip
+   * shows it only when the full names do not fit (playtest 1 ruling), and the Stops editor.
+   */
   label: string;
-  /** Full name for tooltips and screen readers. */
+  /** Official Comprehensive Rules name ("Declare attackers step", "First main phase"): strip, hover text, screen readers. */
   longLabel: string;
-  /** Name after "Next stop:" and in hover text, e.g. "Attack step". */
+  /** Name after "Next stop:" ("Theo's declare attackers step"). */
   stopName: string;
-  /** Strip caption of the step's group; steps without one stand alone. */
+  /** Strip caption of the step's phase; the main phases stand alone. */
   group?: StepGroup;
   /** Steps of the combat phase are grouped under one heading. */
   combat: boolean;
@@ -16,29 +19,35 @@ export interface StepInfo {
   noPriority?: boolean;
 }
 
-export type StepGroup = 'beginning' | 'combat';
+export type StepGroup = 'beginning' | 'combat' | 'ending';
+
+/** One step: `name` is the CR name (CR 500.1; 505.1 calls the main phases first and second). */
+function step(id: StepId, name: string, more: Omit<StepInfo, 'id' | 'label' | 'longLabel' | 'stopName'>): StepInfo {
+  return { id, label: name.slice(0, name.lastIndexOf(' ')), longLabel: name, stopName: name.toLowerCase(), ...more };
+}
 
 export const STEPS: StepInfo[] = [
-  { id: 'untap', label: 'Untap', longLabel: 'Untap step', stopName: 'Untap step', group: 'beginning', combat: false, noPriority: true },
-  { id: 'upkeep', label: 'Upkeep', longLabel: 'Upkeep step', stopName: 'Upkeep', group: 'beginning', combat: false },
-  { id: 'draw', label: 'Draw', longLabel: 'Draw step', stopName: 'Draw step', group: 'beginning', combat: false },
-  { id: 'main1', label: 'Main 1', longLabel: 'First main phase', stopName: 'Main 1', combat: false },
-  { id: 'beginCombat', label: 'Start', longLabel: 'Beginning of combat', stopName: 'Start of combat', group: 'combat', combat: true },
-  { id: 'declareAttackers', label: 'Attack', longLabel: 'Declare attackers', stopName: 'Attack step', group: 'combat', combat: true },
-  { id: 'declareBlockers', label: 'Block', longLabel: 'Declare blockers', stopName: 'Block step', group: 'combat', combat: true },
-  { id: 'combatDamage', label: 'Damage', longLabel: 'Combat damage', stopName: 'Damage step', group: 'combat', combat: true },
-  { id: 'endCombat', label: 'End', longLabel: 'End of combat', stopName: 'End of combat', group: 'combat', combat: true },
-  { id: 'main2', label: 'Main 2', longLabel: 'Second main phase', stopName: 'Main 2', combat: false },
-  { id: 'end', label: 'End step', longLabel: 'End step', stopName: 'End step', combat: false },
-  { id: 'cleanup', label: 'Cleanup', longLabel: 'Cleanup step', stopName: 'Cleanup step', combat: false, noPriority: true },
+  step('untap', 'Untap step', { group: 'beginning', combat: false, noPriority: true }),
+  step('upkeep', 'Upkeep step', { group: 'beginning', combat: false }),
+  step('draw', 'Draw step', { group: 'beginning', combat: false }),
+  step('main1', 'First main phase', { combat: false }),
+  step('beginCombat', 'Beginning of combat step', { group: 'combat', combat: true }),
+  step('declareAttackers', 'Declare attackers step', { group: 'combat', combat: true }),
+  step('declareBlockers', 'Declare blockers step', { group: 'combat', combat: true }),
+  step('combatDamage', 'Combat damage step', { group: 'combat', combat: true }),
+  step('endCombat', 'End of combat step', { group: 'combat', combat: true }),
+  step('main2', 'Second main phase', { combat: false }),
+  step('end', 'End step', { group: 'ending', combat: false }),
+  step('cleanup', 'Cleanup step', { group: 'ending', combat: false, noPriority: true }),
 ];
 
 /** Steps where someone gets priority: the turn strip and the Stops editor show only these. */
 export const PRIORITY_STEPS: StepInfo[] = STEPS.filter((s) => !s.noPriority);
 
 export const GROUP_CAPTIONS: Record<StepGroup, string> = {
-  beginning: 'Beginning',
-  combat: 'Combat',
+  beginning: 'Beginning phase',
+  combat: 'Combat phase',
+  ending: 'Ending phase',
 };
 
 /** Runs of consecutive priority steps sharing a group (or standing alone), in turn order. */

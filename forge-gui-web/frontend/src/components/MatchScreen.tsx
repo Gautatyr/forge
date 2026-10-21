@@ -8,13 +8,13 @@ import { Board } from './Board';
 import { ChoiceTray } from './ChoiceTray';
 import { ConcedeDialog, GameOverPanel, LeftMatch, OutToast, YouAreOut } from './GameEnd';
 import { Hand } from './Hand';
-import { HoverPreview } from './HoverPreview';
 import { Inspector } from './Inspector';
 import { liveManaChoice, ManaChooser } from './ManaChooser';
 import { DevPanel, DisplaySettings, GameMenu, LogDrawer, ShortcutsOverlay } from './Overlays';
 import { Rail } from './Rail';
 import { StopsPanel } from './StopsPanel';
 import { TopBar } from './TopBar';
+import { ZoneBrowser } from './ZoneBrowser';
 import styles from './MatchScreen.module.css';
 
 export function MatchScreen() {
@@ -111,13 +111,13 @@ export function MatchScreen() {
         <Board />
         <ChoiceTray />
         <StopsPanel />
+        <ZoneBrowser />
         <OutToast />
         <YouAreOut />
       </main>
       <Rail />
       <Hand />
       <Arrows />
-      <HoverPreview />
       <Inspector />
       <ManaChooser />
       <LogDrawer />

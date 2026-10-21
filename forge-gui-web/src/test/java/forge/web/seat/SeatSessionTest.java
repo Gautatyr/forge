@@ -36,7 +36,9 @@ import forge.game.Game;
 import forge.game.card.Card;
 import forge.game.card.CardCopyService;
 import forge.game.card.CardView;
+import forge.game.event.GameEvent;
 import forge.game.event.GameEventCombatChanged;
+import forge.game.event.GameEventShuffle;
 import forge.game.player.Player;
 import forge.game.zone.ZoneType;
 import forge.gui.interfaces.IGuiGame;
@@ -1006,6 +1008,39 @@ public class SeatSessionTest {
             return null;
         }).get(5, TimeUnit.SECONDS);
         assertNull(client.msgs.poll(300, TimeUnit.MILLISECONDS), "the seat's page belongs to the new match");
+    }
+
+    @Test
+    public void thePublishingSeatsGameEventsReachTheEventSink() throws Exception {
+        // The launcher plays Forge's sounds from these (a Swing match's FControlGameEventHandler does it there).
+        start();
+        List<GameEvent> heard = new CopyOnWriteArrayList<>();
+        seats.setEventSink(heard::addAll);
+        GameEvent shuffle = new GameEventShuffle(p0.getView());
+        onGameThread(() -> {
+            gui.handleGameEvents(List.of(shuffle));
+            return null;
+        }).get(5, TimeUnit.SECONDS);
+        assertEquals(heard, List.of(shuffle));
+
+        // A second human seat of the same game does not publish: its batches would play every sound twice.
+        WebGuiGame other = seats.newSeat(1);
+        other.setGameView(game.getView());
+        other.openView(new TrackableCollection<>(p1.getView()));
+        onGameThread(() -> {
+            other.handleGameEvents(List.of(new GameEventShuffle(p1.getView())));
+            return null;
+        }).get(5, TimeUnit.SECONDS);
+        assertEquals(heard, List.of(shuffle));
+
+        // A sink that throws never reaches the game thread.
+        seats.setEventSink(events -> {
+            throw new IllegalStateException("no audio device");
+        });
+        onGameThread(() -> {
+            gui.handleGameEvents(List.of(shuffle));
+            return null;
+        }).get(5, TimeUnit.SECONDS);
     }
 
     @Test

@@ -6,6 +6,7 @@ import { useMatch } from '../state/MatchContext';
 import { OPPONENT_SHARES, type OpponentLayout, type OpponentShare } from '../state/prefs';
 import { Icon, SeatGlyph } from './Icon';
 import { LogText } from './LogText';
+import { PREVIEW_BESIDE_ATTR } from './previewSpot';
 import styles from './Overlays.module.css';
 
 function Popover({ title, onClose, children, className }: { title: string; onClose: () => void; children: ReactNode; className?: string }) {
@@ -199,7 +200,7 @@ export function LogDrawer() {
   if (!ui.logOpen) return null;
   const turns = [...new Set(game.log.map((e) => e.turn))].sort((a, b) => b - a);
   return (
-    <aside className={styles.drawer} aria-label="Game log">
+    <aside className={styles.drawer} aria-label="Game log" {...{ [PREVIEW_BESIDE_ATTR]: '' }}>
       <header className={styles.head}>
         <h2>Game log</h2>
         <button type="button" className={styles.close} onClick={() => setUi({ logOpen: false })} aria-label="Close log">
