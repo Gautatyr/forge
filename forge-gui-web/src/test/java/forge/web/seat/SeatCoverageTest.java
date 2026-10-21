@@ -67,7 +67,7 @@ public class SeatCoverageTest {
             applyYieldUpdate(YieldUpdate) = ProtocolGuiGame
             assignCombatDamage(CardView,List,int,GameEntityView,boolean,boolean) = ProtocolGuiGame
             assignGenericAmount(CardView,Map,int,boolean,String) = ProtocolGuiGame
-            awaitInput(CountDownLatch) = IGuiGame
+            awaitInput(CountDownLatch) = WebGuiGame
             awaitNextInput() = ProtocolGuiGame
             canPickStackTargets() = ProtocolGuiGame
             cancelAwaitNextInput() = AbstractGuiGame

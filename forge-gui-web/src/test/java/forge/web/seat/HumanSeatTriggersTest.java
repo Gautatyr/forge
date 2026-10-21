@@ -7,6 +7,7 @@ import static org.testng.Assert.fail;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -19,6 +20,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import com.google.common.eventbus.Subscribe;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -32,6 +34,7 @@ import forge.game.GameStage;
 import forge.game.GameType;
 import forge.game.Match;
 import forge.game.card.Card;
+import forge.game.event.GameEventCardTapped;
 import forge.game.phase.PhaseHandler;
 import forge.game.phase.PhaseType;
 import forge.game.player.Player;
@@ -255,6 +258,56 @@ public class HumanSeatTriggersTest {
             }
         }
         return null;
+    }
+
+    // --- threads (issue #53) ---
+
+    /**
+     * The seat pays a spell by tapping its lands one at a time. Each mana ability runs on the game thread that waits for
+     * the payment input: before, each ran on a second game thread while the EDT refreshed the input, and the two
+     * threads met in the game state (ConcurrentModificationException, about 1 game in 36 in the sweep).
+     */
+    @Test
+    public void theSeatsManaAbilitiesRunOnTheGameThreadItsPaymentWaitsOn() throws Exception {
+        start();
+        List<Card> plains = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            plains.add(add("Plains", me, ZoneType.Battlefield));
+        }
+        Card anthem = add("Glorious Anthem", me, ZoneType.Hand);
+        Thread loopThread = gameThread.submit(Thread::currentThread).get(5, TimeUnit.SECONDS);
+        List<String> tappedOn = new CopyOnWriteArrayList<>();
+        game.subscribeToEvents(new Object() {
+            @Subscribe
+            public void tapped(GameEventCardTapped e) {
+                if (e.tapped()) {
+                    Thread t = Thread.currentThread();
+                    tappedOn.add(t == loopThread ? "game loop" : t.getName());
+                }
+            }
+        });
+        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, me);
+        game.getPhaseHandler().onStackResolved();
+        boolean[] cast = {false};
+        List<String> seen = play(() -> anthem.getZone() != null && anthem.getZone().is(ZoneType.Battlefield)
+                        || game.getPhaseHandler().getPhase() != PhaseType.MAIN1,
+                in -> {
+                    if (in instanceof InputPassPriority && !cast[0]) {
+                        cast[0] = true;
+                        return () -> select(anthem);
+                    }
+                    if (in instanceof InputPayMana) {
+                        for (Card c : plains) {
+                            if (!c.isTapped()) {
+                                return () -> select(c);
+                            }
+                        }
+                    }
+                    return null;
+                }, null);
+        assertTrue(game.getCardState(anthem).isInZone(ZoneType.Battlefield), "the seat cast it; seen " + seen);
+        assertEquals(tappedOn, List.of("game loop", "game loop", "game loop"), "each land tapped by the seat; seen " + seen);
+        assertNoSilentDefault();
     }
 
     // --- the playtest's cards ---

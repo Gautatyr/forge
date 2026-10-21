@@ -2,6 +2,7 @@ package forge.web.seat;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
 import forge.game.card.CardView;
 import forge.game.event.GameEvent;
@@ -73,6 +74,29 @@ public final class WebGuiGame extends ProtocolGuiGame {
             }
         }
         return super.getAbilityToPlay(hostCard, abilities, triggerEvent);
+    }
+
+    /** The game thread waits for this seat's input here and runs the seat's actions meanwhile ({@link InputPump}). */
+    @Override
+    public void awaitInput(final CountDownLatch done) throws InterruptedException {
+        session.pump().await(done);
+    }
+
+    /**
+     * {@code ProtocolGuiGame} walks the game here (it flushes the batched events, which publishes on the seat's stream)
+     * and expects the game thread; inputs and timers also call it on the EDT ({@code setWeaklySelectable},
+     * {@code clearWeaklySelectable}, {@code syncAndSend}). Another thread (the EDT, or a second game thread an input
+     * started) walks only while the game thread waits for this seat's input and runs nothing; otherwise the game
+     * thread's next flush carries the changes.
+     */
+    @Override
+    public void updateGameView() {
+        InputPump pump = session.pump();
+        if (pump.onWaitingThread() || ThreadUtil.isGameThread() && !pump.waiting()) {
+            super.updateGameView();
+        } else {
+            pump.whileIdle(super::updateGameView);
+        }
     }
 
     @Override

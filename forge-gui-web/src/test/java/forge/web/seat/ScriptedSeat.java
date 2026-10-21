@@ -74,7 +74,10 @@ final class ScriptedSeat implements ClientSink {
     final Map<String, Integer> actions = new TreeMap<>();
     /** Prompts by method, size and message start. */
     final Map<String, Integer> promptTexts = new TreeMap<>();
-    final List<String> errors = new ArrayList<>();
+    /** Read by the sweep's thread while the driver adds. */
+    final List<String> errors = new java.util.concurrent.CopyOnWriteArrayList<>();
+    /** Server refusals by type ({@code actionRejected}, {@code replyRejected}, {@code rejected}); each is also an error. */
+    final Map<String, Integer> rejections = new TreeMap<>();
 
     /** {@code self}: the sink the stream knows this client by (rejections go there). */
     ScriptedSeat(GameStream stream, Game game, Player me, ClientSink self) {
@@ -169,7 +172,11 @@ final class ScriptedSeat implements ClientSink {
                     errors.add("prompt closed " + m);
                 }
             }
-            case "replyRejected", "rejected" -> errors.add(t + " " + m);
+            // an action or reply the server refused (actionRejected includes "failed: <Exception>" from SeatSession.act)
+            case "actionRejected", "replyRejected", "rejected" -> {
+                rejections.merge(t, 1, Integer::sum);
+                errors.add(t + " " + m);
+            }
             default -> { }
         }
     }
@@ -407,7 +414,10 @@ final class ScriptedSeat implements ClientSink {
         if (myTurn && (phase == PhaseType.MAIN1 || phase == PhaseType.MAIN2) && stackEmpty && ok && selectables == null) {
             List<Integer> own = new ArrayList<>(weakly); // the seat's actionable highlights
             for (Card c : me.getCardsIn(ZoneType.Command)) {
-                own.add(c.getId());
+                // only what the seat was shown, by that id (not e.g. the engine's hidden "Commander Effect" card)
+                if (stream.realCardId(0, c.getId()) == c.getId()) {
+                    own.add(c.getId());
+                }
             }
             for (int id : own) {
                 if (tried.add(turn + ":" + id)) {

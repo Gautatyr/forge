@@ -3,6 +3,7 @@ package forge.web.seat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -50,10 +51,11 @@ import forge.web.bridge.SeatRefs;
  * the seat's current input (prompt message, buttons, selectables…) and its open prompts.
  *
  * <p>Client to server: {@code {"t":"reply","id","value"}} (handled on the transport thread: decode
- * and complete, never blocks) and {@code {"t":"action","method",…}}, the 16 player actions, run in
- * order on this seat's own thread (they may wait on a prompt, e.g. selecting a card with several
- * abilities). Card ids are the seat's wire ids, resolved through the seat's stream to engine ids
- * and then to the engine's current card ({@code Game.findById}), never through the tracker.
+ * and complete, never blocks) and {@code {"t":"action","method",…}}, the 16 player actions, taken in
+ * order by this seat's own thread and run on the game thread waiting for the seat's input
+ * ({@link InputPump}; they may wait on a prompt, e.g. selecting a card with several abilities). Card ids are the
+ * seat's wire ids, resolved through the seat's stream to engine ids and then to the engine's current card
+ * ({@code Game.findById}), never through the tracker.
  */
 final class SeatSession implements IRemote {
 
@@ -61,11 +63,19 @@ final class SeatSession implements IRemote {
     private static final List<String> STICKY_ORDER = List.of(
             "openView", "showPromptMessage", "updateButtons", "selectables", "targets", "weakly", "revealed", "drawOffer", "finishGame");
 
+    /**
+     * Actions that answer the seat's current input. They run only on the game thread waiting for it; one that finds no
+     * input waiting is not run (no input would take it), as a click while no prompt is shown.
+     */
+    static final Set<String> INPUT_ACTIONS = Set.of("selectButtonOk", "selectButtonCancel", "selectCard", "selectPlayer",
+            "selectStackItem", "selectAbility", "useMana", "alphaStrike", "undoLastAction");
+
     private final int seat;
     private final WebSeats match;
     private final PendingPrompts prompts = new PendingPrompts();
     private final Map<String, String> sticky = new ConcurrentHashMap<>();
     private final ExecutorService actions;
+    private final InputPump pump;
     private volatile IGameController controller;
     private volatile GameView gameView;
     /** Set by {@link #close}; guarded by {@link #out} for sends, so nothing reaches the seat once it is set. */
@@ -80,6 +90,11 @@ final class SeatSession implements IRemote {
             t.setDaemon(true);
             return t;
         });
+        this.pump = new InputPump("seat " + seat);
+    }
+
+    InputPump pump() {
+        return pump;
     }
 
     int seat() {
@@ -321,17 +336,7 @@ final class SeatSession implements IRemote {
         }
         if ("action".equals(t)) {
             try {
-                actions.execute(() -> {
-                    try {
-                        String err = act(msg, from);
-                        if (err != null) {
-                            from.send(rejected("actionRejected", msg, err));
-                        }
-                    } catch (RuntimeException e) {
-                        System.err.println("[web] seat " + seat + " action " + str(msg, "method") + " failed: " + e);
-                        from.send(rejected("actionRejected", msg, "failed: " + e.getClass().getSimpleName()));
-                    }
-                });
+                actions.execute(() -> dispatch(msg, from));
             } catch (RejectedExecutionException e) {
                 from.send(rejected("actionRejected", msg, "seat closed"));
             }
@@ -353,7 +358,44 @@ final class SeatSession implements IRemote {
         return j.toString();
     }
 
-    /** One player action, on this seat's action thread. Returns null when dispatched, else why not. */
+    /**
+     * Seat's action thread: runs one action on the game thread waiting for the seat's input. With none, an input action
+     * is not run and any other runs here (concede, yield settings, hand order, while the game thread is busy).
+     */
+    private void dispatch(JsonObject msg, ClientSink from) {
+        String method = str(msg, "method");
+        Runnable run = () -> {
+            try {
+                String err = act(msg, from);
+                if (err != null) {
+                    from.send(rejected("actionRejected", msg, err));
+                }
+            } catch (RuntimeException e) {
+                System.err.println("[web] seat " + seat + " action " + method + " failed: " + e);
+                from.send(rejected("actionRejected", msg, "failed: " + e.getClass().getSimpleName()));
+            }
+        };
+        try {
+            if (pump.offer(run, this::inputSet, () -> closed)) {
+                return;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return;
+        }
+        if (INPUT_ACTIONS.contains(method)) {
+            System.out.println("[web] seat " + seat + ": " + method + " came with no input waiting for it: not run");
+        } else {
+            run.run();
+        }
+    }
+
+    /** The game thread set an input of this seat (it may not wait for it yet). */
+    private boolean inputSet() {
+        return controller instanceof PlayerControllerHuman pch && pch.getInputQueue().getInput() != null;
+    }
+
+    /** One player action. Returns null when dispatched, else why not. */
     private String act(JsonObject msg, ClientSink from) {
         IGameController c = controller;
         GameView gv = gameView;
