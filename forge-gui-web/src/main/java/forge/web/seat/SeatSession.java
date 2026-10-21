@@ -68,7 +68,6 @@ final class SeatSession implements IRemote {
     private final ExecutorService actions;
     private volatile IGameController controller;
     private volatile GameView gameView;
-    private volatile int clients;
     /** Set by {@link #close}; guarded by {@link #out} for sends, so nothing reaches the seat once it is set. */
     private volatile boolean closed;
     private final Object out = new Object();
@@ -155,11 +154,12 @@ final class SeatSession implements IRemote {
     @Override
     public Object sendAndWait(IdentifiableNetEvent event) {
         if (!(event instanceof GuiGameEvent e)) {
+            SilentDefaults.report(where(), "unbridged " + event.getClass().getSimpleName() + ": answered null");
             return null;
         }
         Prompt p = Prompt.of(e.getMethod(), e.getObjects(), gameView);
         if (p == null) {
-            System.err.println("[web] seat " + seat + ": no prompt shape for " + e.getMethod());
+            SilentDefaults.report(where(), "no prompt shape for " + e.getMethod() + ": answered null (ProtocolGuiGame's default)");
             return null;
         }
         return ask(p);
@@ -192,7 +192,9 @@ final class SeatSession implements IRemote {
     /** Blocks the calling thread (the game thread, or this seat's action thread) until answered, timed out or abandoned. */
     Object ask(Prompt p) {
         if (closed) {
-            return p.fallback();
+            Object d = p.fallback();
+            SilentDefaults.report(where(), p.method + " asked after the seat closed: engine default " + d);
+            return d;
         }
         // must-fix: a reveal for this prompt (tempShowCards) has no event of its own; flush so the seat sees the cards
         flush();
@@ -200,23 +202,26 @@ final class SeatSession implements IRemote {
         String text = toSeat(refs -> p.toJson(pd.id, refs), t -> pd.text = t);
         if (text == null) {
             prompts.close(pd, PendingPrompts.Close.CANCELLED);
-        } else if (clients == 0) {
+        } else if (clients() == 0) {
             scheduleDisconnectCheck();
         }
         Object[] r = prompts.await(pd, match.timeouts().promptMs());
         PendingPrompts.Close how = (PendingPrompts.Close) r[1];
-        if (closed) {
-            return r[0];
+        if (!closed) {
+            JsonObject done = new JsonObject();
+            done.addProperty("t", "promptClosed");
+            done.addProperty("id", pd.id);
+            done.addProperty("reason", how.name().toLowerCase());
+            toSeat(refs -> done, null);
         }
         if (how != PendingPrompts.Close.ANSWERED) {
-            System.out.println("[web] seat " + seat + " prompt " + pd.id + " (" + p.method + ") closed: " + how + "; engine default used");
+            SilentDefaults.report(where(), "prompt " + pd.id + " (" + p.method + ") closed " + how + ": engine default " + r[0]);
         }
-        JsonObject done = new JsonObject();
-        done.addProperty("t", "promptClosed");
-        done.addProperty("id", pd.id);
-        done.addProperty("reason", how.name().toLowerCase());
-        toSeat(refs -> done, null);
         return r[0];
+    }
+
+    private String where() {
+        return "seat " + seat;
     }
 
     // --- sticky input state for (re)connecting clients ---
@@ -278,15 +283,22 @@ final class SeatSession implements IRemote {
     }
 
     void clientsChanged(int n) {
-        clients = n;
         if (n == 0 && prompts.openCount() > 0) {
             scheduleDisconnectCheck();
         }
     }
 
+    /**
+     * The seat's connected clients, counted by the stream: a client may connect before this session exists (the seat's
+     * next game) or before the game binds the stream's seats (no {@code clientsChanged} then), and is still there.
+     */
+    private int clients() {
+        return match.stream().seatClientCount(seat);
+    }
+
     private void scheduleDisconnectCheck() {
         match.timer().schedule(() -> {
-            if (clients == 0) {
+            if (clients() == 0) {
                 for (PendingPrompts.Pending p : prompts.closeAll(PendingPrompts.Close.DISCONNECTED)) {
                     System.out.println("[web] seat " + seat + " has no client: prompt " + p.id + " gets the engine default");
                 }

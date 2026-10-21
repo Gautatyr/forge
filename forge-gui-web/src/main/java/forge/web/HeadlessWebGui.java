@@ -23,11 +23,13 @@ import forge.sound.IAudioMusic;
 import forge.util.BuildInfo;
 import forge.util.FSerializableFunction;
 import forge.util.ImageFetcher;
+import forge.web.seat.SilentDefaults;
 
 /**
  * {@link IGuiBase} for a headless server: no AWT, no Swing, no audio. A single daemon thread
  * stands in for the EDT so {@code FThreads.invokeInEdt*} keeps its ordering guarantees.
- * Dialogs log and return a non-destructive default (same contract as the desktop test harness).
+ * Dialogs log and return a non-destructive default (same contract as the desktop test harness); a dialog that asks
+ * something is a {@link SilentDefaults silent default}: no player answers it (strict mode throws).
  */
 public final class HeadlessWebGui implements IGuiBase {
 
@@ -116,32 +118,50 @@ public final class HeadlessWebGui implements IGuiBase {
     public int showOptionDialog(String message, String title, FSkinProp icon, List<String> options, int defaultOption) {
         log(title, message + " " + options + " -> dismissed");
         // -1, not defaultOption: index 0 often means "Yes", and a headless server must never auto-approve
+        silent("showOptionDialog", message, "-1 (dismissed)");
         return -1;
     }
 
     @Override
     public String showInputDialog(String message, String title, FSkinProp icon, String initialInput, List<String> inputOptions, boolean isNumeric) {
         log(title, message);
-        if (initialInput != null) { return initialInput; }
-        if (inputOptions != null && !inputOptions.isEmpty()) { return inputOptions.get(0); }
-        return isNumeric ? "0" : "";
+        String answer = initialInput != null ? initialInput
+                : inputOptions != null && !inputOptions.isEmpty() ? inputOptions.get(0) : isNumeric ? "0" : "";
+        silent("showInputDialog", message, "\"" + answer + "\"");
+        return answer;
     }
 
-    @Override public String showFileDialog(String title, String defaultDir) { return null; }
-    @Override public File getSaveFile(File defaultFile) { return null; }
+    @Override
+    public String showFileDialog(String title, String defaultDir) {
+        silent("showFileDialog", title, "null");
+        return null;
+    }
+
+    @Override
+    public File getSaveFile(File defaultFile) {
+        silent("getSaveFile", String.valueOf(defaultFile), "null");
+        return null;
+    }
 
     @Override
     public <T> List<T> order(String title, String top, int remainingObjectsMin, int remainingObjectsMax, List<T> sourceChoices, List<T> destChoices) {
+        silent("order", title, "the given order");
         return new ArrayList<>(sourceChoices);
     }
 
     @Override
     public <T> List<T> getChoices(String message, int min, int max, Collection<T> choices, Collection<T> selected, FSerializableFunction<T, String> display) {
         List<T> l = new ArrayList<>(choices);
-        return new ArrayList<>(l.subList(0, Math.min(min, l.size())));
+        List<T> answer = new ArrayList<>(l.subList(0, Math.min(min, l.size())));
+        silent("getChoices", message, String.valueOf(answer));
+        return answer;
     }
 
-    @Override public PaperCard chooseCard(String title, String message, List<PaperCard> list) { return null; }
+    @Override
+    public PaperCard chooseCard(String title, String message, List<PaperCard> list) {
+        silent("chooseCard", message, "null");
+        return null;
+    }
 
     @Override public boolean isSupportedAudioFormat(File file) { return false; }
     @Override public IAudioClip createAudioClip(String filename) { return null; }
@@ -154,6 +174,10 @@ public final class HeadlessWebGui implements IGuiBase {
     @Override public HostedMatch hostMatch() { return matchFactory.get(); }
     @Override public UpnpServiceConfiguration getUpnpPlatformService() { return null; }
     @Override public boolean hasNetGame() { return false; }
+
+    private static void silent(String method, String question, String answer) {
+        SilentDefaults.report("IGuiBase (headless)", method + " \"" + question + "\": answered " + answer);
+    }
 
     private static void log(String title, String message) {
         System.out.println("[web-gui] " + title + ": " + message);
