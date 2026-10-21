@@ -3,9 +3,10 @@ import { cardStatus } from '../state/cardStatus';
 import { useMatch } from '../state/MatchContext';
 import { CardArt } from './CardArt';
 import { Icon } from './Icon';
+import { previewSpot } from './previewSpot';
 import styles from './HoverPreview.module.css';
 
-/** Large card image, always in the same place (HoverPreview.module.css). */
+/** Large card image in a fixed place: over the rail, or left of the rail / log drawer when the card is in it. */
 export function HoverPreview() {
   const { game, ui } = useMatch();
   if (!ui.hover || ui.inspectId) return null;
@@ -14,6 +15,7 @@ export function HoverPreview() {
   const face = currentFace(c);
   const img = face.image ?? c.front.image;
   const s = cardStatus(game, ui, c.id);
+  const spot = previewSpot(ui.hover, ui.logOpen);
   const notes: string[] = [];
   if (c.zone === 'battlefield' && c.tapped) notes.push('Tapped');
   if (c.zone === 'battlefield' && c.power !== undefined && c.ptModifiers.length)
@@ -27,7 +29,7 @@ export function HoverPreview() {
   if (c.attachments.length) notes.push(`Attached: ${c.attachments.map((a) => game.cards[a]?.name).join(', ')}`);
 
   return (
-    <div className={styles.preview} aria-hidden>
+    <div className={spot === 'rail' ? styles.preview : `${styles.preview} ${styles[spot]}`} aria-hidden>
       {img ? <CardArt key={img.large} image={img} size="large" alt="" className={styles.img} /> : null}
       <div className={styles.info}>
         {notes.map((n) => (

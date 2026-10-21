@@ -3,7 +3,10 @@
    never covers the board, the seats, the hand, the choice tray or the action
    block. The image sits at the bottom, as wide as the rail allows, in the same
    rect for every card; the notes stack above it. Its height leaves the notes
-   room under the top of the rail. */
+   room under the top of the rail.
+   A card hovered inside the rail or the log drawer would sit under it: its
+   preview takes the same box moved left of the rail, or of the drawer while
+   it is open (previewSpot.ts). */
 .preview {
   --pv-notes: 5rem;
   position: absolute;
@@ -17,6 +20,18 @@
   pointer-events: none;
   transform-origin: bottom center;
   animation: appear var(--dur-fast) 70ms both var(--ease-out);
+}
+
+.besideRail,
+.besideDrawer {
+  right: calc(100% + var(--sp-2));
+  left: auto;
+  width: calc(100% - 2 * var(--sp-2));
+}
+
+/* The drawer is fixed to the viewport's right edge, as the rail is. */
+.besideDrawer {
+  right: calc(100% + max(0px, var(--drawer-w) - var(--rail-w)) + var(--sp-2));
 }
 
 .img {

@@ -5,7 +5,8 @@ export type ViewableZone = 'graveyard' | 'exile' | 'command';
 
 /** Screen-only state: never sent to the engine. */
 export interface UiState {
-  hover?: { cardId: CardId };
+  /** `beside`: hovered inside the rail or the log drawer, so the preview shows left of it (previewSpot.ts). */
+  hover?: { cardId: CardId; beside?: boolean };
   inspectId?: CardId;
   /** Blocking in either order: the first click waits here for its partner. */
   pendingBlocker?: CardId;

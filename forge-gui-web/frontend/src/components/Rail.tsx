@@ -8,6 +8,7 @@ import { CombatPanel } from './CombatPanel';
 import { HoverPreview } from './HoverPreview';
 import { Icon, SeatGlyph } from './Icon';
 import { LogText } from './LogText';
+import { PREVIEW_BESIDE_ATTR } from './previewSpot';
 import { recentRows } from './recentRows';
 import { zoneCardIds, zoneTitle } from './zoneBrowser';
 import styles from './Rail.module.css';
@@ -19,11 +20,12 @@ import styles from './Rail.module.css';
  * content and anchored to the bottom edge, so its persistent controls never
  * move. Each region keeps its header in view and scrolls its own body, so an
  * open zone never pushes the log out of reach. The hover preview shows over
- * the regions, never over the board, the seats, the hand or the action block.
+ * the regions, never over the board, the seats, the hand or the action block;
+ * for a card hovered in the rail itself, left of it (previewSpot.ts).
  */
 export function Rail() {
   return (
-    <aside className={styles.rail}>
+    <aside className={styles.rail} {...{ [PREVIEW_BESIDE_ATTR]: '' }}>
       <div className={styles.upper}>
         <div className={styles.regions}>
           <StackPanel />

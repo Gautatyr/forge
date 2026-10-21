@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type FocusEvent, type MouseEvent } from 'react';
 import { currentFace, isCreature } from '../model/selectors';
 import type { CardView } from '../model/types';
 import { useCardClick } from '../state/cardClick';
@@ -7,6 +7,7 @@ import { useMatch } from '../state/MatchContext';
 import { useOverlayKey } from '../state/overlayKey';
 import { Icon, type IconName } from './Icon';
 import { KeywordIcons, KW_AVOID_ATTR, type CardActions } from './KeywordIcons';
+import { previewBeside } from './previewSpot';
 import { iconKeywords } from './keywordCatalog';
 import { cardStatusWithChoice } from './tray/inPlace';
 import { useInPlacePick } from './tray/useInPlacePick';
@@ -102,9 +103,10 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
 
   // Whether the pointer or focus is on this element: it started the hover and must end it.
   const hovered = useRef(false);
-  const hover = () => {
+  const hover = (e: MouseEvent | FocusEvent) => {
     hovered.current = true;
-    setUi((u) => (u.hover?.cardId === c.id ? u : { ...u, hover: { cardId: c.id } }));
+    const beside = previewBeside(e.currentTarget as Element);
+    setUi((u) => (u.hover?.cardId === c.id && !u.hover.beside === !beside ? u : { ...u, hover: { cardId: c.id, beside } }));
   };
   const unhover = () => {
     hovered.current = false;
