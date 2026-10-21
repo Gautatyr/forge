@@ -64,6 +64,9 @@ final class ScriptedSeat implements ClientSink {
     private int sameState;
     private final Set<String> tried = new HashSet<>();
     private final Set<Integer> attacked = new HashSet<>();
+    /** Turns it attacked after all because holding back broke an attack requirement ("Attack declaration invalid"). */
+    private final Set<Integer> forcedAttacks = new HashSet<>();
+    private volatile boolean attackRefused;
     private final Set<String> blocksTried = new HashSet<>();
     private int pendingBlocker = -1;
     /** The last blockOptions (issue #48), cleared with the input's actionable cards. */
@@ -232,6 +235,7 @@ final class ScriptedSeat implements ClientSink {
                 weakly.clear();
                 blockOptions = null;
             }
+            case "message" -> attackRefused |= a.size() > 0 && a.get(0).isJsonPrimitive() && a.get(0).getAsString().startsWith("Attack declaration invalid");
             case "awaitNextInput" -> {
                 ok = false;
                 cancel = false;
@@ -432,8 +436,14 @@ final class ScriptedSeat implements ClientSink {
                 }
             }
         }
-        // every other turn it holds its creatures back, untapped to block on the opponents' turns (issue #54)
-        if (myTurn && phase == PhaseType.COMBAT_DECLARE_ATTACKERS && ok && attacked.add(turn) && attacked.size() % 2 == 1) {
+        // every other turn it holds its creatures back, untapped to block on the opponents' turns (issue #54), unless an
+        // attack requirement refuses that ("attacks each combat if able"): then it attacks with everything after all
+        if (myTurn && phase == PhaseType.COMBAT_DECLARE_ATTACKERS && ok
+                && (attacked.add(turn) ? attacked.size() % 2 == 1 : attackRefused && forcedAttacks.add(turn))) {
+            if (attackRefused) {
+                actions.merge("(attack requirement: attack after all)", 1, Integer::sum);
+                attackRefused = false;
+            }
             act("alphaStrike", null, 0);
             actedEpoch = -1;
             return;
