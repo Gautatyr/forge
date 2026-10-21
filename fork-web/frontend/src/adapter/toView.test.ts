@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { WireObject } from '../wire/generated/wire';
+import type { CallMessage, WireObject } from '../wire/generated/wire';
 import { autoAnswer, intentToFrames, stopFrames } from './commands';
 import { LiveSession } from './session';
 import { imageFromKey, logText, parseKeyword, passUntilYourTurnDone, toGameView } from './toView';
@@ -33,6 +33,12 @@ const buttons = (s: LiveSession, ok: string, cancel: string, message = '') => {
   s.apply({ t: 'call', method: 'updateButtons', args: [YOU, ok, cancel, true, true, true] });
 };
 const act = (method: string, fields: object = {}) => ({ t: 'action', method, ...fields });
+/** InputBase.showSelection: what the prompt marks (forge.gamemodes.match.Selection). */
+const selection = (sel: { cards?: object[]; min?: number; max?: number; targets?: object[]; chosen?: object[] }): CallMessage => ({
+  t: 'call',
+  method: 'setSelection',
+  args: [{ kind: 'Selection', cards: [], min: 0, max: 0, targets: [], chosen: [], ...sel }],
+});
 
 describe('toGameView', () => {
   it('puts you first and maps players', () => {
@@ -133,8 +139,7 @@ describe('toGameView', () => {
 
   it('turns selectables into chooseTargets', () => {
     const s = session();
-    s.apply({ t: 'call', method: 'setSelectables', args: [[card(10), card(20)], 1, 1] });
-    s.apply({ t: 'call', method: 'setSelectableTargets', args: [[{ type: 'player', id: 1 }]] });
+    s.apply(selection({ cards: [card(10), card(20)], min: 1, max: 1, targets: [{ type: 'player', id: 1 }] }));
     s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Bolt - Select any target', card(10)] });
     s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, true, false] });
     expect(toGameView(s).decision).toEqual({
@@ -164,7 +169,7 @@ describe('toGameView', () => {
 describe('no prompt when there is nothing to do (playtest 1)', () => {
   /** InputLondonMulligan: "Return N card(s)…", OK when N more are chosen, else Auto. */
   const london = (s: LiveSession, left: number, chosen: number[] = []) => {
-    s.apply({ t: 'call', method: 'setHighlighted', args: [chosen.map(card), true] });
+    s.apply(selection({ chosen: chosen.map(card) }));
     s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, `Return ${left} card(s) to the bottom of your library`, null] });
     s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Auto', left === 0, left !== 0, true] });
   };
@@ -193,8 +198,8 @@ describe('no prompt when there is nothing to do (playtest 1)', () => {
     const s = session();
     london(s, 1);
     london(s, 0, [10]);
-    // InputLondonMulligan.done(): resetCardHighlights() before stop(); OK is still enabled.
-    s.apply({ t: 'call', method: 'setHighlighted', args: [[card(10)], false] });
+    // InputLondonMulligan.done(): stop() takes its marks away; OK is still enabled.
+    s.apply(selection({}));
     expect(autoAnswer(s)).toBeUndefined();
     expect(toGameView(s).decision).not.toMatchObject({ what: 'Drawing your new hand' });
     // The next London input (after awaitNextInput) is judged on its own first message.
@@ -510,7 +515,7 @@ describe('selections off the board (library searches, choosing a player)', () =>
         ]),
       }),
     );
-    s.apply({ t: 'call', method: 'setSelectables', args: [lands.map(card), 0, 2] });
+    s.apply(selection({ cards: lands.map(card), min: 0, max: 2 }));
     s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Grizzly Bears (10)\nSelect up to 2 cards from your library', card(10)] });
     s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', true, false, true] });
     return s;
@@ -549,21 +554,21 @@ describe('selections off the board (library searches, choosing a player)', () =>
     expect(answer(['c71', 'c73'])).toEqual([act('selectCard', { card: 71 }), act('selectCard', { card: 73 })]);
     expect(answer([])).toEqual([act('selectButtonOk')]);
     // Already picked on the server: unpick what the answer drops, pick only what is new.
-    s.apply({ t: 'call', method: 'setHighlighted', args: [[card(71)], true] });
+    s.apply(selection({ cards: [71, 72, 73].map(card), min: 0, max: 2, chosen: [card(71)] }));
     expect(answer(['c72'])).toEqual([act('selectCard', { card: 71 }), act('selectCard', { card: 72 }), act('selectButtonOk')]);
   });
 
   it('keeps the prompt id while the engine highlights picks', () => {
     const s = search();
     const before = toGameView(s).decision;
-    s.apply({ t: 'call', method: 'setHighlighted', args: [[card(71)], true] });
+    s.apply(selection({ cards: [71, 72, 73].map(card), min: 0, max: 2, chosen: [card(71)] }));
     const after = toGameView(s).decision;
     expect(before.kind === 'choice' && after.kind === 'choice' && before.prompt.id === after.prompt.id).toBe(true);
   });
 
   it('words the coin toss as "You won the coin toss. Who plays first?", with no "Choose exactly 1" (playtest 1)', () => {
     const s = session();
-    s.apply({ t: 'call', method: 'setSelectableTargets', args: [[YOU, { type: 'player', id: 1 }]] });
+    s.apply(selection({ min: 1, max: 1, targets: [YOU, { type: 'player', id: 1 }] }));
     // PlayerControllerHuman.chooseStartingPlayer, 3+ players: lblYouHaveWonTheCoinToss + lblWhoWouldYouLiketoStartthisGame
     const msg = 'Hugo, you have won the coin toss.\n\nWho would you like to start this game? (Click on the portrait.)';
     s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, msg, null] });
@@ -583,7 +588,7 @@ describe('selections off the board (library searches, choosing a player)', () =>
 
   it('asks who starts with player options (no spell, no Cancel), answered by selectPlayer', () => {
     const s = session();
-    s.apply({ t: 'call', method: 'setSelectableTargets', args: [[YOU, { type: 'player', id: 1 }]] });
+    s.apply(selection({ min: 1, max: 1, targets: [YOU, { type: 'player', id: 1 }] }));
     s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Choose the player who goes first (Click on the portrait.)', null] });
     s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, false, true] });
     const g = toGameView(s);
@@ -625,7 +630,7 @@ describe('selections off the board (library searches, choosing a player)', () =>
     buttons(s, 'OK', 'End Turn', 'Priority: Hugo');
     s.apply({ t: 'call', method: 'awaitNextInput', args: [] });
     // Cleanup: InputSelectCardsFromList without a spell ability (no card in showPromptMessage), no Cancel.
-    s.apply({ t: 'call', method: 'setSelectables', args: [[card(51), card(52), card(53)], 2, 2] });
+    s.apply(selection({ cards: [card(51), card(52), card(53)], min: 2, max: 2 }));
     s.apply({
       t: 'call',
       method: 'showPromptMessage',
@@ -653,7 +658,7 @@ describe('selections off the board (library searches, choosing a player)', () =>
 
   it('shows a one-line selection once: as the title, with no instruction', () => {
     const s = session();
-    s.apply({ t: 'call', method: 'setSelectables', args: [[card(10)], 1, 1] });
+    s.apply(selection({ cards: [card(10)], min: 1, max: 1 }));
     s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Select a creature you control', null] });
     s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, false, true] });
     const d = toGameView(s).decision;
@@ -662,8 +667,7 @@ describe('selections off the board (library searches, choosing a player)', () =>
 
   it('keeps board targeting for a spell whose targets are on the board', () => {
     const s = session();
-    s.apply({ t: 'call', method: 'setSelectables', args: [[card(20)], 1, 1] });
-    s.apply({ t: 'call', method: 'setSelectableTargets', args: [[{ type: 'player', id: 1 }]] });
+    s.apply(selection({ cards: [card(20)], min: 1, max: 1, targets: [{ type: 'player', id: 1 }] }));
     s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Bolt - Select any target', card(10)] });
     s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, true, false] });
     expect(toGameView(s).decision.kind).toBe('chooseTargets');

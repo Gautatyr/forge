@@ -12,8 +12,8 @@ import java.util.concurrent.CompletableFuture;
 import javax.imageio.ImageIO;
 
 import forge.gui.FThreads;
+import forge.gui.GuiBase;
 import forge.localinstance.properties.ForgeConstants;
-import forge.util.BuildInfo;
 import forge.util.ImageFetcher;
 import forge.util.ScryfallRateLimiter;
 import forge.util.TextUtil;
@@ -105,7 +105,7 @@ final class HeadlessImageFetcher extends ImageFetcher {
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
         connection.setReadTimeout(READ_TIMEOUT_MS);
         connection.setRequestProperty("Accept", "*/*");
-        connection.setRequestProperty("User-Agent", BuildInfo.getUserAgent());
+        connection.setRequestProperty("User-Agent", GuiBase.getInterface().getUserAgent());
         if (connection instanceof HttpURLConnection http) {
             int code = http.getResponseCode();
             if (code != HttpURLConnection.HTTP_OK) {

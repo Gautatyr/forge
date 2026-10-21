@@ -48,7 +48,7 @@ import forge.fork.web.bridge.SeatRefs;
  * {@link ProtocolMethod} ({@code applyDelta} and {@code setGameView} are replaced by the state
  * stream), and {@code {"t":"prompt",…}} ({@link Prompt}) for the 13 that need an answer, closed by
  * {@code {"t":"promptClosed","id","reason"}}. A client that (re)connects gets, after its snapshot,
- * the seat's current input (prompt message, buttons, selectables…) and its open prompts.
+ * the seat's current input (prompt message, buttons, selection…) and its open prompts.
  *
  * <p>Client to server: {@code {"t":"reply","id","value"}} (handled on the transport thread: decode
  * and complete, never blocks) and {@code {"t":"action","method",…}}, the 16 player actions, taken in
@@ -61,7 +61,7 @@ final class SeatSession implements IRemote {
 
     /** Calls a reconnecting client needs to show the current input, in this order. */
     private static final List<String> STICKY_ORDER = List.of(
-            "openView", "showPromptMessage", "updateButtons", "selectables", "targets", "weakly", "blockOptions", "revealed", "drawOffer", "finishGame");
+            "openView", "showPromptMessage", "updateButtons", "selection", "weakly", "blockOptions", "revealed", "drawOffer", "finishGame");
 
     /**
      * Actions that answer the seat's current input. They run only on the game thread waiting for it; one that finds no
@@ -265,10 +265,8 @@ final class SeatSession implements IRemote {
         switch (m) {
             case openView: case showPromptMessage: case updateButtons: case finishGame:
                 return m.name();
-            case setSelectables: case clearSelectables:
-                return "selectables";
-            case setSelectableTargets:
-                return "targets";
+            case setSelection:
+                return "selection";
             case setWeaklySelectable: case clearWeaklySelectable:
                 return "weakly";
             case showRevealedCards: case hideRevealedCards:
@@ -287,10 +285,6 @@ final class SeatSession implements IRemote {
             return;
         }
         switch (m) {
-            case clearSelectables:
-                sticky.remove("selectables");
-                sticky.remove("targets");
-                return;
             case clearWeaklySelectable:
                 // InputBlock.onStop: its block options end with it
                 sticky.remove(key);

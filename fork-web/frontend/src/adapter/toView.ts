@@ -378,12 +378,18 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
       if (r.type === 'stackItem') return view.stack.some((it) => it.id === id) ? { kind: 'stackItem', id } : undefined;
       return undefined;
     };
-    // setSelectables names the cards; setSelectableTargets the players and stack items (InputSelectStackItems).
+    // setSelection names the cards, then the players and stack items. A spell that is a card target is also offered
+    // as its stack entry (InputSelectTargets, "target spell or permanent"): one target, its stack entry.
+    const offeredItems = input.targets.flatMap((t) => (t.type === 'stackItem' ? [shown(t)] : []));
+    const asItem = new Set(offeredItems.flatMap((t) => (t ? [view.stack.find((it) => it.id === t.id)!.sourceCardId] : [])));
+    const notAsItem = (t: TargetRef) => t.kind !== 'card' || !asItem.has(t.id);
     const legal: TargetRef[] = [
       ...(input.selectable?.cards ?? []).map((id) => ({ type: 'card', id })),
       ...input.targets.filter((t) => t.type !== 'card'),
-    ].flatMap((r) => shown(r) ?? []);
-    const chosen: TargetRef[] = input.highlighted.flatMap((h) => shown(h) ?? []);
+    ]
+      .flatMap((r) => shown(r) ?? [])
+      .filter(notAsItem);
+    const chosen: TargetRef[] = input.highlighted.flatMap((h) => shown(h) ?? []).filter(notAsItem);
     // Picks the board can't take (library cards, graveyards…) or that are not for a spell or ability
     // (who starts): a tray list. Each pick is a selectCard / selectPlayer / selectStackItem, then OK (selectionFrames).
     // Stack items are always targets of a spell or ability and always on screen: board path even when no cast card is

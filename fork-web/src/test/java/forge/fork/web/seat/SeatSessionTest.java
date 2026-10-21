@@ -42,6 +42,7 @@ import forge.game.event.GameEventShuffle;
 import forge.game.player.Player;
 import forge.game.zone.ZoneType;
 import forge.gui.interfaces.IGuiGame;
+import forge.gamemodes.match.Selection;
 import forge.gamemodes.match.input.InputSelectEntitiesFromList;
 import forge.gui.FThreads;
 import forge.gui.control.GameEventForwarder;
@@ -783,14 +784,17 @@ public class SeatSessionTest {
         Card theirs = TestEngine.add("Lightning Bolt", p1, ZoneType.Hand);
         Card mine = TestEngine.add("Grizzly Bears", p0, ZoneType.Hand);
         stream.publish(List.of(), false);
-        gui.setSelectables(List.of(mine.getView(), theirs.getView()), 1, 1);
+        gui.setSelection(new Selection(List.of(mine.getView(), theirs.getView()), 1, 1, List.of(), List.of(theirs.getView())));
         JsonObject call = client.next("call");
-        while (!"setSelectables".equals(call.get("method").getAsString())) {
+        while (!"setSelection".equals(call.get("method").getAsString())) {
             call = client.next("call");
         }
-        JsonArray refs = call.getAsJsonArray("args").get(0).getAsJsonArray();
+        JsonObject sel = call.getAsJsonArray("args").get(0).getAsJsonObject();
+        JsonArray refs = sel.getAsJsonArray("cards");
         assertEquals(refs.get(0).getAsJsonObject().get("id").getAsInt(), mine.getId());
         assertTrue(refs.get(1).getAsJsonObject().get("id").getAsInt() >= ViewerStream.ALIAS_BASE);
+        assertTrue(sel.getAsJsonArray("chosen").get(0).getAsJsonObject().get("id").getAsInt() >= ViewerStream.ALIAS_BASE);
+        assertEquals(sel.get("max").getAsInt(), 1);
         assertFalse(call.toString().contains("Lightning Bolt"));
     }
 
@@ -809,11 +813,13 @@ public class SeatSessionTest {
             in.showAndWait();
             return new ArrayList<>(in.getSelected());
         });
+        // upstream's InputSelectEntitiesFromList names its players in its selection
         JsonObject targets = client.next("call");
-        while (!"setSelectableTargets".equals(targets.get("method").getAsString())) {
+        while (!"setSelection".equals(targets.get("method").getAsString())
+                || targets.getAsJsonArray("args").get(0).getAsJsonObject().getAsJsonArray("targets").isEmpty()) {
             targets = client.next("call");
         }
-        JsonArray named = targets.getAsJsonArray("args").get(0).getAsJsonArray();
+        JsonArray named = targets.getAsJsonArray("args").get(0).getAsJsonObject().getAsJsonArray("targets");
         assertEquals(named.size(), 2);
         assertEquals(named.get(1).getAsJsonObject().get("type").getAsString(), "player");
         assertEquals(named.get(1).getAsJsonObject().get("id").getAsInt(), p1.getId());
@@ -986,6 +992,25 @@ public class SeatSessionTest {
         for (JsonElement c : cards) {
             assertEquals(c.getAsJsonObject().get("id").getAsInt(), land.getId());
         }
+    }
+
+    @Test
+    public void aSelectionLeavesOutCardsTheSeatHasNoIdFor() throws Exception {
+        start();
+        Card land = TestEngine.add("Forest", p0, ZoneType.Battlefield);
+        Card gone = Card.fromPaperCard(FModel.getMagicDb().getCommonCards().getCard("Forest"), p0);
+        onGameThread(() -> {
+            gui.setSelection(new Selection(List.of(land.getView(), gone.getView()), 1, 1, List.of(), List.of(gone.getView())));
+            return null;
+        }).get(5, TimeUnit.SECONDS);
+        JsonObject call;
+        do {
+            call = client.next("call");
+        } while (!"setSelection".equals(call.get("method").getAsString()));
+        JsonObject sel = call.getAsJsonArray("args").get(0).getAsJsonObject();
+        assertEquals(sel.getAsJsonArray("cards").size(), 1, sel.toString());
+        assertEquals(sel.getAsJsonArray("cards").get(0).getAsJsonObject().get("id").getAsInt(), land.getId());
+        assertEquals(sel.getAsJsonArray("chosen").size(), 0, sel.toString());
     }
 
     @Test

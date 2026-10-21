@@ -2,7 +2,6 @@ package forge.fork.web.seat;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
-import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
@@ -51,7 +50,7 @@ import forge.fork.web.bridge.visibility.TestEngine;
 
 /**
  * Issues #53 (part 2) and #45 (part 2): the web human seat targets a spell on the stack and spends floating mana, only
- * through the actions the page sends ({@code selectStackItem} with the id from {@code setSelectableTargets},
+ * through the actions the page sends ({@code selectStackItem} with the id from {@code setSelection},
  * {@code useMana} with the colour mask). Each test asserts what the engine recorded.
  */
 public class HumanSeatStackTargetsTest {
@@ -190,15 +189,31 @@ public class HumanSeatStackTargetsTest {
         return seen;
     }
 
-    /** The stack item ids of the last {@code setSelectableTargets} call the seat received. */
+    /**
+     * The stack item ids the last {@code setSelection} call offers (its targets). The input sends it after its message
+     * ({@code InputBase.showMessageInitial}), so it may still be on its way: waits up to 5 s for one offering any.
+     */
     private List<Integer> offeredStackItems() {
-        String call = seat.lastCall("setSelectableTargets");
-        assertNotNull(call, "the seat was offered targets");
+        long end = System.currentTimeMillis() + 5000;
         List<Integer> ids = new ArrayList<>();
-        for (JsonElement e : JsonParser.parseString(call).getAsJsonObject().getAsJsonArray("args").get(0).getAsJsonArray()) {
-            JsonObject r = e.getAsJsonObject();
-            if ("stackItem".equals(r.get("type").getAsString())) {
-                ids.add(r.get("id").getAsInt());
+        while (ids.isEmpty() && System.currentTimeMillis() < end) {
+            String call = seat.lastCall("setSelection");
+            if (call != null) {
+                JsonObject sel = JsonParser.parseString(call).getAsJsonObject().getAsJsonArray("args").get(0).getAsJsonObject();
+                for (JsonElement e : sel.getAsJsonArray("targets")) {
+                    JsonObject r = e.getAsJsonObject();
+                    if ("stackItem".equals(r.get("type").getAsString())) {
+                        ids.add(r.get("id").getAsInt());
+                    }
+                }
+            }
+            if (ids.isEmpty()) {
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
             }
         }
         return ids;

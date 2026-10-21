@@ -94,12 +94,16 @@ class HumanSeat extends Stream {
       case 'updateButtons':
         this.buttons = { label1: a[1], label2: a[2], ok: a[3], cancel: a[4] }; this.epoch++; break;
       case 'showPromptMessage': this.message = a[1] ?? ''; this.epoch++; break;
-      case 'setSelectables':
-        this.selectables = { cards: (a[0] ?? []).filter((r) => r?.type === 'card').map((r) => r.id), min: a[1], max: a[2] };
-        this.picked = new Set(); this.epoch++; break;
-      case 'clearSelectables': this.selectables = null; this.targets = []; this.picked = new Set(); this.epoch++; break;
-      case 'setSelectableTargets':
-        this.targets = (a[0] ?? []).filter((r) => r?.type === 'player').map((r) => r.id); this.epoch++; break;
+      case 'setSelection': {
+        // each pick re-sends the input's selection; its end (InputSyncronizedBase.stop) sends one offering nothing
+        const sel = a[0] ?? {};
+        this.selectables = sel.max > 0
+          ? { cards: (sel.cards ?? []).filter((r) => r?.type === 'card').map((r) => r.id), min: sel.min, max: sel.max }
+          : null;
+        this.targets = (sel.targets ?? []).filter((r) => r?.type === 'player').map((r) => r.id);
+        if (!this.selectables && !this.targets.length) this.picked = new Set();
+        this.epoch++; break;
+      }
       case 'setWeaklySelectable': this.weakly = (a[0] ?? []).filter((r) => r?.type === 'card').map((r) => r.id); break;
       case 'clearWeaklySelectable': this.weakly = []; break;
       case 'finishGame': case 'afterGameEnd': this.gameEnded = true; break;
@@ -208,7 +212,7 @@ class HumanSeat extends Stream {
         this.picked.add(next); this.act('selectCard', { card: next }); return;
       }
     }
-    // players the input names (setSelectableTargets): opponents first, once each per input
+    // players the input names (setSelection targets): opponents first, once each per input
     if (this.targets.length && !this.buttons.ok) {
       const order = [...this.targets.filter((id) => id !== me), ...this.targets.filter((id) => id === me)];
       const next = order.find((id) => !this.picked.has(`p${id}`));
