@@ -46,8 +46,9 @@ public final class WebSeats implements GameStream.SeatHooks {
     }
 
     /**
-     * Receives every batch of game events of the publishing seat, on the game thread, after it is
-     * published: once per game, however many human seats. A sink that throws is logged and ignored.
+     * Receives every batch of game events of the publishing seat, after it is published: on the game
+     * thread, or on the EDT while the game thread waits for a seat's input ({@code InputPump}). Once per
+     * game, however many human seats. A sink that throws is logged and ignored.
      */
     public void setEventSink(Consumer<List<GameEvent>> sink) {
         eventSink = sink;
