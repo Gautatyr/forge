@@ -115,10 +115,6 @@ answers with seat actions (`SeatSession.act`): `selectCard`, `selectPlayer`, `se
 - PCH dev-mode cheats (`getSaveFile`, `showFileDialog`, `SOptionPane.showErrorDialog`): the seat has no dev-mode action.
 
 ## Known gaps outside the bridge
-- Frontend: `setSelectableTargets` keeps players only and there is no `selectStackItem` action, so the web screen
-  cannot target a spell or ability on the stack (`InputSelectTargets` with stack zones, `InputSelectStackItems`); the
-  player can only cancel (a mandatory one cannot be cancelled). The bridge forwards both; the sweep's scripted seat
-  answers them.
 - Upstream: `TargetSelection.chooseCardFromList` lists zone headers ("--CARDS ON BATTLEFIELD:--") as choices; picking
   one adds no target and asks again (desktop: same).
 - Upstream race: `InputPayMana.updateMessage` → `PlayerControllerHuman.pushActionableCards` runs on the EDT

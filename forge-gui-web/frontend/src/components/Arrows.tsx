@@ -101,9 +101,9 @@ export function Arrows() {
       out.push({ key: `b-${b.blockerId}`, from: `[data-card-id="${b.blockerId}"]`, to: `[data-card-id="${b.attackerId}"]`, kind: 'block' });
     for (const t of item?.targets ?? [])
       out.push({
-        key: `t-${item!.id}-${t.id}`,
+        key: `t-${item!.id}-${t.kind}${t.id}`,
         from: `[data-stack-id="${item!.id}"]`,
-        to: t.kind === 'card' ? `[data-card-id="${t.id}"]` : `[data-player-id="${t.id}"]`,
+        to: t.kind === 'card' ? `[data-card-id="${t.id}"]` : t.kind === 'player' ? `[data-player-id="${t.id}"]` : `[data-stack-id="${t.id}"]`,
         kind: 'target',
       });
     return out;
