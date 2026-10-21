@@ -8,9 +8,9 @@ This repo is a fork (Gautatyr/forge) of Card-Forge/forge, a Magic: The Gathering
 ```
 forge-core, forge-game, forge-ai,     upstream engine, AI and shared GUI layer (edit sparingly)
 forge-gui, forge-gui-desktop          (forge-gui-desktop also hosts the engine/AI tests and `sim`)
-forge-gui-web/                        fork-owned bridge (Java) — see forge-gui-web/CLAUDE.md
-forge-gui-web/frontend/               fork-owned web match screen — see its CLAUDE.md
-forge-gui-desktop-web/                fork-owned launcher: desktop lobby + web match screen (`make play`)
+fork-web/                             fork-owned bridge (Java) — see fork-web/CLAUDE.md
+fork-web/frontend/                    fork-owned web match screen — see its CLAUDE.md
+fork-desktop-web/                     fork-owned launcher: desktop lobby + web match screen (`make play`)
 docs/fork/                            fork docs: decisions, design, architecture, audits, plan
 .claude/skills/                       project-review-gate (coder/reviewer), product-context (product)
 Makefile, scripts/                    fork-owned gates and dev helpers (`make help`)

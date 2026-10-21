@@ -1,10 +1,10 @@
 # Match screen mockup: notes
 
-Clickable mockup of the new match screen, built against [match-screen-decisions.md](match-screen-decisions.md) (binding) and [match-screen-memo.md](match-screen-memo.md). Mock data only; no engine. Code: `forge-gui-web/frontend/`.
+Clickable mockup of the new match screen, built against [match-screen-decisions.md](match-screen-decisions.md) (binding) and [match-screen-memo.md](match-screen-memo.md). Mock data only; no engine. Code: `fork-web/frontend/`.
 
 ## Run it
 ```fish
-cd forge-gui-web/frontend
+cd fork-web/frontend
 pnpm install
 pnpm dev --port 5173          # http://localhost:5173
 pnpm check                    # tsc + eslint + vitest (17 tests)
@@ -97,7 +97,7 @@ Every battlefield picks its own arrangement (creatures and lands in two rows, or
 - No visual regression tests; screenshots are manual (`docs/screenshots/`).
 
 ## Screenshots
-`forge-gui-web/frontend/docs/screenshots/` holds 9 committed JPEGs (about 3 MB): the three 4-player layouts, blockers, scry, 1v1, a 12-card hand, the inspector, and a deuteranopia simulation.
+`fork-web/frontend/docs/screenshots/` holds 9 committed JPEGs (about 3 MB): the three 4-player layouts, blockers, scry, 1v1, a 12-card hand, the inspector, and a deuteranopia simulation.
 
 The full PNG set (34 views at 1366, 1920 and 2560 px, plus 5 colour-blind simulations, about 53 MB) is kept out of git: `*.png` in that folder is ignored. It exists only on the machine where it was taken; regenerate it with the Playwright browser tools when needed.
 
@@ -155,7 +155,7 @@ Dev "Mock" tag moved to the bottom-left corner (it covered the turn block).
 
 Measured contrast: "Stop" chip 10.5:1, "Pass" 5.8:1, "Mixed" 8.5:1 (on `--c-panel`); neutral chip 7.3:1; captions 7.2:1 on the bar, 5.8:1 on the combat run.
 
-Not done: the player plate's "Priority" tag is unchanged (no 400 ms delay, no "Waiting for" wording). At 1366 px with UI scale ≥ 175 % during combat (no fold), the top bar still overflows and clips the tool buttons; the spec gives no third fallback. Committed JPEGs in `forge-gui-web/frontend/docs/screenshots/` still show the pass-2 top bar.
+Not done: the player plate's "Priority" tag is unchanged (no 400 ms delay, no "Waiting for" wording). At 1366 px with UI scale ≥ 175 % during combat (no fold), the top bar still overflows and clips the tool buttons; the spec gives no third fallback. Committed JPEGs in `fork-web/frontend/docs/screenshots/` still show the pass-2 top bar.
 ## Pass 3B: keyword icons (issue #21)
 Spec: [product-decisions-pass-3.md](product-decisions-pass-3.md) §3. Icon set and one-line texts: [keyword-icons.html](keyword-icons.html) (a test checks glyphs and lines against it, and codepoints against `mana-font/css/mana.css`).
 
@@ -179,7 +179,7 @@ Verified (Playwright, 1920×1080 and 1366×768, desktop context): in every scena
 
 Mock targeting: "Hexproof from <colour>" blocks only opponents' spells of that colour (from the source's mana cost); plain Hexproof blocks all.
 
-Known gaps: at 1366×768 Columns, opponents' creatures are 47 px wide, so one 20 px disc covers a large part of the card (opponents' card size is item 4 of the spec). Committed JPEGs in `forge-gui-web/frontend/docs/screenshots/` were not regenerated (the turn-strip issue changes the same views in parallel).
+Known gaps: at 1366×768 Columns, opponents' creatures are 47 px wide, so one 20 px disc covers a large part of the card (opponents' card size is item 4 of the spec). Committed JPEGs in `fork-web/frontend/docs/screenshots/` were not regenerated (the turn-strip issue changes the same views in parallel).
 ## Pass 3C: readable opponent cards (issue #22)
 
 Spec: `product-decisions-pass-3.md` section 4.
@@ -303,7 +303,7 @@ Rulings: [match-screen-decisions.md](match-screen-decisions.md), "Rulings from p
 | No prompt when nothing to decide: a London input that asks for 0 cards at its first message (`InputState.london`) reads "Drawing your new hand" (waiting) and is answered with OK once (`autoAnswer`). A paid one also reads "Return 0", nothing chosen, as it ends (`InputLondonMulligan.done`), and is never answered. | `adapter/session.ts` (`london`), `adapter/prompts.ts` (`freeMulliganKeep`), `adapter/commands.ts`, `adapter/useLive.ts` |
 | Rail floors (no % cap): stack 14 rem, combat 11 rem, zone 14.5 rem (one full row of thumbs), Recent 12 rem. Stack + zone + Recent fit at 768 px; with combat too, the regions scroll. | `Rail.module.css`, `CombatPanel.module.css` |
 | Large zone view: expand button in the rail's zone header → graveyard/exile over the board (cards `clamp(7.5rem, 11vw, 11rem)`), filter by name or type ("1 of 3"), "Side panel" back, × or Esc closes. Below the hover preview's layer. | `ZoneBrowser.*`, `zoneBrowser.ts`, `Rail.tsx`, `Icon.tsx` (`expand`, `shrink`) |
-| Music and sounds (launcher): see `forge-gui-desktop-web/CLAUDE.md`. | `WebMatchAudio.java`, `WebSeats.setEventSink` |
+| Music and sounds (launcher): see `fork-desktop-web/CLAUDE.md`. | `WebMatchAudio.java`, `WebSeats.setEventSink` |
 
 Contrast (WCAG, existing pairs): chip and browser title `--c-text` on `--c-panel` 13.3:1; counts `--c-text-2` on `--c-panel` 8.5:1; empty text 5.8:1; filter placeholder `--c-text-3` on `--c-bg` 7.2:1; hovered buttons `--c-text` on `--c-panel-hover` 9.7:1.
 

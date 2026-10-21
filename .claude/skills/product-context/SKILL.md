@@ -35,7 +35,7 @@ must be admirable in game.
 
 ## Seeing the current mockup
 
-- Committed renders: `forge-gui-web/frontend/docs/screenshots/*.jpg` (1920×1080 unless
+- Committed renders: `fork-web/frontend/docs/screenshots/*.jpg` (1920×1080 unless
   the name says otherwise; `cb-*` = colour-blind simulation).
-- Local full set (may be absent on another machine): `forge-gui-web/frontend/docs/screenshots/*.png`.
+- Local full set (may be absent on another machine): `fork-web/frontend/docs/screenshots/*.png`.
 - You may view these images; code stays out of scope.

@@ -5,18 +5,18 @@ Branch `spike/web-bridge`, measured 2026-10-15 on a desktop Linux box (JDK 17, l
 **Answer: yes. Recommendation: GO** (see the end).
 
 ## What was built
-New module `forge-gui-web` (package root `forge.web`), depends on `forge-gui` + `forge-ai` only. The only upstream edit is `<module>forge-gui-web</module>` in the root `pom.xml`. About 1,760 lines of Java (main) and 490 lines of viewer and check scripts.
+New module `fork-web` (package root `forge.fork.web`), depends on `forge-gui` + `forge-ai` only. The only upstream edit is `<module>fork-web</module>` in the root `pom.xml`. About 1,760 lines of Java (main) and 490 lines of viewer and check scripts.
 
 | File | Role |
 |---|---|
-| `forge/web/HeadlessWebGui.java` | `IGuiBase` for a headless server: no AWT/Swing/audio; one daemon thread stands in for the EDT; dialogs log and return non-destructive defaults. |
-| `forge/web/WebMain.java` | Boot: isolated profile (sets `user.home` to `forge-gui-web/target/forge-home`, so `~/.forge` is never read or written), `FModel.initialize`, server, then AI-only matches via `HostedMatch`. |
-| `forge/web/bridge/WebSpectatorGuiGame.java` | Spectator GUI, extends `AbstractGuiGame`. `HostedMatch` creates it through `IGuiBase.getNewGuiGame()` when no human plays and calls `openView` before the game thread starts; it subscribes a game-thread listener there. |
-| `forge/web/bridge/BatchingListener.java` | Game-thread batching, same flush policy as `GameEventForwarder` (priority after something happened, end of turn) plus a final flush on `GameEventGameFinished`. |
-| `forge/web/bridge/GameStream.java` | Per flush: `DeltaSyncManager.collectDeltas` (network play's delta engine, reused unchanged) → JSON → visibility policy → `StateMirror` → broadcast. Snapshot for a new client comes from the mirror, never from the live graph. |
-| `forge/web/bridge/WireSchema.java`, `WireEncoder.java` | Generic encoding keyed by `TrackableType`: no per-property code. A new upstream `TrackableProperty` gets a wire kind automatically. |
-| `forge/web/bridge/StateMirror.java` | JSON copy of what clients hold; computes removals by reachability from the game object. |
-| `forge/web/server/WebServer.java` | Netty (`netty-all` from `forge-gui`), port 7655, loopback only: static viewer, `/state`, `/metrics`, WebSocket `/ws` with permessage-deflate. |
+| `forge/fork/web/HeadlessWebGui.java` | `IGuiBase` for a headless server: no AWT/Swing/audio; one daemon thread stands in for the EDT; dialogs log and return non-destructive defaults. |
+| `forge/fork/web/WebMain.java` | Boot: isolated profile (sets `user.home` to `fork-web/target/forge-home`, so `~/.forge` is never read or written), `FModel.initialize`, server, then AI-only matches via `HostedMatch`. |
+| `forge/fork/web/bridge/WebSpectatorGuiGame.java` | Spectator GUI, extends `AbstractGuiGame`. `HostedMatch` creates it through `IGuiBase.getNewGuiGame()` when no human plays and calls `openView` before the game thread starts; it subscribes a game-thread listener there. |
+| `forge/fork/web/bridge/BatchingListener.java` | Game-thread batching, same flush policy as `GameEventForwarder` (priority after something happened, end of turn) plus a final flush on `GameEventGameFinished`. |
+| `forge/fork/web/bridge/GameStream.java` | Per flush: `DeltaSyncManager.collectDeltas` (network play's delta engine, reused unchanged) → JSON → visibility policy → `StateMirror` → broadcast. Snapshot for a new client comes from the mirror, never from the live graph. |
+| `forge/fork/web/bridge/WireSchema.java`, `WireEncoder.java` | Generic encoding keyed by `TrackableType`: no per-property code. A new upstream `TrackableProperty` gets a wire kind automatically. |
+| `forge/fork/web/bridge/StateMirror.java` | JSON copy of what clients hold; computes removals by reachability from the game object. |
+| `forge/fork/web/server/WebServer.java` | Netty (`netty-all` from `forge-gui`), port 7655, loopback only: static viewer, `/state`, `/metrics`, WebSocket `/ws` with permessage-deflate. |
 | `spike-viewer/` | Plain HTML/JS viewer, no build step. `check/ws-check.mjs` (scripted wire check), `check/measure.sh` (measured run). |
 
 Why `AbstractGuiGame` and not `ProtocolGuiGame` for the spectator: `HostedMatch.registerSpectator` drives the spectator GUI from the EDT through `FControlGameEventHandler`, and `ProtocolGuiGame`'s sync methods must run on the game thread (its own Javadoc). `HostedMatch` attaches `GameEventForwarder` and input-queue observers only to *human* seats that are `ProtocolGuiGame`. So the spectator does its own game-thread batching and leaves the EDT callbacks as no-ops. For human seats, `ProtocolGuiGame` is the right base (see "Prompts").
@@ -26,10 +26,10 @@ Speed: `HostedMatch` adds `FControlGamePlayback` pauses (200–400 ms per phase/
 ## How to run
 ```fish
 # from the repo root: compile and write the classpath
-mvn -pl forge-gui-web -am compile dependency:build-classpath -Dmdep.outputFile=target/cp.txt
-mvn -pl forge-gui-web -am test -Dtest=WireEncoderTest -Dsurefire.failIfNoSpecifiedTests=false
+mvn -pl fork-web -am compile dependency:build-classpath -Dmdep.outputFile=target/cp.txt
+mvn -pl fork-web -am test -Dtest=WireEncoderTest -Dsurefire.failIfNoSpecifiedTests=false
 
-# from forge-gui-web/
+# from fork-web/
 ./run-spike.sh                                   # 1v1, then keeps serving; open the printed URL http://127.0.0.1:7655/#token=<per-launch token>
 ./run-spike.sh --mode commander --speed fast     # 4-player Commander (C17/C20 precons)
 ./run-spike.sh --mode commander --hidden full    # no redaction (what network play sends today)
@@ -41,7 +41,7 @@ node spike-viewer/check/ws-check.mjs --token <token>
 # one measured run (server waits for the check, exits after the game; CPU sampled every 2 s)
 spike-viewer/check/measure.sh /tmp/runs cmd-redact-fast --mode commander --speed fast
 ```
-Decks: 1v1 uses `res/geneticaidecks` (Burn vs Merfolk); Commander uses `res/quest/commanderprecons` (Draconic Domination, Feline Ferocity, Arcane Maelstrom, Enhanced Evolution). Metrics JSON per game: `forge-gui-web/target/spike-metrics/<label>-game1.json`.
+Decks: 1v1 uses `res/geneticaidecks` (Burn vs Merfolk); Commander uses `res/quest/commanderprecons` (Draconic Domination, Feline Ferocity, Arcane Maelstrom, Enhanced Evolution). Metrics JSON per game: `fork-web/target/spike-metrics/<label>-game1.json`.
 
 ## Wire format (v1)
 Superseded by v2 (per-viewer visibility): see [web-ui.md](web-ui.md#bridge-per-viewer-visibility-wire-v2). v1 as built by the spike:
@@ -58,9 +58,9 @@ JSON text frames, server → client only.
 
 ## Verification
 - `ws-check.mjs` validates every message (shape, `seq` continuity), rebuilds the state from snapshot + deltas, checks containment references (zones, stack, card states) resolve after every delta, checks redaction holds, and at game end compares the rebuilt state with `/state` property by property. **0 errors in all 6 runs**, including one that joined a Commander game mid-way (snapshot at seq 313, 367 deltas after).
-- `mvn -pl forge-gui-web -am test -Dtest=WireEncoderTest …`: 4 tests pass (kinds, value encoding in network and live form, delta-key decoding incl. negative ids, mirror pruning).
+- `mvn -pl fork-web -am test -Dtest=WireEncoderTest …`: 4 tests pass (kinds, value encoding in network and live form, delta-key decoding incl. negative ids, mirror pruning).
 - `mvn -pl forge-gui-desktop -am test`: BUILD SUCCESS, 771 run, 0 failures, 6 skipped.
-- Playwright screenshots in `forge-gui-web/spike-viewer/screenshots/`: `duel-early/mid/game-over-1440.png`, `commander4-mid-text-1440.png` (text tiles), `commander4-game-over-1440.png`, `commander4-phone-390.png` (no horizontal scroll at 390 px).
+- Playwright screenshots in `fork-web/spike-viewer/screenshots/`: `duel-early/mid/game-over-1440.png`, `commander4-mid-text-1440.png` (text tiles), `commander4-game-over-1440.png`, `commander4-phone-390.png` (no horizontal scroll at 390 px).
 
 ## Measurements
 Card database boot (`FModel.initialize`, cards read eagerly): **4.8–5.5 s** (8 boots, median 4.9 s). Server RSS 0.86–1.25 GB, set by the card database (same order as the desktop app).
@@ -127,8 +127,8 @@ Traps found:
 
 ## Risks
 - **Hidden information leak in today's protocol:** network play sends full `CardView`s of opponents' hands and libraries and relies on client-side `mayView`. A web client could read them from devtools. The bridge must filter per viewer on the server. The spike shows it is cheap and shrinks payloads 3.5–10×.
-- **Localhost is not private:** any web page in the user's browser can open `ws://127.0.0.1:7655`. Read-only, that leaks the game; with commands, a hostile page could play. Check `Origin` and require a per-launch token before adding any client → server message. The spike checked neither; done since (issue 7: `forge.web.server.AccessPolicy`, `RequestGuard`).
-- **Backpressure:** the spike used `writeAndFlush` with no writability check; a stalled tab queued unbounded memory. Done since (issue 7: `forge.web.server.ChannelSink`): a bounded per-client queue, paused while the channel is unwritable; on overflow it is dropped and the client gets a fresh snapshot.
+- **Localhost is not private:** any web page in the user's browser can open `ws://127.0.0.1:7655`. Read-only, that leaks the game; with commands, a hostile page could play. Check `Origin` and require a per-launch token before adding any client → server message. The spike checked neither; done since (issue 7: `forge.fork.web.server.AccessPolicy`, `RequestGuard`).
+- **Backpressure:** the spike used `writeAndFlush` with no writability check; a stalled tab queued unbounded memory. Done since (issue 7: `forge.fork.web.server.ChannelSink`): a bounded per-client queue, paused while the channel is unwritable; on overflow it is dropped and the client gets a fresh snapshot.
 - **Upstream churn:** the spike depends on `AbstractGuiGame` (29 overrides, most of them no-op callbacks or prompt defaults), `DeltaSyncManager.collectDeltas`, `DeltaPacket` key helpers, `TrackableTypes` constants, the `HostedMatch` spectator path and `GameView.getGame()` (marked "TODO: Remove" upstream; fallback: `HostedMatch.getGame()`). These break at compile time, not silently, and the generic encoder absorbs new properties.
 - `getNewGuiGame()` is a process-wide factory: several concurrent matches in one JVM need a per-match factory.
 - `DeltaSyncManager` logs at INFO on stdout (every flush plus periodic checksums); route `netLog` before shipping.

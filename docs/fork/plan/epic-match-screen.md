@@ -24,7 +24,7 @@ Replace the Swing in-game screen with a modern web match screen (React + TypeScr
 4. **Remaining interactions** — mulligan, damage assignment, number/text input, attacking planeswalkers and battles, end of game, concede, settings.
 5. **Owner review 2** — click-through review; rulings archived in `docs/fork/design/`.
 
-## Phase 2 — Bridge (Java, `forge-gui-web`; independent of the visual design)
+## Phase 2 — Bridge (Java, `fork-web`; independent of the visual design)
 6. **Hidden information per viewer** — the server sends each player only what they may see (hands, libraries, face-down cards, reveals).
 7. **Connection security and backpressure** — `Origin` check, per-launch token, bounded send queues.
 8. **Human seat: prompts and actions** — the 13 prompts and 16 player actions over the WebSocket; hardened replies (timeouts, cancellation, thread-safe ids).
