@@ -1196,7 +1196,7 @@ function applyOne(prev: MockGame, intent: Intent): MockGame {
     }
     case 'removeBlock': {
       if (d.kind !== 'declareBlockers') return prev;
-      d.draft = d.draft.filter((b) => b.blockerId !== intent.blockerId);
+      d.draft = d.draft.filter((b) => b.blockerId !== intent.blockerId || (intent.attackerId !== undefined && b.attackerId !== intent.attackerId));
       return g;
     }
     case 'answer':

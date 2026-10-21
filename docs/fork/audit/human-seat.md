@@ -92,8 +92,8 @@ answers with seat actions (`SeatSession.act`): `selectCard`, `selectPlayer`, `se
 | Input | Created by | Seat answers with |
 | --- | --- | --- |
 | `InputPassPriority` | PCH `chooseSpellAbilityToPlay` | selectCard (abilities; 2+ → `getAbilityToPlay` prompt), OK (pass), Cancel, undo; `setWeaklySelectable` = playable cards |
-| `InputAttack` | PCH `declareAttackers` | selectCard (toggle), selectPlayer / selectCard (defender), alphaStrike, OK |
-| `InputBlock` | PCH `declareBlockers` | selectCard (attacker, then blocker), OK |
+| `InputAttack` | PCH `declareAttackers` | selectCard (toggle), selectPlayer / selectCard (defender), alphaStrike, OK; `setWeaklySelectable` = legal undeclared attackers |
+| `InputBlock` | PCH `declareBlockers` | selectCard (attacker, then blocker; again: removes), OK; `blockOptions` = legal blocks per attacker (#48) |
 | `InputConfirm` | PCH, `InputConfirm.confirm` | OK / Cancel (yes / no labels) |
 | `InputConfirmMulligan`, `InputLondonMulligan` | PCH mulligan | OK / Cancel; selectCard (cards to bottom) + OK |
 | `InputChooseStartingHand` | PCH `chooseStartingHand` | selectCard (a card of the hand to keep) + OK |

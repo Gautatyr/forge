@@ -46,7 +46,7 @@ Things to click (all fake logic, all undoable with `Z`):
 - **Cast:** click a lit card. Targeted spells enter targeting (legal targets dashed + target icon, everything else faded; the card being cast turns yellow). `Esc` cancels. Lands play; Emeria's Call asks which face. Casting an enchantment triggers Sigil of the Empty Throne.
 - **Resolve:** `Space` or the orange button. In `priority`: Heroic Intervention → Bolt fizzles (hexproof); Swords exiles Meren to the command zone and Ana gains 3.
 - **Attack:** with an empty stack in main 1, the button says *Go to combat*. Click creatures; click a player plate or a chip in the rail to change whom new attackers hit; `A` attacks with all; the button says *Attack with N*.
-- **Block (either order):** click your creature then the attacker, or the attacker then your creature. Click a blocker again (or × in the rail) to remove the block.
+- **Block (either order):** click your creature then the attacker, or the attacker then your creature; several blockers per attacker. Click a blocker again (or × in the rail), or pair it with the attacker it blocks, to remove the block; pair it with another attacker to move it. Live, after the first click only its legal partners stay lit (engine `blockOptions`, #48); an illegal pair shows "X can't block Y." and keeps the first click.
 - **Hover** any card or log name for the large preview; **right-click** or `I` for the inspector.
 - **Stack:** hover an item to draw its target line; "Always yield to this" per item; the global *Auto-yield* toggle in the stack header.
 - **Phase track:** the two octagons under each step are stops for your turns / opponents' turns.

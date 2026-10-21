@@ -143,8 +143,14 @@ export function MatchProvider({ children }: { children: ReactNode }) {
         }
         case 'declareBlockers': {
           const r = blockClick(d, { pendingBlocker: ui.pendingBlocker, pendingAttacker: ui.pendingAttacker }, id);
-          if (r.intent) send(r.intent);
+          for (const intent of r.intents) send(intent);
           setUi(r.pending);
+          if (r.refused) {
+            // The engine's answer (blockOptions), never a local guess (issue #48).
+            const name = (cid: CardId) => game.cards[cid]?.name ?? 'That creature';
+            const text = `${name(r.refused.blockerId)} can't block ${name(r.refused.attackerId)}.`;
+            setUi((u) => ({ ...u, promptNote: { id: (u.promptNote?.id ?? 0) + 1, text } }));
+          }
           return;
         }
         case 'choice':

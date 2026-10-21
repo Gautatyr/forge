@@ -1832,6 +1832,13 @@ export interface RejectedMessage {
   reason: string;
 }
 
+/** While the seat declares blockers, after each change: the blocks the engine allows now (cleared by clearWeaklySelectable). */
+export interface BlockOptionsMessage {
+  t: 'blockOptions';
+  /** Attackers whose blocks the seat declares: creatures that may block each now (or already do), creatures that could once taken off the attacker they block, fewest blockers when more than 1 (menace). */
+  attackers: { card: number; blockers: number[]; ifFreed: number[]; min?: number }[];
+}
+
 /** Answers the getActivateDescription action. */
 export interface ActivateDescriptionMessage {
   t: 'activateDescription';
@@ -1840,7 +1847,7 @@ export interface ActivateDescriptionMessage {
 }
 
 export type PromptMessage = PromptChoose | PromptConfirm | PromptOrder | PromptDistribute | PromptText;
-export type SeatMessage = CallMessage | PromptChoose | PromptConfirm | PromptOrder | PromptDistribute | PromptText | PromptClosedMessage | ReplyRejectedMessage | ActionRejectedMessage | RejectedMessage | ActivateDescriptionMessage;
+export type SeatMessage = CallMessage | PromptChoose | PromptConfirm | PromptOrder | PromptDistribute | PromptText | PromptClosedMessage | ReplyRejectedMessage | ActionRejectedMessage | RejectedMessage | BlockOptionsMessage | ActivateDescriptionMessage;
 
 /** Answers an open prompt; the value's form depends on its shape. */
 export interface ReplyMessage {

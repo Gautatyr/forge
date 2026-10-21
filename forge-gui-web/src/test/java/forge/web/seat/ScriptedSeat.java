@@ -30,10 +30,11 @@ import forge.web.bridge.GameStream;
 /**
  * A scripted human seat, the Java twin of {@code spike-viewer/check/human-seat.mjs}: plays seat 0 only through its
  * messages. Answers every prompt with a legal option; in its main phases with an empty stack it selects each card it
- * may play (the seat's actionable highlights, plus the command zone) once per turn; attacks with everything;
- * picks the cards, players and stack items an input offers; otherwise presses OK, or Cancel when stuck. Reads the
- * engine only for whose turn, phase and stack it is. Not thread-safe beyond: transport threads call {@link #send},
- * one driver thread plays.
+ * may play (the seat's actionable highlights, plus the command zone) once per turn; attacks with everything every other
+ * turn; blocks up to two attackers each combat with the engine's blockOptions and checks the engine recorded them; picks
+ * the cards, players and stack items an input offers; otherwise presses OK, or Cancel when stuck. Reads the engine only
+ * for whose turn, phase, stack and combat it is. Not thread-safe beyond: transport threads call {@link #send}, one
+ * driver thread plays.
  */
 final class ScriptedSeat implements ClientSink {
 
@@ -65,6 +66,11 @@ final class ScriptedSeat implements ClientSink {
     private final Set<Integer> attacked = new HashSet<>();
     private final Set<String> blocksTried = new HashSet<>();
     private int pendingBlocker = -1;
+    /** The last blockOptions (issue #48), cleared with the input's actionable cards. */
+    private JsonArray blockOptions;
+    /** Turn whose blocks the seat declared; those blocks, [attacker, blocker], checked in the engine once declared. */
+    private int blockedTurn = -1;
+    private final List<int[]> declaredBlocks = new ArrayList<>();
     private String okLabel = "";
     private String autoMessage = "";
     private int autoTries;
@@ -170,6 +176,7 @@ final class ScriptedSeat implements ClientSink {
                 }
             }
             case "replyRejected", "rejected" -> errors.add(t + " " + m);
+            case "blockOptions" -> blockOptions = m.getAsJsonArray("attackers");
             default -> { }
         }
     }
@@ -221,7 +228,10 @@ final class ScriptedSeat implements ClientSink {
                     }
                 }
             }
-            case "clearWeaklySelectable" -> weakly.clear();
+            case "clearWeaklySelectable" -> {
+                weakly.clear();
+                blockOptions = null;
+            }
             case "awaitNextInput" -> {
                 ok = false;
                 cancel = false;
@@ -396,6 +406,12 @@ final class ScriptedSeat implements ClientSink {
             act("selectCard", "card", c);
             return;
         }
+        if (!declaredBlocks.isEmpty() && blockOptions == null) {
+            checkBlocks();
+        }
+        if (blockOptions != null && ok && declareBlock()) {
+            return;
+        }
         if (sameState > 5 && ok && block()) {
             return;
         }
@@ -416,7 +432,8 @@ final class ScriptedSeat implements ClientSink {
                 }
             }
         }
-        if (myTurn && phase == PhaseType.COMBAT_DECLARE_ATTACKERS && ok && attacked.add(turn)) {
+        // every other turn it holds its creatures back, untapped to block on the opponents' turns (issue #54)
+        if (myTurn && phase == PhaseType.COMBAT_DECLARE_ATTACKERS && ok && attacked.add(turn) && attacked.size() % 2 == 1) {
             act("alphaStrike", null, 0);
             actedEpoch = -1;
             return;
@@ -471,6 +488,76 @@ final class ScriptedSeat implements ClientSink {
         } else if (cancel) {
             act("selectButtonCancel", null, 0);
         }
+    }
+
+    /**
+     * Issues #54 and #48, as a player on the page: blocks up to two attackers each combat with creatures the engine
+     * offers (blockOptions, re-read after each block), as many as the attacker needs (menace), sending the page's two
+     * clicks per block (attacker, then blocker). False when it has nothing more to block: OK next.
+     */
+    private boolean declareBlock() {
+        int turn = game.getPhaseHandler().getTurn();
+        if (blockedTurn != turn) {
+            blockedTurn = turn;
+            declaredBlocks.clear();
+        }
+        Set<Integer> used = new HashSet<>();
+        Map<Integer, Integer> perAttacker = new TreeMap<>();
+        for (int[] b : declaredBlocks) {
+            used.add(b[1]);
+            perAttacker.merge(b[0], 1, Integer::sum);
+        }
+        JsonObject target = null;
+        for (JsonElement e : blockOptions) {
+            JsonObject o = e.getAsJsonObject();
+            int a = o.get("card").getAsInt();
+            int min = o.has("min") ? o.get("min").getAsInt() : 1;
+            int free = 0;
+            for (JsonElement b : o.getAsJsonArray("blockers")) {
+                free += used.contains(b.getAsInt()) ? 0 : 1;
+            }
+            int mine = perAttacker.getOrDefault(a, 0);
+            if (mine > 0 && mine < min && free > 0) {
+                target = o; // finish a menace block first
+                break;
+            }
+            if (target == null && mine == 0 && perAttacker.size() < 2 && free >= min) {
+                target = o;
+            }
+        }
+        if (target == null) {
+            return false;
+        }
+        int a = target.get("card").getAsInt();
+        for (JsonElement b : target.getAsJsonArray("blockers")) {
+            if (!used.contains(b.getAsInt())) {
+                declaredBlocks.add(new int[] {a, b.getAsInt()});
+                actions.merge("(block declared)", 1, Integer::sum);
+                act("selectCard", "card", a);
+                act("selectCard", "card", b.getAsInt());
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Once the seat's InputBlock ended: each block it declared is in the engine's combat (unless a creature left). */
+    private void checkBlocks() {
+        Combat combat = game.getCombat();
+        for (int[] b : declaredBlocks) {
+            int a = stream.realCardId(0, b[0]);
+            int c = stream.realCardId(0, b[1]);
+            Card attacker = a < 0 ? null : game.findById(a);
+            Card blocker = c < 0 ? null : game.findById(c);
+            if (combat != null && attacker != null && blocker != null && combat.isBlocking(blocker, attacker)) {
+                actions.merge("(block recorded)", 1, Integer::sum);
+            } else if (attacker == null || blocker == null || !attacker.isInPlay() || !blocker.isInPlay()) {
+                actions.merge("(block: a creature left the battlefield)", 1, Integer::sum);
+            } else {
+                errors.add("block not recorded by the engine: " + attacker + " blocked by " + blocker + " (combat " + combat + ")");
+            }
+        }
+        declaredBlocks.clear();
     }
 
     /**

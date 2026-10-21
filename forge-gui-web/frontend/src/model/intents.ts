@@ -39,7 +39,8 @@ export type Intent =
   | { type: 'attackWithAll'; defenderId: PlayerId }
   | { type: 'setAttackDefender'; cardId: CardId; defenderId: PlayerId }
   | { type: 'assignBlock'; blockerId: CardId; attackerId: CardId }
-  | { type: 'removeBlock'; blockerId: CardId }
+  /** Without attackerId: every block of that blocker. */
+  | { type: 'removeBlock'; blockerId: CardId; attackerId?: CardId }
   | { type: 'answer'; promptId: string; answer: PromptAnswer }
   | { type: 'passUntilYourTurn' }
   | { type: 'cancelPassUntilYourTurn' }
