@@ -62,7 +62,7 @@ ProtocolGuiGame: `showPromptMessage(PlayerView,String,CardView)`, `updateButtons
 `clearSelectables`, `setSelectableTargets` (players and stack items: `canPickStackTargets` is true), `setHighlighted`,
 `setWeaklySelectable`, `clearWeaklySelectable`, `showRevealedCards`, `hideRevealedCards`, `showManaPool`,
 `hideManaPool`, `setCard`, `setPanelSelection`, `awaitNextInput`, `updateAutoPassPrompt`, `message(String,String)`,
-`showErrorDialog(String,String)`, `flashIncorrectAction`, `alertUser`, `showCombat`, `updateDrawOffer`,
+`showErrorDialog(String,String)`, `flashIncorrectAction`, `alertUser`, `showCombat` (WebGuiGame: also sends `blockOptions` during `InputBlock`), `updateDrawOffer`,
 `applyYieldUpdate`, `enableOverlay`, `disableOverlay`, `finishGame`, `afterGameEnd`, `openView` (WebGuiGame),
 `setPlayerAvatar`. IGuiGame overloads delegating to these: `showPromptMessage(PlayerView,String)`,
 `updateButtons(…4 args)`, `message(String)`, `showErrorDialog(String)`.
