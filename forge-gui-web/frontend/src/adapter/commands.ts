@@ -1,16 +1,16 @@
 /**
  * UI intents → client frames: replies to prompts and `{"t":"action","method",…}` player actions
  * (docs/fork/architecture/web-ui.md, "Bridge: human seat"). Board interaction follows Forge's
- * inputs: a card click is selectCard, a player click selectPlayer, the main button selectButtonOk,
- * cancel selectButtonCancel (InputAttack: selectPlayer picks the defender, a creature click toggles
- * it; InputBlock: click the attacker, then the blocker (again: removes the block); InputPayMana: a source click taps it,
- * useMana spends floating mana, OK is "Auto").
+ * inputs: a card click is selectCard, a player click selectPlayer, a stack item selectStackItem, the
+ * main button selectButtonOk, cancel selectButtonCancel (InputAttack: selectPlayer picks the defender,
+ * a creature click toggles it; InputBlock: click the attacker, then the blocker (again: removes the block);
+ * InputPayMana: a source click taps it, useMana spends floating mana, OK is "Auto").
  */
 import type { Intent } from '../model/intents';
-import type { GameView, StepId } from '../model/types';
+import type { GameView, StepId, TargetRef } from '../model/types';
 import type { PhaseType } from '../wire/generated/wire';
 import { COLOUR_MASK, type ActionMessage, type ClientFrame } from './protocol';
-import { freeMulliganKeep, inputPromptKind, promptViewId, replyValue, targetOfKey } from './prompts';
+import { freeMulliganKeep, inputPromptKind, promptViewId, replyValue, targetKey, targetOfKey } from './prompts';
 import type { LiveSession } from './session';
 
 const num = (id: string) => Number(id);
@@ -22,6 +22,9 @@ export const action = (method: Method, fields: Omit<ActionMessage, 't' | 'method
 });
 const selectCard = (id: string) => action('selectCard', { card: num(id) });
 const selectPlayer = (id: string) => action('selectPlayer', { player: num(id) });
+/** A target click as the input takes it: a stack item is picked with selectStackItem (InputSelectStackItems). */
+const selectTarget = (t: TargetRef) =>
+  t.kind === 'card' ? selectCard(t.id) : t.kind === 'player' ? selectPlayer(t.id) : action('selectStackItem', { stackItem: num(t.id) });
 
 /** Phases of a view-model step (combat damage covers first strike too). */
 export const PHASES_OF: Record<StepId, PhaseType[]> = {
@@ -54,7 +57,7 @@ export function intentToFrames(intent: Intent, s: LiveSession, view: GameView): 
     case 'undoTap':
       return [];
     case 'toggleTarget':
-      return [intent.target.kind === 'card' ? selectCard(intent.target.id) : selectPlayer(intent.target.id)];
+      return [selectTarget(intent.target)];
     case 'primary':
       return [action('selectButtonOk')];
     case 'cancel':
@@ -129,14 +132,10 @@ function answerFrames(promptId: string, answer: Extract<Intent, { type: 'answer'
       // pick what is new, then OK. The engine ends the input itself on the pick that reaches its maximum:
       // an OK after that would answer the next input.
       if (answer.shape !== 'chooseN') return [];
-      const key = (h: { type: string; id: number }) => (h.type === 'card' || h.type === 'player' ? `${h.type[0]}${h.id}` : '');
-      const on = s.input.highlighted.map(key).filter(Boolean);
+      const on = s.input.highlighted.map((h) => targetKey({ kind: h.type, id: String(h.id) }));
       const want = answer.optionIds.filter((id) => targetOfKey(id));
       const toggle = [...on.filter((id) => !want.includes(id)), ...want.filter((id) => !on.includes(id))];
-      const frames = toggle.map((id) => {
-        const t = targetOfKey(id)!;
-        return t.kind === 'card' ? selectCard(t.id) : selectPlayer(t.id);
-      });
+      const frames = toggle.map((id) => selectTarget(targetOfKey(id)!));
       const max = s.input.selectable?.max ?? 1;
       return toggle.length === 0 || want.length < max ? [...frames, action('selectButtonOk')] : frames;
     }

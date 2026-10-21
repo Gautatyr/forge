@@ -1,5 +1,5 @@
 import { player } from '../model/selectors';
-import type { CardId, GameView, PlayerId, StackItem, TargetRef } from '../model/types';
+import type { CardId, GameView, PlayerId, StackItem, StackItemId, TargetRef } from '../model/types';
 import { blockTargets } from './blockClick';
 import type { UiState } from './ui';
 
@@ -50,6 +50,11 @@ function spotFor(game: GameView, ui: UiState, hit: (t: TargetRef) => boolean): T
 
 export function playerTargetSpot(game: GameView, ui: UiState, id: PlayerId): TargetSpot | undefined {
   return spotFor(game, ui, (t) => t.kind === 'player' && t.id === id);
+}
+
+/** A stack item targeted by the spotlight item (a counterspell's spell, a Stifle's ability): its row is ringed. */
+export function stackTargetSpot(game: GameView, ui: UiState, id: StackItemId): TargetSpot | undefined {
+  return spotFor(game, ui, (t) => t.kind === 'stackItem' && t.id === id);
 }
 
 export function cardStatus(game: GameView, ui: UiState, id: CardId): CardStatus {

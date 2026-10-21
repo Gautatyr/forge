@@ -17,10 +17,14 @@ export const INPUT_PROMPT_PREFIX = 'input:';
 export type InputPromptKind = 'mulligan' | 'bottom' | 'buttons' | 'ok' | 'cancel' | 'select';
 /** Cards or players to pick from a list (library searches, who starts): `input:select:<option ids>|<message>`. */
 export const SELECT_PROMPT_PREFIX = `${INPUT_PROMPT_PREFIX}select:`;
-/** Option id of a card or player in a select prompt: `c12`, `p1`. */
-export const targetKey = (t: TargetRef) => `${t.kind === 'card' ? 'c' : 'p'}${t.id}`;
-export const targetOfKey = (key: string): TargetRef | undefined =>
-  /^[cp]-?\d+$/.test(key) ? { kind: key[0] === 'c' ? 'card' : 'player', id: key.slice(1) } : undefined;
+const KEY_PREFIX = { card: 'c', player: 'p', stackItem: 's' } as const;
+/** Option id of a card, player or stack item in a select prompt: `c12`, `p1`, `s7`. */
+export const targetKey = (t: TargetRef) => `${KEY_PREFIX[t.kind]}${t.id}`;
+export const targetOfKey = (key: string): TargetRef | undefined => {
+  if (!/^[cps]-?\d+$/.test(key)) return undefined;
+  const id = key.slice(1);
+  return key[0] === 'c' ? { kind: 'card', id } : key[0] === 'p' ? { kind: 'player', id } : { kind: 'stackItem', id };
+};
 
 export function inputPromptKind(id: string): InputPromptKind | undefined {
   if (!id.startsWith(INPUT_PROMPT_PREFIX)) return undefined;

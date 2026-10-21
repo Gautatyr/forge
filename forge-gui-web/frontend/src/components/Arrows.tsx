@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useState } from 'react';
 import { spotlightItem } from '../state/cardStatus';
 import { useMatch } from '../state/MatchContext';
-import { outsideAnchor, sourceY, type Box } from './arrowGeometry';
+import { lineEnd, outsideAnchor, sourceY, type Box } from './arrowGeometry';
 import styles from './Arrows.module.css';
 
 type Kind = 'block' | 'target';
@@ -99,13 +99,10 @@ export function Arrows() {
     const blocks = [...(game.combat?.blocks ?? []), ...(d.kind === 'declareBlockers' ? d.draft : [])];
     for (const b of blocks)
       out.push({ key: `b-${b.blockerId}`, from: `[data-card-id="${b.blockerId}"]`, to: `[data-card-id="${b.attackerId}"]`, kind: 'block' });
-    for (const t of item?.targets ?? [])
-      out.push({
-        key: `t-${item!.id}-${t.id}`,
-        from: `[data-stack-id="${item!.id}"]`,
-        to: t.kind === 'card' ? `[data-card-id="${t.id}"]` : `[data-player-id="${t.id}"]`,
-        kind: 'target',
-      });
+    for (const t of item?.targets ?? []) {
+      const to = lineEnd(t);
+      if (to) out.push({ key: `t-${item!.id}-${t.kind}${t.id}`, from: `[data-stack-id="${item!.id}"]`, to, kind: 'target' });
+    }
     return out;
   }, [game.combat, d, item]);
 
