@@ -1,5 +1,4 @@
 import { useRef } from 'react';
-import { commanderTax } from '../model/selectors';
 import type { MulliganState, PlayerView } from '../model/types';
 import { playerTargetSpot, spotlightItem } from '../state/cardStatus';
 import { mulliganTag, turnPlayerId } from '../state/gameStart';
@@ -9,6 +8,7 @@ import { playerChoice } from './tray/inPlace';
 import { useInPlacePick } from './tray/useInPlacePick';
 import type { ViewableZone } from '../state/ui';
 import { commanderChips, COMMANDER_LETHAL } from './commanderChips';
+import { commandZoneChips } from './commandZone';
 import { Icon, SeatGlyph, type IconName } from './Icon';
 import { useLifeChange } from './lifeMarker';
 import { ManaSymbol, manaName } from './ManaSymbol';
@@ -82,6 +82,10 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
   };
 
   const cmdDamage = commanderChips(game, p);
+  // An opponent's commanders in the command zone (playtest 1): a chip, the card in the hover preview.
+  const commandZone = commandZoneChips(p, game);
+  const showCard = (cardId: string) => setUi((u) => (u.hover?.cardId === cardId ? u : { ...u, hover: { cardId } }));
+  const hideCard = (cardId: string) => setUi((u) => (u.hover?.cardId === cardId ? { ...u, hover: undefined } : u));
   const plateRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLDivElement>(null);
   useRoomForNames(plateRef, mainRef, !p.isYou && !vertical && cmdDamage.length > 0);
@@ -246,6 +250,32 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
         </div>
 
         <div className={styles.chips}>
+          {commandZone.map((x) => (
+            <button
+              key={x.cardId}
+              type="button"
+              className={`${styles.zone} ${styles.zoneButton} ${styles.commandZone}`}
+              data-command-zone={x.cardId}
+              title={x.title}
+              aria-label={`${x.title} Hover to see it, click to inspect.`}
+              onPointerEnter={() => showCard(x.cardId)}
+              onPointerLeave={() => hideCard(x.cardId)}
+              onFocus={() => showCard(x.cardId)}
+              onBlur={() => hideCard(x.cardId)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setUi({ inspectId: x.cardId, hover: undefined });
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setUi({ inspectId: x.cardId, hover: undefined });
+              }}
+            >
+              <Icon name="crown" />
+              <span className={styles.zoneLabel}>Commander</span>
+              {x.tax > 0 ? <span className={styles.zoneCount}>+{x.tax}</span> : null}
+            </button>
+          ))}
           {zoneChip('hand', 'hand', 'Hand', p.isYou ? p.hand.length : p.handCount)}
           {zoneChip('library', 'library', 'Library', p.libraryCount)}
           {zoneChip('graveyard', 'grave', 'Graveyard', p.graveyard.length)}
@@ -284,22 +314,6 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
         ) : null}
       </div>
 
-      {/* Full seats show the commander in the battlefield's support row; compact seats keep a chip. */}
-      {p.command.length > 0 && density === 'compact' ? (
-        <div className={styles.command} aria-label="Command zone">
-          {p.command.map((id) => {
-            const c = game.cards[id];
-            if (!c) return null;
-            const tax = commanderTax(p, id);
-            return (
-              <span key={id} className={styles.zone} title={`${c.name} in the command zone, tax +${tax}`}>
-                <Icon name="crown" />
-                <span className={styles.zoneCount}>+{tax}</span>
-              </span>
-            );
-          })}
-        </div>
-      ) : null}
     </div>
   );
 }

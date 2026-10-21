@@ -16,6 +16,10 @@ Depends on `forge-gui-desktop` and `forge-gui-web`; nothing depends on it. Packa
   (`/?live=1&seat=N#token=…`, the frontend's live source) when no page is connected.
 - The web seat turns on actionable highlights and the autotap preview for itself (`WebGuiGame`, `YieldController`
   overrides); the desktop preferences are not changed.
+- `WebMatchAudio` (installed by `Main`): sounds from the web seat's game events (`WebSeats.setEventSink` →
+  `SoundSystem.receiveEvent`, as a Swing match's `FControlGameEventHandler`); during a web match the music
+  resumes after `FFrame` pauses it on focus loss (the browser has focus); back in the lobby, menu music, paused
+  if Forge's window is not focused.
 - `MatchScreenPref`: `<user dir>/preferences/fork-web.preferences`, key `useNewMatchScreen` (default true).
 - `LobbyRun`: headless check of the same path (`LocalLobby` → Start), isolated profile.
 

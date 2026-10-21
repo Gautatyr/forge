@@ -7,6 +7,7 @@ import { useMatch } from '../state/MatchContext';
 import { useOverlayKey } from '../state/overlayKey';
 import { Icon, type IconName } from './Icon';
 import { KeywordIcons, KW_AVOID_ATTR, type CardActions } from './KeywordIcons';
+import { previewBeside } from './previewSpot';
 import { iconKeywords } from './keywordCatalog';
 import { cardStatusWithChoice } from './tray/inPlace';
 import { useInPlacePick } from './tray/useInPlacePick';
@@ -104,9 +105,8 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
   const hovered = useRef(false);
   const hover = (e: MouseEvent | FocusEvent) => {
     hovered.current = true;
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const side = r.left + r.width / 2 < window.innerWidth / 2 ? 'right' : 'left';
-    setUi((u) => (u.hover?.cardId === c.id && u.hover.side === side ? u : { ...u, hover: { cardId: c.id, side } }));
+    const beside = previewBeside(e.currentTarget as Element);
+    setUi((u) => (u.hover?.cardId === c.id && !u.hover.beside === !beside ? u : { ...u, hover: { cardId: c.id, beside } }));
   };
   const unhover = () => {
     hovered.current = false;

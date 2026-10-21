@@ -18,6 +18,10 @@ public final class GuiDesktopWeb extends GuiDesktop {
         this.host = host;
     }
 
+    WebMatchHost host() {
+        return host;
+    }
+
     /** Read on first use: its path comes from {@code ForgeConstants}, which needs this GUI installed first. */
     MatchScreenPref pref() {
         MatchScreenPref p = pref;

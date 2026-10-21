@@ -7,6 +7,8 @@ import { Icon } from './Icon';
 import styles from './PhaseTrack.module.css';
 
 interface Props {
+  /** The full official names do not fit: each step shows its short name (the full one on hover). */
+  shortNames: boolean;
   /** Too narrow (1366 px, French): outside combat, the combat steps fold into one "Combat" pill. */
   foldCombat: boolean;
   ref?: Ref<HTMLElement>;
@@ -18,7 +20,7 @@ interface Props {
  * the next stop, and clicking a step (or Stops) opens the Stops editor.
  * Untap and Cleanup are left out: nobody gets priority there.
  */
-export function PhaseTrack({ foldCombat, ref }: Props) {
+export function PhaseTrack({ shortNames, foldCombat, ref }: Props) {
   const { game, ui, prefs, setUi } = useMatch();
   // No current step before turn 1 or after the game.
   const currentIndex = turnPlayerId(game) ? STEPS.findIndex((s) => s.id === game.turn.step) : -1;
@@ -35,13 +37,20 @@ export function PhaseTrack({ foldCombat, ref }: Props) {
         key={s.id}
         type="button"
         data-strip-step={s.id}
+        data-names={shortNames ? 'short' : 'full'}
         className={`${styles.step} ${isCurrent ? styles.current : i < currentIndex ? styles.past : ''}`}
         aria-current={isCurrent ? 'step' : undefined}
         title={stepHint(game, prefs.stops, s.id)}
         onClick={openStops}
       >
         {isCurrent ? <Icon name="play" /> : null}
-        {s.label}
+        {/* Both names stay laid out, the unused one out of flow, so the top bar can measure either. */}
+        <span data-step-name="full" className={shortNames ? styles.measureOnly : undefined} aria-hidden={shortNames || undefined}>
+          {s.longLabel}
+        </span>
+        <span data-step-name="short" className={shortNames ? undefined : styles.measureOnly} aria-hidden={!shortNames || undefined}>
+          {s.label}
+        </span>
       </button>
     );
   };
@@ -73,7 +82,7 @@ export function PhaseTrack({ foldCombat, ref }: Props) {
                 <button
                   type="button"
                   className={`${styles.step} ${combatPast ? styles.past : ''}`}
-                  title="Combat: Start, Attack, Block, Damage, End. Click to change stops."
+                  title={`Combat phase: ${STEPS.filter((x) => x.combat).map((x) => x.longLabel.toLowerCase()).join(', ')}. Click to change stops.`}
                   onClick={openStops}
                 >
                   Combat

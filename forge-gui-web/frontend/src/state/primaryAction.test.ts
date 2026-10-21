@@ -38,16 +38,16 @@ describe('primary button says what it will do', () => {
     const main2 = { ...g, turn: { ...g.turn, step: 'main2' as const } };
     const endTurn = primaryAction(main2, INITIAL_UI, DEFAULT_STOPS);
     expect(endTurn.label).toBe('End turn');
-    expect(endTurn.detail).toBe("Next stop: Forge AI's Start of combat");
+    expect(endTurn.detail).toBe("Next stop: Forge AI's beginning of combat step");
 
     const upkeep = { ...g, turn: { ...g.turn, step: 'upkeep' as const } };
     const pass = primaryAction(upkeep, INITIAL_UI, DEFAULT_STOPS);
     expect(pass.label).toBe('Pass priority');
-    expect(pass.detail).toBe('Next stop: your Main 1');
-    expect(primaryAction(upkeep, INITIAL_UI, setYourStop(DEFAULT_STOPS, 'draw', true)).detail).toBe('Next stop: your Draw step');
+    expect(pass.detail).toBe('Next stop: your first main phase');
+    expect(primaryAction(upkeep, INITIAL_UI, setYourStop(DEFAULT_STOPS, 'draw', true)).detail).toBe('Next stop: your draw step');
 
     const opp = { ...g, turn: { ...g.turn, activePlayerId: 'ai', step: 'beginCombat' as const } };
-    expect(primaryAction(opp, INITIAL_UI, DEFAULT_STOPS).detail).toBe("Next stop: Forge AI's Attack step");
+    expect(primaryAction(opp, INITIAL_UI, DEFAULT_STOPS).detail).toBe("Next stop: Forge AI's declare attackers step");
   });
 
   it('says when no stop is set', () => {

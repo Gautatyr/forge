@@ -68,8 +68,10 @@ export interface FitWidths {
   available: number;
   /** Whose turn, turn line and priority chip, untruncated. */
   left: number;
-  /** The strip with every step shown. */
+  /** The strip with every step shown, by its full name. */
   track: number;
+  /** What the strip saves with short step names. */
+  trackShort: number;
   /** The tool buttons with their words. */
   tools: number;
   /** What the tool buttons save by dropping their words. */
@@ -78,14 +80,18 @@ export interface FitWidths {
   gaps: number;
 }
 
+export type FitLevel = 0 | 1 | 2 | 3;
+
 /**
  * 0: everything shown. 1: tool buttons keep only their icon and key letter.
- * 2: also fold the combat steps (the strip shows them anyway during combat;
- * the turn block then truncates with "…").
+ * 2: also short step names (playtest 1: official names, shortened only when
+ * space forces it). 3: also fold the combat steps (the strip shows them anyway
+ * during combat; the turn block then truncates with "…").
  */
-export function fitLevel(w: FitWidths): 0 | 1 | 2 {
+export function fitLevel(w: FitWidths): FitLevel {
   const full = w.left + w.track + w.tools + w.gaps;
   if (full <= w.available) return 0;
   if (full - w.toolWords <= w.available) return 1;
-  return 2;
+  if (full - w.toolWords - w.trackShort <= w.available) return 2;
+  return 3;
 }

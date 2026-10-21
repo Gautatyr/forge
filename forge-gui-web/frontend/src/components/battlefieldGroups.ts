@@ -1,4 +1,4 @@
-import { commanderTax, groupKey, isCreature, isLand, typeLine } from '../model/selectors';
+import { groupKey, isCreature, isLand, typeLine } from '../model/selectors';
 import type { CardView, GameView, PlayerView } from '../model/types';
 import type { Prefs } from '../state/prefs';
 import type { UiState } from '../state/ui';
@@ -9,8 +9,6 @@ export interface Entry {
   ids: string[];
   /** First entry of a new group inside a row: gets a wider gap. */
   separator?: boolean;
-  /** Two-line caption over the card's foot (the commander in the command zone); `detail` may be empty. */
-  caption?: { label: string; detail: string };
 }
 
 /** Creature row (pass-3 spec, section 4): creatures, planeswalkers and battles. */
@@ -33,18 +31,17 @@ export function hiddenInCompact(cards: CardView[], all: Record<string, CardView 
 }
 
 /**
- * An opponent's command zone, drawn at the end of their support row. Yours is
- * empty: your commander shows only in the group beside the hand, where you cast
- * it from (design pass 4, P3).
+ * A seat's two rows: creatures, then the support row (other permanents, then lands). Only the
+ * battlefield: a commander in the command zone is never drawn on a board (playtest 1). Yours
+ * shows beside the hand, an opponent's as a chip in their header (`commandZoneChips`).
  */
-export function commandEntries(player: PlayerView, game: GameView): Entry[] {
-  if (player.isYou) return [];
-  return player.command.flatMap((id) => {
-    const c = game.cards[id];
-    if (!c) return [];
-    const tax = commanderTax(player, id);
-    return [{ card: c, ids: [id], caption: { label: 'Command zone', detail: tax > 0 ? `tax +${tax}` : '' } }];
-  });
+export function battlefieldRows(player: PlayerView, game: GameView, ui: UiState, prefs: Prefs): { creatures: Entry[]; support: Entry[] } {
+  const cards = player.battlefield.map((id) => game.cards[id]!).filter((c) => !c.attachedTo);
+  const creatures = groupPermanents(cards.filter(inCreatureRow), game, ui, prefs);
+  const others = groupPermanents(cards.filter((c) => !inCreatureRow(c) && !isLand(c)), game, ui, prefs);
+  const lands = groupPermanents(cards.filter((c) => isLand(c) && !inCreatureRow(c)), game, ui, prefs);
+  if (others.length && lands.length) lands[0] = { ...lands[0]!, separator: true };
+  return { creatures, support: [...others, ...lands] };
 }
 
 /** Collapse identical tokens and lands into one entry with a count. */
