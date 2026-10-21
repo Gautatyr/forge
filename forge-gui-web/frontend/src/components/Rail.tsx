@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import { player, targetName } from '../model/selectors';
-import { spotlightItem } from '../state/cardStatus';
+import type { TargetRef } from '../model/types';
+import { spotlightItem, stackTargetSpot } from '../state/cardStatus';
 import { useMatch } from '../state/MatchContext';
 import { ActionPanel } from './ActionPanel';
 import { Card } from './Card';
@@ -45,6 +46,11 @@ function StackPanel() {
   if (game.stack.length === 0) return null;
   const items = [...game.stack].reverse();
   const spot = spotlightItem(game, ui);
+  // Targeting a spell or ability (counterspells, Stifle, redirects): the items the input accepts are lit and
+  // clickable, only while it is open (highlights are answers, never hints).
+  const d = game.decision;
+  const isTarget = (list: TargetRef[], id: string) => list.some((t) => t.kind === 'stackItem' && t.id === id);
+  const picking = d.kind === 'chooseTargets' && items.some((it) => isTarget(d.legal, it.id));
   return (
     <section className={`${styles.block} ${styles.stack}`} aria-label="The stack">
       <header className={styles.head}>
@@ -56,23 +62,44 @@ function StackPanel() {
           Auto-yield {game.autoYield ? 'on' : 'off'}
         </label>
       </header>
-      <p className={styles.hint}>Top resolves first; its targets are lit. Hover another item to see its targets.</p>
+      <p className={styles.hint}>
+        {picking
+          ? 'Choose a target: click a lit spell or ability.'
+          : 'Top resolves first; its targets are lit. Hover another item to see its targets.'}
+      </p>
       <ol className={`${styles.body} ${styles.items}`} data-scroll-region>
         {items.map((item, i) => {
           const src = game.cards[item.sourceCardId];
           const ctrl = player(game, item.controllerId);
           const yieldKey = src?.name ?? item.text;
           const yielding = game.autoYieldTo.includes(yieldKey);
+          const chosen = d.kind === 'chooseTargets' && isTarget(d.chosen, item.id);
+          const legal = d.kind === 'chooseTargets' && isTarget(d.legal, item.id);
+          const toggle = legal || chosen ? () => send({ type: 'toggleTarget', target: { kind: 'stackItem', id: item.id } }) : undefined;
+          // Targeted by the spotlight item (a counterspell, a Stifle): ringed like a targeted card, no line.
+          const targeted = stackTargetSpot(game, ui, item.id);
           return (
             <li
               key={item.id}
-              className={`${styles.item} ${spot?.id === item.id ? styles.itemSpot : ''}`}
+              className={[
+                styles.item,
+                spot?.id === item.id ? styles.itemSpot : '',
+                chosen
+                  ? styles.itemChosen
+                  : legal
+                    ? styles.itemLegal
+                    : targeted === 'hover'
+                      ? styles.itemTargetedStrong
+                      : targeted
+                        ? styles.itemTargeted
+                        : '',
+              ].join(' ')}
               onPointerEnter={() => setUi({ hoveredStackItem: item.id })}
               onPointerLeave={() => setUi({ hoveredStackItem: undefined })}
               data-stack-id={item.id}
             >
               <span className={styles.order}>{i === 0 ? 'Top' : i + 1}</span>
-              {src ? <Card card={src} context="thumb" style={{ '--cw': '3.6rem' } as CSSProperties} /> : null}
+              {src ? <Card card={src} context="thumb" style={{ '--cw': '3.6rem' } as CSSProperties} onActivate={toggle} /> : null}
               <div className={styles.itemText}>
                 <span className={styles.itemName}>
                   {src?.name}
@@ -83,12 +110,30 @@ function StackPanel() {
                   {ctrl.isYou ? 'You' : ctrl.name}
                 </span>
                 {item.targets.map((t) => (
-                  <span key={t.id} className={styles.targetLine}>
+                  <span key={`${t.kind}${t.id}`} className={styles.targetLine}>
                     <Icon name="target" />
                     {targetName(game, t)}
                     {t.kind === 'card' && game.cards[t.id]?.controllerId === game.youId ? ' (yours)' : ''}
                   </span>
                 ))}
+                {targeted && spot ? (
+                  <span className={styles.targetedBy}>
+                    <Icon name="target" />
+                    Targeted by {game.cards[spot.sourceCardId]?.name ?? 'a spell'}
+                  </span>
+                ) : null}
+                {toggle ? (
+                  <button
+                    type="button"
+                    className={`${styles.pick} ${chosen ? styles.pickOn : ''}`}
+                    aria-pressed={chosen}
+                    onClick={toggle}
+                    title={chosen ? 'Chosen as a target: click to unchoose it' : 'Choose this as a target'}
+                  >
+                    <Icon name={chosen ? 'check' : 'target'} />
+                    {chosen ? 'Target chosen' : 'Target this'}
+                  </button>
+                ) : null}
                 {!ctrl.isYou ? (
                   <button
                     type="button"

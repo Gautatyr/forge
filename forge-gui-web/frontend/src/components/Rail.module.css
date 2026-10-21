@@ -134,6 +134,29 @@
   border-color: var(--c-targeted);
 }
 
+/* Targeted by the stack item in the spotlight (same shapes as a targeted card: dotted for the top item, solid
+   while the targeting item is hovered). Stack-item targets get this ring, not a line. */
+.itemTargeted {
+  outline: var(--outline-w) dotted var(--c-targeted);
+  outline-offset: -1px;
+}
+
+.itemTargetedStrong {
+  outline: var(--outline-w) solid var(--c-targeted);
+  outline-offset: -1px;
+}
+
+/* A legal target while you choose targets: the dashed ring of a legal card; chosen: the selected ring. */
+.itemLegal {
+  outline: var(--outline-w) dashed var(--c-actionable);
+  outline-offset: -1px;
+}
+
+.itemChosen {
+  outline: var(--outline-w) solid var(--c-selected);
+  outline-offset: -1px;
+}
+
 .order {
   position: absolute;
   top: -0.45rem;
@@ -194,6 +217,42 @@
 
 .yield:hover {
   color: var(--c-text);
+}
+
+.targetedBy {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--r-sm);
+  background: var(--c-targeted);
+  color: var(--c-text-on-accent);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+}
+
+.pick {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.15rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--r-sm);
+  background: var(--c-actionable);
+  color: var(--c-text-on-accent);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+}
+
+.pickOn {
+  background: var(--c-selected);
+}
+
+.pick:focus-visible {
+  outline: 2px solid var(--c-selected);
+  outline-offset: 2px;
 }
 
 .yieldOn {

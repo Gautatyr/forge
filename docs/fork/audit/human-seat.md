@@ -151,10 +151,6 @@ the refresh share the Swing EDT and the input is locked while the ability runs. 
   game on any `ConcurrentModificationException` on a game thread.
 
 ## Known gaps outside the bridge
-- Frontend: `setSelectableTargets` keeps players only and there is no `selectStackItem` action, so the web screen
-  cannot target a spell or ability on the stack (`InputSelectTargets` with stack zones, `InputSelectStackItems`); the
-  player can only cancel (a mandatory one cannot be cancelled). The bridge forwards both; the sweep's scripted seat
-  answers them.
 - Upstream: `TargetSelection.chooseCardFromList` lists zone headers ("--CARDS ON BATTLEFIELD:--") as choices; picking
   one adds no target and asks again (desktop: same).
 - Upstream: `InputPayMana` enables Auto when `ComputerUtilMana.getManaSourcesToPayCost` finds sources, but

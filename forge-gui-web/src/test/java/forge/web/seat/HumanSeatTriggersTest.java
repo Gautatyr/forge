@@ -82,6 +82,17 @@ public class HumanSeatTriggersTest {
             inbox.add(JsonParser.parseString(json).getAsJsonObject());
         }
 
+        /** How many calls {@code method} the seat received. */
+        synchronized int count(String method) {
+            int n = 0;
+            for (String f : frames) {
+                if (f.contains("\"method\":\"" + method + "\"")) {
+                    n++;
+                }
+            }
+            return n;
+        }
+
         /** The last call {@code method} the seat received, as text. */
         synchronized String lastCall(String method) {
             for (int i = frames.size() - 1; i >= 0; i--) {

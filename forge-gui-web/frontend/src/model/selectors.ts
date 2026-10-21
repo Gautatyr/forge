@@ -41,7 +41,10 @@ export function opponents(game: GameView): PlayerView[] {
 }
 
 export function targetName(game: GameView, t: TargetRef): string {
-  return t.kind === 'card' ? (game.cards[t.id]?.name ?? '?') : player(game, t.id).name;
+  if (t.kind === 'card') return game.cards[t.id]?.name ?? '?';
+  if (t.kind === 'player') return player(game, t.id).name;
+  const item = game.stack.find((it) => it.id === t.id);
+  return (item && game.cards[item.sourceCardId]?.name) || item?.text || 'a spell';
 }
 
 /** Commander tax for the next cast from the command zone. */

@@ -1,4 +1,16 @@
 /** Pure geometry for the board lines (Arrows.tsx), exported for tests. */
+import type { TargetRef } from '../model/types';
+
+/**
+ * Where a target line ends. A stack item gets no line: its row sits in the stack panel's scroll region, often
+ * clipped, and the line would cross the panel. The stack panel rings that row instead (`stackTargetSpot`).
+ */
+export function lineEnd(t: TargetRef): string | undefined {
+  if (t.kind === 'card') return `[data-card-id="${t.id}"]`;
+  if (t.kind === 'player') return `[data-player-id="${t.id}"]`;
+  return undefined;
+}
+
 export interface Box {
   left: number;
   top: number;

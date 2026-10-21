@@ -200,7 +200,8 @@ export interface ManaSource {
   colours: ManaColour[];
 }
 
-export type TargetRef = { kind: 'card'; id: CardId } | { kind: 'player'; id: PlayerId };
+/** A target: a card, a player, or a spell or ability on the stack (counterspells, Stifle, redirects). */
+export type TargetRef = { kind: 'card'; id: CardId } | { kind: 'player'; id: PlayerId } | { kind: 'stackItem'; id: StackItemId };
 
 export interface StackItem {
   id: StackItemId;

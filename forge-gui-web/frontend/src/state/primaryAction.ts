@@ -1,6 +1,6 @@
 import type { Intent, PromptAnswer } from '../model/intents';
 import { stepInfo } from '../model/phases';
-import { player } from '../model/selectors';
+import { player, targetName } from '../model/selectors';
 import type { ChoicePrompt, GameView, StepId } from '../model/types';
 import { distributeConfirm, inputConfirm, inputStart, startAmounts } from '../components/tray/numberLogic';
 import { trayConfirm, trayDraft } from '../components/tray/trayLogic';
@@ -91,7 +91,7 @@ export function primaryAction(game: GameView, ui: UiState, stops: StopPrefs): Pr
       const ready = d.chosen.length >= d.min;
       return {
         label: ready ? `Cast ${name}` : 'Choose a target',
-        detail: ready ? `Target: ${d.chosen.map((t) => (t.kind === 'card' ? game.cards[t.id]?.name : player(game, t.id).name)).join(', ')}` : d.instruction,
+        detail: ready ? `Target: ${d.chosen.map((t) => targetName(game, t)).join(', ')}` : d.instruction,
         enabled: ready,
         tone: 'priority',
         intent: { type: 'primary' },

@@ -7,6 +7,7 @@ import type {
   BlockOption,
   CardId,
   CardView,
+  ChoiceOption,
   CardFace,
   CardKeyword,
   Counter,
@@ -260,6 +261,17 @@ function declareBlockers(s: LiveSession, view: Omit<GameView, 'decision'>, comba
   return { kind: 'declareBlockers', candidates, attackers, draft, ...(options ? { options } : {}) };
 }
 
+/** A target as a tray option: a card shows its image, a player its plate, a stack item its source and text. */
+function targetOption(view: Omit<GameView, 'decision'>, t: TargetRef): ChoiceOption {
+  const id = targetKey(t);
+  if (t.kind === 'card') return { id, label: view.cards[t.id]!.name, cardId: t.id };
+  if (t.kind === 'player') return { id, label: view.players.find((p) => p.id === t.id)!.name, playerId: t.id };
+  const item = view.stack.find((it) => it.id === t.id)!;
+  const name = view.cards[item.sourceCardId]?.name;
+  const label = name ? (item.kind === 'spell' ? name : `${name} (${item.kind})`) : item.text;
+  return { id, label, ...(name && item.text ? { detail: item.text } : {}) };
+}
+
 function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision {
   const you = Number(view.youId);
   const holderId = () => {
@@ -358,23 +370,28 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
     return { kind: 'priority', playable, manaSources };
   }
   if (input.selectable || input.targets.length > 0) {
-    const isPlayer = (id: string) => view.players.some((p) => p.id === id);
+    // A ref the view can show: a visible card, a player of the game, an item on the stack.
+    const shown = (r: { type: string; id: number }): TargetRef | undefined => {
+      const id = sid(r.id);
+      if (r.type === 'card') return view.cards[id] ? { kind: 'card', id } : undefined;
+      if (r.type === 'player') return view.players.some((p) => p.id === id) ? { kind: 'player', id } : undefined;
+      if (r.type === 'stackItem') return view.stack.some((it) => it.id === id) ? { kind: 'stackItem', id } : undefined;
+      return undefined;
+    };
+    // setSelectables names the cards; setSelectableTargets the players and stack items (InputSelectStackItems).
     const legal: TargetRef[] = [
-      ...(input.selectable?.cards ?? []).filter((id) => view.cards[sid(id)]).map((id): TargetRef => ({ kind: 'card', id: sid(id) })),
-      ...input.targets.filter((t) => t.type === 'player' && isPlayer(sid(t.id))).map((t): TargetRef => ({ kind: 'player', id: sid(t.id) })),
-    ];
-    const chosen: TargetRef[] = input.highlighted.flatMap((h): TargetRef[] =>
-      h.type === 'card' && view.cards[sid(h.id)]
-        ? [{ kind: 'card', id: sid(h.id) }]
-        : h.type === 'player' && isPlayer(sid(h.id))
-          ? [{ kind: 'player', id: sid(h.id) }]
-          : [],
-    );
+      ...(input.selectable?.cards ?? []).map((id) => ({ type: 'card', id })),
+      ...input.targets.filter((t) => t.type !== 'card'),
+    ].flatMap((r) => shown(r) ?? []);
+    const chosen: TargetRef[] = input.highlighted.flatMap((h) => shown(h) ?? []);
     // Picks the board can't take (library cards, graveyards…) or that are not for a spell or ability
-    // (who starts): a tray list. Each pick is a selectCard / selectPlayer, then OK (selectionFrames).
+    // (who starts): a tray list. Each pick is a selectCard / selectPlayer / selectStackItem, then OK (selectionFrames).
+    // Stack items are always targets of a spell or ability and always on screen: board path even when no cast card is
+    // known (reconnect), which also needs no max (InputSelectStackItems sends none) and keeps Cancel.
     const onBoard = (t: TargetRef) =>
-      t.kind === 'player' || ['battlefield', 'stack'].includes(view.cards[t.id]!.zone) || youView.hand.includes(t.id);
-    if (legal.length && (!castCard() || !legal.every(onBoard))) {
+      t.kind !== 'card' || ['battlefield', 'stack'].includes(view.cards[t.id]!.zone) || youView.hand.includes(t.id);
+    const forSpell = castCard() !== '' || legal.every((t) => t.kind === 'stackItem');
+    if (legal.length && (!forSpell || !legal.every(onBoard))) {
       const msg = input.message.replace(/\s*\(Click on the portrait\.?\)/i, '').trim();
       const source = known(input.cardId);
       const toss = tossChooser(msg);
@@ -387,11 +404,7 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
           ...(toss ? { title: tossTitle(toss), instruction: '', quiet: true } : promptWords(msg, undefined, 'Choose')),
           ...(source ? { sourceCardId: source } : {}),
           confirmLabel: input.ok.label || 'OK',
-          options: legal.map((t) => ({
-            id: targetKey(t),
-            label: t.kind === 'card' ? view.cards[t.id]!.name : view.players.find((p) => p.id === t.id)!.name,
-            ...(t.kind === 'card' ? { cardId: t.id } : { playerId: t.id }),
-          })),
+          options: legal.map((t) => targetOption(view, t)),
           min: input.selectable?.min ?? (input.ok.enabled ? 0 : 1),
           max: Math.min(legal.length, input.selectable?.max ?? 1),
         },
@@ -526,6 +539,7 @@ export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup,
     const targets: TargetRef[] = [
       ...(si.TargetCards ?? []).filter((c) => cards[sid(c)]).map((c): TargetRef => ({ kind: 'card', id: sid(c) })),
       ...(si.TargetPlayers ?? []).filter((p) => gamePlayer(s, p) !== undefined).map((p): TargetRef => ({ kind: 'player', id: sid(p) })),
+      ...(si.TargetStackItems ?? []).filter((t) => gp.Stack?.includes(t)).map((t): TargetRef => ({ kind: 'stackItem', id: sid(t) })),
     ];
     const source = cards[sid(si.SourceCard ?? -1)];
     const controller = gamePlayer(s, si.ActivatingPlayer);

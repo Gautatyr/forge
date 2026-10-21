@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { applyIntent, type MockGame } from '../mock/engine';
 import { scenarioById } from '../mock/scenarios';
 import type { GameView } from '../model/types';
-import { cardStatus, playerTargetSpot, spotlightItem } from './cardStatus';
+import { cardStatus, playerTargetSpot, spotlightItem, stackTargetSpot } from './cardStatus';
 import { INITIAL_UI, type UiState } from './ui';
 
 /** Every card that shows a target ring or badge, with the ring kind. */
@@ -63,5 +63,27 @@ describe('target highlights follow the stack (mockup review 1)', () => {
     let s: MockGame = scenarioById('stack6').build();
     for (let i = 0; i < 10 && s.stack.length > 0; i++) s = applyIntent(s, { type: 'primary' });
     expect(s.stack.length).toBe(0);
+  });
+});
+
+describe('a stack item targeted by the spotlight item (counterspells, Stifle)', () => {
+  const base = scenarioById('stack6').build();
+  const [bottom, second] = base.stack;
+  const top = base.stack.at(-1)!;
+  // The top item counters the bottom one.
+  const g: GameView = {
+    ...base,
+    stack: base.stack.map((s) => (s === top ? { ...s, targets: [{ kind: 'stackItem', id: bottom!.id }] } : s)),
+  };
+
+  it('rings the targeted row (dotted) while the top item is in the spotlight', () => {
+    expect(stackTargetSpot(g, INITIAL_UI, bottom!.id)).toBe('top');
+    expect(stackTargetSpot(g, INITIAL_UI, second!.id)).toBeUndefined();
+    expect(stackTargetSpot(g, INITIAL_UI, top.id)).toBeUndefined();
+  });
+
+  it('rings it strong while the targeting item is hovered, and not when another item is', () => {
+    expect(stackTargetSpot(g, { ...INITIAL_UI, hoveredStackItem: top.id }, bottom!.id)).toBe('hover');
+    expect(stackTargetSpot(g, { ...INITIAL_UI, hoveredStackItem: second!.id }, bottom!.id)).toBeUndefined();
   });
 });
