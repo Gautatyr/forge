@@ -454,51 +454,82 @@ public class SeatSessionTest {
         assertTrue(r.rememberDecision());
     }
 
-    @Test
-    public void manipulateCardListTakesAScryToTheBottomOfTheWholeLibrary() throws Exception {
-        start();
-        // as PlayerControllerHuman.arrangeForScry with UI_SELECT_FROM_CARD_DISPLAYS: the whole library, the top 2 movable
-        List<Card> lib = new ArrayList<>();
-        for (String n : List.of("Island", "Forest", "Swamp", "Mountain", "Plains")) {
+    /** Library cards the seat may look at, top first. */
+    private List<CardView> library(String... names) {
+        List<CardView> cards = new ArrayList<>();
+        for (String n : names) {
             Card x = TestEngine.add(n, p0, ZoneType.Library);
             x.addMayLookTemp(p0);
-            lib.add(x);
+            cards.add(x.getView());
         }
-        List<CardView> cards = new ArrayList<>();
-        lib.forEach(x -> cards.add(x.getView()));
-        Future<List<CardView>> f = onGameThread(() -> gui.manipulateCardList("Scry", cards, cards.subList(0, 2), true, true, false));
+        return cards;
+    }
+
+    @Test
+    public void manipulateCardListOffersOnlyTheMovableCardsAsTopAndBottomPiles() throws Exception {
+        start();
+        // as PlayerControllerHuman.arrangeForScry with UI_SELECT_FROM_CARD_DISPLAYS: the whole library, the top 3 movable
+        List<CardView> cards = library("Island", "Forest", "Swamp", "Mountain", "Plains");
+        Future<List<CardView>> f = onGameThread(() -> gui.manipulateCardList("Scry", cards, cards.subList(0, 3), true, true, false));
         JsonObject p = client.next("prompt");
-        assertTrue(p.get("permutation").getAsBoolean());
-        reply(p, json("[1,2,0,3,4]"));
-        assertEquals(client.next("replyRejected").get("reason").getAsString(), "card 0 must go to the top or the bottom");
-        reply(p, json("[0,1,2,4,3]"));
-        assertEquals(client.next("replyRejected").get("reason").getAsString(), "cards that may not move keep their order");
-        reply(p, json("[0,1]"));
+        assertTrue(p.get("piles").getAsBoolean());
+        assertFalse(p.has("permutation"));
+        JsonArray choices = p.getAsJsonArray("choices");
+        assertEquals(choices.size(), 3, "only the scried cards: " + choices);
+        for (int i = 0; i < 3; i++) {
+            assertTrue(choices.get(i).getAsJsonObject().get("label").getAsString().startsWith(cards.get(i).getName()), choices.toString());
+        }
+        reply(p, json("[2,0,1]"));
+        assertEquals(client.next("replyRejected").get("reason").getAsString(), "expected {top, bottom}");
+        reply(p, json("{\"top\":[0,1],\"bottom\":[1,2]}"));
         client.next("replyRejected");
-        reply(p, json("[1,2,3,4,0]")); // the first scried card to the bottom: every library card shifts up by one
-        assertEquals(get(f), List.of(cards.get(1), cards.get(2), cards.get(3), cards.get(4), cards.get(0)));
+        reply(p, json("{\"top\":[0],\"bottom\":[2]}"));
+        assertEquals(client.next("replyRejected").get("reason").getAsString(), "each card goes to the top or the bottom");
+        // Swamp on top; Island then Forest on the bottom, Forest last. arrangeForMove reads the bottom pile from the
+        // end of the list and GameAction.scry puts each card under the previous one: the pile comes back reversed.
+        reply(p, json("{\"top\":[2],\"bottom\":[0,1]}"));
+        assertEquals(get(f), List.of(cards.get(2), cards.get(3), cards.get(4), cards.get(1), cards.get(0)));
+    }
+
+    @Test
+    public void manipulateCardListWithNothingElseInTheLibraryKeepsThePilesInOrder() throws Exception {
+        start();
+        // scry 2 with two cards left: everything is movable, the result is the library as it will be
+        List<CardView> cards = library("Island", "Forest");
+        Future<List<CardView>> f = onGameThread(() -> gui.manipulateCardList("Scry", cards, cards, true, true, false));
+        JsonObject p = client.next("prompt");
+        reply(p, json("{\"top\":[],\"bottom\":[1,0]}"));
+        assertEquals(get(f), List.of(cards.get(1), cards.get(0)));
     }
 
     @Test
     public void manipulateCardListHonoursTopBottomAndAnywhere() throws Exception {
         start();
-        List<CardView> cards = new ArrayList<>();
-        for (String n : List.of("Island", "Forest", "Swamp")) {
-            Card x = TestEngine.add(n, p0, ZoneType.Library);
-            x.addMayLookTemp(p0);
-            cards.add(x.getView());
-        }
+        List<CardView> cards = library("Island", "Forest", "Swamp");
         Future<List<CardView>> bottomOnly = onGameThread(() -> gui.manipulateCardList("Bottom", cards, cards.subList(0, 1), false, true, false));
         JsonObject p = client.next("prompt");
-        reply(p, json("[0,1,2]"));
-        assertEquals(client.next("replyRejected").get("reason").getAsString(), "card 0 must go to the bottom");
-        reply(p, json("[1,2,0]"));
+        assertEquals(p.getAsJsonArray("choices").size(), 1);
+        assertFalse(p.get("toTop").getAsBoolean());
+        reply(p, json("{\"top\":[0],\"bottom\":[]}"));
+        assertEquals(client.next("replyRejected").get("reason").getAsString(), "no card may go to the top");
+        reply(p, json("{\"top\":[],\"bottom\":[0]}"));
         assertEquals(get(bottomOnly), List.of(cards.get(1), cards.get(2), cards.get(0)));
 
+        // anywhere: a place among the other cards, so the whole list (no engine caller passes it)
         Future<List<CardView>> anywhere = onGameThread(() -> gui.manipulateCardList("Anywhere", cards, cards.subList(0, 1), true, true, true));
         JsonObject q = client.next("prompt");
+        assertTrue(q.get("permutation").getAsBoolean());
         reply(q, json("[1,0,2]"));
         assertEquals(get(anywhere), List.of(cards.get(1), cards.get(0), cards.get(2)));
+    }
+
+    @Test
+    public void manipulateCardListTimesOutWithEveryCardKeptOnTop() throws Exception {
+        start(new WebSeats.Timeouts(200, 10_000));
+        List<CardView> cards = library("Island", "Forest", "Swamp");
+        Future<List<CardView>> f = onGameThread(() -> gui.manipulateCardList("Scry", cards, cards.subList(0, 2), true, true, false));
+        client.next("prompt");
+        assertEquals(get(f), cards);
     }
 
     @Test

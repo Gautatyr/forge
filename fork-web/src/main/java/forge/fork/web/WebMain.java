@@ -247,14 +247,24 @@ public final class WebMain {
             }
             players.add(rp);
         }
-        GameRules rules = new GameRules(type);
-        rules.setAppliedVariants(EnumSet.of(type));
-        rules.setGamesPerMatch(1);
+        GameRules rules = matchRules(type);
         HostedMatch match = GuiBase.getInterface().hostMatch();
         // no human seat: HostedMatch attaches getNewGuiGame() as a spectator, which binds the stream;
         // a human seat's WebGuiGame binds it in openView
         match.startMatch(rules, null, players, guis.isEmpty() ? null : guis, null);
         return stream.gameOverLatch();
+    }
+
+    /**
+     * One game of {@code type}, without the match-start "AI can't play these cards well" reveal (issue #68): it
+     * asks nothing and lists the AI decks' cards to the human seat. Mobile Adventure turns it off the same way.
+     */
+    static GameRules matchRules(GameType type) {
+        GameRules rules = new GameRules(type);
+        rules.setAppliedVariants(EnumSet.of(type));
+        rules.setGamesPerMatch(1);
+        rules.setWarnAboutAICards(false);
+        return rules;
     }
 
     private static Map<String, String> parse(String[] args) {

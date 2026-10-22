@@ -52,6 +52,7 @@ class HumanSeat extends Stream {
       case 'activateDescription': return true;
       // sent with each InputBlock; this seat answers it from its selectables and buttons
       case 'blockOptions': this.stats.blockOptions++; return true;
+      case 'attackOptions': return true; // the defenders the engine offers (issue #65); this seat attacks with alphaStrike
       default: return false;
     }
   }
@@ -130,6 +131,12 @@ class HumanSeat extends Stream {
       }
       case 'confirm': return m.default;
       case 'order':
+        if (m.method === 'manipulateCardList' && m.piles) {
+          // scry: the first card to the bottom (if it may go there), the rest on top
+          const idx = [...Array(n).keys()];
+          if (!m.toTop) return { top: [], bottom: idx };
+          return m.toBottom && n > 0 ? { top: idx.slice(1), bottom: [0] } : { top: idx, bottom: [] };
+        }
         if (m.method === 'manipulateCardList') {
           // scry: the first movable card to the bottom, behind the cards that may not move
           const order = [...Array(n).keys()];

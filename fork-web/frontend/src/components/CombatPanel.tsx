@@ -1,12 +1,18 @@
-import { player } from '../model/selectors';
-import { currentDefender } from '../state/focus';
+import { defendingPlayerOf, player } from '../model/selectors';
+import type { Attack, CardView } from '../model/types';
+import { currentAttackAim, pickDefender } from '../state/focus';
 import { useMatch } from '../state/MatchContext';
 import { Icon, SeatGlyph } from './Icon';
 import styles from './CombatPanel.module.css';
 
+/** Current loyalty (planeswalker) or defense (battle): what an attack on it takes away. */
+function defense(c: CardView): number | undefined {
+  return c.counters.find((k) => k.kind === 'Loyalty' || k.kind === 'Defense')?.count;
+}
+
 /**
  * Rail block shown only during combat: who attacks whom, your blocks, and
- * (while you attack) which opponent new attackers go at.
+ * (while you attack) which opponent, planeswalker or battle new attackers go at.
  */
 export function CombatPanel() {
   const { game, ui, prefs, setUi, send } = useMatch();
@@ -16,18 +22,19 @@ export function CombatPanel() {
   if (d.kind !== 'declareAttackers' && !game.combat) return null;
 
   if (d.kind === 'declareAttackers') {
-    const current = currentDefender(game, ui, prefs.layout);
+    const aim = currentAttackAim(game, ui, prefs.layout);
+    const atPlayer = (id: string) => (a: Attack) => a.defenderId === id && !a.defenderCardId;
     return (
       <section className={`${styles.panel} ${styles.attack}`} aria-label="Declare attackers">
         <h2>
           <Icon name="sword" /> Declare attackers
         </h2>
         <p className={styles.hint}>Click your creatures to attack. New attackers go at:</p>
-        <div className={styles.defenders} role="radiogroup" aria-label="Player to attack" data-scroll-region>
+        <div className={styles.defenders} role="radiogroup" aria-label="What to attack" data-scroll-region>
           {d.defenders.map((id) => {
             const p = player(game, id);
-            const n = attacks.filter((a) => a.defenderId === id).length;
-            const on = current === id;
+            const n = attacks.filter(atPlayer(id)).length;
+            const on = aim?.defenderId === id && !aim.defenderCardId;
             return (
               <button
                 key={id}
@@ -35,11 +42,40 @@ export function CombatPanel() {
                 role="radio"
                 aria-checked={on}
                 className={`${styles.defender} ${on ? styles.on : ''}`}
-                onClick={() => setUi({ attackDefender: id, focusOpponentId: id })}
+                onClick={() => setUi(pickDefender(game, { kind: 'player', id }))}
               >
                 {on ? <Icon name="check" /> : <SeatGlyph seat={p.seat} />}
                 {p.name}
                 <span className={styles.life}>{p.life}</span>
+                {n > 0 ? (
+                  <b>
+                    <Icon name="sword" />
+                    {n}
+                  </b>
+                ) : null}
+              </button>
+            );
+          })}
+          {d.defenderCards.map((id) => {
+            const c = game.cards[id];
+            if (!c) return null;
+            const p = player(game, defendingPlayerOf(c));
+            const n = attacks.filter((a) => a.defenderCardId === id).length;
+            const on = aim?.defenderCardId === id;
+            const left = defense(c);
+            return (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                className={`${styles.defender} ${on ? styles.on : ''}`}
+                title={`${c.name} (${p.name})`}
+                onClick={() => setUi(pickDefender(game, { kind: 'card', id }))}
+              >
+                {on ? <Icon name="check" /> : <SeatGlyph seat={p.seat} />}
+                {c.name}
+                {left !== undefined ? <span className={styles.life}>{left}</span> : null}
                 {n > 0 ? (
                   <b>
                     <Icon name="sword" />
@@ -74,6 +110,9 @@ export function CombatPanel() {
         {attacks.map((a) => {
           const att = game.cards[a.attackerId];
           const def = player(game, a.defenderId);
+          // An attack on a planeswalker or battle names it (issue #65).
+          const walker = a.defenderCardId ? game.cards[a.defenderCardId] : undefined;
+          const target = walker ? (def.isYou ? `your ${walker.name}` : walker.name) : def.isYou ? 'you' : def.name;
           const blockers = blocks.filter((b) => b.attackerId === a.attackerId);
           return (
             <li key={a.attackerId} className={def.isYou ? styles.atYou : ''}>
@@ -84,7 +123,7 @@ export function CombatPanel() {
                   {att?.power}/{att?.toughness}
                 </span>
                 <Icon name="arrowRight" />
-                {def.isYou ? 'you' : def.name}
+                {target}
               </span>
               {blockers.map((b) => (
                 <span key={b.blockerId} className={styles.blocker}>
@@ -103,7 +142,9 @@ export function CombatPanel() {
                 </span>
               ))}
               {def.isYou && blockers.length === 0 && d.kind === 'declareBlockers' ? (
-                <span className={styles.unblocked}>Unblocked: {att?.power ?? 0} damage to you</span>
+                <span className={styles.unblocked}>
+                  Unblocked: {att?.power ?? 0} damage to {target}
+                </span>
               ) : null}
             </li>
           );

@@ -1,8 +1,8 @@
 import { useRef } from 'react';
-import type { MulliganState, PlayerView } from '../model/types';
+import type { Attack, MulliganState, PlayerView } from '../model/types';
 import { playerTargetSpot, spotlightItem } from '../state/cardStatus';
 import { mulliganTag, turnPlayerId } from '../state/gameStart';
-import { currentDefender } from '../state/focus';
+import { currentAttackAim } from '../state/focus';
 import { useMatch } from '../state/MatchContext';
 import { playerChoice } from './tray/inPlace';
 import { useInPlacePick } from './tray/useInPlacePick';
@@ -41,9 +41,12 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
   const legalTarget = d.kind === 'chooseTargets' && d.legal.some((t) => t.kind === 'player' && t.id === p.id);
   const chosenTarget = d.kind === 'chooseTargets' && d.chosen.some((t) => t.kind === 'player' && t.id === p.id);
   const defenderPick = d.kind === 'declareAttackers' && d.defenders.includes(p.id);
-  const isDefender = defenderPick && currentDefender(game, ui, prefs.layout) === p.id;
-  const incoming = game.combat?.attacks.filter((a) => a.defenderId === p.id).length ?? 0;
-  const draftIncoming = d.kind === 'declareAttackers' ? d.draft.filter((a) => a.defenderId === p.id).length : 0;
+  const aim = currentAttackAim(game, ui, prefs.layout);
+  const isDefender = defenderPick && aim?.defenderId === p.id && !aim.defenderCardId;
+  // Attacks on the player; those on their planeswalkers and battles show on those cards (issue #65).
+  const atPlayer = (a: Attack) => a.defenderId === p.id && !a.defenderCardId;
+  const incoming = game.combat?.attacks.filter(atPlayer).length ?? 0;
+  const draftIncoming = d.kind === 'declareAttackers' ? d.draft.filter(atPlayer).length : 0;
   const pickInPlace = useInPlacePick();
   const choice = playerChoice(game, ui, p.id);
   const clickable = legalTarget || defenderPick || choice !== undefined;
