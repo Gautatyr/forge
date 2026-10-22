@@ -608,20 +608,19 @@ function outReason(s: LiveSession, p: PlayerProps, cards: Record<string, CardVie
 
 /** Client-side settings of the live source (no wire form, or kept by the client). */
 export interface LiveLocal {
-  autoPay: boolean;
   passingUntilYourTurn: boolean;
   /** Turn number when "To my turn" was pressed. */
   passFromTurn?: number;
 }
 
-export const NO_LOCAL: LiveLocal = { autoPay: false, passingUntilYourTurn: false };
+export const NO_LOCAL: LiveLocal = { passingUntilYourTurn: false };
 
 /** "To my turn" (pressed on turn `fromTurn`) is over once a later turn of yours has started. */
 export function passUntilYourTurnDone(g: Pick<GameView, 'turn' | 'youId' | 'starting'>, fromTurn: number): boolean {
   return !g.starting && g.turn.activePlayerId === g.youId && g.turn.number > fromTurn;
 }
 
-export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup, local: LiveLocal = NO_LOCAL): GameView {
+export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup, local: LiveLocal = NO_LOCAL, autoPay = false): GameView {
   const game = s.gameObject;
   const gp = game?.props ?? {};
   const playerIds = gp.Players ?? [];
@@ -770,7 +769,7 @@ export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup,
     },
     combat,
     autoPass: false,
-    autoPay: local.autoPay,
+    autoPay,
     autoYield: false,
     autoYieldTo: [],
     passingUntilYourTurn: local.passingUntilYourTurn,

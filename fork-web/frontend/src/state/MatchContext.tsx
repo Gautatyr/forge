@@ -7,7 +7,7 @@ import { applyIntent, type MockGame } from '../mock/engine';
 import { ATTACK_INVALID, attackInvalidReason } from './attackLimit';
 import { blockClick, refusedText } from './blockClick';
 import { currentAttackAim, focusForIntent, focusOnTurnChange, pickDefender } from './focus';
-import { scenarioById } from '../mock/scenarios';
+import { buildScenario } from './seedGame';
 import { loadPrefs, savePrefs, type Prefs } from './prefs';
 import { INITIAL_UI, type UiState } from './ui';
 
@@ -36,10 +36,10 @@ interface History {
   past: MockGame[];
 }
 
-type HistoryAction = { type: 'intent'; intent: Intent } | { type: 'load'; id: string };
+type HistoryAction = { type: 'intent'; intent: Intent } | { type: 'load'; id: string; autoPay: boolean };
 
 function historyReducer(h: History, a: HistoryAction): History {
-  if (a.type === 'load') return { scenarioId: a.id, game: scenarioById(a.id).build(), past: [] };
+  if (a.type === 'load') return { scenarioId: a.id, game: buildScenario(a.id, a.autoPay), past: [] };
   if (a.intent.type === 'undo') {
     const prev = h.past.at(-1);
     return prev ? { ...h, game: prev, past: h.past.slice(0, -1) } : h;
@@ -68,7 +68,7 @@ function initialPrefs(): Prefs {
 export function MatchProvider({ children }: { children: ReactNode }) {
   const [h, dispatch] = useReducer(historyReducer, undefined, () => {
     const id = initialScenario();
-    return { scenarioId: id, game: scenarioById(id).build(), past: [] };
+    return { scenarioId: id, game: buildScenario(id, loadPrefs().autoPay), past: [] };
   });
   const [ui, setUiState] = useState<UiState>(INITIAL_UI);
   const [prefs, setPrefsState] = useState<Prefs>(initialPrefs);
@@ -103,10 +103,10 @@ export function MatchProvider({ children }: { children: ReactNode }) {
 
   const loadScenario = useCallback((id: string) => {
     setSource({ kind: 'mock' });
-    dispatch({ type: 'load', id });
+    dispatch({ type: 'load', id, autoPay: prefs.autoPay });
     setUiState({ ...INITIAL_UI });
     history.replaceState(null, '', mockUrl(location.href, id));
-  }, []);
+  }, [prefs.autoPay]);
 
   const game = live?.game ?? h.game;
   const scenarioId = source.kind === 'mock' ? h.scenarioId : source.kind;
