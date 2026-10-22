@@ -93,7 +93,13 @@ describe('X asked as a list of numbers', () => {
     s.apply({ t: 'promptClosed', id: 10 } as never);
     s.apply(textPrompt(11, 'Enter a number between 0 and 10:'));
     expect(autoAnswer(s)).toBeUndefined();
+    // an X has no maximum: what the engine really says (HumanSeatScryTest.anXAboveNineIsAListWithOtherThenANumberPrompt)
+    s.apply({ t: 'promptClosed', id: 11 } as never);
+    s.apply(textPrompt(13, 'Enter a number greater than or equal to 0:'));
+    expect(autoAnswer(s)).toEqual({ key: 'number|13', frames: [{ t: 'reply', id: 13, value: '12' }] });
+    expect(promptToChoice(textPrompt(13, 'Enter a number greater than or equal to 0:'), {})).toMatchObject({ kind: 'number', min: 0 });
     expect(promptToChoice(textPrompt(11, 'Enter a number between 0 and 10:'), {})).toMatchObject({ shape: 'input', kind: 'number', min: 0, max: 10 });
+    expect(promptToChoice(textPrompt(12, 'Enter a number between 0 and 1,200:'), {})).toMatchObject({ min: 0, max: 1200 });
   });
 });
 

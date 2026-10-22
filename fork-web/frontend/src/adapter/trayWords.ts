@@ -53,10 +53,19 @@ export function pickedNumber(list: NumberList, n: number): number | undefined {
   return n > list.last ? list.other : undefined;
 }
 
-/** "Enter a number between 0 and 14:" (lblEnterNumberBetweenMinAndMax, en-US), the "Other…" follow-up's range. */
-export function rangeOfNumberPrompt(message: string | null | undefined): { min: number; max: number } | undefined {
-  const m = /between (-?\d+) and (-?\d+)/.exec(message ?? '');
-  return m ? { min: Number(m[1]), max: Number(m[2]) } : undefined;
+/**
+ * The range the engine's "Other…" follow-up names (AbstractGuiGame.getInteger, en-US): "Enter a number between 0 and 14:",
+ * "Enter a number greater than or equal to 0:" (an X has no maximum), "… less than or equal to 5:". Only what it says.
+ */
+export function rangeOfNumberPrompt(message: string | null | undefined): { min?: number; max?: number } | undefined {
+  const num = (t: string) => Number(t.replace(/,/g, '')); // MessageFormat groups thousands: "1,200"
+  const text = message ?? '';
+  const between = /between (-?[\d,]+) and (-?[\d,]+)/.exec(text);
+  if (between) return { min: num(between[1]!), max: num(between[2]!) };
+  const atLeast = /greater than or equal to (-?[\d,]+)/.exec(text);
+  if (atLeast) return { min: num(atLeast[1]!) };
+  const atMost = /less than or equal to (-?[\d,]+)/.exec(text);
+  return atMost ? { max: num(atMost[1]!) } : undefined;
 }
 
 /** A whole-number label of a list ("0", "12"). */

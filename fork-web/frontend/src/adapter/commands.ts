@@ -188,7 +188,7 @@ export function autoAnswer(s: LiveSession): { key: string; frames: ClientFrame[]
   if (typed && open && open.shape === 'text' && open.numeric && open.id > typed.after) {
     // The "Other…" follow-up ("Enter a number between 0 and 14:"): the number you typed, once, when it is in range.
     const r = rangeOfNumberPrompt(open.message);
-    if (r && typed.value >= r.min && typed.value <= r.max) {
+    if (r && typed.value >= (r.min ?? -Infinity) && typed.value <= (r.max ?? Infinity)) {
       return { key: `number|${open.id}`, frames: [{ t: 'reply', id: open.id, value: String(typed.value) }] };
     }
   }
