@@ -1880,7 +1880,7 @@ public class ComputerUtilCard {
         final long timestamp = c.getGame().getNextTimestamp();
         final List<String> kws = Lists.newArrayList();
         final List<String> hiddenKws = Lists.newArrayList();
-        for (String kw : keywords) {
+        for (String kw : withDefinedPlayers(sa, keywords)) {
             if (kw.startsWith("HIDDEN")) {
                 hiddenKws.add(kw.substring(7));
             } else {
@@ -1938,6 +1938,38 @@ public class ComputerUtilCard {
         pumped.updateKeywordsCache();
         applyStaticContPT(ai.getGame(), pumped, new CardCollection(c));
         return pumped;
+    }
+
+    /**
+     * Fork #92: fills in the player placeholders of a pump's keywords as PumpEffect.resolve does for DefinedKW
+     * (ChosenPlayer or defined players, one keyword per player). A keyword whose player is not known yet is left out:
+     * the raw "PlayerUID_ChosenPlayerUID" fails to parse wherever the keyword is checked.
+     */
+    private static List<String> withDefinedPlayers(final SpellAbility sa, final List<String> keywords) {
+        if (keywords.stream().noneMatch(kw -> kw.contains("ChosenPlayerUID") || kw.contains("ChosenPlayerName"))) {
+            return keywords;
+        }
+        final Card host = sa.getHostCard();
+        final String defined = sa.getParam("DefinedKW");
+        final List<Player> players;
+        if (defined == null || defined.equals("ChosenType") || defined.equals("ChosenColor")) {
+            players = List.of();
+        } else if (defined.equals("ChosenPlayer")) {
+            players = host.hasChosenPlayer() ? List.of(host.getChosenPlayer()) : List.of();
+        } else {
+            players = AbilityUtils.getDefinedPlayers(host, defined, sa);
+        }
+        final List<String> result = Lists.newArrayList();
+        for (final String kw : keywords) {
+            if (!kw.contains("ChosenPlayerUID") && !kw.contains("ChosenPlayerName")) {
+                result.add(kw);
+                continue;
+            }
+            for (final Player p : players) {
+                result.add(kw.replace("ChosenPlayerUID", String.valueOf(p.getId())).replace("ChosenPlayerName", p.getName()));
+            }
+        }
+        return result;
     }
 
     /**

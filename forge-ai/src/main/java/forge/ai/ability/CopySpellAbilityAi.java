@@ -73,7 +73,8 @@ public class CopySpellAbilityAi extends SpellAbilityAi {
             } else if (top.hasParam("ConditionManaSpent") || top.getHostCard().hasSVar("AINoCopy")) {
                 // Mana spent is not copied, so these spells generally do nothing when copied.
                 return new AiAbilityDecision(0, AiPlayDecision.CantPlayAi);
-            } else if (SpellApiToAi.Converter.get(top.getApi()) instanceof CannotPlayAi || ComputerUtilCard.isCardRemAIDeck(top.getHostCard())) {
+            } else if (top.getApi() == null // fork #92: API-less stack item, e.g. a face-down (morph/disguise) spell
+                    || SpellApiToAi.Converter.get(top.getApi()) instanceof CannotPlayAi || ComputerUtilCard.isCardRemAIDeck(top.getHostCard())) {
                 // Don't try to copy anything you can't understand how to handle
                 return new AiAbilityDecision(0, AiPlayDecision.CantPlayAi);
             }
