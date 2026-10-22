@@ -51,12 +51,14 @@ import forge.fork.web.bridge.visibility.TestEngine;
  * in strict mode ({@link SilentDefaults}). Each game asserts no silent default, no seat error (a server refusal of the
  * seat's messages included), no {@code ConcurrentModificationException} on a game thread, that every trigger
  * the engine hands the seat reaches the stack (or has no legal target) and resolves ({@link TriggerAudit}), and that every
- * block the seat declares is in the engine's combat (issue #54).
+ * block the seat declares is in the engine's combat (issue #54). In some 4-player games the seat concedes mid-game: the
+ * game must finish without the seat, and no prompt may reach it once it left (issue #78).
  * Not a default test (no {@code Test} suffix): {@code make web-sweep} runs it. Properties ({@code -D}):
  * <pre>
  * forge.web.sweep.duel N         1v1 Constructed games, geneticaidecks for both seats (default 16)
  * forge.web.sweep.cmd2 N         1v1 Commander games (default 8)
  * forge.web.sweep.cmd4 N         4-player Commander games (default 12)
+ * forge.web.sweep.concedeEvery K the seat concedes at turn 9 of every K-th 4-player game (the 4th, 8th...; default 4, 0: never)
  * forge.web.sweep.ownerDecks DIR Commander decks played by the seat first, read only (default: none)
  * forge.web.sweep.seed S         deck choice (default 46)
  * forge.web.sweep.shard I/N      play only games I, I+N, I+2N... (default 0/1)
@@ -91,7 +93,10 @@ public class HumanSeatSweep {
     }
 
     /** One planned game. */
-    private record Plan(int index, String mode, int players, Deck seatDeck, String seatSource, List<Deck> opponents) { }
+    private record Plan(int index, String mode, int players, Deck seatDeck, String seatSource, List<Deck> opponents, int concedeAt) { }
+
+    /** The turn the seat concedes at (or after) in a game that concedes. */
+    private static final int CONCEDE_AT = 9;
 
     /** One game's report. */
     @SuppressWarnings("unused")
@@ -99,6 +104,9 @@ public class HumanSeatSweep {
         int index;
         String mode;
         int players;
+        /** The turn the seat was to concede at (0: never), and the turn it did (0: it did not, e.g. it had lost). */
+        int concedeAt;
+        int concededAt;
         String seatDeck;
         String seatSource;
         List<String> opponents = new ArrayList<>();
@@ -220,6 +228,7 @@ public class HumanSeatSweep {
         int duels = Integer.getInteger("forge.web.sweep.duel", 16);
         int cmd2 = Integer.getInteger("forge.web.sweep.cmd2", 8);
         int cmd4 = Integer.getInteger("forge.web.sweep.cmd4", 12);
+        int concedeEvery = Integer.getInteger("forge.web.sweep.concedeEvery", 4);
         List<File> genetic = dcks(res().resolve("geneticaidecks"));
         List<File> precons = dcks(res().resolve("quest/commanderprecons"));
         Collections.shuffle(genetic, rnd);
@@ -231,7 +240,7 @@ public class HumanSeatSweep {
         int g = 0;
         for (int i = 0; i < duels; i++) {
             plans.add(new Plan(g++, "duel", 2, load(genetic.get(2 * i % genetic.size())), "geneticaidecks",
-                    List.of(load(genetic.get((2 * i + 1) % genetic.size())))));
+                    List.of(load(genetic.get((2 * i + 1) % genetic.size()))), 0));
         }
         // each owner deck once in 1v1 and once in 4-player Commander, then precons and generated decks, alternating
         int precon = 0;
@@ -254,7 +263,8 @@ public class HumanSeatSweep {
                 for (int k = 1; k < players; k++) {
                     opp.add(DeckgenUtil.generateCommanderDeck(true, GameType.Commander));
                 }
-                plans.add(new Plan(g++, "commander", players, seat, source, opp));
+                boolean concedes = players == 4 && concedeEvery > 0 && i % concedeEvery == concedeEvery - 1;
+                plans.add(new Plan(g++, "commander", players, seat, source, opp, concedes ? CONCEDE_AT : 0));
             }
         }
         return plans;
@@ -267,6 +277,7 @@ public class HumanSeatSweep {
         r.index = p.index();
         r.mode = p.mode();
         r.players = p.players();
+        r.concedeAt = p.concedeAt();
         r.seatDeck = p.seatDeck().getName();
         r.seatSource = p.seatSource();
         for (Deck d : p.opponents()) {
@@ -306,7 +317,7 @@ public class HumanSeatSweep {
         rules.setGamesPerMatch(1);
 
         // the client connects first, as a browser waiting for the game; it learns the game from the audit
-        DeferredSeat client = new DeferredSeat(stream, audit);
+        DeferredSeat client = new DeferredSeat(stream, audit, p.concedeAt());
         stream.addClient(client, 0);
         HostedMatch match = GuiBase.getInterface().hostMatch();
         match.startMatch(rules, null, players, guis, null);
@@ -375,6 +386,7 @@ public class HumanSeatSweep {
             r.promptTexts.putAll(seat.promptTexts);
             r.actions.putAll(seat.actions);
             r.rejections.putAll(seat.rejections);
+            r.concededAt = seat.concededAt();
         }
         stream.removeClient(client);
         r.silent.addAll(SilentDefaults.recent());
@@ -464,12 +476,14 @@ public class HumanSeatSweep {
     private static final class DeferredSeat implements forge.fork.web.bridge.ClientSink {
         private final GameStream stream;
         private final TriggerAudit audit;
+        private final int concedeAt;
         private final List<String> early = new ArrayList<>();
         private volatile ScriptedSeat seat;
 
-        DeferredSeat(GameStream stream, TriggerAudit audit) {
+        DeferredSeat(GameStream stream, TriggerAudit audit, int concedeAt) {
             this.stream = stream;
             this.audit = audit;
+            this.concedeAt = concedeAt;
         }
 
         @Override
@@ -483,6 +497,7 @@ public class HumanSeatSweep {
 
         synchronized void begin() {
             ScriptedSeat s = new ScriptedSeat(stream, audit.game(), audit.me(), this);
+            s.concedeAt(concedeAt);
             for (String m : early) {
                 s.send(m);
             }
@@ -545,6 +560,7 @@ public class HumanSeatSweep {
         int passed = 0;
         int other = 0;
         int capped = 0;
+        List<String> conceded = new ArrayList<>();
         List<String> aiLoops = new ArrayList<>();
         List<String> engineExceptions = new ArrayList<>();
         List<String> failed = new ArrayList<>();
@@ -578,6 +594,10 @@ public class HumanSeatSweep {
             silent += r.silentDefaults;
             other += r.otherThreadCrashes.size();
             capped += r.capped ? 1 : 0;
+            if (r.concedeAt > 0) {
+                conceded.add("game " + r.index + ": " + (r.concededAt > 0 ? "turn " + r.concededAt + ", " + r.end + " at turn " + r.turns
+                        : "not conceded (" + r.end + " at turn " + r.turns + ")"));
+            }
             passed += r.passed() ? 1 : 0;
             if (AI_LOOP.equals(r.end)) {
                 aiLoops.add("game " + r.index + " turn " + r.turns);
@@ -598,7 +618,7 @@ public class HumanSeatSweep {
             otherCme += (int) r.otherThreadCrashes.stream().filter(HumanSeatSweep::isCme).count();
         }
         return "[sweep] games " + results.size() + " " + byMode + ": passed " + passed + ", failed " + failed
-                + "; ended at the turn cap " + capped + "\n[sweep] not failed: AI loops " + aiLoops + "; engine exceptions " + engineExceptions
+                + "; ended at the turn cap " + capped + "\n[sweep] the seat conceded (no prompt may reach it after): " + conceded + "\n[sweep] not failed: AI loops " + aiLoops + "; engine exceptions " + engineExceptions
                 + "\n[sweep] decks " + decks.size() + "; the seat's " + seatDecks.size() + ": " + seatDecks
                 + "\n[sweep] distinct cards: in the seat's decks " + seatCards.size() + ", played by the seat " + played.size()
                 + ", with seat triggers " + triggerCards.size()

@@ -327,6 +327,111 @@ public class HumanSeatConcedeTest {
         assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
     }
 
+    /** The prompts the seat received ({@code {"t":"prompt"}} frames). */
+    private int promptsSent() {
+        synchronized (seat) {
+            return (int) seat.frames.stream().filter(f -> f.startsWith("{\"t\":\"prompt\"")).count();
+        }
+    }
+
+    /** 4 players, an AI's turn: the seat concedes and is out, three players go on. */
+    private void seatOutOfAFourPlayerGame() throws Exception {
+        start(4, 0);
+        inPlay(game.getPlayers().get(1));
+        concede();
+        loop(me::hasLost).get(60, TimeUnit.SECONDS);
+        assertConceded(me);
+        assertFalse(game.getPlayers().contains(me), "the seat is out");
+        assertFalse(game.isGameOver(), "three players go on");
+    }
+
+    /**
+     * Game thread: {@code ai} owns a face-down card in exile and loses. The engine reveals it to every registered player,
+     * the seat out of the game included (CR 702.142f, {@code Player.revealFaceDownCards}): a {@code getChoices} reveal.
+     */
+    private void loseWithAFaceDownCardInExile(Player ai) {
+        Card c = TestEngine.add("Grizzly Bears", ai, ZoneType.Exile);
+        c.turnFaceDown(true);
+        assertTrue(c.isRealFaceDown());
+        ai.concede();
+        game.getAction().checkGameOverCondition();
+    }
+
+    /** Issue #78: the seat is out; prompts to it are answered at once with the engine default and never sent. */
+    @Test(timeOut = 120_000)
+    public void aRevealToEveryPlayerAndAChoiceToTheSeatOutOfAFourPlayerGameAreAnsweredAtOnceAndTheGameGoesOn() throws Exception {
+        seatOutOfAFourPlayerGame();
+        Player ai2 = game.getPlayers().get(1);
+        int before = promptsSent();
+        long t0 = System.currentTimeMillis();
+        gameThread.submit(() -> loseWithAFaceDownCardInExile(ai2)).get(10, TimeUnit.SECONDS); // a waiting prompt: 20 s
+        assertTrue(ai2.hasLost());
+        assertFalse(game.isGameOver(), "two players go on");
+        // a real choice the engine asks the seat: GUI one() over 1..3; the engine default is the first option
+        int n = gameThread.submit(() -> pch.chooseNumber(null, "Choose a number", 1, 3)).get(10, TimeUnit.SECONDS);
+        assertEquals(n, 1, "the engine default");
+        assertTrue(System.currentTimeMillis() - t0 < 5_000, "answered without waiting: " + (System.currentTimeMillis() - t0) + " ms");
+        assertEquals(promptsSent(), before, "no prompt reaches the seat once it left the game");
+        int turn = game.getPhaseHandler().getTurn();
+        loop(() -> game.getPhaseHandler().getTurn() > turn + 1).get(60, TimeUnit.SECONDS);
+        assertFalse(game.isGameOver(), "two players go on");
+        assertTrue(game.getPhaseHandler().getTurn() > turn + 1, "the others' turns were played");
+        assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
+    }
+
+    /** Issue #78 as found: the last opponent but one loses with a face-down card in exile; the game ends unanswered. */
+    @Test(timeOut = 120_000)
+    public void theRevealWhenTheLastOpponentButOneLosesDoesNotHoldUpTheEndOfTheGame() throws Exception {
+        seatOutOfAFourPlayerGame();
+        Player ai1 = game.getPlayers().get(0);
+        Player ai2 = game.getPlayers().get(1);
+        Player ai3 = game.getPlayers().get(2);
+        int before = promptsSent();
+        gameThread.submit(() -> {
+            ai3.concede();
+            game.getAction().checkGameOverCondition();
+            loseWithAFaceDownCardInExile(ai2);
+        }).get(10, TimeUnit.SECONDS); // a waiting prompt: 20 s
+        assertTrue(game.isGameOver(), "the game reached its result");
+        assertTrue(game.getOutcome().isWinner(ai1.getLobbyPlayer()), "the last AI standing won: " + game.getOutcome());
+        assertConceded(me);
+        assertEquals(promptsSent(), before, "no prompt reaches the seat once it left the game");
+        assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
+    }
+
+    /**
+     * 2 players: the seat losing ends the game, and the engine's end-of-game reveal of the opponent's face-down cards
+     * still reaches it (it is not out of a game that goes on).
+     */
+    @Test(timeOut = 120_000)
+    public void theSeatLosingATwoPlayerGameStillSeesTheEndOfGameReveal() throws Exception {
+        start(2, 0);
+        Player ai = game.getPlayers().get(1);
+        inPlay(ai);
+        Card c = TestEngine.add("Grizzly Bears", ai, ZoneType.Exile);
+        c.turnFaceDown(true);
+        int before = promptsSent();
+        Future<?> f = gameThread.submit(() -> {
+            me.concede();
+            game.getAction().checkGameOverCondition();
+        });
+        waitFor(() -> promptsSent() > before, 10_000, "the reveal reaches the seat");
+        String prompt;
+        synchronized (seat) {
+            prompt = seat.frames.stream().filter(fr -> fr.startsWith("{\"t\":\"prompt\"")).reduce((a, b) -> b).orElseThrow();
+        }
+        assertTrue(prompt.contains("\"method\":\"getChoices\""), prompt);
+        JsonObject reply = new JsonObject();
+        reply.addProperty("t", "reply");
+        reply.add("id", JsonParser.parseString(prompt).getAsJsonObject().get("id"));
+        reply.add("value", new com.google.gson.JsonArray());
+        stream.clientMessage(0, reply, seat);
+        f.get(10, TimeUnit.SECONDS);
+        assertTrue(game.isGameOver());
+        assertTrue(game.getOutcome().isWinner(ai.getLobbyPlayer()));
+        assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
+    }
+
     /** On the game thread, at the first priority of {@code who}: runs {@code r} once. */
     public static final class AtPriority {
         private final Player who;
