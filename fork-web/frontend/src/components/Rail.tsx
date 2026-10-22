@@ -13,6 +13,7 @@ import { PREVIEW_BESIDE_ATTR } from './previewSpot';
 import { recentRows } from './recentRows';
 import { zoneCardIds, zoneTitle } from './zoneBrowser';
 import styles from './Rail.module.css';
+import { t, tDynamic, type MsgKey } from '../i18n';
 
 /**
  * Right panel, full height and in the same place in every layout. Top: the
@@ -49,23 +50,23 @@ function StackPanel() {
   // Targeting a spell or ability (counterspells, Stifle, redirects): the items the input accepts are lit and
   // clickable, only while it is open (highlights are answers, never hints).
   const d = game.decision;
-  const isTarget = (list: TargetRef[], id: string) => list.some((t) => t.kind === 'stackItem' && t.id === id);
+  const isTarget = (list: TargetRef[], id: string) => list.some((x) => x.kind === 'stackItem' && x.id === id);
   const picking = d.kind === 'chooseTargets' && items.some((it) => isTarget(d.legal, it.id));
   return (
-    <section className={`${styles.block} ${styles.stack}`} aria-label="The stack">
+    <section className={`${styles.block} ${styles.stack}`} aria-label={t('rail.stack')}>
       <header className={styles.head}>
         <h2>
-          Stack <span className={styles.count}>{game.stack.length}</span>
+          {t('rail.stackTitle')} <span className={styles.count}>{game.stack.length}</span>
         </h2>
-        <label className={styles.inlineToggle} title="Honour the auto-yields you set on stack items. Off by default.">
+        <label className={styles.inlineToggle} title={t('rail.autoYieldTitle')}>
           <input type="checkbox" checked={game.autoYield} onChange={(e) => send({ type: 'setAutoYield', on: e.target.checked })} />
-          Auto-yield {game.autoYield ? 'on' : 'off'}
+          {game.autoYield ? t('rail.autoYieldOn') : t('rail.autoYieldOff')}
         </label>
       </header>
       <p className={styles.hint}>
         {picking
-          ? 'Choose a target: click a lit spell or ability.'
-          : 'Top resolves first; its targets are lit. Hover another item to see its targets.'}
+          ? t('rail.pickHint')
+          : t('rail.stackHint')}
       </p>
       <ol className={`${styles.body} ${styles.items}`} data-scroll-region>
         {items.map((item, i) => {
@@ -98,28 +99,28 @@ function StackPanel() {
               onPointerLeave={() => setUi({ hoveredStackItem: undefined })}
               data-stack-id={item.id}
             >
-              <span className={styles.order}>{i === 0 ? 'Top' : i + 1}</span>
+              <span className={styles.order}>{i === 0 ? t('rail.top') : i + 1}</span>
               {src ? <Card card={src} context="thumb" style={{ '--cw': '3.6rem' } as CSSProperties} onActivate={toggle} /> : null}
               <div className={styles.itemText}>
                 <span className={styles.itemName}>
                   {src?.name}
-                  {item.kind !== 'spell' ? <em> · {item.kind}</em> : null}
+                  {item.kind !== 'spell' ? <em> · {tDynamic(`rail.kind.${item.kind}` as MsgKey)}</em> : null}
                 </span>
                 <span className={styles.by}>
                   <SeatGlyph seat={ctrl.seat} />
-                  {ctrl.isYou ? 'You' : ctrl.name}
+                  {ctrl.isYou ? t('common.you') : ctrl.name}
                 </span>
-                {item.targets.map((t) => (
-                  <span key={`${t.kind}${t.id}`} className={styles.targetLine}>
+                {item.targets.map((tg) => (
+                  <span key={`${tg.kind}${tg.id}`} className={styles.targetLine}>
                     <Icon name="target" />
-                    {targetName(game, t)}
-                    {t.kind === 'card' && game.cards[t.id]?.controllerId === game.youId ? ' (yours)' : ''}
+                    {targetName(game, tg)}
+                    {tg.kind === 'card' && game.cards[tg.id]?.controllerId === game.youId ? ` ${t('rail.yours')}` : ''}
                   </span>
                 ))}
                 {targeted && spot ? (
                   <span className={styles.targetedBy}>
                     <Icon name="target" />
-                    Targeted by {game.cards[spot.sourceCardId]?.name ?? 'a spell'}
+                    {t('rail.targetedBy', { name: game.cards[spot.sourceCardId]?.name ?? t('rail.aSpell') })}
                   </span>
                 ) : null}
                 {toggle ? (
@@ -128,10 +129,10 @@ function StackPanel() {
                     className={`${styles.pick} ${chosen ? styles.pickOn : ''}`}
                     aria-pressed={chosen}
                     onClick={toggle}
-                    title={chosen ? 'Chosen as a target: click to unchoose it' : 'Choose this as a target'}
+                    title={chosen ? t('rail.chosenTitle') : t('rail.chooseTitle')}
                   >
                     <Icon name={chosen ? 'check' : 'target'} />
-                    {chosen ? 'Target chosen' : 'Target this'}
+                    {chosen ? t('rail.targetChosen') : t('rail.targetThis')}
                   </button>
                 ) : null}
                 {!ctrl.isYou ? (
@@ -140,9 +141,9 @@ function StackPanel() {
                     className={`${styles.yield} ${yielding ? styles.yieldOn : ''}`}
                     aria-pressed={yielding}
                     onClick={() => send({ type: 'toggleAutoYieldTo', key: yieldKey })}
-                    title="Always pass priority when this appears (needs Auto-yield on)"
+                    title={t('rail.yieldTitle')}
                   >
-                    {yielding ? 'Always yield: on' : 'Always yield to this'}
+                    {yielding ? t('rail.yieldOn') : t('rail.yieldTo')}
                   </button>
                 ) : null}
               </div>
@@ -171,17 +172,17 @@ function ZoneViewer() {
             type="button"
             className={styles.close}
             onClick={() => setUi({ zoneView: { ...z, large: true } })}
-            aria-label={`Large view of ${title.toLowerCase()}`}
-            title="Large view: search it by name or type"
+            aria-label={t('rail.largeView', { title: title.toLowerCase() })}
+            title={t('rail.largeViewTitle')}
           >
             <Icon name="expand" />
           </button>
-          <button type="button" className={styles.close} onClick={() => setUi({ zoneView: undefined })} aria-label="Close">
+          <button type="button" className={styles.close} onClick={() => setUi({ zoneView: undefined })} aria-label={t('common.close')}>
             <Icon name="close" />
           </button>
         </span>
       </header>
-      {ids.length === 0 ? <p className={styles.hint}>Nothing here yet.</p> : null}
+      {ids.length === 0 ? <p className={styles.hint}>{t('rail.empty')}</p> : null}
       <div className={`${styles.body} ${styles.zoneGrid}`} data-scroll-region>
         {ids.map((id) => {
           const c = game.cards[id];
@@ -199,11 +200,11 @@ function RecentEvents() {
   const { game, setUi } = useMatch();
   const rows = recentRows(game, RECENT_EVENTS);
   return (
-    <section className={`${styles.block} ${styles.recent}`} aria-label="Recent events">
+    <section className={`${styles.block} ${styles.recent}`} aria-label={t('rail.recentAria')}>
       <header className={styles.head}>
-        <h2>Recent</h2>
+        <h2>{t('rail.recent')}</h2>
         <button type="button" className={styles.link} onClick={() => setUi({ logOpen: true })}>
-          Full log <kbd>L</kbd>
+          {t('rail.fullLog')} <kbd>L</kbd>
         </button>
       </header>
       <ol className={`${styles.body} ${styles.events}`} data-scroll-region>

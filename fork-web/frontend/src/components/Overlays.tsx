@@ -1,20 +1,21 @@
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react';
 import { player, you } from '../model/selectors';
 import { SCENARIOS } from '../mock/scenarios';
-import { SHORTCUTS } from '../state/keymap';
+import { shortcuts } from '../state/keymap';
 import { useMatch } from '../state/MatchContext';
 import { OPPONENT_SHARES, type OpponentLayout, type OpponentShare } from '../state/prefs';
 import { Icon, SeatGlyph } from './Icon';
 import { LogText } from './LogText';
 import { PREVIEW_BESIDE_ATTR } from './previewSpot';
 import styles from './Overlays.module.css';
+import { LANGS, t, tDynamic, type Lang } from '../i18n';
 
 function Popover({ title, onClose, children, className }: { title: string; onClose: () => void; children: ReactNode; className?: string }) {
   return (
     <div className={`${styles.popover} ${className ?? ''}`} role="dialog" aria-label={title}>
       <header className={styles.head}>
         <h2>{title}</h2>
-        <button type="button" className={styles.close} onClick={onClose} aria-label="Close">
+        <button type="button" className={styles.close} onClick={onClose} aria-label={t('common.close')}>
           <Icon name="close" />
         </button>
       </header>
@@ -41,52 +42,66 @@ export function DisplaySettings() {
   if (ui.overlay !== 'display') return null;
   const multiplayer = game.players.length > 2;
   return (
-    <Popover title="Display" onClose={() => setUi({ overlay: undefined })} className={styles.display}>
+    <Popover title={t('disp.title')} onClose={() => setUi({ overlay: undefined })} className={styles.display}>
       <div className={styles.field}>
-        <span className={styles.fieldLabel}>Opponents layout {multiplayer ? '' : '(multiplayer only)'}</span>
+        <span className={styles.fieldLabel}>
+          {t('disp.layout')} {multiplayer ? '' : t('disp.mpOnly')}
+        </span>
         <Segmented<OpponentLayout>
-          label="Opponents layout"
+          label={t('disp.layout')}
           value={prefs.layout}
           onChange={(layout) => setPrefs({ layout })}
           options={[
-            ['columns', 'Columns'],
-            ['table', 'Table'],
-            ['focus', 'Focus'],
+            ['columns', t('disp.columns')],
+            ['table', t('disp.table')],
+            ['focus', t('disp.focus')],
           ]}
         />
         <span className={styles.help}>
           {prefs.layout === 'columns'
-            ? 'All opponents side by side across the top, same size.'
+            ? t('disp.columnsHelp')
             : prefs.layout === 'table'
-              ? 'Seats around you in turn order: next player on your left.'
-              : 'One opponent large, the others compact. Click “Show board” on a small seat to switch.'}
+              ? t('disp.tableHelp')
+              : t('disp.focusHelp')}
         </span>
       </div>
       <div className={styles.field}>
-        <span className={styles.fieldLabel}>Board height for opponents {multiplayer ? '' : '(multiplayer only)'}</span>
+        <span className={styles.fieldLabel}>
+          {t('disp.height')} {multiplayer ? '' : t('disp.mpOnly')}
+        </span>
         <Segmented<string>
-          label="Board split"
+          label={t('disp.split')}
           value={String(prefs.opponentShare)}
           onChange={(v) => setPrefs({ opponentShare: Number(v) as OpponentShare })}
           options={OPPONENT_SHARES.map((n) => [String(n), `${n}%`])}
         />
         <span className={styles.help}>
-          Opponents {prefs.opponentShare}%, you {100 - prefs.opponentShare}%. Default 45%.
+          {t('disp.splitHelp', { opp: prefs.opponentShare, you: 100 - prefs.opponentShare })}
         </span>
       </div>
       <label className={styles.check}>
         <input type="checkbox" checked={prefs.nameLabels} onChange={(e) => setPrefs({ nameLabels: e.target.checked })} />
-        Name labels on small cards
+        {t('disp.nameLabels')}
       </label>
       <label className={styles.check}>
         <input type="checkbox" checked={prefs.groupLands} onChange={(e) => setPrefs({ groupLands: e.target.checked })} />
-        Group identical lands
+        {t('disp.groupLands')}
       </label>
       <label className={styles.check}>
         <input type="checkbox" checked={prefs.groupTokens} onChange={(e) => setPrefs({ groupTokens: e.target.checked })} />
-        Group identical tokens
+        {t('disp.groupTokens')}
       </label>
       <ScaleSlider value={prefs.uiScale} onCommit={(uiScale) => setPrefs({ uiScale })} />
+      <div className={styles.field}>
+        <span className={styles.fieldLabel}>{t('lang.label')}</span>
+        <Segmented<Lang>
+          label={t('lang.label')}
+          value={prefs.language}
+          onChange={(language) => setPrefs({ language })}
+          options={LANGS.map((l) => [l, l === 'fr' ? t('lang.fr') : t('lang.en')])}
+        />
+        <span className={styles.help}>{t('lang.help')}</span>
+      </div>
     </Popover>
   );
 }
@@ -116,8 +131,8 @@ function ScaleSlider({ value, onCommit }: { value: number; onCommit: (v: number)
   return (
     <div className={styles.field}>
       <span className={styles.fieldLabel}>
-        Interface scale <b>{Math.round(shown * 100)}%</b>
-        {pending ? <span className={styles.help}> · release to apply</span> : null}
+        {t('disp.scale')} <b>{Math.round(shown * 100)}%</b>
+        {pending ? <span className={styles.help}> {t('disp.release')}</span> : null}
       </span>
       <input
         ref={ref}
@@ -127,7 +142,7 @@ function ScaleSlider({ value, onCommit }: { value: number; onCommit: (v: number)
         step={5}
         value={Math.round(shown * 100)}
         onChange={(e) => setDraft(Number(e.target.value) / 100)}
-        aria-label="Interface scale"
+        aria-label={t('disp.scale')}
         aria-valuetext={`${Math.round(shown * 100)}%`}
       />
     </div>
@@ -138,21 +153,22 @@ export function ShortcutsOverlay() {
   const { ui, setUi } = useMatch();
   if (ui.overlay !== 'shortcuts') return null;
   const groups = ['Play', 'Look', 'Screen'] as const;
+  const all = shortcuts();
   return (
     <div className={styles.scrim} onClick={() => setUi({ overlay: undefined })}>
-      <div className={styles.sheet} role="dialog" aria-label="Keyboard shortcuts" onClick={(e) => e.stopPropagation()}>
+      <div className={styles.sheet} role="dialog" aria-label={t('sc.title')} onClick={(e) => e.stopPropagation()}>
         <header className={styles.head}>
-          <h2>Keyboard shortcuts</h2>
-          <button type="button" className={styles.close} onClick={() => setUi({ overlay: undefined })} aria-label="Close">
+          <h2>{t('sc.title')}</h2>
+          <button type="button" className={styles.close} onClick={() => setUi({ overlay: undefined })} aria-label={t('common.close')}>
             <Icon name="close" />
           </button>
         </header>
         <div className={styles.keyGroups}>
           {groups.map((g) => (
             <section key={g}>
-              <h3>{g}</h3>
+              <h3>{tDynamic(`sc.group.${g}`)}</h3>
               <dl className={styles.keys}>
-                {SHORTCUTS.filter((s) => s.group === g).map((s) => (
+                {all.filter((s) => s.group === g).map((s) => (
                   <div key={s.keys}>
                     <dt>
                       <kbd>{s.keys}</kbd>
@@ -164,7 +180,7 @@ export function ShortcutsOverlay() {
             </section>
           ))}
         </div>
-        <p className={styles.help}>Every shortcut also has a visible button. Keys will be rebindable in settings.</p>
+        <p className={styles.help}>{t('sc.note')}</p>
       </div>
     </div>
   );
@@ -175,21 +191,21 @@ export function GameMenu() {
   if (ui.overlay !== 'menu') return null;
   const canConcede = !game.result && !you(game).hasLost;
   return (
-    <Popover title="Game" onClose={() => setUi({ overlay: undefined })} className={styles.menu}>
+    <Popover title={t('menu.title')} onClose={() => setUi({ overlay: undefined })} className={styles.menu}>
       <button type="button" className={styles.menuItem} onClick={() => setUi({ overlay: 'display' })}>
-        <Icon name="sliders" /> Display options
+        <Icon name="sliders" /> {t('menu.display')}
       </button>
-      <button type="button" className={styles.menuItem} disabled title="Opens Forge's Yield Settings window (Swing) in the real app">
-        <Icon name="hourglass" /> Yield and stop settings…
+      <button type="button" className={styles.menuItem} disabled title={t('menu.yieldTitle')}>
+        <Icon name="hourglass" /> {t('menu.yield')}
       </button>
       <button
         type="button"
         className={`${styles.menuItem} ${styles.danger}`}
         disabled={!canConcede}
-        title={canConcede ? undefined : "You're already out of this game"}
+        title={canConcede ? undefined : t('menu.alreadyOut')}
         onClick={() => setUi({ overlay: 'concede' })}
       >
-        <Icon name="close" /> Concede game…
+        <Icon name="close" /> {t('menu.concede')}
       </button>
     </Popover>
   );
@@ -200,20 +216,20 @@ export function LogDrawer() {
   if (!ui.logOpen) return null;
   const turns = [...new Set(game.log.map((e) => e.turn))].sort((a, b) => b - a);
   return (
-    <aside className={styles.drawer} aria-label="Game log" {...{ [PREVIEW_BESIDE_ATTR]: '' }}>
+    <aside className={styles.drawer} aria-label={t('log.title')} {...{ [PREVIEW_BESIDE_ATTR]: '' }}>
       <header className={styles.head}>
-        <h2>Game log</h2>
-        <button type="button" className={styles.close} onClick={() => setUi({ logOpen: false })} aria-label="Close log">
+        <h2>{t('log.title')}</h2>
+        <button type="button" className={styles.close} onClick={() => setUi({ logOpen: false })} aria-label={t('log.close')}>
           <Icon name="close" />
         </button>
       </header>
       <div className={styles.logBody}>
-        {turns.map((t) => (
-          <section key={t}>
-            <h3>Turn {t}</h3>
+        {turns.map((turn) => (
+          <section key={turn}>
+            <h3>{t('log.turn', { n: turn })}</h3>
             <ol className={styles.log}>
               {game.log
-                .filter((e) => e.turn === t)
+                .filter((e) => e.turn === turn)
                 .reverse()
                 .map((e) => (
                   <li key={e.id}>
@@ -244,12 +260,12 @@ export function DevPanel() {
         className={styles.devToggle}
         onClick={() => setUi((u) => ({ ...u, overlay: u.overlay === 'dev' ? undefined : 'dev' }))}
         aria-pressed={ui.overlay === 'dev'}
-        title="Mock scenarios (`)"
+        title={t('dev.titleKey')}
       >
-        Mock
+        {t('common.mock')}
       </button>
       {ui.overlay === 'dev' ? (
-        <Popover title="Mock scenarios" onClose={() => setUi({ overlay: undefined })} className={styles.dev}>
+        <Popover title={t('dev.title')} onClose={() => setUi({ overlay: undefined })} className={styles.dev}>
           <div className={styles.scenarios}>
             {SCENARIOS.map((s) => (
               <button

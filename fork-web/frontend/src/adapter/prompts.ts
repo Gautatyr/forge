@@ -11,6 +11,7 @@ import type { PromptChoice, PromptMessage } from './protocol';
 import { engineText, unlessChoice, unlessEffect } from './engineText';
 import { colourOptions, isSurveil, numberList, pickedNumber, rangeOfNumberPrompt, surveilWords } from './trayWords';
 import { londonLeft, type InputState } from './session';
+import { t } from '../i18n';
 
 /** View-model id of a wire prompt. */
 export const promptViewId = (id: number) => `prompt:${id}`;
@@ -79,15 +80,15 @@ export function promptToChoice(p: PromptMessage, cards: Record<string, CardView>
   const sourceCardId = cardOf('card' in p ? p.card : undefined, cards);
   switch (p.shape) {
     case 'choose': {
-      let w = words(p, p.method === 'getAbilityToPlay' ? 'Choose an ability' : 'Choose');
+      let w = words(p, p.method === 'getAbilityToPlay' ? t('prompt.chooseAbility') : t('prompt.choose'));
       let options = p.choices.filter((c) => !c.disabled).map((c) => opt(c));
       // "You lose 3 life unless you sacrifice…" / "…unless you discard…" (Torment of Hailfire): the costs to pick from.
       const unless = p.method === 'getAbilityToPlay' ? undefined : unlessEffect(options.map((o) => o.label));
       if (unless) {
         options = options.map((o) => ({ ...o, label: unlessChoice(o.label) ?? o.label }));
-        if (w.title === 'Choose' && !w.instruction) w = { title: `Pay a cost, or ${unless}`, instruction: '' };
+        if (w.title === t('prompt.choose') && !w.instruction) w = { title: t('prompt.payOr', { unless }), instruction: '' };
       }
-      const base = { id, ...w, sourceCardId, confirmLabel: p.max === 0 ? 'OK' : 'Confirm' };
+      const base = { id, ...w, sourceCardId, confirmLabel: p.max === 0 ? t('common.ok') : t('common.confirm') };
       if (p.method === 'getAbilityToPlay') {
         return { ...base, shape: 'chooseN', options, min: 0, max: 1, abilityMenu: true };
       }
@@ -104,7 +105,7 @@ export function promptToChoice(p: PromptMessage, cards: Record<string, CardView>
       return { ...base, shape: 'chooseN', options: colourOptions(options) ?? options, min: p.min, max: p.max };
     }
     case 'confirm': {
-      const w = words(p, 'Confirm');
+      const w = words(p, t('common.confirm'));
       return {
         id,
         ...w,
@@ -118,26 +119,26 @@ export function promptToChoice(p: PromptMessage, cards: Record<string, CardView>
       };
     }
     case 'order': {
-      const w = words(p, 'Put in order');
-      const base = { id, ...w, sourceCardId, confirmLabel: 'Confirm', shape: 'order' as const };
+      const w = words(p, t('prompt.putInOrder'));
+      const base = { id, ...w, sourceCardId, confirmLabel: t('common.confirm'), shape: 'order' as const };
       if (p.piles) {
         // scry: only the looked-at cards, each to the top or the bottom of the library (the scry layout)
         const items = p.choices.map((c) => opt(c));
         const lists = [];
-        if (p.toTop !== false) lists.push({ id: 'top', label: 'Top of library', hint: 'Leftmost is drawn first', items });
+        if (p.toTop !== false) lists.push({ id: 'top', label: t('prompt.topOfLibrary'), hint: t('prompt.leftmostDrawn'), items });
         if (p.toBottom !== false) {
           const one = lists.length === 0;
           lists.push({
             id: 'bottom',
-            label: 'Bottom of library',
-            hint: one ? 'Last goes to the very bottom' : 'Rightmost goes to the very bottom',
+            label: t('prompt.bottomOfLibrary'),
+            hint: one ? t('prompt.lastBottom') : t('prompt.rightmostBottom'),
             items: one ? items : [],
           });
         }
         return { ...base, lists };
       }
       if (p.permutation || p.method === 'manipulateCardList') {
-        return { ...base, lists: [{ id: 'all', label: 'Order', hint: 'First is on top', items: p.choices.map((c) => opt(c)) }] };
+        return { ...base, lists: [{ id: 'all', label: t('prompt.order'), hint: t('prompt.firstOnTop'), items: p.choices.map((c) => opt(c)) }] };
       }
       const inDest = p.choices.filter((c) => c.inDest).map((c) => opt(c));
       const out = p.choices.filter((c) => !c.inDest).map((c) => opt(c));
@@ -154,18 +155,18 @@ export function promptToChoice(p: PromptMessage, cards: Record<string, CardView>
         };
       }
       if (p.method === 'order' && (p.remainingMax ?? 0) === 0) {
-        return { ...base, lists: [{ id: 'dest', label: p.destLabel || 'Order', hint: 'First to last', items: [...inDest, ...out] }] };
+        return { ...base, lists: [{ id: 'dest', label: p.destLabel || t('prompt.order'), hint: t('prompt.firstToLast'), items: [...inDest, ...out] }] };
       }
       return {
         ...base,
         lists: [
-          { id: 'source', label: p.method === 'sideboard' ? 'Sideboard' : 'Not chosen', hint: '', items: out },
-          { id: 'dest', label: p.destLabel || 'Chosen', hint: 'In this order', items: inDest },
+          { id: 'source', label: p.method === 'sideboard' ? t('prompt.sideboard') : t('prompt.notChosen'), hint: '', items: out },
+          { id: 'dest', label: p.destLabel || t('prompt.chosen'), hint: t('prompt.inThisOrder'), items: inDest },
         ],
       };
     }
     case 'distribute': {
-      const label = p.amountLabel || 'amount';
+      const label = p.amountLabel || t('prompt.amount');
       const recipients = p.choices.map((c): DistributeRecipient => {
         const r: DistributeRecipient = opt(c);
         if (p.atLeastOne) r.min = 1;
@@ -187,18 +188,18 @@ export function promptToChoice(p: PromptMessage, cards: Record<string, CardView>
       return {
         id,
         shape: 'distribute',
-        title: combat ? `Assign ${name ?? 'combat'} damage` : `Divide ${p.amount} ${label}`,
-        instruction: `Divide ${p.amount} ${label} among these.`,
+        title: combat ? t('prompt.assignDamage', { name: name ?? t('prompt.assignCombat') }) : t('prompt.divideTitle', { amount: p.amount, label }),
+        instruction: t('prompt.divide', { amount: p.amount, label }),
         sourceCardId,
-        confirmLabel: 'Assign',
+        confirmLabel: t('prompt.assign'),
         total: p.amount,
         recipients,
         ...(combat ? { combat } : {}),
       };
     }
     case 'text': {
-      const w = words(p, 'Answer');
-      const base = { id, ...w, sourceCardId, confirmLabel: 'Confirm' };
+      const w = words(p, t('prompt.answer'));
+      const base = { id, ...w, sourceCardId, confirmLabel: t('common.confirm') };
       const opts = p.options ?? [];
       if (opts.length >= NAME_LIST_MIN) {
         return {
@@ -333,9 +334,9 @@ export function inputToChoice(input: InputState, view: Pick<GameView, 'players' 
     const hand = you?.hand ?? [];
     return n === 0
       ? undefined
-      : bottomPrompt(hand, n, (id) => view.cards[id]?.name ?? 'Card', `${INPUT_PROMPT_PREFIX}bottom:${n}:${hand.join(',')}`);
+      : bottomPrompt(hand, n, (id) => view.cards[id]?.name ?? t('prompt.card'), `${INPUT_PROMPT_PREFIX}bottom:${n}:${hand.join(',')}`);
   }
-  const base = { ...promptWords(msg, undefined, 'Your decision'), sourceCardId };
+  const base = { ...promptWords(msg, undefined, t('prompt.yourDecision')), sourceCardId };
   const key = `${input.ok.label}|${input.cancel.label}|${msg}`;
   const toss = tossChooser(msg);
   const opponent = view.players.find((p) => !p.isYou && !p.hasLost);
@@ -347,9 +348,9 @@ export function inputToChoice(input: InputState, view: Pick<GameView, 'players' 
       instruction: '',
       id: `${INPUT_PROMPT_PREFIX}buttons:${key}`,
       shape: 'yesNo',
-      confirmLabel: 'Play first',
-      yesLabel: 'Play first',
-      noLabel: `Let {player:${opponent.id}} start`,
+      confirmLabel: t('prompt.playFirst'),
+      yesLabel: t('prompt.playFirst'),
+      noLabel: t('prompt.letStart', { player: `{player:${opponent.id}}` }),
     };
   }
   if (input.ok.enabled && input.cancel.enabled) {
@@ -357,14 +358,14 @@ export function inputToChoice(input: InputState, view: Pick<GameView, 'players' 
       ...base,
       id: `${INPUT_PROMPT_PREFIX}buttons:${key}`,
       shape: 'yesNo',
-      confirmLabel: input.ok.label || 'OK',
-      yesLabel: input.ok.label || 'OK',
-      noLabel: input.cancel.label || 'Cancel',
+      confirmLabel: input.ok.label || t('common.ok'),
+      yesLabel: input.ok.label || t('common.ok'),
+      noLabel: input.cancel.label || t('common.cancel'),
     };
   }
   if (input.ok.enabled || input.cancel.enabled) {
     const ok = input.ok.enabled;
-    const label = (ok ? input.ok.label : input.cancel.label) || 'OK';
+    const label = (ok ? input.ok.label : input.cancel.label) || t('common.ok');
     return { ...base, id: `${INPUT_PROMPT_PREFIX}${ok ? 'ok' : 'cancel'}:${key}`, shape: 'chooseN', options: [], min: 0, max: 0, confirmLabel: label };
   }
   return undefined;

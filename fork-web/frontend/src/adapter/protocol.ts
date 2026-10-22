@@ -17,7 +17,12 @@ import type {
 export type { ActionMessage, ClientMessage, PromptChoice, PromptMessage, SeatRef };
 
 export type ServerFrame = ServerMessage | SeatMessage;
-export type ClientFrame = ClientMessage;
+/** Per-seat card-text and image language (packet I serves it; an older bridge ignores it). */
+export interface LanguageFrame {
+  t: 'setLanguage';
+  lang: 'en' | 'fr';
+}
+export type ClientFrame = ClientMessage | LanguageFrame;
 
 /** `{type, id}` reference (card, player, stack item), as calls and prompts carry them. */
 export function asRef(v: unknown): SeatRef | undefined {

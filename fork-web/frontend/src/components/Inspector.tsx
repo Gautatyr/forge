@@ -10,6 +10,16 @@ import { KeywordBadge } from './KeywordIcons';
 import { grantedText, keywordLine } from './keywordCatalog';
 import { ManaCost } from './ManaCost';
 import styles from './Inspector.module.css';
+import { t, tDynamic, type MsgKey } from '../i18n';
+
+const ZONES: Partial<Record<string, MsgKey>> = {
+  graveyard: 'zone.graveyard',
+  exile: 'zone.exile',
+  library: 'zone.library',
+  battlefield: 'zone.battlefield',
+  hand: 'zone.hand',
+  command: 'zone.command',
+};
 
 /** Full card detail: both faces, rules text, P/T breakdown, counters, attachments. */
 export function Inspector() {
@@ -18,8 +28,8 @@ export function Inspector() {
   if (!c) return null;
   const face = currentFace(c);
   const faces: { face: CardFace; label: string; inPlay: boolean }[] = [
-    { face: c.front, label: c.back ? 'Front face' : 'Card', inPlay: !c.transformed },
-    ...(c.back ? [{ face: c.back, label: c.faceDown?.seen ? 'Face down' : 'Back face', inPlay: !!c.transformed }] : []),
+    { face: c.front, label: c.back ? t('ins.front') : t('ins.card'), inPlay: !c.transformed },
+    ...(c.back ? [{ face: c.back, label: c.faceDown?.seen ? t('ins.faceDown') : t('ins.back'), inPlay: !!c.transformed }] : []),
   ];
   const owner = player(game, c.ownerId);
   const controller = player(game, c.controllerId);
@@ -28,11 +38,11 @@ export function Inspector() {
   const printedT = Number(face.toughness) || 0;
 
   return (
-    <aside className={styles.inspector} aria-label={`Inspect ${c.name}`}>
+    <aside className={styles.inspector} aria-label={t('ins.aria', { name: c.name })}>
       <header className={styles.head}>
         <h2>{c.name}</h2>
         <button type="button" className={styles.close} onClick={() => setUi({ inspectId: undefined })}>
-          <Icon name="close" /> Close <kbd>Esc</kbd>
+          <Icon name="close" /> {t('ins.close')} <kbd>{t('key.esc')}</kbd>
         </button>
       </header>
 
@@ -44,7 +54,7 @@ export function Inspector() {
               {c.back ? (
                 <figcaption>
                   {f.label}
-                  {f.inPlay && c.zone === 'battlefield' ? ' · in play' : ''}
+                  {f.inPlay && c.zone === 'battlefield' ? ` ${t('ins.inPlay')}` : ''}
                 </figcaption>
               ) : null}
             </figure>
@@ -66,7 +76,7 @@ export function Inspector() {
 
           {c.keywords.length ? (
             <section>
-              <h3>Keywords</h3>
+              <h3>{t('ins.keywords')}</h3>
               <ul className={styles.keywords}>
                 {c.keywords.map((k, i) => {
                   const line = keywordLine(k);
@@ -88,14 +98,14 @@ export function Inspector() {
 
           {isCreature(c) && c.zone === 'battlefield' && c.power !== undefined ? (
             <section>
-              <h3>Power / toughness</h3>
+              <h3>{t('ins.pt')}</h3>
               <table className={styles.pt}>
                 <tbody>
                   {/* Without a breakdown (live: the engine view has the net P/T only) "Printed" would be a guess. */}
                   {c.ptModifiers ? (
                     <>
                       <tr>
-                        <td>Printed</td>
+                        <td>{t('ins.printed')}</td>
                         <td>
                           {printedP}/{printedT}
                         </td>
@@ -113,10 +123,10 @@ export function Inspector() {
                     </>
                   ) : null}
                   <tr className={styles.total}>
-                    <td>Now</td>
+                    <td>{t('ins.now')}</td>
                     <td>
                       {c.power}/{c.toughness}
-                      {c.damage ? ` (${c.damage} damage marked)` : ''}
+                      {c.damage ? ` ${t('ins.damageMarked', { count: c.damage })}` : ''}
                     </td>
                   </tr>
                 </tbody>
@@ -125,18 +135,18 @@ export function Inspector() {
           ) : null}
 
           <section>
-            <h3>State</h3>
+            <h3>{t('ins.state')}</h3>
             <ul className={styles.facts}>
-              <li>Controller: {controller.isYou ? 'you' : controller.name}</li>
-              {owner.id !== controller.id ? <li>Owner: {owner.name}</li> : null}
-              <li>Zone: {c.zone}</li>
-              {c.zone === 'battlefield' ? <li>{c.tapped ? 'Tapped' : 'Untapped'}</li> : null}
-              {c.summoningSick && c.zone === 'battlefield' ? <li>Summoning sick</li> : null}
-              {c.isToken ? <li>Token</li> : null}
-              {c.isCommander ? <li>Commander · next cast costs {commanderTax(owner, c.id)} more</li> : null}
+              <li>{t('ins.controller', { name: controller.isYou ? t('top.you') : controller.name })}</li>
+              {owner.id !== controller.id ? <li>{t('ins.owner', { name: owner.name })}</li> : null}
+              <li>{t('ins.zone', { zone: ZONES[c.zone] ? tDynamic(ZONES[c.zone]!) : c.zone })}</li>
+              {c.zone === 'battlefield' ? <li>{c.tapped ? t('hp.tapped') : t('ins.untapped')}</li> : null}
+              {c.summoningSick && c.zone === 'battlefield' ? <li>{t('card.sick')}</li> : null}
+              {c.isToken ? <li>{t('ins.token')}</li> : null}
+              {c.isCommander ? <li>{t('ins.commanderTax', { tax: commanderTax(owner, c.id) })}</li> : null}
               {c.counters.map((k) => (
                 <li key={k.kind}>
-                  {k.count} × {k.kind} counter
+                  {t('hp.counter', { count: k.count, kind: k.kind })}
                 </li>
               ))}
             </ul>
@@ -144,7 +154,7 @@ export function Inspector() {
 
           {host || c.attachments.length ? (
             <section>
-              <h3>{host ? 'Attached to' : 'Attachments'}</h3>
+              <h3>{host ? t('ins.attachedTo') : t('ins.attachments')}</h3>
               <div className={styles.attachments}>
                 {(host ? [host.id] : c.attachments).map((id) => {
                   const a = game.cards[id];

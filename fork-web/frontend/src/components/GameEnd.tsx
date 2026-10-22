@@ -6,6 +6,7 @@ import { DevPanel } from './Overlays';
 import { Icon, SeatGlyph } from './Icon';
 import { useJustOut } from './useJustOut';
 import styles from './GameEnd.module.css';
+import { t } from '../i18n';
 
 /**
  * Players leaving and the end of the game (design pass 4 §2.6): the "is out"
@@ -76,10 +77,10 @@ export function YouAreOut() {
         <div className={styles.buttons}>
           <button type="button" className={styles.primary} onClick={watch} autoFocus>
             <Icon name="eye" />
-            Watch the rest <kbd>Esc</kbd>
+            {t('end.watch')} <kbd>{t('key.esc')}</kbd>
           </button>
           <button type="button" className={styles.secondary} onClick={leave}>
-            Back to lobby
+            {t('end.lobby')}
           </button>
         </div>
       </div>
@@ -98,17 +99,17 @@ export function ConcedeDialog() {
   if (gameEndView(game, ui) !== 'concede') return null;
   const close = () => setUi({ overlay: undefined });
   const live = opponents(game).filter((p) => !p.hasLost);
-  const after = live.length === 1 ? `${live[0]!.name} wins.` : 'the others keep playing.';
+  const after = live.length === 1 ? t('end.nameWins', { name: live[0]!.name }) : t('end.othersPlay');
   return (
     <div className={styles.scrim}>
       <DialogKeys onEscape={close} />
       <div className={styles.dialog} role="alertdialog" aria-labelledby="concede-title" aria-describedby="concede-text">
         <p className={styles.dialogText}>
-          <b id="concede-title">Concede this game?</b> <span id="concede-text">You're out; {after}</span>
+          <b id="concede-title">{t('end.concedeTitle')}</b> <span id="concede-text">{t('end.concedeText', { after })}</span>
         </p>
         <div className={styles.buttons}>
           <button type="button" className={styles.secondary} onClick={close} autoFocus>
-            Keep playing
+            {t('end.keep')}
           </button>
           <button
             type="button"
@@ -119,7 +120,7 @@ export function ConcedeDialog() {
             }}
           >
             <Icon name="close" />
-            Concede
+            {t('end.concede')}
           </button>
         </div>
       </div>
@@ -147,8 +148,8 @@ export function GameOverPanel() {
         </h2>
         <p className={styles.reason}>{r.reason}</p>
         <ol className={styles.ranking}>
-          {rankingRows(game).map((row) => (
-            <li key={row.playerId} className={row.ordinal === '1st' ? styles.first : undefined}>
+          {rankingRows(game).map((row, i) => (
+            <li key={row.playerId} className={i === 0 ? styles.first : undefined}>
               <span className={styles.place}>{row.ordinal}</span>
               <SeatGlyph seat={row.seat} />
               <span>
@@ -160,11 +161,11 @@ export function GameOverPanel() {
         </ol>
         <div className={styles.buttons}>
           <button type="button" className={styles.primary} onClick={primary} autoFocus>
-            {r.nextGame ? 'Next game' : 'Back to lobby'} <kbd>Enter</kbd>
+            {r.nextGame ? t('end.next') : t('end.lobby')} <kbd>{t('key.enter')}</kbd>
           </button>
           <button type="button" className={styles.secondary} onClick={view}>
             <Icon name="eye" />
-            View the board <kbd>Esc</kbd>
+            {t('end.view')} <kbd>{t('key.esc')}</kbd>
           </button>
         </div>
       </section>
@@ -180,7 +181,7 @@ export function GameOverChip({ className }: { className: string }) {
   const next = game.result.nextGame;
   return (
     <button type="button" className={className} onClick={next ? () => send({ type: 'nextGame' }) : leave}>
-      <Icon name="stop" /> Game over · {next ? 'Next game' : 'Back to lobby'}
+      <Icon name="stop" /> {t('end.chip', { action: next ? t('end.next') : t('end.lobby') })}
     </button>
   );
 }
@@ -189,7 +190,7 @@ export function GameOverChip({ className }: { className: string }) {
 export function LeftMatch() {
   return (
     <main className={styles.left}>
-      <p className={styles.dialogText}>Match finished. Forge's lobby is open; you can close this tab.</p>
+      <p className={styles.dialogText}>{t('end.left')}</p>
       <DevPanel />
     </main>
   );

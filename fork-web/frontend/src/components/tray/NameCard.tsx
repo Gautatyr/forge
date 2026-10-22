@@ -5,6 +5,7 @@ import { useOpenFocus, useSubmit } from './NumberField';
 import { exactName, fitHeight, inputStart, scrollToShow, suggestNames } from './numberLogic';
 import type { BodyProps } from './TrayBody';
 import styles from './NumberShapes.module.css';
+import { t } from '../../i18n';
 
 /** Lowest height of the body, in rem: the field, the constraint and two suggestions. */
 const FLOOR_REM = 6;
@@ -107,7 +108,7 @@ export function NameCard(props: BodyProps<InputPrompt>) {
           spellCheck={false}
           className={styles.textInput}
           value={text}
-          placeholder="Type a card name"
+          placeholder={t('tray.typeName')}
           onChange={(e) => type(e.target.value)}
           onKeyDown={onKey}
           aria-label={prompt.title}
@@ -118,7 +119,7 @@ export function NameCard(props: BodyProps<InputPrompt>) {
         />
         {prompt.constraint ? <p className={styles.constraint}>{prompt.constraint}</p> : null}
         {list.length ? (
-          <ul ref={listRef} id={listId} role="listbox" className={styles.suggestions} aria-label="Card names">
+          <ul ref={listRef} id={listId} role="listbox" className={styles.suggestions} aria-label={t('tray.cardNames')}>
             {list.map((n, i) => (
               <li
                 key={n.name}
@@ -137,7 +138,7 @@ export function NameCard(props: BodyProps<InputPrompt>) {
             ))}
           </ul>
         ) : text.trim() && !exact ? (
-          <p className={styles.constraint}>No card name matches.</p>
+          <p className={styles.constraint}>{t('tray.noName')}</p>
         ) : null}
       </div>
       <div className={styles.preview}>

@@ -21,6 +21,7 @@ import {
   visibleOptions,
 } from './tray/trayLogic';
 import styles from './ChoiceTray.module.css';
+import { t } from '../i18n';
 
 /**
  * Every question the engine asks outside targeting and combat (design pass 4
@@ -48,6 +49,7 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
   // The tray may grow to the height of your board (the opponents keep theirs).
   const yourShare = opponents(game).length === 1 ? 50 : 100 - prefs.opponentShare;
   const barRef = useRef<HTMLDivElement>(null);
+  const trayRef = useRef<HTMLDivElement>(null);
 
   // The in-place bar sits at the bottom centre of your board; when that covers
   // an option, it takes the corner of your board that covers the fewest.
@@ -98,6 +100,78 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
     place();
     return () => cancelAnimationFrame(frame);
   });
+
+  // The tray keeps the cards the prompt is about (its source, the sources of the triggers to order, listed
+  // permanents) in view: when its usual place over your board covers one, it docks over the hand instead (CSS
+  // `data-dock`), or to a side; Peek still shows everything.
+  useLayoutEffect(() => {
+    const el = trayRef.current;
+    const area = el?.offsetParent;
+    if (!el || !(area instanceof HTMLElement)) return;
+    const ids = new Set<string>();
+    if (prompt.sourceCardId) ids.add(prompt.sourceCardId);
+    const lists = prompt.shape === 'order' ? prompt.lists.map((l) => l.items) : prompt.shape === 'chooseN' ? [prompt.options] : [];
+    for (const o of lists.flat()) if (o.cardId) ids.add(o.cardId);
+    const onBoard = [...ids].filter((id) => game.cards[id]?.zone === 'battlefield');
+    if (onBoard.length === 0) return;
+    // The listed cards the tray overlaps now.
+    const hits = () => {
+      const b = el.getBoundingClientRect();
+      return onBoard.flatMap((id) =>
+        [...area.querySelectorAll(`[data-card-id="${CSS.escape(id)}"]`)]
+          .filter((c) => !el.contains(c))
+          .map((c) => c.getBoundingClientRect())
+          .filter((r) => r.bottom > b.top && r.top < b.bottom && r.right > b.left && r.left < b.right),
+      );
+    };
+    const covered = () => hits().length;
+    // Over the hand the tray may be a little too tall to clear the lowest card above it: cap its height there
+    // (its body scrolls) when that still leaves a usable tray.
+    const MIN_DOCKED = 260;
+    const capAboveCards = () => {
+      const h = hits();
+      if (h.length === 0) return;
+      const room = el.getBoundingClientRect().bottom - Math.max(...h.map((r) => r.bottom)) - 2;
+      if (room >= MIN_DOCKED) el.style.maxHeight = `${room}px`;
+    };
+    let frame = 0;
+    // Every frame while open: the board lays itself out after paint and reflows.
+    const place = () => {
+      frame = requestAnimationFrame(place);
+      delete el.dataset.dock;
+      el.style.maxHeight = '';
+      let fewest = covered();
+      if (fewest === 0) return;
+      let best = '';
+      let bestCap = '';
+      // Over the hand first, then the sides of the board column; uncapped first, then capped: the first that
+      // covers none, else the one that covers the fewest.
+      outer: for (const capped of [false, true]) {
+        for (const dock of ['hand', 'handRight', 'handLeft', 'right', 'left']) {
+          if (capped && !dock.startsWith('hand')) continue;
+          el.dataset.dock = dock;
+          el.style.maxHeight = '';
+          if (capped) capAboveCards();
+          const n = covered();
+          if (n < fewest) [best, bestCap, fewest] = [dock, el.style.maxHeight, n];
+          if (n === 0) break outer;
+        }
+      }
+      if (best) {
+        el.dataset.dock = best;
+        el.style.maxHeight = bestCap;
+      } else {
+        delete el.dataset.dock;
+        el.style.maxHeight = '';
+      }
+    };
+    place();
+    return () => {
+      cancelAnimationFrame(frame);
+      delete el.dataset.dock;
+      el.style.maxHeight = '';
+    };
+  });
   const filterable = prompt.shape === 'chooseN' && prompt.options.length > FILTER_FROM;
   const matching =
     prompt.shape === 'chooseN' && mode === 'tray'
@@ -140,7 +214,7 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
   const confirmButton = (
     <button type="button" className={styles.confirm} disabled={!confirm.enabled} onClick={answer}>
       {confirm.label}
-      {confirm.enabled ? <kbd>Space</kbd> : null}
+      {confirm.enabled ? <kbd>{t('key.space')}</kbd> : null}
     </button>
   );
 
@@ -156,14 +230,14 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
 
   if (mode === 'peek') {
     return (
-      <div className={`${styles.tray} ${styles.peek}`} role="region" aria-label={`${prompt.title} (hidden while you look at the board)`}>
+      <div className={`${styles.tray} ${styles.peek}`} role="region" aria-label={t('tray.peekAria', { title: prompt.title })}>
         <span className={styles.peekTitle}>
           <Icon name="hourglass" />
-          {prompt.title} is waiting for you
+          {t('tray.waiting', { title: prompt.title })}
         </span>
         <button type="button" className={styles.ghost} onClick={() => setUi({ trayPeek: false })}>
           <Icon name="eye" />
-          Back to the choice <kbd>V</kbd>
+          {t('tray.back')} <kbd>V</kbd>
         </button>
       </div>
     );
@@ -175,14 +249,14 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
     prompt.shape === 'yesNo' ? null : (
       <footer className={styles.foot}>
         <span className={styles.status}>
-          {counter || (prompt.shape === 'order' && prompt.lists.length > 1 ? 'Click a card to move it between the lists. Arrows reorder.' : '')}
+          {counter || (prompt.shape === 'order' && prompt.lists.length > 1 ? t('tray.orderHint') : '')}
         </span>
         {confirmButton}
       </footer>
     );
 
   return (
-    <div className={`${styles.tray} ${prompt.shape === 'order' ? styles.narrow : ''}`} role="region" aria-label={prompt.title} style={{ '--tray-max': `${yourShare}%` } as CSSProperties}>
+    <div ref={trayRef} className={`${styles.tray} ${prompt.shape === 'order' ? styles.narrow : ''}`} role="region" aria-label={prompt.title} style={{ '--tray-max': `${yourShare}%` } as CSSProperties}>
       <header className={styles.head}>
         {source ? <Card card={source} context="thumb" style={{ '--cw': '2.6rem' } as CSSProperties} /> : null}
         <div className={styles.titles}>
@@ -198,7 +272,7 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
         </div>
         <button type="button" className={styles.ghost} onClick={() => setUi({ trayPeek: true })}>
           <Icon name="eye" />
-          Peek at board <kbd>V</kbd>
+          {t('tray.peek')} <kbd>V</kbd>
         </button>
       </header>
 
@@ -208,8 +282,8 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Filter by name or type"
-            aria-label="Filter by name or type"
+            placeholder={t('tray.filter')}
+            aria-label={t('tray.filter')}
           />
         </div>
       ) : null}

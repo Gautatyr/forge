@@ -5,6 +5,7 @@ import { Icon } from '../Icon';
 import { ManaCost } from '../ManaCost';
 import { anchorMenu } from './trayLogic';
 import styles from './AbilityMenu.module.css';
+import { t } from '../../i18n';
 
 /**
  * Which ability (or face) to use, anchored to its card (design pass 4 P2):
@@ -67,7 +68,7 @@ export function AbilityMenu({ prompt }: { prompt: ChooseNPrompt }) {
       ))}
       <button type="button" className={styles.cancel} onClick={() => answer([])}>
         <Icon name="close" />
-        Cancel <kbd>Esc</kbd>
+        {t('common.cancel')} <kbd>{t('key.esc')}</kbd>
       </button>
     </div>
   );

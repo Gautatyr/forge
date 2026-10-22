@@ -1,4 +1,5 @@
 import type { CardId, GameView } from '../model/types';
+import { t } from '../i18n';
 
 interface Words {
   title: string;
@@ -18,6 +19,6 @@ export function revealWords(view: Omit<GameView, 'decision'>, shown: CardId[], w
   const inOneHand = cards.every((c) => c.zone === 'hand' && c.ownerId === ownerId);
   const owner = view.players.find((p) => p.id === ownerId);
   if (inOneHand && owner && (owner.isYou ? owner.hand.length : owner.handCount) === shown.length) return words;
-  const title = cards.length === 1 ? `Revealed: ${cards[0]!.name}` : `Revealed: ${cards.length} cards`;
-  return { title, instruction: inOneHand && owner ? `From ${owner.isYou ? 'your' : `${owner.name}'s`} hand.` : '' };
+  const title = cards.length === 1 ? t('prompt.revealedOne', { name: cards[0]!.name }) : t('prompt.revealedMany', { count: cards.length });
+  return { title, instruction: inOneHand && owner ? (owner.isYou ? t('prompt.fromYourHand') : t('prompt.fromTheirHand', { name: owner.name })) : '' };
 }

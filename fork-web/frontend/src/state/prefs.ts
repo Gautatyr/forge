@@ -1,5 +1,6 @@
 import { PRIORITY_STEPS } from '../model/phases';
 import type { PlayerId, StepId } from '../model/types';
+import { defaultLanguage, parseLanguage, type Lang } from '../i18n';
 
 /** How opponents are arranged in multiplayer. 1v1 always uses one full-width seat. */
 export type OpponentLayout = 'columns' | 'table' | 'focus';
@@ -39,6 +40,8 @@ export interface Prefs {
   stops: StopPrefs;
   /** Pay mana automatically when the engine can. Hand payment is the default. */
   autoPay: boolean;
+  /** Interface language; also tells the bridge which language to serve card text and images in. */
+  language: Lang;
 }
 
 export const OPPONENT_SHARES = [35, 40, 45, 50, 55] as const;
@@ -53,6 +56,7 @@ export const DEFAULT_PREFS: Prefs = {
   opponentShare: 45,
   stops: DEFAULT_STOPS,
   autoPay: false,
+  language: 'en',
 };
 
 const KEY = 'forge.match.prefs.v1';
@@ -82,10 +86,12 @@ export function parsePrefs(raw: string): Prefs {
     // Pass 3 replaced the S/M/L card size with adaptive sizing.
     delete (p as { cardSize?: unknown }).cardSize;
     if (typeof p.autoPay !== 'boolean') p.autoPay = false;
+    // Nothing stored (or unreadable): French for a French browser, else English.
+    p.language = parseLanguage(stored.language) ?? defaultLanguage();
     if (!OPPONENT_SHARES.includes(p.opponentShare)) p.opponentShare = DEFAULT_PREFS.opponentShare;
     return p;
   } catch {
-    return DEFAULT_PREFS;
+    return { ...DEFAULT_PREFS, language: defaultLanguage() };
   }
 }
 
@@ -96,7 +102,7 @@ export function loadPrefs(): Prefs {
   } catch {
     /* storage unavailable: defaults */
   }
-  return DEFAULT_PREFS;
+  return { ...DEFAULT_PREFS, language: defaultLanguage() };
 }
 
 export function savePrefs(p: Prefs) {
