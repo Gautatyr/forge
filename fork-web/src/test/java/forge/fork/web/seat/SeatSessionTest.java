@@ -38,7 +38,10 @@ import forge.game.card.CardCopyService;
 import forge.game.card.CardView;
 import forge.game.event.GameEvent;
 import forge.game.event.GameEventCombatChanged;
+import forge.game.event.GameEventGameFinished;
+import forge.game.event.GameEventPlayerPriority;
 import forge.game.event.GameEventShuffle;
+import forge.game.phase.PhaseType;
 import forge.game.player.Player;
 import forge.game.zone.ZoneType;
 import forge.gui.interfaces.IGuiGame;
@@ -452,51 +455,82 @@ public class SeatSessionTest {
         assertTrue(r.rememberDecision());
     }
 
-    @Test
-    public void manipulateCardListTakesAScryToTheBottomOfTheWholeLibrary() throws Exception {
-        start();
-        // as PlayerControllerHuman.arrangeForScry with UI_SELECT_FROM_CARD_DISPLAYS: the whole library, the top 2 movable
-        List<Card> lib = new ArrayList<>();
-        for (String n : List.of("Island", "Forest", "Swamp", "Mountain", "Plains")) {
+    /** Library cards the seat may look at, top first. */
+    private List<CardView> library(String... names) {
+        List<CardView> cards = new ArrayList<>();
+        for (String n : names) {
             Card x = TestEngine.add(n, p0, ZoneType.Library);
             x.addMayLookTemp(p0);
-            lib.add(x);
+            cards.add(x.getView());
         }
-        List<CardView> cards = new ArrayList<>();
-        lib.forEach(x -> cards.add(x.getView()));
-        Future<List<CardView>> f = onGameThread(() -> gui.manipulateCardList("Scry", cards, cards.subList(0, 2), true, true, false));
+        return cards;
+    }
+
+    @Test
+    public void manipulateCardListOffersOnlyTheMovableCardsAsTopAndBottomPiles() throws Exception {
+        start();
+        // as PlayerControllerHuman.arrangeForScry with UI_SELECT_FROM_CARD_DISPLAYS: the whole library, the top 3 movable
+        List<CardView> cards = library("Island", "Forest", "Swamp", "Mountain", "Plains");
+        Future<List<CardView>> f = onGameThread(() -> gui.manipulateCardList("Scry", cards, cards.subList(0, 3), true, true, false));
         JsonObject p = client.next("prompt");
-        assertTrue(p.get("permutation").getAsBoolean());
-        reply(p, json("[1,2,0,3,4]"));
-        assertEquals(client.next("replyRejected").get("reason").getAsString(), "card 0 must go to the top or the bottom");
-        reply(p, json("[0,1,2,4,3]"));
-        assertEquals(client.next("replyRejected").get("reason").getAsString(), "cards that may not move keep their order");
-        reply(p, json("[0,1]"));
+        assertTrue(p.get("piles").getAsBoolean());
+        assertFalse(p.has("permutation"));
+        JsonArray choices = p.getAsJsonArray("choices");
+        assertEquals(choices.size(), 3, "only the scried cards: " + choices);
+        for (int i = 0; i < 3; i++) {
+            assertTrue(choices.get(i).getAsJsonObject().get("label").getAsString().startsWith(cards.get(i).getName()), choices.toString());
+        }
+        reply(p, json("[2,0,1]"));
+        assertEquals(client.next("replyRejected").get("reason").getAsString(), "expected {top, bottom}");
+        reply(p, json("{\"top\":[0,1],\"bottom\":[1,2]}"));
         client.next("replyRejected");
-        reply(p, json("[1,2,3,4,0]")); // the first scried card to the bottom: every library card shifts up by one
-        assertEquals(get(f), List.of(cards.get(1), cards.get(2), cards.get(3), cards.get(4), cards.get(0)));
+        reply(p, json("{\"top\":[0],\"bottom\":[2]}"));
+        assertEquals(client.next("replyRejected").get("reason").getAsString(), "each card goes to the top or the bottom");
+        // Swamp on top; Island then Forest on the bottom, Forest last: the library as it will be (arrangeForMove keeps
+        // the trailing run in list order and GameAction.scry puts each card under the previous one).
+        reply(p, json("{\"top\":[2],\"bottom\":[0,1]}"));
+        assertEquals(get(f), List.of(cards.get(2), cards.get(3), cards.get(4), cards.get(0), cards.get(1)));
+    }
+
+    @Test
+    public void manipulateCardListWithNothingElseInTheLibraryKeepsThePilesInOrder() throws Exception {
+        start();
+        // scry 2 with two cards left: everything is movable, the result is the library as it will be
+        List<CardView> cards = library("Island", "Forest");
+        Future<List<CardView>> f = onGameThread(() -> gui.manipulateCardList("Scry", cards, cards, true, true, false));
+        JsonObject p = client.next("prompt");
+        reply(p, json("{\"top\":[],\"bottom\":[1,0]}"));
+        assertEquals(get(f), List.of(cards.get(1), cards.get(0)));
     }
 
     @Test
     public void manipulateCardListHonoursTopBottomAndAnywhere() throws Exception {
         start();
-        List<CardView> cards = new ArrayList<>();
-        for (String n : List.of("Island", "Forest", "Swamp")) {
-            Card x = TestEngine.add(n, p0, ZoneType.Library);
-            x.addMayLookTemp(p0);
-            cards.add(x.getView());
-        }
+        List<CardView> cards = library("Island", "Forest", "Swamp");
         Future<List<CardView>> bottomOnly = onGameThread(() -> gui.manipulateCardList("Bottom", cards, cards.subList(0, 1), false, true, false));
         JsonObject p = client.next("prompt");
-        reply(p, json("[0,1,2]"));
-        assertEquals(client.next("replyRejected").get("reason").getAsString(), "card 0 must go to the bottom");
-        reply(p, json("[1,2,0]"));
+        assertEquals(p.getAsJsonArray("choices").size(), 1);
+        assertFalse(p.get("toTop").getAsBoolean());
+        reply(p, json("{\"top\":[0],\"bottom\":[]}"));
+        assertEquals(client.next("replyRejected").get("reason").getAsString(), "no card may go to the top");
+        reply(p, json("{\"top\":[],\"bottom\":[0]}"));
         assertEquals(get(bottomOnly), List.of(cards.get(1), cards.get(2), cards.get(0)));
 
+        // anywhere: a place among the other cards, so the whole list (no engine caller passes it)
         Future<List<CardView>> anywhere = onGameThread(() -> gui.manipulateCardList("Anywhere", cards, cards.subList(0, 1), true, true, true));
         JsonObject q = client.next("prompt");
+        assertTrue(q.get("permutation").getAsBoolean());
         reply(q, json("[1,0,2]"));
         assertEquals(get(anywhere), List.of(cards.get(1), cards.get(0), cards.get(2)));
+    }
+
+    @Test
+    public void manipulateCardListTimesOutWithEveryCardKeptOnTop() throws Exception {
+        start(new WebSeats.Timeouts(200, 10_000));
+        List<CardView> cards = library("Island", "Forest", "Swamp");
+        Future<List<CardView>> f = onGameThread(() -> gui.manipulateCardList("Scry", cards, cards.subList(0, 2), true, true, false));
+        client.next("prompt");
+        assertEquals(get(f), cards);
     }
 
     @Test
@@ -918,17 +952,97 @@ public class SeatSessionTest {
         get(waiting);
     }
 
+    /** The engine's safe point while no input of the seat waits: a player gets priority (issue #61). */
+    private void priorityOnTheGameThread() throws Exception {
+        get(onGameThread(() -> {
+            game.fireEvent(new GameEventPlayerPriority(p1.getView(), PhaseType.MAIN1, p1.getView()));
+            return null;
+        }));
+    }
+
     @Test
-    public void inputActionsWithNoInputWaitingAreNotRunOthersAre() throws Exception {
+    public void withNoInputWaitingInputActionsAreDroppedAndGameActionsWaitForTheGameThread() throws Exception {
         start();
+        Card mine = TestEngine.add("Grizzly Bears", p0, ZoneType.Hand);
+        stream.publish(List.of(), false);
         action("{\"t\":\"action\",\"method\":\"selectButtonOk\"}");
-        action("{\"t\":\"action\",\"method\":\"concede\"}");
-        assertEquals(controllerCalls.poll(5, TimeUnit.SECONDS), "concede", "OK found no input; concede needs none");
-        assertEquals(callThreads.poll(), "web-seat-0");
-        assertNull(controllerCalls.poll(200, TimeUnit.MILLISECONDS));
+        // (sendYieldUpdate needs a PlayerControllerHuman: HumanSeatConcedeTest)
+        for (String m : List.of("concede", "drawOfferAction\",\"action\":\"OFFER")) {
+            action("{\"t\":\"action\",\"method\":\"" + m + "\"}");
+        }
+        action("{\"t\":\"action\",\"method\":\"reorderHand\",\"card\":" + mine.getId() + ",\"index\":0}");
+        action("{\"t\":\"action\",\"method\":\"getActivateDescription\",\"card\":" + mine.getId() + "}");
+        assertNull(controllerCalls.poll(300, TimeUnit.MILLISECONDS), "nothing runs while the game thread is busy elsewhere");
+        priorityOnTheGameThread();
+        assertEquals(new ArrayList<>(controllerCalls), List.of("concede", "drawOfferAction OFFER",
+                "reorderHand card" + mine.getId() + " 0", "getActivateDescription card" + mine.getId()), "OK found no input");
+        assertEquals(new ArrayList<>(callThreads), List.of("Game-test", "Game-test", "Game-test", "Game-test"));
+        assertEquals(client.next("activateDescription").get("card").getAsInt(), mine.getId());
         for (JsonObject m : client.msgs) {
             assertFalse(m.get("t").getAsString().endsWith("ejected"), "not an error: " + m);
         }
+    }
+
+    @Test
+    public void aGameActionSentWhileTheGameRunsRunsAtTheSeatsNextInput() throws Exception {
+        start();
+        action("{\"t\":\"action\",\"method\":\"concede\"}");
+        assertNull(controllerCalls.poll(300, TimeUnit.MILLISECONDS));
+        CountDownLatch done = new CountDownLatch(1);
+        Future<Void> waiting = waitForInput(done);
+        assertEquals(controllerCalls.poll(5, TimeUnit.SECONDS), "concede");
+        assertEquals(callThreads.poll(), "Game-test");
+        done.countDown();
+        get(waiting);
+    }
+
+    @Test
+    public void gameActionsKeepTheirOrderWithInputActions() throws Exception {
+        start();
+        CountDownLatch done = new CountDownLatch(1);
+        Future<Void> waiting = waitForInput(done);
+        // the page's concede at priority: concede, then pass
+        action("{\"t\":\"action\",\"method\":\"concede\"}");
+        action("{\"t\":\"action\",\"method\":\"selectButtonOk\"}");
+        assertEquals(controllerCalls.poll(5, TimeUnit.SECONDS), "concede");
+        assertEquals(controllerCalls.poll(5, TimeUnit.SECONDS), "selectButtonOk");
+        assertEquals(new ArrayList<>(callThreads), List.of("Game-test", "Game-test"));
+        done.countDown();
+        get(waiting);
+    }
+
+    @Test
+    public void gameActionsLeftWhenTheGameEndsAreRejected() throws Exception {
+        start();
+        action("{\"t\":\"action\",\"method\":\"concede\"}");
+        assertNull(controllerCalls.poll(300, TimeUnit.MILLISECONDS));
+        get(onGameThread(() -> {
+            game.fireEvent(new GameEventGameFinished());
+            return null;
+        }));
+        assertEquals(client.next("actionRejected").get("reason").getAsString(), "game over");
+        priorityOnTheGameThread();
+        assertNull(controllerCalls.poll(300, TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    public void aGameActionSentAsTheGameEndsIsNotAppliedToTheMatchsNextGame() throws Exception {
+        start();
+        get(onGameThread(() -> {
+            game.fireEvent(new GameEventGameFinished());
+            return null;
+        }));
+        action("{\"t\":\"action\",\"method\":\"concede\"}"); // sent before the seat saw the end
+        assertNull(controllerCalls.poll(300, TimeUnit.MILLISECONDS));
+        game = TestEngine.newGame(2); // the match's next game
+        p0 = game.getPlayers().get(0);
+        p1 = game.getPlayers().get(1);
+        gui.setGameView(null); // as HostedMatch does for each game
+        gui.setGameView(game.getView());
+        gui.openView(new TrackableCollection<>(p0.getView()));
+        priorityOnTheGameThread();
+        assertEquals(client.next("actionRejected").get("reason").getAsString(), "game over");
+        assertNull(controllerCalls.poll(300, TimeUnit.MILLISECONDS), "the next game is not conceded");
     }
 
     @Test
@@ -992,6 +1106,38 @@ public class SeatSessionTest {
         action("{\"t\":\"action\",\"method\":\"selectButtonOk\"}");
         get(waiting);
         assertEquals(order, List.of("input display queued before", "action", "refresh the action queued", "game goes on"));
+    }
+
+    /**
+     * Issue #60: an input that ends on the EDT (its display stops it, e.g. {@code InputPayMana.showMessage} once paid)
+     * lets the game go on only once that EDT work is over: {@code InputPayMana.updateMessage} swaps the player's
+     * controller for an AI one there ({@code runAsAi}), and the game thread must not read it meanwhile.
+     */
+    @Test
+    public void anInputEndedOnTheEdtLetsTheGameGoOnOnlyOnceTheEdtWorkIsOver() throws Exception {
+        start();
+        List<String> order = new CopyOnWriteArrayList<>();
+        CountDownLatch done = new CountDownLatch(1);
+        Future<Void> waiting = waitForInput(done);
+        CountDownLatch inEdt = new CountDownLatch(1);
+        FThreads.invokeInEdtLater(() -> {
+            done.countDown();
+            inEdt.countDown();
+            sleep(300);
+            order.add("EDT work after the input ended"); // runAsAi swaps the controller back
+        });
+        assertTrue(inEdt.await(5, TimeUnit.SECONDS));
+        get(onGameThreadAfter(waiting, () -> order.add("game goes on")));
+        assertEquals(order, List.of("EDT work after the input ended", "game goes on"));
+    }
+
+    /** Runs {@code then} on the game thread once {@code first} (queued there before it) is over. */
+    private Future<Void> onGameThreadAfter(Future<Void> first, Runnable then) {
+        return onGameThread(() -> {
+            assertTrue(first.isDone());
+            then.run();
+            return null;
+        });
     }
 
     @Test

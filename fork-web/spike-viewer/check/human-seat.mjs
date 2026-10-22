@@ -22,7 +22,7 @@ class HumanSeat extends Stream {
     this.buttons = null; this.message = ''; this.selectables = null; this.targets = []; this.picked = new Set(); this.weakly = [];
     this.prompts = new Map(); this.epoch = 0; this.actedEpoch = -1; this.lastMessageAt = Date.now();
     this.tried = new Set(); this.attacked = new Set(); this.sameState = 0; this.lastState = '';
-    this.stats = { prompts: {}, shapes: {}, calls: {}, actions: {}, closed: {}, replyRejected: 0, actionRejected: [], callCardRefs: 0, promptCardRefs: 0, hiddenPromptRefs: 0, revealedCopies: 0, danglingRefs: 0 };
+    this.stats = { prompts: {}, shapes: {}, calls: {}, actions: {}, closed: {}, replyRejected: 0, actionRejected: [], blockOptions: 0, callCardRefs: 0, promptCardRefs: 0, hiddenPromptRefs: 0, revealedCopies: 0, danglingRefs: 0 };
     this.timer = null; this.gameEnded = false; this.lastLog = [];
   }
 
@@ -50,6 +50,9 @@ class HumanSeat extends Stream {
       case 'actionRejected': if (this.stats.actionRejected.length < 20) this.stats.actionRejected.push(m); return true;
       case 'rejected': this.fail(`rejected: ${JSON.stringify(m)}`); return true;
       case 'activateDescription': return true;
+      // sent with each InputBlock; this seat answers it from its selectables and buttons
+      case 'blockOptions': this.stats.blockOptions++; return true;
+      case 'attackOptions': return true; // the defenders the engine offers (issue #65); this seat attacks with alphaStrike
       default: return false;
     }
   }
@@ -132,6 +135,12 @@ class HumanSeat extends Stream {
       }
       case 'confirm': return m.default;
       case 'order':
+        if (m.method === 'manipulateCardList' && m.piles) {
+          // scry: the first card to the bottom (if it may go there), the rest on top
+          const idx = [...Array(n).keys()];
+          if (!m.toTop) return { top: [], bottom: idx };
+          return m.toBottom && n > 0 ? { top: idx.slice(1), bottom: [0] } : { top: idx, bottom: [] };
+        }
         if (m.method === 'manipulateCardList') {
           // scry: the first movable card to the bottom, behind the cards that may not move
           const order = [...Array(n).keys()];

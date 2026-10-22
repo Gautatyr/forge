@@ -61,7 +61,7 @@ public final class WireEnvelope {
                     + "  /** choose (getAbilityToPlay): the ability cannot be played now. */\n  disabled?: boolean;\n"
                     + "  /** A copy the engine reveals while the card stays hidden: only the label names it. */\n  revealedCopy?: boolean;\n"
                     + "  /** order, sideboard: the choice starts in the destination list. */\n  inDest?: boolean;\n"
-                    + "  /** manipulateCardList: the card may move. */\n  movable?: boolean;\n"
+                    + "  /** manipulateCardList (permutation): the card may move. */\n  movable?: boolean;\n"
                     + "  /** distribute (generic): most this choice may get. */\n  max?: number;\n"
                     + "  /** distribute (combat): the defending player or planeswalker (trample). */\n  defender?: boolean;\n"
                     + "  /** distribute (combat): damage that is lethal to this choice. */\n  lethal?: number;\n}"));
@@ -98,8 +98,9 @@ public final class WireEnvelope {
                     field("no", "string", null),
                     field("default", "boolean", "The engine's default answer."))),
             new Message("prompt", "PromptOrder",
-                    "order: reply {order: indices of the new dest list, remember}; manipulateCardList (permutation): the full permutation; "
-                            + "sideboard: indices of the new main deck.",
+                    "order: reply {order: indices of the new dest list, remember}; manipulateCardList (piles): {top, bottom}, each choice "
+                            + "in one pile, top first on top, bottom last at the very bottom; manipulateCardList (permutation, toAnywhere): "
+                            + "the full permutation; sideboard: indices of the new main deck.",
                     List.of(
                             field("t", "'prompt'", null),
                             field("id", "number", null),
@@ -112,7 +113,8 @@ public final class WireEnvelope {
                             new Field("remainingMin", "number", true, "order: fewest choices that may stay out of the dest list."),
                             new Field("remainingMax", "number", true, "order: most choices that may stay out of the dest list."),
                             new Field("rememberOption", "boolean", true, null),
-                            new Field("permutation", "true", true, null),
+                            new Field("piles", "true", true, "manipulateCardList: the choices are only the cards that may move."),
+                            new Field("permutation", "true", true, "manipulateCardList with toAnywhere: every card, movable flagged."),
                             new Field("toTop", "boolean", true, null),
                             new Field("toBottom", "boolean", true, null),
                             new Field("toAnywhere", "boolean", true, null))),
@@ -160,6 +162,11 @@ public final class WireEnvelope {
                             field("attackers", "{ card: number; blockers: number[]; ifFreed: number[]; min?: number }[]",
                                     "Attackers whose blocks the seat declares: creatures that may block each now (or already do), "
                                             + "creatures that could once taken off the attacker they block, fewest blockers when more than 1 (menace)."))),
+            new Message("attackOptions", "AttackOptionsMessage",
+                    "While the seat declares attackers, after each change: what the engine lets it attack (cleared by clearWeaklySelectable).",
+                    List.of(
+                            field("t", "'attackOptions'", null),
+                            field("defenders", "EntityRef[]", "The combat's defenders: players, planeswalkers and battles."))),
             new Message("activateDescription", "ActivateDescriptionMessage", "Answers the getActivateDescription action.", List.of(
                     field("t", "'activateDescription'", null),
                     field("card", "number", null),

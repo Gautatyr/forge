@@ -93,6 +93,8 @@ public class LobbyWebMatchTest {
             assertEquals(players.get(0).getController(), human, "the human is seat 0 of the game");
             assertEquals(players.get(0).getStartingLife(), 40);
             assertEquals(players.get(1).getStartingLife(), 40);
+            // issue #68: no "AI can't play these cards well" reveal of the AI decks at match start
+            assertFalse(match.getGame().getRules().warnAboutAICards());
 
             Client seat = Client.connect(host.port(), token);
             seat.await(m -> m.startsWith("{\"t\":\"snapshot\""), 60);

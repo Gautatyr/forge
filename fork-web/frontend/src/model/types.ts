@@ -94,6 +94,8 @@ export interface CardView {
   keywords: CardKeyword[];
   attachedTo?: CardId;
   attachments: CardId[];
+  /** A battle's protector: the player who defends it when it is attacked. */
+  protectorId?: PlayerId;
 }
 
 export interface CommanderDamage {
@@ -237,8 +239,10 @@ export interface TurnState {
 
 export interface Attack {
   attackerId: CardId;
-  /** The player attacked. Planeswalkers and battles come later. */
+  /** The defending player: the player attacked, or the controller of the planeswalker (the protector of the battle) attacked. */
   defenderId: PlayerId;
+  /** The planeswalker or battle attacked; absent for an attack on a player. */
+  defenderCardId?: CardId;
 }
 
 export interface Block {
@@ -421,7 +425,8 @@ export type Decision =
       max: number;
     }
   /** `draft` is the attack being built; the engine validates on confirm. */
-  | { kind: 'declareAttackers'; candidates: CardId[]; defenders: PlayerId[]; draft: Attack[] }
+  /** `defenders`: players you may attack; `defenderCards`: planeswalkers and battles you may attack (the engine's). */
+  | { kind: 'declareAttackers'; candidates: CardId[]; defenders: PlayerId[]; defenderCards: CardId[]; draft: Attack[] }
   | { kind: 'declareBlockers'; candidates: CardId[]; attackers: CardId[]; draft: Block[]; options?: BlockOption[] }
   | { kind: 'choice'; prompt: ChoicePrompt }
   /**

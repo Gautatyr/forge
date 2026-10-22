@@ -7,7 +7,10 @@ import forge.game.card.CardView;
 import forge.game.event.GameEvent;
 import forge.game.player.PlayerView;
 import forge.game.spellability.SpellAbilityView;
+import forge.gamemodes.match.input.Input;
+import forge.gamemodes.match.input.InputAttack;
 import forge.gamemodes.match.input.InputBlock;
+import forge.gamemodes.match.input.InputSynchronized;
 import forge.gamemodes.net.ProtocolGuiGame;
 import forge.interfaces.IGameController;
 import forge.localinstance.properties.ForgePreferences.FPref;
@@ -27,6 +30,8 @@ public final class WebGuiGame extends ProtocolGuiGame {
 
     private final SeatSession session;
     private volatile PlayerControllerHuman human;
+    /** The input {@link #stopIfOut} stopped last (game thread only). */
+    private Input stopped;
 
     WebGuiGame(SeatSession session) {
         super(session);
@@ -77,7 +82,25 @@ public final class WebGuiGame extends ProtocolGuiGame {
     /** The game thread waits for this seat's input here and runs the seat's actions meanwhile ({@link InputPump}). */
     @Override
     public void awaitInput(final CountDownLatch done) throws InterruptedException {
-        session.pump().await(done);
+        session.pump().await(done, this::stopIfOut);
+    }
+
+    /**
+     * Game thread: a seat out of a game that goes on (it conceded at one of its inputs) holds the others up no longer:
+     * the input it was asked is stopped unanswered. {@code InputPassPriority} then passes (as upstream's AFK timeout
+     * stops it); any other input ends with what the seat recorded so far (no attackers or blockers, an unpaid cost
+     * cancels its spell).
+     */
+    private Runnable stopIfOut() {
+        PlayerControllerHuman pch = human;
+        if (pch == null || !pch.getPlayer().hasLost() || pch.getGame().isGameOver()) {
+            return null;
+        }
+        if (!(pch.getInputQueue().getInput() instanceof InputSynchronized in) || in == stopped) {
+            return null;
+        }
+        stopped = in;
+        return in::stop;
     }
 
     /**
@@ -94,7 +117,7 @@ public final class WebGuiGame extends ProtocolGuiGame {
 
     /**
      * {@code InputBlock.showMessage} ends with this call, after each block the seat assigns or removes: send the blocks
-     * the engine allows now (issue #48). Runs on the game thread (the seat's actions run there, {@link InputPump}), or on
+     * the engine allows now (issue #48); {@code InputAttack}: the defenders it accepts (issue #65). Runs on the game thread (the seat's actions run there, {@link InputPump}), or on
      * the EDT for the input's first display ({@code InputProxy}). Not routed through {@link SeatSession#readGame}, which
      * would drop the read before the game thread waits: the combat only changes through the seat's own actions here.
      */
@@ -104,6 +127,9 @@ public final class WebGuiGame extends ProtocolGuiGame {
         PlayerControllerHuman pch = human;
         if (pch != null && pch.getInputQueue().getInput() instanceof InputBlock) {
             session.blockOptions(BlockOptions.of(pch.getGame().getCombat(), pch.getPlayer()));
+        } else if (pch != null && pch.getInputQueue().getInput() instanceof InputAttack) {
+            // InputAttack.updateMessage ends with this call too: the defenders it accepts (issue #65)
+            session.attackOptions(AttackOptions.of(pch.getGame().getCombat()));
         }
     }
 

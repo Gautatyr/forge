@@ -1698,7 +1698,7 @@ export interface PromptChoice {
   revealedCopy?: boolean;
   /** order, sideboard: the choice starts in the destination list. */
   inDest?: boolean;
-  /** manipulateCardList: the card may move. */
+  /** manipulateCardList (permutation): the card may move. */
   movable?: boolean;
   /** distribute (generic): most this choice may get. */
   max?: number;
@@ -1752,7 +1752,7 @@ export interface PromptConfirm {
   default: boolean;
 }
 
-/** order: reply {order: indices of the new dest list, remember}; manipulateCardList (permutation): the full permutation; sideboard: indices of the new main deck. */
+/** order: reply {order: indices of the new dest list, remember}; manipulateCardList (piles): {top, bottom}, each choice in one pile, top first on top, bottom last at the very bottom; manipulateCardList (permutation, toAnywhere): the full permutation; sideboard: indices of the new main deck. */
 export interface PromptOrder {
   t: 'prompt';
   id: number;
@@ -1767,6 +1767,9 @@ export interface PromptOrder {
   /** order: most choices that may stay out of the dest list. */
   remainingMax?: number;
   rememberOption?: boolean;
+  /** manipulateCardList: the choices are only the cards that may move. */
+  piles?: true;
+  /** manipulateCardList with toAnywhere: every card, movable flagged. */
   permutation?: true;
   toTop?: boolean;
   toBottom?: boolean;
@@ -1836,6 +1839,13 @@ export interface BlockOptionsMessage {
   attackers: { card: number; blockers: number[]; ifFreed: number[]; min?: number }[];
 }
 
+/** While the seat declares attackers, after each change: what the engine lets it attack (cleared by clearWeaklySelectable). */
+export interface AttackOptionsMessage {
+  t: 'attackOptions';
+  /** The combat's defenders: players, planeswalkers and battles. */
+  defenders: EntityRef[];
+}
+
 /** Answers the getActivateDescription action. */
 export interface ActivateDescriptionMessage {
   t: 'activateDescription';
@@ -1844,7 +1854,7 @@ export interface ActivateDescriptionMessage {
 }
 
 export type PromptMessage = PromptChoose | PromptConfirm | PromptOrder | PromptDistribute | PromptText;
-export type SeatMessage = CallMessage | PromptChoose | PromptConfirm | PromptOrder | PromptDistribute | PromptText | PromptClosedMessage | ReplyRejectedMessage | ActionRejectedMessage | RejectedMessage | BlockOptionsMessage | ActivateDescriptionMessage;
+export type SeatMessage = CallMessage | PromptChoose | PromptConfirm | PromptOrder | PromptDistribute | PromptText | PromptClosedMessage | ReplyRejectedMessage | ActionRejectedMessage | RejectedMessage | BlockOptionsMessage | AttackOptionsMessage | ActivateDescriptionMessage;
 
 /** Answers an open prompt; the value's form depends on its shape. */
 export interface ReplyMessage {

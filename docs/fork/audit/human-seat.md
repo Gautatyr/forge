@@ -61,10 +61,10 @@ for a web seat.
 ProtocolGuiGame: `showPromptMessage(PlayerView,String,CardView)`, `updateButtons(…6 args)`, `setSelection` (a
 `Selection` record: cards to pick with min/max, players and stack items, chosen so far; each prompt sends one when shown,
 after each pick and when it stops; ProtocolGuiGame skips one equal to the last; sticky for a reconnecting client;
-`chosen` is sent without the spell's kept target marks, which upstream appends to every input while the cost is paid (`SeatSession.withoutKeptMarks`);
+`chosen` is sent without the spell's kept target marks, which upstream appends to every input while the cost is paid: those of the controller that built the selection, the seat's own or the one for a player it controls (`SeatSession.withoutKeptMarks`);
 `InputSelectEntitiesFromList` names its players there, e.g. who starts the game), `setWeaklySelectable`, `clearWeaklySelectable`, `showRevealedCards`, `hideRevealedCards`, `showManaPool`,
 `hideManaPool`, `setCard`, `setPanelSelection`, `awaitNextInput`, `updateAutoPassPrompt`, `message(String,String)`,
-`showErrorDialog(String,String)`, `flashIncorrectAction`, `alertUser`, `showCombat` (WebGuiGame: also sends `blockOptions` during `InputBlock`), `updateDrawOffer`,
+`showErrorDialog(String,String)`, `flashIncorrectAction`, `alertUser`, `showCombat` (WebGuiGame: also sends `blockOptions` during `InputBlock`, `attackOptions` during `InputAttack`), `updateDrawOffer`,
 `applyYieldUpdate`, `applyMacroState` (the page has no macros and ignores it), `enableOverlay`, `disableOverlay`, `finishGame`, `afterGameEnd`, `openView` (WebGuiGame),
 `setPlayerAvatar`. IGuiGame overloads delegating to these: `showPromptMessage(PlayerView,String)`,
 `updateButtons(…4 args)`, `message(String)`, `showErrorDialog(String)`.
@@ -104,7 +104,7 @@ would take it).
 | Input | Created by | Seat answers with |
 | --- | --- | --- |
 | `InputPassPriority` | PCH `chooseSpellAbilityToPlay` | selectCard (abilities; 2+ → `getAbilityToPlay` prompt), OK (pass), Cancel, undo; `setWeaklySelectable` = playable cards |
-| `InputAttack` | PCH `declareAttackers` | selectCard (toggle), selectPlayer / selectCard (defender), alphaStrike, OK; `setWeaklySelectable` = legal undeclared attackers |
+| `InputAttack` | PCH `declareAttackers` | selectCard (toggle), selectPlayer / selectCard (defender), alphaStrike, OK; `setWeaklySelectable` = legal undeclared attackers; `attackOptions` = defenders (#65) |
 | `InputBlock` | PCH `declareBlockers` | selectCard (attacker, then blocker; again: removes), OK; `blockOptions` = legal blocks per attacker (#48) |
 | `InputConfirm` | PCH, `InputConfirm.confirm` | OK / Cancel (yes / no labels) |
 | `InputConfirmMulligan`, `InputLondonMulligan` | PCH mulligan | OK / Cancel; selectCard (cards to bottom) + OK |
@@ -150,11 +150,32 @@ the refresh share the Swing EDT and the input is locked while the ability runs. 
   the game thread waits names cards created since the last flush by their ids. Before, only game-thread calls flushed,
   and an EDT `setWeaklySelectable` (auto-pay plan) could name a card the seat was never told of (id -1; the sweep's
   seat clicked it: `actionRejected` "unknown card").
-- Not covered: actions that need no input (`concede`, `reorderHand`, `drawOfferAction`, `sendYieldUpdate`,
-  `getActivateDescription`) run on the seat's thread when no input waits, as the desktop runs them on the EDT while the
-  game runs; EDT work an action queues can start before that action returns; an input's first display (queued by
-  `InputProxy` when the game thread sets the input) can start before the game thread reaches the wait. The sweep fails a
-  game on any `ConcurrentModificationException` on a game thread.
+- A wait ends once the EDT has run what was queued before it ended, also when the input ended on the EDT (its display
+  stops it): `InputPayMana.updateMessage` swaps the player's controller for an AI one there (`runAsAi` →
+  `Player.runWithController`, game-wide), and the game thread reading it let the AI answer for the human (issue #60).
+  Measured: `HumanSeatStackTargetsTest` without its EDT drain, load average ~18 on 8 cores, 0 failures in 8 runs on #59's
+  pump (issue: ~1 in 3 before it); `SeatSessionTest.anInputEndedOnTheEdt…` covers the end-of-wait case.
+- Actions that need no input (`SeatSession.GAME_ACTIONS`: `concede`, `reorderHand`, `drawOfferAction`,
+  `sendYieldUpdate`, `getActivateDescription`) run on the game thread at its next safe point (`InputPump.defer`), in
+  order with the seat's other actions: in the seat's next input wait, or when a player gets priority
+  (`GameEventPlayerPriority`: state-based actions done, nothing resolving), whichever comes first. Left over when the game
+  ends, or sent as it ended: rejected (`actionRejected` "game over"), never applied to the match's next game. Before, they ran on the seat's thread while the game ran: a concede during
+  setup crashed `Match.prepareAllZones` (IndexOutOfBounds), one during an AI turn raced the game thread (issue #61).
+- Concede during setup: a 2-player game ends at its first safe point (the seat's first setup question, at the latest the
+  first priority); a game that goes on without the seat
+  (multiplayer) takes it at the first priority, because the engine still asks a player out of the game for its mulligan.
+- A seat out of a game that goes on (it conceded at one of its inputs) holds no one up: `WebGuiGame.stopIfOut` stops its
+  waiting input unanswered (priority passes; attackers, blockers and payments end with what the seat recorded).
+- A player leaving a game that goes on restarts the priority round with the player who has priority next
+  (`SeatSession.SafePoints`, at `GameEventPlayerPriority`): `PhaseHandler` ends a round only when priority comes back to
+  the player it started with (`pFirstPriority`), so a round started by the player who left never ended (a concede at an
+  AI's priority after the seat passed or cast on its own turn, or at the seat's priority after it cast on an AI's turn).
+  The engine covers only the active player leaving at its own priority. Players who already passed in that round are
+  asked once more. `HumanSeatConcedeTest.concedeWhileAnAiHoldsPriority…`, `…AfterItCastASpellOnAnAiTurn…`.
+- Not covered: EDT work an action queues can start before that action returns; an input's first display (queued by
+  `InputProxy` when the game thread sets the input) can start before the game thread reaches the wait; a game action sent
+  while a prompt of the seat is open (`SeatSession.call`, not an input) waits for it to be answered or time out. The sweep
+  fails a game on any `ConcurrentModificationException` on a game thread.
 
 ## Known gaps outside the bridge
 - Upstream: `TargetSelection.chooseCardFromList` lists zone headers ("--CARDS ON BATTLEFIELD:--") as choices; picking
