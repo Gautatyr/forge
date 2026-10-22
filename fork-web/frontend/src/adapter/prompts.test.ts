@@ -85,6 +85,31 @@ describe('prompt → choice tray', () => {
     expect(replyValue(p, { shape: 'yesNo', yes: true })).toBe(true);
   });
 
+  it('words engine confirmations for the player: no card ids, no stray dashes, zones not read as verbs', () => {
+    const confirm = (message: string): PromptMessage => ({ ...base, method: 'confirm', shape: 'confirm', message, yes: 'Yes', no: 'No', default: true });
+    expect(promptToChoice(confirm('Use triggered ability of Noxious Gearhulk (62)?\n\nTriggered by: Ruin Rat (247)'), cards)).toMatchObject({
+      title: 'Use triggered ability of Noxious Gearhulk?',
+      instruction: 'Triggered by: Ruin Rat',
+    });
+    expect(promptToChoice(confirm('Beseech the Mirror (65) -'), cards)).toMatchObject({ title: 'Beseech the Mirror', instruction: '' });
+    expect(promptToChoice(confirm('Search your graveyard and exile?'), cards)).toMatchObject({ title: 'Look through your graveyard and exile zone?' });
+  });
+
+  it('words "X unless you Y" options as the cost to pay, the bare title as what happens otherwise (pass 2 #4)', () => {
+    const torment = choose('getChoices', 1, 1, {
+      message: 'Choose',
+      choices: [
+        { i: 0, label: 'You lose 3 life unless you sacrifice a nonland permanent.' },
+        { i: 1, label: 'You lose 3 life unless you discard a card.' },
+      ],
+    });
+    const p = promptToChoice(torment, cards);
+    expect(p).toMatchObject({ title: 'Pay a cost, or lose 3 life', instruction: '' });
+    expect(p.shape === 'chooseN' && p.options.map((o) => o.label)).toEqual(['Sacrifice a nonland permanent, or lose 3 life', 'Discard a card, or lose 3 life']);
+    // replies stay indices
+    expect(replyValue(torment, { shape: 'chooseN', optionIds: ['1'] })).toEqual([1]);
+  });
+
   it('maps order to one list when everything must be ordered, two when some may stay out', () => {
     const order = (remainingMax: number): PromptMessage => ({
       ...base,
@@ -173,6 +198,10 @@ describe('prompt → choice tray', () => {
       recipients: [{ id: '0', lethal: 2 }, { id: '1', playerId: '1' }],
     });
     expect(replyValue(d, { shape: 'distribute', amounts: { '0': 2, '1': 3 } })).toEqual([2, 3]);
+    // an infect attacker (Blightsteel Colossus): the combat flag the player row's note reads
+    const infectCards = { '12': { id: '12', name: 'Blightsteel Colossus', keywords: [{ name: 'Infect', label: 'Infect' }] } as CardView };
+    expect(promptToChoice(d, infectCards)).toMatchObject({ combat: { attackerId: '12', infect: true } });
+    expect(promptToChoice(d, cards)).toMatchObject({ combat: { infect: false } });
   });
 
   it('maps text: free text, number, a short option list, a card name', () => {
