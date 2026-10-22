@@ -310,4 +310,42 @@ public class HumanSeatBlocksTest {
         assertEquals(me.getLife(), 20);
         assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
     }
+
+    /** Playtest 1 note 10: two attackers under a Silent Arbiter are refused; the seat learns the cap and re-declares. */
+    @Test
+    public void twoAttackersUnderASilentArbiterAreRefusedAndTheSeatKnowsTheCap() throws Exception {
+        start();
+        Card bears = add("Grizzly Bears", me);
+        Card bears2 = add("Grizzly Bears", me);
+        add("Silent Arbiter", opp);
+        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, me);
+        game.getPhaseHandler().onStackResolved();
+        int[] asked = {0};
+        List<String> refused = new ArrayList<>();
+        List<Integer> attackersAtSecondAsk = new ArrayList<>();
+        List<String> seen = play(() -> game.getPhaseHandler().getPhase().isAfter(PhaseType.COMBAT_DECLARE_ATTACKERS),
+                in -> {
+                    if (!(in instanceof forge.gamemodes.match.input.InputAttack)) {
+                        return null;
+                    }
+                    if (asked[0]++ == 0) {
+                        return () -> {
+                            select(bears);
+                            select(bears2);
+                            action("selectButtonOk", null);
+                        };
+                    }
+                    if (asked[0] == 2) {
+                        refused.add(String.valueOf(seat.lastCall("message")));
+                        game.getCombat().getAttackers().forEach(a -> attackersAtSecondAsk.add(a.getId()));
+                        return () -> select(bears2); // toggles the second attacker off
+                    }
+                    return null;
+                });
+        assertTrue(asked[0] >= 2, "the seat was asked to declare again after the refusal; seen " + seen);
+        assertTrue(refused.get(0).contains("Attack declaration invalid"), "the engine's refusal reached the seat: " + refused);
+        assertTrue(seat.frames.stream().anyMatch(f -> f.startsWith("{\"t\":\"attackOptions\"") && f.contains("\"max\":1")),
+                "attackOptions named the cap");
+        assertTrue(attackersAtSecondAsk.containsAll(List.of(bears.getId(), bears2.getId())), "the refused declaration stays as the draft to change: " + attackersAtSecondAsk);
+    }
 }
