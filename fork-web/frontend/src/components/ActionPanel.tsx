@@ -76,6 +76,12 @@ export function ActionPanel() {
             <kbd>A</kbd>
           </button>
         ) : null}
+        {paying?.lifePays ? (
+          // Phyrexian mana: auto-pay never pays life (issue #66); each click pays 2 life for one symbol.
+          <button type="button" className={styles.secondary} onClick={() => send({ type: 'payLife' })}>
+            Pay 2 life
+          </button>
+        ) : null}
         {canCancel ? (
           <button
             type="button"

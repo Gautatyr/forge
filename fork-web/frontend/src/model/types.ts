@@ -423,6 +423,8 @@ export type Decision =
       chosen: TargetRef[];
       min: number;
       max: number;
+      /** Picking permanents that pay part of the cost by tapping (convoke, improvise): the chosen ones are not targets. */
+      tapToPay?: boolean;
     }
   /** `draft` is the attack being built; the engine validates on confirm. */
   /** `defenders`: players you may attack; `defenderCards`: planeswalkers and battles you may attack (the engine's). */
@@ -453,8 +455,10 @@ export type Decision =
       canUndoTap: boolean;
       /** What "Pay automatically" would tap, in order; empty when the pool covers it. */
       autoTaps: CardId[];
-      /** Untapped sources and the pool cover the rest. */
+      /** Untapped sources and the pool cover the rest. Auto-pay only taps and spends mana: never a sacrifice or life. */
       autoCanPay: boolean;
+      /** Life can pay part of the cost (Phyrexian mana): 2 life per click of "Pay 2 life". */
+      lifePays?: boolean;
     };
 
 export interface LogEntry {

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
+import forge.game.card.Card;
 import forge.game.card.CardView;
 import forge.game.event.GameEvent;
 import forge.game.player.Player;
@@ -13,6 +14,7 @@ import forge.gamemodes.match.input.Input;
 import forge.gamemodes.match.input.InputAttack;
 import forge.gamemodes.match.input.InputBlock;
 import forge.gamemodes.match.input.InputSelectEntitiesFromList;
+import forge.gamemodes.match.input.InputSelectManyBase;
 import forge.gamemodes.match.input.InputSynchronized;
 import forge.gamemodes.net.ProtocolGuiGame;
 import forge.interfaces.IGameController;
@@ -35,6 +37,8 @@ public final class WebGuiGame extends ProtocolGuiGame {
     private volatile PlayerControllerHuman human;
     /** The input {@link #stopIfOut} stopped last (game thread only). */
     private Input stopped;
+    /** The card-picking input whose cards {@link #showPromptMessage} named, until it ends. */
+    private volatile Input lit;
 
     WebGuiGame(SeatSession session) {
         super(session);
@@ -159,10 +163,40 @@ public final class WebGuiGame extends ProtocolGuiGame {
             pch.getInputQueue().addObserver((o, arg) -> {
                 if (ThreadUtil.isGameThread()) {
                     session.flush();
-                    selectablePlayers(pch.getInputQueue().getInput());
+                    Input in = pch.getInputQueue().getInput();
+                    selectablePlayers(in);
+                    if (lit != null && lit != in) {
+                        lit = null;
+                        clearSelectables();
+                    }
                 }
             });
         }
+    }
+
+    /**
+     * Inputs that pick cards to pay a cost without naming them ({@code setSelectables}), unlike
+     * {@code InputSelectEntitiesFromList}: {@code InputSelectCardsForConvokeOrImprovise} (convoke, improvise, waterbend)
+     * and {@code HumanCostDecision.InputSelectCardToRemoveCounter}. The desktop lets the player click any card and
+     * says what a click does ({@code getActivateAction}). Name the cards it takes now as the input's selectables, at each
+     * of its prompts (issue #70); cleared when it ends (the input queue observer). A prompt with a card comes from
+     * the input itself, with the game thread waiting for it.
+     */
+    @Override
+    public void showPromptMessage(final PlayerView playerView, final String message, final CardView card) {
+        PlayerControllerHuman pch = human;
+        if (card != null && pch != null
+                && pch.getInputQueue().getInput() instanceof InputSelectManyBase<?> in && !(in instanceof InputSelectEntitiesFromList<?>)) {
+            List<CardView> cards = new ArrayList<>();
+            for (Card c : pch.getGame().getCardsInGame()) {
+                if (in.getActivateAction(c) != null) {
+                    cards.add(c.getView());
+                }
+            }
+            lit = in;
+            setSelectables(cards, 0, cards.size()); // before the prompt: the page reads both together
+        }
+        super.showPromptMessage(playerView, message, card);
     }
 
     /**

@@ -737,7 +737,7 @@ public class ComputerUtilMana {
 
             if (saPayment == null) {
                 boolean lifeInsteadOfBlack = toPay.isBlack() && ai.hasKeyword("PayLifeInsteadOf:B");
-                if ((!toPay.isPhyrexian() && !lifeInsteadOfBlack) || !ai.canPayLife(phyLifeToPay, false, sa)
+                if ((!toPay.isPhyrexian() && !lifeInsteadOfBlack) || isAutoPayForHuman(ai) || !ai.canPayLife(phyLifeToPay, false, sa)
                         || (ai.getLife() <= phyLifeToPay && !ai.cantLoseForZeroOrLessLife())) {
                     // cannot pay
                     break;
@@ -1659,6 +1659,20 @@ public class ComputerUtilMana {
         return sortedManaSources;
     }
 
+    /** Auto-pay for a human (InputPayMana): taps and spends mana only, never another cost the player did not choose. */
+    private static boolean isAutoPayForHuman(final Player payer) {
+        return payer.getController() instanceof PlayerControllerAi pca && pca.isAutoPayForHuman();
+    }
+
+    private static boolean costsOnlyTapAndMana(final SpellAbility ma) {
+        for (final CostPart part : ma.getPayCosts().getCostParts()) {
+            if (!(part instanceof CostTap || part instanceof CostUntap || part instanceof CostPartMana)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static ListMultimap<Integer, SpellAbility> groupSourcesByManaColor(final Player ai, boolean checkPlayable) {
         final ListMultimap<Integer, SpellAbility> manaMap = ArrayListMultimap.create();
         final Game game = ai.getGame();
@@ -1673,6 +1687,9 @@ public class ComputerUtilMana {
                 }
                 m.setActivatingPlayer(ai);
                 if (checkPlayable && !m.canPlay()) {
+                    continue;
+                }
+                if (isAutoPayForHuman(ai) && !costsOnlyTapAndMana(m)) {
                     continue;
                 }
 

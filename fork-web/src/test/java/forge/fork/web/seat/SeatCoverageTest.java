@@ -150,7 +150,7 @@ public class SeatCoverageTest {
             showManaPool(PlayerView) = ProtocolGuiGame
             showOptionDialog(String,String,FSkinProp,List,int) = ProtocolGuiGame
             showPromptMessage(PlayerView,String) = IGuiGame
-            showPromptMessage(PlayerView,String,CardView) = ProtocolGuiGame
+            showPromptMessage(PlayerView,String,CardView) = WebGuiGame
             showRevealedCards(Iterable) = ProtocolGuiGame
             sideboard(CardPool,CardPool,String) = ProtocolGuiGame
             updateAutoPassPrompt() = ProtocolGuiGame

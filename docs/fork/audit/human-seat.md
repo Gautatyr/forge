@@ -58,7 +58,7 @@ for a web seat.
 | `insertInList` | AbstractGuiGame | `oneOrNone` |
 
 ### Input display, forwarded as `{"t":"call"}` (no answer; the client answers with actions)
-ProtocolGuiGame: `showPromptMessage(PlayerView,String,CardView)`, `updateButtons(…6 args)`, `setSelectables`,
+ProtocolGuiGame: `showPromptMessage(PlayerView,String,CardView)` (WebGuiGame: first names the cards a card-picking input takes, see Inputs), `updateButtons(…6 args)`, `setSelectables`,
 `clearSelectables`, `setSelectableTargets` (players and stack items: `canPickStackTargets` is true), `setHighlighted`,
 `setWeaklySelectable`, `clearWeaklySelectable`, `showRevealedCards`, `hideRevealedCards`, `showManaPool`,
 `hideManaPool`, `setCard`, `setPanelSelection`, `awaitNextInput`, `updateAutoPassPrompt`, `message(String,String)`,
@@ -103,14 +103,28 @@ would take it).
 | `InputConfirm` | PCH, `InputConfirm.confirm` | OK / Cancel (yes / no labels) |
 | `InputConfirmMulligan`, `InputLondonMulligan` | PCH mulligan | OK / Cancel; selectCard (cards to bottom) + OK |
 | `InputChooseStartingHand` | PCH `chooseStartingHand` | selectCard (a card of the hand to keep) + OK |
-| `InputPayMana`, `InputPayManaOfCostPayment` | `HumanPlay`, PCH | selectCard (mana source; 2+ abilities → `getAbilityToPlay`), useMana (pool), OK (auto-pay), Cancel |
+| `InputPayMana`, `InputPayManaOfCostPayment` | `HumanPlay`, PCH | selectCard (mana source; 2+ abilities → `getAbilityToPlay`), useMana (pool), selectPlayer (own: 2 life per Phyrexian symbol), OK (auto-pay: taps and spends mana only, #66), Cancel |
 | `InputSelectCardsFromList`, `InputSelectEntitiesFromList`, `InputSelectManyBase` | PCH, `HumanCostDecision` | selectCard / selectPlayer (WebGuiGame names its players as selectable targets), OK, Cancel |
-| `InputSelectCardsForConvokeOrImprovise` | PCH | selectCard (creature or artifact to tap), OK |
-| `HumanCostDecision.InputSelectCardToRemoveCounter` | `HumanCostDecision` | selectCard (one counter per click), OK |
+| `InputSelectCardsForConvokeOrImprovise` | PCH | selectCard (creature or artifact to tap), OK; WebGuiGame names the cards it takes (`setSelectables`, #70) |
+| `HumanCostDecision.InputSelectCardToRemoveCounter` | `HumanCostDecision` | selectCard (one counter per click), OK; WebGuiGame names the cards it takes (`setSelectables`, #70) |
 | `InputSelectTargets` | `TargetSelection` | selectCard / selectPlayer / selectStackItem, OK, Cancel |
 | `InputSelectStackItems` | `TargetSelection.chooseStackItemsInView` | selectStackItem, OK, Cancel |
 | `InputLockUI` | `InputQueue` (no input) | nothing (waiting display) |
 | `InputPlaybackControl` | `FControlGamePlayback` | never for a human seat (AI-only matches) |
+
+Inputs that pick cards to pay a cost: `InputSelectEntitiesFromList` / `InputSelectCardsFromList` (sacrifice, discard,
+exile, tap-type costs) name their cards themselves (`setSelectables`). The other two `InputSelectManyBase` inputs
+(convoke / improvise / waterbend, remove counters) name none: `WebGuiGame.showPromptMessage` sends, before each of their
+prompts, the cards their `getActivateAction` accepts, and clears them when the input ends (issue #70). Delve asks with
+prompts (`getChoices` for the count, then one `getChoices` per card). The playable highlights estimate convoke and
+improvise for a human with every untapped card that may pay (`PlayerControllerAi.chooseCardsForConvokeOrImprovise`).
+`HumanSeatPaymentTest` casts convoke, improvise and delve spells through the seat, each offered as playable first.
+
+Auto-pay (`InputPayMana.onOk`, and its plan for the Auto button and the "Taps: …" preview) runs `ComputerUtilMana`
+under a `PlayerControllerAi` flagged `autoPayForHuman`: only mana abilities whose costs are `{T}`, `{Q}` and mana, and no
+life for Phyrexian mana (issue #66; upstream edit, `docs/fork/decisions.md` 2026-10-22). A cost those can't pay leaves
+Auto disabled; the player pays by hand (mana abilities with other costs ask their own inputs; life: `selectPlayer` on
+themselves).
 
 ## IGuiBase dialogs reached from a human seat
 - `HumanCostDecision.putFromSame` asks "whose graveyard" through `SGuiChoose.oneOrNone` (`IGuiBase`, not the seat).

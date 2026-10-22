@@ -1,6 +1,7 @@
 import type { Intent, PromptAnswer } from '../model/intents';
 import { stepInfo } from '../model/phases';
-import { player, targetName } from '../model/selectors';
+import { parseCost, poolTotal } from '../model/mana';
+import { player, targetName, you } from '../model/selectors';
 import type { ChoicePrompt, GameView, StepId } from '../model/types';
 import { distributeConfirm, inputConfirm, inputStart, startAmounts } from '../components/tray/numberLogic';
 import { trayConfirm, trayDraft } from '../components/tray/trayLogic';
@@ -89,9 +90,12 @@ export function primaryAction(game: GameView, ui: UiState, stops: StopPrefs): Pr
     case 'chooseTargets': {
       const name = game.cards[d.sourceCardId]?.name ?? 'spell';
       const ready = d.chosen.length >= d.min;
+      const chosen = d.chosen.map((t) => targetName(game, t)).join(', ');
+      // Convoke, improvise: what is chosen is tapped to pay, the rest is paid with mana next.
+      const detail = d.tapToPay ? (chosen ? `Taps: ${chosen}` : 'Nothing tapped yet') : ready ? `Target: ${chosen}` : d.instruction;
       return {
         label: ready ? `Cast ${name}` : 'Choose a target',
-        detail: ready ? `Target: ${d.chosen.map((t) => targetName(game, t)).join(', ')}` : d.instruction,
+        detail,
         enabled: ready,
         tone: 'priority',
         intent: { type: 'primary' },
@@ -118,9 +122,19 @@ export function primaryAction(game: GameView, ui: UiState, stops: StopPrefs): Pr
     }
     case 'payMana': {
       const taps = d.autoTaps.map((id) => game.cards[id]?.name ?? '?').join(', ');
+      // Auto-pay never sacrifices or pays life (issue #66). Without it, a source per symbol left (at least one mana
+      // each) or life may still pay: the player pays by hand.
+      const left = parseCost(d.remaining);
+      const byHand = d.lifePays || d.sources.length + poolTotal(you(game).manaPool) >= left.generic + left.coloured.length;
       return {
         label: 'Pay automatically',
-        detail: !d.autoCanPay ? 'Not enough untapped mana' : taps ? `Taps: ${taps}` : 'Uses your floating mana',
+        detail: d.autoCanPay
+          ? taps
+            ? `Taps: ${taps}`
+            : 'Uses your floating mana'
+          : byHand
+            ? 'Auto-pay only taps and spends mana: pay by hand'
+            : 'Not enough untapped mana',
         enabled: d.autoCanPay,
         tone: 'priority',
         intent: { type: 'payAuto' },
@@ -175,6 +189,7 @@ export function promptText(game: GameView): string {
       return `${whose} turn · ${stepPhrase(game.turn.step)}.`;
     }
     case 'chooseTargets':
+      if (d.tapToPay) return `${d.instruction}.`;
       return `${d.instruction} for ${game.cards[d.sourceCardId]?.name ?? 'this spell'}.`;
     case 'payMana':
       return 'Click your lands or creatures that add mana.';
