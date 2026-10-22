@@ -332,10 +332,28 @@ public class HumanSeatStackTargetsTest {
     @Test
     public void aCostInputAfterTargetingSendsOnlyItsOwnPicksAsChosen() throws Exception {
         start();
-        Card devotion = add("Fanatical Devotion", me, ZoneType.Battlefield);
-        Card bears = add("Grizzly Bears", me, ZoneType.Battlefield);
-        Card elves = add("Llanowar Elves", me, ZoneType.Battlefield);
-        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, me);
+        costAfterTargetingSendsOnlyItsOwnPicks(me);
+    }
+
+    /**
+     * The same on a turn of a player the seat controls (Mindslaver): its inputs come from a second
+     * {@code PlayerControllerHuman} ({@code LobbyPlayerHuman.createMindSlaveController}) with its own kept marks.
+     */
+    @Test
+    public void aCostInputAfterTargetingSendsOnlyItsOwnPicksAsChosenForAControlledPlayer() throws Exception {
+        start();
+        Player ai = game.getPlayers().get(1);
+        ai.addController(game.getNextTimestamp(), me);
+        assertTrue(ai.getController() instanceof PlayerControllerHuman c && c != pch && c.getGui() == pch.getGui(),
+                "the seat controls the AI through a second controller: " + ai.getController());
+        costAfterTargetingSendsOnlyItsOwnPicks(ai);
+    }
+
+    private void costAfterTargetingSendsOnlyItsOwnPicks(Player whose) throws Exception {
+        Card devotion = add("Fanatical Devotion", whose, ZoneType.Battlefield);
+        Card bears = add("Grizzly Bears", whose, ZoneType.Battlefield);
+        Card elves = add("Llanowar Elves", whose, ZoneType.Battlefield);
+        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, whose);
         game.getPhaseHandler().onStackResolved();
         boolean[] activated = {false};
         boolean[] sacrificed = {false};

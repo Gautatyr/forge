@@ -1,6 +1,7 @@
 package forge.fork.web.seat;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -224,26 +225,39 @@ final class SeatSession implements IRemote {
      * The selection without the spell's kept target marks ({@code PlayerControllerHuman.getKeptMarks}): upstream appends
      * them to every input's {@code chosen} while the spell's cost is paid ({@code InputBase.showSelection},
      * {@code InputSyncronizedBase.stop}), and the page reads {@code chosen} as the input's own picks (#56 review).
-     * They are appended last, so the last occurrence of each is removed: a pick that is also a target stays.
-     * Read on the calling thread, as upstream reads them there to build the selection; {@code toArray} cannot throw
-     * a {@code ConcurrentModificationException}.
+     * The marks are those of the controller that built the selection: the seat's own, or the one through which it
+     * controls another player ({@code LobbyPlayerHuman.createMindSlaveController}: same GUI, its own kept marks).
+     * Upstream appends them last, so the tail equal to one controller's marks is removed: a pick that is also a target
+     * stays. Read on the calling thread, which built the selection; {@code toArray} cannot throw a
+     * {@code ConcurrentModificationException}.
      */
     private Selection withoutKeptMarks(Selection sel) {
         if (!(controller instanceof PlayerControllerHuman pch) || sel.chosen().isEmpty()) {
             return sel;
         }
-        Object[] kept = pch.getKeptMarks().toArray();
-        if (kept.length == 0) {
-            return sel;
-        }
-        List<TrackableObject> own = new ArrayList<>(sel.chosen());
-        for (int i = kept.length - 1; i >= 0; i--) {
-            int at = own.lastIndexOf(kept[i]);
-            if (at >= 0) {
-                own.remove(at);
+        List<TrackableObject> chosen = sel.chosen();
+        for (PlayerControllerHuman c : controllersOnThisGui(pch)) {
+            Object[] kept = c.getKeptMarks().toArray();
+            int from = chosen.size() - kept.length;
+            if (kept.length > 0 && from >= 0 && Arrays.equals(kept, chosen.subList(from, chosen.size()).toArray())) {
+                return new Selection(sel.cards(), sel.min(), sel.max(), sel.targets(), new ArrayList<>(chosen.subList(0, from)));
             }
         }
-        return own.size() == sel.chosen().size() ? sel : new Selection(sel.cards(), sel.min(), sel.max(), sel.targets(), own);
+        return sel;
+    }
+
+    /** The seat's controller, then the controllers of the players it controls (they share its GUI). */
+    private static List<PlayerControllerHuman> controllersOnThisGui(PlayerControllerHuman own) {
+        List<PlayerControllerHuman> all = new ArrayList<>();
+        all.add(own);
+        if (own.getGame() != null) {
+            for (Player p : own.getGame().getRegisteredPlayers()) {
+                if (p.getController() instanceof PlayerControllerHuman c && c != own && c.getGui() == own.getGui()) {
+                    all.add(c);
+                }
+            }
+        }
+        return all;
     }
 
     /** The blocks the engine allows now, while this seat declares blockers; sticky until the input ends. */
