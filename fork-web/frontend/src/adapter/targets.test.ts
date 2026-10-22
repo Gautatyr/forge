@@ -202,8 +202,7 @@ describe('after a reload mid-cast', () => {
   };
   const bolt = (s: LiveSession) => {
     ask(s, 'Lightning Bolt (27) - Lightning Bolt deals 3 damage to any target.\n\nSelect any target');
-    s.apply({ t: 'call', method: 'setSelectables', args: [[card(55)], 1, 1] });
-    s.apply({ t: 'call', method: 'setSelectableTargets', args: [[YOU, { type: 'player', id: 1 }]] });
+    s.apply(selection({ cards: [card(55)], min: 1, max: 1, targets: [YOU, { type: 'player', id: 1 }] }));
   };
 
   it('restores the spell from the prompt and keeps card targets on the board, with Cancel', () => {
@@ -247,7 +246,7 @@ describe('after a reload mid-cast', () => {
   it('keeps Cancel for targets the tray lists (a graveyard card)', () => {
     const s = session();
     ask(s, 'Raise Dead (27) - Return target creature card from a graveyard to your hand.\n\nSelect target creature card in a graveyard');
-    s.apply({ t: 'call', method: 'setSelectables', args: [[card(70)], 1, 1] });
+    s.apply(selection({ cards: [card(70)], min: 1, max: 1 }));
     const g = toGameView(s);
     expect(g.decision).toMatchObject({ kind: 'choice', cancellable: true, prompt: { options: [{ id: 'c70', cardId: '70' }] } });
     expect(canCancel(g, INITIAL_UI)).toBe(true);
@@ -258,7 +257,7 @@ describe('after a reload mid-cast', () => {
     for (const cancel of [{ label: 'Cancel', enabled: false }, { label: 'Select all', enabled: true }]) {
       const s = session();
       ask(s, 'Raise Dead (27) - Return target creature card from a graveyard to your hand.\n\nSelect target creature card in a graveyard', cancel);
-      s.apply({ t: 'call', method: 'setSelectables', args: [[card(70)], 1, 1] });
+      s.apply(selection({ cards: [card(70)], min: 1, max: 1 }));
       const g = toGameView(s);
       expect(g.decision.kind).toBe('choice');
       expect(canCancel(g, INITIAL_UI)).toBe(false);
