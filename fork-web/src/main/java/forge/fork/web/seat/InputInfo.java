@@ -9,6 +9,7 @@ import java.util.regex.Pattern;
 
 import com.google.gson.JsonObject;
 
+import forge.game.ability.SpellAbilityEffect;
 import forge.game.player.Player;
 import forge.game.spellability.SpellAbility;
 import forge.game.trigger.WrappedAbility;
@@ -97,18 +98,32 @@ final class InputInfo {
 
     /**
      * An "unless" cost ({@code UnlessCost}): not paying lets the ability do what its text says, worded as the engine's
-     * own "(or: …)" prompt suffix words it, then for the seat ({@link #declineWords}). Null for {@code UnlessSwitched}
-     * (not paying does nothing) and other inputs.
+     * own "(or: …)" prompt suffix words it, then for the seat ({@link #declineWords}). A script's {@code OrString} has
+     * its placeholders ({@code {c:Self}}, {@code {p:You}}, …) resolved by the engine's stack-description formatter
+     * ({@code SpellAbilityEffect.tokenizeString}, issue #88); its "your" is the controller's, as in Oracle text.
+     * Null for {@code UnlessSwitched} (not paying does nothing) and other inputs.
      */
-    private static String decline(SpellAbility sa, Player seat) {
+    static String decline(SpellAbility sa, Player seat) {
         if (!sa.hasParam("UnlessCost") || sa.hasParam("UnlessSwitched")) {
             return null;
         }
-        String text = sa.hasParam("OrString") ? sa.getParam("OrString") : sa.getStackDescription();
         Player activator = sa.getActivatingPlayer();
+        String text;
+        if (sa.hasParam("OrString")) {
+            StringBuilder sb = new StringBuilder();
+            SpellAbilityEffect.tokenizeString(sa, sb, sa.getParam("OrString"));
+            text = sb.toString();
+            if (activator != null && seat != null && activator != seat) {
+                text = YOUR.matcher(text).replaceAll(Matcher.quoteReplacement(activator.getName() + "'s"));
+            }
+        } else {
+            text = sa.getStackDescription();
+        }
         text = declineWords(text, seat == null ? null : seat.getName(), activator == null ? null : activator.getName());
         return text.isEmpty() ? null : text;
     }
+
+    private static final Pattern YOUR = Pattern.compile("(?<![\\w'])[Yy]our\\b");
 
     private static final Pattern CARD_ID = Pattern.compile("\\s*\\(\\d+\\)");
     private static final Pattern FIRST_WORD = Pattern.compile("^(\\S+)");

@@ -34,6 +34,7 @@ import forge.game.phase.PhaseHandler;
 import forge.game.phase.PhaseType;
 import forge.game.player.Player;
 import forge.game.player.RegisteredPlayer;
+import forge.game.spellability.SpellAbility;
 import forge.game.zone.ZoneType;
 import forge.gamemodes.match.input.Input;
 import forge.gamemodes.match.input.InputPassPriority;
@@ -293,5 +294,55 @@ public class InputInfoTest {
         assertTrue(game.getCardState(drekavac).isInZone(ZoneType.Graveyard), "declined: Drekavac was sacrificed; seen " + seen);
         assertTrue(game.getCardState(bolt).isInZone(ZoneType.Hand), "nothing was discarded; seen " + seen);
         assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
+    }
+
+    /**
+     * Issue #88. Great Desert Hellion: "At the beginning of your upkeep, sacrifice it unless you discard a card", with
+     * {@code OrString$ Sacrifice {c:Self}.}: Cancel's words resolve the placeholder as a stack description does.
+     */
+    @Test
+    public void anOrStringResolvesItsPlaceholders() throws Exception {
+        start();
+        Card hellion = add("Great Desert Hellion", me, ZoneType.Battlefield);
+        Card plains = add("Plains", me, ZoneType.Hand);
+        game.getPhaseHandler().devModeSet(PhaseType.UNTAP, me, true, 2);
+        game.getPhaseHandler().onStackResolved();
+        boolean[] declined = {false};
+        List<String> seen = play(() -> declined[0] && game.getStack().isEmpty()
+                        || game.getPhaseHandler().getPhase().isAfter(PhaseType.UPKEEP),
+                in -> {
+                    if (in instanceof InputSelectCardsFromList) {
+                        declined[0] = true;
+                        return () -> action("selectButtonCancel", null);
+                    }
+                    return null;
+                });
+        List<JsonObject> discard = infos("to discard");
+        assertFalse(discard.isEmpty(), "the discard message was sent; seen " + seen);
+        JsonObject info = discard.get(0);
+        assertEquals(info.has("decline") ? info.get("decline").getAsString() : null, "Sacrifice Great Desert Hellion", info.toString());
+        assertTrue(game.getCardState(hellion).isInZone(ZoneType.Graveyard), "declined: the Hellion was sacrificed; seen " + seen);
+        assertTrue(game.getCardState(plains).isInZone(ZoneType.Hand), "nothing was discarded; seen " + seen);
+        assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
+    }
+
+    /**
+     * Issue #88. Undercity Plunder cast by ai1 at the seat: the seat pays the "unless" cost whose
+     * {@code OrString$ {p:You} conjures ... into your hand.} names the caster, and the script's "your" (the card's
+     * controller, as in Oracle text) is the caster's, not the seat's.
+     */
+    @Test
+    public void anOrStringPaidByAnOpponentNamesTheCaster() {
+        start();
+        Card plunder = add("Undercity Plunder", ai, ZoneType.Hand);
+        SpellAbility spell = plunder.getFirstSpellAbility();
+        spell.setActivatingPlayer(ai);
+        SpellAbility unless = spell.getSubAbility();
+        assertTrue(unless.hasParam("OrString"), "the unless sub-ability: " + unless);
+        assertEquals(InputInfo.decline(unless, me),
+                "ai1 conjures a duplicate of a random card from their library into ai1's hand");
+        // Paid by its own caster (no such play in the pool): the script's "your" is the seat's.
+        assertEquals(InputInfo.decline(unless, ai),
+                "You conjure a duplicate of a random card from their library into your hand");
     }
 }
