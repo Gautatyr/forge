@@ -355,3 +355,18 @@
   gap: var(--sp-1);
   white-space: nowrap;
 }
+
+/* Short rail column (about 768 px screens and below): what a player decides from, the stack and combat, keeps its
+   height; Recent yields first (it shrinks to nothing and the regions scroll to it; the drawer has the whole log). The hover preview is
+   made smaller in HoverPreview.module.css under the same query. */
+@container (max-height: 640px) {
+  .stack {
+    /* Nearly two items (the next one peeks, the body scrolls). */
+    min-height: 15rem;
+    max-height: 65%;
+  }
+  .recent {
+    min-height: 0;
+    flex-shrink: 1;
+  }
+}

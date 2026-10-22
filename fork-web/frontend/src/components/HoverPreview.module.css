@@ -79,6 +79,31 @@
   color: var(--c-text-2);
 }
 
+/* Short rail column: the image is a fifth of it and the notes are one clipped row, so the stack and combat
+   above stay visible (Rail.module.css). Only the in-rail spot; the beside spots are overlays. */
+@container (max-height: 640px) {
+  .preview:not(.besideRail):not(.besideDrawer) {
+    --pv-w: min(100%, calc(20cqh * var(--card-ratio)));
+    padding-bottom: var(--sp-1);
+    gap: var(--sp-1);
+  }
+  .preview:not(.besideRail):not(.besideDrawer) .info {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow: hidden;
+  }
+  .preview:not(.besideRail):not(.besideDrawer) .hint {
+    display: none;
+  }
+  .preview:not(.besideRail):not(.besideDrawer) .info:has(> .hint:only-child) {
+    display: none;
+  }
+  .preview:not(.besideRail):not(.besideDrawer) .note {
+    white-space: nowrap;
+    font-size: var(--fs-xs);
+  }
+}
+
 @keyframes appear {
   from {
     opacity: 0;
