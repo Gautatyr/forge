@@ -3,7 +3,7 @@
  * clicks map to the input's own actions (stack items: selectStackItem). Also the floating-pool click while paying.
  */
 import { describe, expect, it } from 'vitest';
-import type { WireObject } from '../wire/generated/wire';
+import type { CallMessage, WireObject } from '../wire/generated/wire';
 import { intentToFrames } from './commands';
 import { LiveSession } from './session';
 import { toGameView } from './toView';
@@ -12,6 +12,12 @@ const YOU = { type: 'player', id: 0 } as const;
 const card = (id: number) => ({ type: 'card', id }) as const;
 const item = (id: number) => ({ type: 'stackItem', id }) as const;
 const act = (method: string, fields: object = {}) => ({ t: 'action', method, ...fields });
+/** InputBase.showSelection: what the prompt marks (forge.gamemodes.match.Selection). */
+const selection = (sel: { cards?: object[]; min?: number; max?: number; targets?: object[]; chosen?: object[] }): CallMessage => ({
+  t: 'call',
+  method: 'setSelection',
+  args: [{ kind: 'Selection', cards: [], min: 0, max: 0, targets: [], chosen: [], ...sel }],
+});
 
 const cardObjs = (id: number, owner: number, zone: string, name: string, type: string): WireObject[] => [
   { type: 'card', id, props: { Owner: owner, Controller: owner, Zone: zone, CurrentState: 'Original' } } as WireObject,
@@ -47,7 +53,7 @@ function counterspell(s: LiveSession, refs = [item(7), item(8)]) {
   s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'End Turn', true, true, true] });
   s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Priority: Hugo', null] });
   s.clicked(60);
-  s.apply({ t: 'call', method: 'setSelectableTargets', args: [refs] });
+  s.apply(selection({ targets: refs }));
   s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Select a target on the stack (1 more)', card(-1)] });
   s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, true, true] });
 }
@@ -75,7 +81,7 @@ describe('stack items as targets', () => {
     counterspell(s);
     const g = toGameView(s);
     expect(intentToFrames({ type: 'toggleTarget', target: { kind: 'stackItem', id: '7' } }, s, g)).toEqual([act('selectStackItem', { stackItem: 7 })]);
-    s.apply({ t: 'call', method: 'setHighlighted', args: [[item(7)], true] });
+    s.apply(selection({ targets: [item(7), item(8)], chosen: [item(7)] }));
     expect(toGameView(s).decision).toMatchObject({ kind: 'chooseTargets', chosen: [{ kind: 'stackItem', id: '7' }] });
   });
 
@@ -87,7 +93,7 @@ describe('stack items as targets', () => {
 
   it('keeps stack items on the board when no spell names the input (after a reconnect), with Cancel', () => {
     const s = session();
-    s.apply({ t: 'call', method: 'setSelectableTargets', args: [[item(7), item(8)]] });
+    s.apply(selection({ targets: [item(7), item(8)] }));
     s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Select target spell or ability', null] });
     s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, true, true] });
     const g = toGameView(s);
@@ -108,7 +114,7 @@ describe('stack items as targets', () => {
   it('offers a further stack item after a pick that left the input open ("up to two"; the engine sends no max)', () => {
     const s = session();
     counterspell(s);
-    s.apply({ t: 'call', method: 'setHighlighted', args: [[item(7)], true] });
+    s.apply(selection({ targets: [item(7), item(8)], chosen: [item(7)] }));
     s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', true, true, true] });
     const g = toGameView(s);
     expect(g.decision).toMatchObject({ kind: 'chooseTargets', chosen: [{ kind: 'stackItem', id: '7' }], min: 1, max: 2 });
@@ -130,8 +136,7 @@ describe('stack items as targets', () => {
 describe('other target kinds a targeting input offers', () => {
   it('keeps players and permanents (a planeswalker) on the board', () => {
     const s = session();
-    s.apply({ t: 'call', method: 'setSelectables', args: [[card(55), card(90)], 1, 1] });
-    s.apply({ t: 'call', method: 'setSelectableTargets', args: [[{ type: 'player', id: 1 }]] });
+    s.apply(selection({ cards: [card(55), card(90)], min: 1, max: 1, targets: [{ type: 'player', id: 1 }] }));
     s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Counterspell - Select any target', card(60)] });
     s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, true, false] });
     const g = toGameView(s);
@@ -147,9 +152,30 @@ describe('other target kinds a targeting input offers', () => {
     expect(intentToFrames({ type: 'toggleTarget', target: { kind: 'player', id: '1' } }, s, g)).toEqual([act('selectPlayer', { player: 1 })]);
   });
 
+  it('names a spell that is a card target once, by its stack entry (InputSelectTargets, "target spell or permanent")', () => {
+    const s = session();
+    s.clicked(60);
+    // Bolt (50) on the stack is offered as a card and as its stack entry (7)
+    const offered = { cards: [card(50), card(55)], min: 1, max: 1, targets: [item(7)] };
+    s.apply(selection(offered));
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Counterspell - Select target spell or permanent', card(60)] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, true, false] });
+    const g = toGameView(s);
+    expect(g.decision).toMatchObject({
+      kind: 'chooseTargets',
+      legal: [
+        { kind: 'card', id: '55' },
+        { kind: 'stackItem', id: '7' },
+      ],
+    });
+    expect(intentToFrames({ type: 'toggleTarget', target: { kind: 'stackItem', id: '7' } }, s, g)).toEqual([act('selectStackItem', { stackItem: 7 })]);
+    s.apply(selection({ ...offered, chosen: [card(50), item(7)] }));
+    expect(toGameView(s).decision).toMatchObject({ kind: 'chooseTargets', chosen: [{ kind: 'stackItem', id: '7' }] });
+  });
+
   it('lists graveyard and exile cards in the tray, answered by selectCard', () => {
     const s = session();
-    s.apply({ t: 'call', method: 'setSelectables', args: [[card(70), card(80)], 1, 1] });
+    s.apply(selection({ cards: [card(70), card(80)], min: 1, max: 1 }));
     s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Counterspell - Select target creature card in a graveyard or exile', card(60)] });
     s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, true, false] });
     const g = toGameView(s);
@@ -173,5 +199,57 @@ describe('floating mana while paying', () => {
     expect(g.decision).toMatchObject({ kind: 'payMana', remaining: '{U}{U}' });
     expect(intentToFrames({ type: 'spendPool', colour: 'B' }, s, g)).toEqual([act('useMana', { color: 4 })]);
     expect(intentToFrames({ type: 'spendPool', colour: 'C' }, s, g)).toEqual([act('useMana', { color: 32 })]);
+  });
+});
+
+/**
+ * A targeted ability with a sacrifice cost (Fanatical Devotion, 30: "Sacrifice a creature: Regenerate target creature"),
+ * as the bridge sends it: the ability's kept target marks are left out of the cost input's `chosen`
+ * (SeatSession.withoutKeptMarks), even when the target (Grizzly Bears, 20) is also a creature to sacrifice.
+ */
+describe('a cost paid after targeting', () => {
+  function devotion(): LiveSession {
+    const objects: WireObject[] = [
+      { type: 'game', id: 1, props: { Players: [0, 1], Turn: 4, Phase: 'MAIN1', PlayerTurn: 0, GameType: 'Constructed' } },
+      { type: 'player', id: 0, props: { Name: 'Hugo', Life: 20, Battlefield: [30, 20, 21] } },
+      { type: 'player', id: 1, props: { Name: 'AI', IsAI: true, Life: 20 } },
+      ...cardObjs(30, 0, 'Battlefield', 'Fanatical Devotion', 'Enchantment'),
+      ...cardObjs(20, 0, 'Battlefield', 'Grizzly Bears', 'Creature - Bear'),
+      ...cardObjs(21, 0, 'Battlefield', 'Llanowar Elves', 'Creature - Elf Druid'),
+    ];
+    const s = new LiveSession();
+    s.apply({ t: 'snapshot', game: 1, seq: 0, label: 't', viewer: { seat: 0, player: 0 }, objects, log: [] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'End Turn', true, true, true] });
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Priority: Hugo', null] });
+    s.clicked(30);
+    // InputSelectTargets; the pick of the Bears ends it (InputSyncronizedBase.stop, then the kept marks: both sent empty)
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Fanatical Devotion - Regenerate target creature.\n\nSelect target creature', card(30)] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, true, true] });
+    s.apply(selection({ cards: [card(20), card(21)], min: 1, max: 1 }));
+    s.apply(selection({}));
+    s.apply({ t: 'call', method: 'awaitNextInput', args: [] });
+    // the sacrifice (HumanCostDecision: InputSelectCardsFromList)
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Select a Creature to sacrifice (1 left)', card(30)] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, true, true] });
+    s.apply(selection({ cards: [card(20), card(21)], min: 1, max: 1 }));
+    return s;
+  }
+
+  it('offers both creatures with nothing chosen, min not above max', () => {
+    expect(toGameView(devotion()).decision).toMatchObject({
+      kind: 'chooseTargets',
+      legal: [
+        { kind: 'card', id: '20' },
+        { kind: 'card', id: '21' },
+      ],
+      chosen: [],
+      min: 1,
+      max: 1,
+    });
+  });
+
+  it('sends only the clicked creature as the sacrifice', () => {
+    const s = devotion();
+    expect(intentToFrames({ type: 'toggleTarget', target: { kind: 'card', id: '21' } }, s, toGameView(s))).toEqual([act('selectCard', { card: 21 })]);
   });
 });

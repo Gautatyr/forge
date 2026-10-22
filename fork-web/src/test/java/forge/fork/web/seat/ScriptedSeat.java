@@ -203,30 +203,28 @@ final class ScriptedSeat implements ClientSink {
                 message = a.get(1).isJsonNull() ? "" : a.get(1).getAsString();
                 epoch++;
             }
-            case "setSelectables" -> {
-                selectables = new ArrayList<>();
-                for (JsonElement r : a.get(0).getAsJsonArray()) {
-                    if (r.isJsonObject() && "card".equals(type(r))) {
-                        selectables.add(r.getAsJsonObject().get("id").getAsInt());
+            case "setSelection" -> {
+                // each pick re-sends the input's selection; its end (InputSyncronizedBase.stop) sends one offering nothing
+                JsonObject sel = a.get(0).getAsJsonObject();
+                selMin = sel.get("min").getAsInt();
+                selMax = sel.get("max").getAsInt();
+                selectables = null;
+                if (selMax > 0) {
+                    selectables = new ArrayList<>();
+                    for (JsonElement r : sel.getAsJsonArray("cards")) {
+                        if (r.isJsonObject() && "card".equals(type(r))) {
+                            selectables.add(r.getAsJsonObject().get("id").getAsInt());
+                        }
                     }
                 }
-                selMin = a.get(1).getAsInt();
-                selMax = a.get(2).getAsInt();
-                picked.clear();
-                epoch++;
-            }
-            case "clearSelectables" -> {
-                selectables = null;
                 targets.clear();
-                picked.clear();
-                epoch++;
-            }
-            case "setSelectableTargets" -> {
-                targets.clear();
-                for (JsonElement r : a.get(0).getAsJsonArray()) {
+                for (JsonElement r : sel.getAsJsonArray("targets")) {
                     if (r.isJsonObject()) {
                         targets.add(r.getAsJsonObject());
                     }
+                }
+                if (selectables == null && targets.isEmpty()) {
+                    picked.clear();
                 }
                 epoch++;
             }

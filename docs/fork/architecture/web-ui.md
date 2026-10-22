@@ -12,9 +12,9 @@ The UI reads read-only view objects (`GameView`, `PlayerView`, `CardView`, `Stac
 ## The existing remote-UI protocol
 Forge's network play already sends a whole game to a remote UI. The web bridge reuses this design; it is a new encoding (JSON over WebSocket), not a new protocol.
 
-**Messages:** `forge-gui/src/main/java/forge/gamemodes/net/ProtocolMethod.java` enumerates 60 methods.
-- 44 go from the game to the player:
-  - **31 state updates** with no reply: `setGameView`, `openView`, `applyDelta`, `applyYieldUpdate`, `afterGameEnd`, `finishGame`, `showCombat`, `showPromptMessage`, `updateButtons`, `updateDrawOffer`, `flashIncorrectAction`, `alertUser`, `enableOverlay`, `disableOverlay`, `showManaPool`, `hideManaPool`, `setPanelSelection`, `setCard`, `setSelectables`, `clearSelectables`, `setHighlighted`, `setSelectableTargets`, `setWeaklySelectable`, `clearWeaklySelectable`, `showRevealedCards`, `hideRevealedCards`, `setRememberedActions`, `nextRememberedAction`, `awaitNextInput`, `message`, `showErrorDialog`.
+**Messages:** `forge-gui/src/main/java/forge/gamemodes/net/ProtocolMethod.java` enumerates 59 methods.
+- 40 go from the game to the player:
+  - **27 state updates** with no reply: `setGameView`, `openView`, `applyDelta`, `applyYieldUpdate`, `afterGameEnd`, `finishGame`, `showCombat`, `showPromptMessage`, `updateButtons`, `updateDrawOffer`, `flashIncorrectAction`, `alertUser`, `enableOverlay`, `disableOverlay`, `showManaPool`, `hideManaPool`, `setPanelSelection`, `setCard`, `setSelection`, `setWeaklySelectable`, `clearWeaklySelectable`, `showRevealedCards`, `hideRevealedCards`, `applyMacroState`, `awaitNextInput`, `message`, `showErrorDialog`.
   - **13 prompts** that need an answer. They fit 5 shapes:
 
     | Shape | Methods |
@@ -24,9 +24,9 @@ Forge's network play already sends a whole game to a remote UI. The web bridge r
     | Order, or move between two lists | `order`, `manipulateCardList`, `sideboard` |
     | Distribute an amount | `assignCombatDamage`, `assignGenericAmount` |
     | Type a text or number | `showInputDialog` |
-- 16 go from the player to the game: `useMana`, `undoLastAction`, `selectPlayer`, `selectCard`, `selectButtonOk`, `selectButtonCancel`, `selectAbility`, `selectStackItem`, `nextGameDecision`, `getActivateDescription`, `concede`, `drawOfferAction`, `alphaStrike`, `reorderHand`, `requestResync`, `sendYieldUpdate`.
+- 16 go from the player to the game: `useMana`, `undoLastAction`, `selectPlayer`, `selectCard`, `selectButtonOk`, `selectButtonCancel`, `selectAbility`, `selectStackItem`, `nextGameDecision`, `getActivateDescription`, `concede`, `drawOfferAction`, `alphaStrike`, `reorderHand`, `requestResync`, `sendYieldUpdate`; plus 3 calls on the controller's macro system (`setRememberedActions`, `nextRememberedAction`, `repeatRememberedActions`), which the web seat does not offer.
 
-Board interaction (cast, target, attack, block) mostly runs through "selectable" highlights (`setSelectables`, `setSelectableTargets`) plus `selectCard` / `selectPlayer` / `selectButtonOk`, not through prompts.
+Board interaction (cast, target, attack, block) mostly runs through the prompt's selection (`setSelection`: cards, players and stack items to pick, and what is chosen) plus `selectCard` / `selectPlayer` / `selectButtonOk`, not through prompts.
 
 **State sync:** `forge-gui/src/main/java/forge/gamemodes/net/DeltaPacket.java` sends only changed properties of view objects, keyed by `TrackableProperty` (214 property types in `forge-game/src/main/java/forge/trackable/TrackableProperty.java`), with object references replaced by IDs. A JSON encoder over this is generic code, not one handler per property.
 
@@ -50,7 +50,7 @@ Code: `fork-web/src/main/java/forge/fork/web/bridge/` (`GameStream`) and `bridge
 Code: `fork-web/src/main/java/forge/fork/web/seat/`. A human seat is `WebGuiGame extends ProtocolGuiGame`; its `IRemote` is `SeatSession`. `HostedMatch` gives the seat a `GameEventForwarder`; each batch is published on the `GameStream` (network play's unfiltered `applyDelta`/`setGameView` are dropped). Everything for a seat travels on that seat's stream, in order with its deltas.
 
 Server to seat (after `hello` and `snapshot`):
-- `{"t":"call","method":M,"args":[…]}`: the no-reply `ProtocolMethod`s, positional args as in `IGuiGame`. References: `{"type":"card|player|stackItem","id"}` in the seat's id space (a card the seat may not see: its unseen id or alias), `{"type":"spellAbility","id","card","text"}`; enums by name, records as objects with `kind`, maps as `[{key,value}]`. Input UI comes from `showPromptMessage`, `updateButtons`, `setSelectables`/`clearSelectables` (cards), `setSelectableTargets` (players and stack items; the bridge also sends it for an input that picks players, e.g. who starts the game, which upstream leaves to "click a portrait"), `setHighlighted`, `showRevealedCards`, `awaitNextInput`, `finishGame`.
+- `{"t":"call","method":M,"args":[…]}`: the no-reply `ProtocolMethod`s, positional args as in `IGuiGame`. References: `{"type":"card|player|stackItem","id"}` in the seat's id space (a card the seat may not see: its unseen id or alias), `{"type":"spellAbility","id","card","text"}`; enums by name, records as objects with `kind`, maps as `[{key,value}]`. Input UI comes from `showPromptMessage`, `updateButtons`, `setSelection` (a `Selection` record: `cards` to pick with `min`/`max`, none when `max` is 0; `targets`, the players and stack items; `chosen`; it replaces the previous one), `showRevealedCards`, `awaitNextInput`, `finishGame`.
 - `{"t":"prompt","id","method","shape",…}`: the 13 prompts, labels rendered on the server. A card the seat may not see is labelled `Hidden card` / `Face-down card`, never named. Shapes and fields (`forge.fork.web.seat.Prompt`):
   - `choose`: `message`, `min`, `max`, `choices:[{i,label,ref?,disabled?,revealedCopy?}]` (`disabled` is no longer sent: `getAbilityToPlay` offers every ability, as `CMatchUI`; #46), `selected?`, `default?` (`showOptionDialog`), `card?`, `reveal?:{message,cards}` (`DelayedReveal`). `getChoices` with nothing to pick (a reveal) has `max` 0. `revealedCopy`: a copy the engine reveals while the card itself stays hidden (e.g. `Player.revealFaceDownCards` when a player loses); its `ref` is the hidden card's unseen id or alias, so only its label names it.
   - `confirm`: `message`, `yes`, `no`, `default`, `card?`.

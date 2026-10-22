@@ -743,7 +743,6 @@ export const PROPERTY_KINDS = {
   SplitCard: 'bool',
   MergedCards: 'string',
   MergedCardsCollection: 'cards',
-  RevealedCardsCollection: 'cards',
   PaperCardBackup: 'paper_card',
   Attacking: 'bool',
   Blocking: 'bool',
@@ -811,26 +810,26 @@ export const PROPERTY_KINDS = {
   ExertedThisTurn: 'bool',
   Detained: 'bool',
   Name: 'string',
+  OracleName: 'string',
+  ImageKey: 'string',
   Colors: 'colors',
   OriginalColors: 'colors',
-  ImageKey: 'string',
   Type: 'card_type',
   ManaCost: 'mana_cost',
   OriginalManaCost: 'mana_cost',
   SetCode: 'string',
   Rarity: 'enum',
-  FunctionalVariant: 'string',
   OracleText: 'string',
   RulesText: 'string',
-  OracleName: 'string',
+  HasPrintedPT: 'bool',
   Power: 'int',
   Toughness: 'int',
   Loyalty: 'string',
   Defense: 'string',
+  FunctionalVariant: 'string',
   AttractionLights: 'int_set',
   ChangedColorWords: 'string_map',
   HasChangedColors: 'bool',
-  HasPrintedPT: 'bool',
   ChangedTypes: 'string_map',
   OrigProduceMana: 'colors',
   OrigProduceAnyMana: 'bool',
@@ -858,7 +857,6 @@ export const PROPERTY_KINDS = {
   MaxLandPlay: 'int',
   HasUnlimitedLandPlay: 'bool',
   NumLandThisTurn: 'int',
-  NumManaShards: 'int',
   DraftNotes: 'string_map',
   NumDrawnThisTurn: 'int',
   AdditionalVote: 'int',
@@ -889,9 +887,10 @@ export const PROPERTY_KINDS = {
   IsExtraTurn: 'bool',
   ExtraTurnCount: 'int',
   HasPriority: 'bool',
-  AvatarLifeDifference: 'int',
   HasLost: 'bool',
   HasAvailableActions: 'bool',
+  AvatarLifeDifference: 'int',
+  NumManaShards: 'int',
   HostCard: 'card',
   Description: 'string',
   CanPlay: 'bool',
@@ -908,30 +907,31 @@ export const PROPERTY_KINDS = {
   Ability: 'bool',
   OptionalTrigger: 'bool',
   OptionalCosts: 'string',
+  CombatView: 'combat',
   AttackersWithDefenders: 'generic_map',
   AttackersWithBlockers: 'generic_map',
+  AttackersWithPlannedBlockers: 'generic_map',
   BandsWithDefenders: 'generic_map',
   BandsWithBlockers: 'generic_map',
-  AttackersWithPlannedBlockers: 'generic_map',
   BandsWithPlannedBlockers: 'generic_map',
-  CombatView: 'combat',
   Players: 'players',
   GameType: 'enum',
   Title: 'string',
   Turn: 'int',
+  PlayerTurn: 'player',
+  Phase: 'enum',
   WinningPlayerName: 'string',
   WinningTeam: 'int',
-  MatchOver: 'bool',
   Mulligan: 'bool',
+  GameOver: 'bool',
+  MatchOver: 'bool',
   NumGamesInMatch: 'int',
   NumPlayedGamesInMatch: 'int',
   Stack: 'stack_items',
   StormCount: 'int',
-  GameOver: 'bool',
   PoisonCountersToLose: 'int',
-  PlayerTurn: 'player',
-  Phase: 'enum',
   Object: 'object',
+  RevealedCardsCollection: 'cards',
   Dependencies: 'string',
 } as const satisfies Record<string, WireKind>;
 
@@ -965,7 +965,6 @@ export interface WireProps {
   SplitCard?: boolean;
   MergedCards?: string;
   MergedCardsCollection?: CardId[];
-  RevealedCardsCollection?: CardId[];
   PaperCardBackup?: PaperCardRef;
   Attacking?: boolean;
   Blocking?: boolean;
@@ -1033,26 +1032,26 @@ export interface WireProps {
   ExertedThisTurn?: boolean;
   Detained?: boolean;
   Name?: string;
+  OracleName?: string;
+  ImageKey?: string;
   Colors?: string;
   OriginalColors?: string;
-  ImageKey?: string;
   Type?: string;
   ManaCost?: string;
   OriginalManaCost?: string;
   SetCode?: string;
   Rarity?: CardRarity;
-  FunctionalVariant?: string;
   OracleText?: string;
   RulesText?: string;
-  OracleName?: string;
+  HasPrintedPT?: boolean;
   Power?: number;
   Toughness?: number;
   Loyalty?: string;
   Defense?: string;
+  FunctionalVariant?: string;
   AttractionLights?: number[];
   ChangedColorWords?: Record<string, string>;
   HasChangedColors?: boolean;
-  HasPrintedPT?: boolean;
   ChangedTypes?: Record<string, string>;
   OrigProduceMana?: string;
   OrigProduceAnyMana?: boolean;
@@ -1080,7 +1079,6 @@ export interface WireProps {
   MaxLandPlay?: number;
   HasUnlimitedLandPlay?: boolean;
   NumLandThisTurn?: number;
-  NumManaShards?: number;
   DraftNotes?: Record<string, string>;
   NumDrawnThisTurn?: number;
   AdditionalVote?: number;
@@ -1111,9 +1109,10 @@ export interface WireProps {
   IsExtraTurn?: boolean;
   ExtraTurnCount?: number;
   HasPriority?: boolean;
-  AvatarLifeDifference?: number;
   HasLost?: boolean;
   HasAvailableActions?: boolean;
+  AvatarLifeDifference?: number;
+  NumManaShards?: number;
   HostCard?: CardId;
   Description?: string;
   CanPlay?: boolean;
@@ -1130,55 +1129,56 @@ export interface WireProps {
   Ability?: boolean;
   OptionalTrigger?: boolean;
   OptionalCosts?: string;
+  CombatView?: CombatBand[];
   AttackersWithDefenders?: Record<string, unknown>;
   AttackersWithBlockers?: Record<string, unknown>;
+  AttackersWithPlannedBlockers?: Record<string, unknown>;
   BandsWithDefenders?: Record<string, unknown>;
   BandsWithBlockers?: Record<string, unknown>;
-  AttackersWithPlannedBlockers?: Record<string, unknown>;
   BandsWithPlannedBlockers?: Record<string, unknown>;
-  CombatView?: CombatBand[];
   Players?: PlayerId[];
   GameType?: GameType;
   Title?: string;
   Turn?: number;
+  PlayerTurn?: PlayerId;
+  Phase?: PhaseType;
   WinningPlayerName?: string;
   WinningTeam?: number;
-  MatchOver?: boolean;
   Mulligan?: boolean;
+  GameOver?: boolean;
+  MatchOver?: boolean;
   NumGamesInMatch?: number;
   NumPlayedGamesInMatch?: number;
   Stack?: StackItemId[];
   StormCount?: number;
-  GameOver?: boolean;
   PoisonCountersToLose?: number;
-  PlayerTurn?: PlayerId;
-  Phase?: PhaseType;
   Object?: unknown;
+  RevealedCardsCollection?: CardId[];
   Dependencies?: string;
 }
 
 /** Properties of `game` objects (GameView). */
 export interface GameProps {
   PlanarPlayer?: PlayerId;
-  RevealedCardsCollection?: CardId[];
   IsCommander?: boolean;
   CombatView?: CombatBand[];
   Players?: PlayerId[];
   GameType?: GameType;
   Title?: string;
   Turn?: number;
+  PlayerTurn?: PlayerId;
+  Phase?: PhaseType;
   WinningPlayerName?: string;
   WinningTeam?: number;
-  MatchOver?: boolean;
   Mulligan?: boolean;
+  GameOver?: boolean;
+  MatchOver?: boolean;
   NumGamesInMatch?: number;
   NumPlayedGamesInMatch?: number;
   Stack?: StackItemId[];
   StormCount?: number;
-  GameOver?: boolean;
   PoisonCountersToLose?: number;
-  PlayerTurn?: PlayerId;
-  Phase?: PhaseType;
+  RevealedCardsCollection?: CardId[];
   Dependencies?: string;
 }
 
@@ -1204,7 +1204,6 @@ export interface PlayerProps {
   MaxLandPlay?: number;
   HasUnlimitedLandPlay?: boolean;
   NumLandThisTurn?: number;
-  NumManaShards?: number;
   DraftNotes?: Record<string, string>;
   NumDrawnThisTurn?: number;
   AdditionalVote?: number;
@@ -1234,9 +1233,10 @@ export interface PlayerProps {
   IsExtraTurn?: boolean;
   ExtraTurnCount?: number;
   HasPriority?: boolean;
-  AvatarLifeDifference?: number;
   HasLost?: boolean;
   HasAvailableActions?: boolean;
+  AvatarLifeDifference?: number;
+  NumManaShards?: number;
 }
 
 /** Properties of `card` objects (CardView). */
@@ -1332,8 +1332,8 @@ export interface CardProps {
   ExertedThisTurn?: boolean;
   Detained?: boolean;
   Name?: string;
-  ImageKey?: string;
   OracleName?: string;
+  ImageKey?: string;
   AttractionLights?: number[];
   ChangedColorWords?: Record<string, string>;
   ChangedTypes?: Record<string, string>;
@@ -1348,25 +1348,25 @@ export interface CardProps {
 /** Properties of `cardState` objects (CardStateView). */
 export interface CardStateProps {
   Name?: string;
+  OracleName?: string;
+  ImageKey?: string;
   Colors?: string;
   OriginalColors?: string;
-  ImageKey?: string;
   Type?: string;
   ManaCost?: string;
   OriginalManaCost?: string;
   SetCode?: string;
   Rarity?: CardRarity;
-  FunctionalVariant?: string;
   OracleText?: string;
   RulesText?: string;
-  OracleName?: string;
+  HasPrintedPT?: boolean;
   Power?: number;
   Toughness?: number;
   Loyalty?: string;
   Defense?: string;
+  FunctionalVariant?: string;
   AttractionLights?: number[];
   HasChangedColors?: boolean;
-  HasPrintedPT?: boolean;
   OrigProduceMana?: string;
   OrigProduceAnyMana?: boolean;
   Keywords?: string[];
@@ -1508,19 +1508,15 @@ export const PROTOCOL_METHODS = {
   chooseEntitiesForEffect: 'server',
   manipulateCardList: 'server',
   setCard: 'server',
-  setSelectables: 'server',
-  clearSelectables: 'server',
+  setSelection: 'server',
   showRevealedCards: 'server',
   hideRevealedCards: 'server',
-  setHighlighted: 'server',
-  setSelectableTargets: 'server',
   setWeaklySelectable: 'server',
   clearWeaklySelectable: 'server',
-  setRememberedActions: 'server',
-  nextRememberedAction: 'server',
   awaitNextInput: 'server',
   applyDelta: 'server',
   applyYieldUpdate: 'server',
+  applyMacroState: 'server',
   useMana: 'client',
   undoLastAction: 'client',
   selectPlayer: 'client',
@@ -1537,6 +1533,9 @@ export const PROTOCOL_METHODS = {
   reorderHand: 'client',
   requestResync: 'client',
   sendYieldUpdate: 'client',
+  setRememberedActions: 'client',
+  nextRememberedAction: 'client',
+  repeatRememberedActions: 'client',
 } as const;
 
 export type ProtocolMethodName = keyof typeof PROTOCOL_METHODS;
@@ -1573,19 +1572,15 @@ export interface ServerProtocolArgs {
   chooseEntitiesForEffect: [string, unknown[], number, number, unknown /* DelayedReveal */];
   manipulateCardList: [string, unknown[], unknown[], boolean, boolean, boolean];
   setCard: [CardId];
-  setSelectables: [unknown[], number, number];
-  clearSelectables: [];
+  setSelection: [unknown /* Selection */];
   showRevealedCards: [unknown[]];
   hideRevealedCards: [];
-  setHighlighted: [unknown[], boolean];
-  setSelectableTargets: [unknown[]];
   setWeaklySelectable: [unknown[]];
   clearWeaklySelectable: [];
-  setRememberedActions: [];
-  nextRememberedAction: [];
   awaitNextInput: [];
   applyDelta: [unknown /* DeltaPacket */];
   applyYieldUpdate: [unknown /* YieldUpdate */];
+  applyMacroState: [unknown /* IMacroSystem.State */];
 }
 
 export interface ClientProtocolArgs {
@@ -1605,6 +1600,9 @@ export interface ClientProtocolArgs {
   reorderHand: [CardId, number];
   requestResync: [];
   sendYieldUpdate: [unknown /* YieldUpdate */];
+  setRememberedActions: [];
+  nextRememberedAction: [];
+  repeatRememberedActions: [];
 }
 
 export type ServerMethod = keyof ServerProtocolArgs;
@@ -1643,19 +1641,15 @@ export interface ProtocolReturns {
   chooseEntitiesForEffect: unknown[];
   manipulateCardList: unknown[];
   setCard: undefined;
-  setSelectables: undefined;
-  clearSelectables: undefined;
+  setSelection: undefined;
   showRevealedCards: undefined;
   hideRevealedCards: undefined;
-  setHighlighted: undefined;
-  setSelectableTargets: undefined;
   setWeaklySelectable: undefined;
   clearWeaklySelectable: undefined;
-  setRememberedActions: undefined;
-  nextRememberedAction: undefined;
   awaitNextInput: undefined;
   applyDelta: undefined;
   applyYieldUpdate: undefined;
+  applyMacroState: undefined;
   useMana: undefined;
   undoLastAction: undefined;
   selectPlayer: undefined;
@@ -1672,6 +1666,9 @@ export interface ProtocolReturns {
   reorderHand: undefined;
   requestResync: undefined;
   sendYieldUpdate: undefined;
+  setRememberedActions: undefined;
+  nextRememberedAction: undefined;
+  repeatRememberedActions: undefined;
 }
 
 // ---- Human seat: server -> seat (after hello and snapshot) and seat -> server ----

@@ -58,15 +58,17 @@ for a web seat.
 | `insertInList` | AbstractGuiGame | `oneOrNone` |
 
 ### Input display, forwarded as `{"t":"call"}` (no answer; the client answers with actions)
-ProtocolGuiGame: `showPromptMessage(PlayerView,String,CardView)`, `updateButtons(…6 args)`, `setSelectables`,
-`clearSelectables`, `setSelectableTargets` (players and stack items: `canPickStackTargets` is true), `setHighlighted`,
-`setWeaklySelectable`, `clearWeaklySelectable`, `showRevealedCards`, `hideRevealedCards`, `showManaPool`,
+ProtocolGuiGame: `showPromptMessage(PlayerView,String,CardView)`, `updateButtons(…6 args)`, `setSelection` (a
+`Selection` record: cards to pick with min/max, players and stack items, chosen so far; each prompt sends one when shown,
+after each pick and when it stops; ProtocolGuiGame skips one equal to the last; sticky for a reconnecting client;
+`chosen` is sent without the spell's kept target marks, which upstream appends to every input while the cost is paid: those of the controller that built the selection, the seat's own or the one for a player it controls (`SeatSession.withoutKeptMarks`);
+`InputSelectEntitiesFromList` names its players there, e.g. who starts the game), `setWeaklySelectable`, `clearWeaklySelectable`, `showRevealedCards`, `hideRevealedCards`, `showManaPool`,
 `hideManaPool`, `setCard`, `setPanelSelection`, `awaitNextInput`, `updateAutoPassPrompt`, `message(String,String)`,
 `showErrorDialog(String,String)`, `flashIncorrectAction`, `alertUser`, `showCombat` (WebGuiGame: also sends `blockOptions` during `InputBlock`, `attackOptions` during `InputAttack`), `updateDrawOffer`,
-`applyYieldUpdate`, `enableOverlay`, `disableOverlay`, `finishGame`, `afterGameEnd`, `openView` (WebGuiGame),
+`applyYieldUpdate`, `applyMacroState` (the page has no macros and ignores it), `enableOverlay`, `disableOverlay`, `finishGame`, `afterGameEnd`, `openView` (WebGuiGame),
 `setPlayerAvatar`. IGuiGame overloads delegating to these: `showPromptMessage(PlayerView,String)`,
 `updateButtons(…4 args)`, `message(String)`, `showErrorDialog(String)`.
-A card list in a call leaves out cards the seat has no id for (`WireArgs.encodeCallArg`): `InputPayMana` recomputes its
+A card list in a call, also one in a record (`Selection`), leaves out cards the seat has no id for (`WireArgs.encodeCallArg`): `InputPayMana` recomputes its
 auto-pay plan only after a mana ability with a mana cost, so `setWeaklySelectable` can name a Treasure sacrificed since (the sweep's seat clicked it as
 id -1: `actionRejected` "unknown card").
 
@@ -82,14 +84,18 @@ id -1: `actionRejected` "unknown card").
   `setGameController`, `setSpectator`, `setCurrentPlayer`, `getGameView`, `setNetGame`, `updateRevealedCards`,
   `isSelecting`, `isGamePaused`, `setGamePause`, `getGameSpeed`, `setGameSpeed`, `getDayTime`, `updateDayTime`,
   `cancelAwaitNextInput`.
-- Queries: `isNetGame` true (ProtocolGuiGame); `isLibgdxPort` false (`IGuiBase`); `canPickStackTargets` true;
+- Queries: `isNetGame` true (ProtocolGuiGame); `isLibgdxPort` false (`IGuiBase`); `canPickStackTargets` true (stack-only targets: `InputSelectStackItems`; a
+  target that may be a spell or a permanent, e.g. Pyroblast: `InputSelectTargets`, which offers the spell as its card and
+  its stack entry; the page shows the stack entry only);
   `isUiSetToSkipPhase` false, unused: `PlayerControllerHuman.isRemoteClient()` (gui is a `ProtocolGuiGame`) reads
   phase stops from its `YieldController`, which the client sets (`sendYieldUpdate SkipPhase`).
+- Upstream replay recording (`HostedMatch` → `ReplaySession.begin`) skips a human whose gui is a `ProtocolGuiGame`:
+  web seats are never recorded and nothing is written to the replay store.
 - `awaitInput` (WebGuiGame): the game thread waits for the input's latch and runs the seat's actions meanwhile
   (`InputPump`, see Threading); the seat's actions release it.
 
 ## Inputs
-Each input shows itself with `showPromptMessage` + `updateButtons` (+ selectables / targets / highlights). The client
+Each input shows itself with `showPromptMessage` + `updateButtons` (+ `setSelection`). The client
 answers with seat actions (`SeatSession.act`): `selectCard`, `selectPlayer`, `selectStackItem`, `selectAbility`,
 `selectButtonOk`, `selectButtonCancel`, `useMana`, `alphaStrike`, `undoLastAction` (`SeatSession.INPUT_ACTIONS`). They run
 on the game thread waiting for the input (Threading); one sent while no input waits is logged and not run (no input
@@ -104,10 +110,10 @@ would take it).
 | `InputConfirmMulligan`, `InputLondonMulligan` | PCH mulligan | OK / Cancel; selectCard (cards to bottom) + OK |
 | `InputChooseStartingHand` | PCH `chooseStartingHand` | selectCard (a card of the hand to keep) + OK |
 | `InputPayMana`, `InputPayManaOfCostPayment` | `HumanPlay`, PCH | selectCard (mana source; 2+ abilities → `getAbilityToPlay`), useMana (pool), OK (auto-pay), Cancel |
-| `InputSelectCardsFromList`, `InputSelectEntitiesFromList`, `InputSelectManyBase` | PCH, `HumanCostDecision` | selectCard / selectPlayer (WebGuiGame names its players as selectable targets), OK, Cancel |
+| `InputSelectCardsFromList`, `InputSelectEntitiesFromList`, `InputSelectManyBase` | PCH, `HumanCostDecision` | selectCard / selectPlayer (its selection names its players), OK, Cancel |
 | `InputSelectCardsForConvokeOrImprovise` | PCH | selectCard (creature or artifact to tap), OK |
 | `HumanCostDecision.InputSelectCardToRemoveCounter` | `HumanCostDecision` | selectCard (one counter per click), OK |
-| `InputSelectTargets` | `TargetSelection` | selectCard / selectPlayer / selectStackItem, OK, Cancel |
+| `InputSelectTargets` | `TargetSelection` | selectCard / selectPlayer / selectStackItem (a spell that is a card target: PCH `selectStackItem` → `selectAbility`), OK, Cancel |
 | `InputSelectStackItems` | `TargetSelection.chooseStackItemsInView` | selectStackItem, OK, Cancel |
 | `InputLockUI` | `InputQueue` (no input) | nothing (waiting display) |
 | `InputPlaybackControl` | `FControlGamePlayback` | never for a human seat (AI-only matches) |
@@ -173,7 +179,8 @@ the refresh share the Swing EDT and the input is locked while the ability runs. 
 
 ## Known gaps outside the bridge
 - Upstream: `TargetSelection.chooseCardFromList` lists zone headers ("--CARDS ON BATTLEFIELD:--") as choices; picking
-  one adds no target and asks again (desktop: same).
+  one adds no target and asks again (desktop: same). Not reached by a web seat since the 2026-10-21 sync (#56): with
+  `canPickStackTargets` a target zone list with the stack goes to `InputSelectTargets`.
 - Upstream: `InputPayMana` enables Auto when `ComputerUtilMana.getManaSourcesToPayCost` finds sources, but
   `payManaCost` can still fail ("Didn't find what to pay"); Auto then does nothing and stays enabled (desktop: same).
   The player taps sources or cancels; the sweep's seat cancels after 10 tries.
