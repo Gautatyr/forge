@@ -1,21 +1,23 @@
 import { commanderTax, you } from '../model/selectors';
 import type { CardView, GameView, OtherZoneCastVia } from '../model/types';
+import { t, tDynamic, type MsgKey } from '../i18n';
 
 export interface OtherZoneEntry {
   card: CardView;
   caption: string;
 }
 
-const ZONE_WORD: Partial<Record<CardView['zone'], string>> = {
-  graveyard: 'Graveyard',
-  exile: 'Exile',
-  library: 'Library',
-  battlefield: 'Battlefield',
+const ZONE_WORD: Partial<Record<CardView['zone'], MsgKey>> = {
+  graveyard: 'zone.graveyard',
+  exile: 'zone.exile',
+  library: 'zone.library',
+  battlefield: 'zone.battlefield',
 };
 
 function caption(c: CardView, via: OtherZoneCastVia): string {
-  const zone = ZONE_WORD[c.zone] ?? c.zone;
-  return via === 'other' ? zone : `${zone} · ${via}`;
+  const key = ZONE_WORD[c.zone];
+  const zone: string = key ? tDynamic(key) : c.zone;
+  return via === 'other' ? zone : t('zone.via', { zone, via: tDynamic(`via.${via}` as MsgKey) });
 }
 
 /**
@@ -31,7 +33,7 @@ export function otherZoneGroup(game: GameView): OtherZoneEntry[] {
     const c = game.cards[id];
     if (!c) continue;
     const tax = commanderTax(me, id);
-    out.push({ card: c, caption: tax > 0 ? `Command zone · tax +${tax}` : 'Command zone' });
+    out.push({ card: c, caption: tax > 0 ? t('zone.commandTax', { tax }) : t('zone.command') });
   }
   for (const { cardId, via } of me.otherZoneCasts ?? []) {
     const c = game.cards[cardId];

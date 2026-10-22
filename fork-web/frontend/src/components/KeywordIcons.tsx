@@ -12,9 +12,10 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import type { CardKeyword } from '../model/types';
-import { grantedText, iconKeywords, keywordIcon, keywordLine, slotPlan, type KeywordIcon, type SizeTier } from './keywordCatalog';
+import { grantedAria, grantedText, iconKeywords, keywordIcon, keywordLine, slotPlan, type KeywordIcon, type SizeTier } from './keywordCatalog';
 import { placeWordChips, type Rect, type WordChipPlacement } from './wordChipLayout';
 import styles from './KeywordIcons.module.css';
+import { t } from '../i18n';
 
 /** What a click or right-click on the card does; icons and chips forward pointer clicks to it. */
 export interface CardActions {
@@ -200,7 +201,7 @@ function KeywordDisc({ icon, className, card }: { icon: KeywordIcon; className: 
       <button
         type="button"
         className={`${styles.disc} ${k.grantedBy ? styles.granted : ''} ${className}`}
-        aria-label={granted ? `${k.label}, ${granted.replace('Granted', 'granted').replace(' · ', ', ')}` : k.label}
+        aria-label={granted ? grantedAria(k) : k.label}
         aria-describedby={open ? tipId : undefined}
         data-keyword={k.label}
         {...handlers}
@@ -226,20 +227,20 @@ function MoreChip({ hidden, className, card }: { hidden: KeywordIcon[]; classNam
       <button
         type="button"
         className={`${styles.disc} ${styles.more} ${className}`}
-        aria-label={`${hidden.length} more keywords: ${labels.join(', ')}`}
+        aria-label={t('kw.moreAria', { count: hidden.length, labels: labels.join(', ') })}
         aria-describedby={open ? tipId : undefined}
         {...handlers}
       >
         +{hidden.length}
       </button>
       <Tooltip {...tipProps}>
-        <p className={styles.tipName}>{hidden.length} more</p>
+        <p className={styles.tipName}>{t('kw.more', { count: hidden.length })}</p>
         <p className={styles.tipLine}>
           {hidden.map((i, n) => (
             <span key={i.keyword.label}>
               {n > 0 ? ' · ' : ''}
               {i.keyword.label}
-              {i.keyword.grantedBy ? ' (added)' : ''}
+              {i.keyword.grantedBy ? ` ${t('kw.added')}` : ''}
             </span>
           ))}
         </p>
@@ -337,7 +338,7 @@ function WordChips({ icons, card }: { icons: KeywordIcon[]; card: CardActions })
         <span
           className={`${styles.word} ${styles.wordMore}`}
           style={at(plan.more)}
-          title={hidden.map((i) => i.keyword.label + (i.keyword.grantedBy ? ' (added)' : '')).join(' · ')}
+          title={hidden.map((i) => i.keyword.label + (i.keyword.grantedBy ? ` ${t('kw.added')}` : '')).join(' · ')}
           data-arrow-occluder=""
           {...chipHandlers}
         >

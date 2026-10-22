@@ -48,7 +48,7 @@ describe('ImageResolver', () => {
 });
 
 describe('bridge images', () => {
-  const img = (key: string) => `http://127.0.0.1:7655/img?key=${encodeURIComponent(key)}&token=t%2Bk`;
+  const img = (key: string, lang = 'en') => `http://127.0.0.1:7655/img?key=${encodeURIComponent(key)}&token=t%2Bk&lang=${lang}`;
 
   it("serves every card from the bridge's /img route, with this page's token", () => {
     expect(bridgeOrigin('ws://127.0.0.1:7655/ws')).toBe('http://127.0.0.1:7655');
@@ -56,6 +56,12 @@ describe('bridge images', () => {
     const lookup = bridgeImageLookup('ws://127.0.0.1:7655/ws', 't+k');
     const bolt = { key: 'c:Lightning Bolt|M10|1', name: 'Lightning Bolt', set: 'm10', back: false };
     expect(lookup(bolt)).toEqual({ normal: img(bolt.key), large: img(bolt.key), fallback: namedImage(bolt) });
+  });
+
+  it("asks the bridge for the viewer's language", () => {
+    const lookup = bridgeImageLookup('ws://127.0.0.1:7655/ws', 't+k', 'fr');
+    const bolt = { key: 'c:Lightning Bolt|M10|1', name: 'Lightning Bolt', set: 'm10', back: false };
+    expect(lookup(bolt)?.normal).toBe(img(bolt.key, 'fr'));
   });
 
   it('falls back to Scryfall by name: cards by name and set, tokens by name only, face-down cards not at all', () => {

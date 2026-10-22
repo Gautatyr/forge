@@ -7,12 +7,13 @@ import { ManaCost } from '../ManaCost';
 import type { BodyProps } from './TrayBody';
 import { chosenIn, dropFromGroup, stepGroup, toggleOption } from './trayLogic';
 import styles from '../ChoiceTray.module.css';
+import { t } from '../../i18n';
 
 /** Choose N: a card grid, colour symbols, or chips for text options (modes, types). Keys 1–9 toggle the first nine shown. */
 export function ChooseN({ prompt, draft, setDraft, groups }: BodyProps<ChooseNPrompt>) {
   const toggle = (id: string) => setDraft(toggleOption(prompt, draft, id));
   const cards = prompt.options.every((o) => o.cardId);
-  if (groups.length === 0) return <p className={styles.note}>Nothing matches the filter.</p>;
+  if (groups.length === 0) return <p className={styles.note}>{t('tray.nothingMatches')}</p>;
   return (
     <div className={cards ? styles.options : styles.chips}>
       {groups.map(({ option: o, members }, i) =>
@@ -76,7 +77,7 @@ function CardTile({ o, index, chosen, onClick }: OptionProps) {
 function GroupTile({ o, members, index, chosen, onStep, onDrop }: { o: ChoiceOption; members: string[]; index: number; chosen: number; onStep: () => void; onDrop: () => void }) {
   const { game } = useMatch();
   const card = o.cardId ? game.cards[o.cardId] : undefined;
-  const state = chosen > 0 ? `${chosen} of ${members.length} chosen` : `${members.length} cards`;
+  const state = chosen > 0 ? t('tray.groupChosen', { chosen, total: members.length }) : t('tray.groupCards', { count: members.length });
   return (
     <div className={`${styles.tile} ${chosen > 0 ? styles.tileChosen : ''}`}>
       {card ? (
@@ -86,7 +87,7 @@ function GroupTile({ o, members, index, chosen, onStep, onDrop }: { o: ChoiceOpt
           count={members.length}
           style={{ '--cw': '6.6rem' } as CSSProperties}
           onActivate={onStep}
-          ariaExtra={chosen > 0 ? `${chosen} chosen` : undefined}
+          ariaExtra={chosen > 0 ? t('tray.chosenCount', { count: chosen }) : undefined}
         />
       ) : null}
       <div className={styles.groupRow}>
@@ -94,7 +95,7 @@ function GroupTile({ o, members, index, chosen, onStep, onDrop }: { o: ChoiceOpt
           type="button"
           className={`${styles.option} ${chosen > 0 ? styles.chosen : ''}`}
           aria-pressed={chosen > 0}
-          aria-label={`${o.label}, ${members.length} cards, ${chosen} chosen: choose one more`}
+          aria-label={t('tray.groupAria', { label: o.label, total: members.length, chosen })}
           onClick={onStep}
         >
           <OptionKey index={index} chosen={chosen > 0} />
@@ -104,7 +105,7 @@ function GroupTile({ o, members, index, chosen, onStep, onDrop }: { o: ChoiceOpt
           <span className={styles.optionDetail}>{state}</span>
         </button>
         {chosen > 0 ? (
-          <button type="button" className={`${styles.option} ${styles.minus}`} aria-label={`Choose one fewer ${o.label}`} onClick={onDrop}>
+          <button type="button" className={`${styles.option} ${styles.minus}`} aria-label={t('tray.fewer', { label: o.label })} onClick={onDrop}>
             −
           </button>
         ) : null}

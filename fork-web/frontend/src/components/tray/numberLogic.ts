@@ -5,6 +5,7 @@
  */
 import type { CardNameOption, DistributePrompt, DistributeRecipient, InputPrompt } from '../../model/types';
 import type { Confirm } from './trayLogic';
+import { t } from '../../i18n';
 
 export type Amounts = Record<string, number>;
 
@@ -15,10 +16,10 @@ const trampleId = (p: DistributePrompt) => p.combat?.trampleId;
 
 /** "Lethal 2", "Lethal 1 · deathtouch" (a creature), "Life 18" (a player: deathtouch doesn't apply; "Lethal 10 · poison" for an infect attacker), "At least 1", or why the trample row waits. */
 export function rowNote(p: DistributePrompt, r: DistributeRecipient, gated: boolean, creature: boolean): string {
-  if (gated) return 'Assign lethal damage to every blocker first';
-  if (r.lethal !== undefined && r.playerId) return p.combat?.infect ? `Lethal ${r.lethal} · poison` : `Life ${r.lethal}`;
-  if (r.lethal !== undefined) return `Lethal ${r.lethal}${p.combat?.deathtouch && creature ? ' · deathtouch' : ''}`;
-  return r.min ? `At least ${r.min}` : '';
+  if (gated) return t('tray.assignFirst');
+  if (r.lethal !== undefined && r.playerId) return p.combat?.infect ? t('tray.lethalPoison', { n: r.lethal }) : t('tray.life', { n: r.lethal });
+  if (r.lethal !== undefined) return p.combat?.deathtouch && creature ? t('tray.lethalDeath', { n: r.lethal }) : t('tray.lethal', { n: r.lethal });
+  return r.min ? t('tray.atLeast', { n: r.min }) : '';
 }
 
 /** Combat: the blockers (every recipient but the trample one). */
@@ -88,7 +89,7 @@ export function rowTabTarget(i: number, n: number, back: boolean, canLeave: bool
 export function distributeConfirm(p: DistributePrompt, a: Amounts): Confirm {
   const left = leftToAssign(p, a);
   const under = p.recipients.some((r) => (a[r.id] ?? 0) < (r.min ?? 0));
-  if (left !== 0 || under) return { enabled: false, label: left > 0 ? `Assign ${left} more` : `Assign ${-left} less` };
+  if (left !== 0 || under) return { enabled: false, label: left > 0 ? t('tray.assignMore', { count: left }) : t('tray.assignLess', { count: -left }) };
   const amounts = Object.fromEntries(p.recipients.map((r) => [r.id, a[r.id] ?? 0]));
   return { enabled: true, label: p.confirmLabel, answer: { shape: 'distribute', amounts } };
 }
@@ -103,12 +104,12 @@ export function inputStart(p: InputPrompt): string {
 
 export function rangeText(p: InputPrompt): string {
   const lo = p.min ?? 0;
-  return p.max === undefined ? `${lo} or more` : `${lo}–${p.max}`;
+  return p.max === undefined ? t('tray.orMore', { n: lo }) : `${lo}–${p.max}`;
 }
 
 function parseWhole(text: string): number | undefined {
-  const t = text.trim();
-  return /^-?\d+$/.test(t) ? Number(t) : undefined;
+  const s = text.trim();
+  return /^-?\d+$/.test(s) ? Number(s) : undefined;
 }
 
 const inRange = (p: InputPrompt, n: number) => n >= (p.min ?? 0) && (p.max === undefined || n <= p.max);
@@ -159,8 +160,8 @@ export function scrollToShow(top: number, bottom: number, scrollTop: number, hei
 }
 
 export function exactName(names: CardNameOption[], text: string): CardNameOption | undefined {
-  const t = text.trim().toLowerCase();
-  return t ? names.find((n) => n.name.toLowerCase() === t) : undefined;
+  const s = text.trim().toLowerCase();
+  return s ? names.find((n) => n.name.toLowerCase() === s) : undefined;
 }
 
 /* --- Confirm for the input shape -------------------------------------------- */
@@ -168,13 +169,13 @@ export function exactName(names: CardNameOption[], text: string): CardNameOption
 export function inputConfirm(p: InputPrompt, text: string): Confirm {
   const ok = (value: string): Confirm => ({ enabled: true, label: p.confirmLabel, answer: { shape: 'input', value } });
   if (p.kind === 'number') {
-    if (!text.trim()) return { enabled: false, label: 'Enter a number' };
+    if (!text.trim()) return { enabled: false, label: t('tray.enterNumber') };
     const n = parseWhole(text);
-    return n !== undefined && inRange(p, n) ? ok(String(n)) : { enabled: false, label: `Choose ${rangeText(p)}` };
+    return n !== undefined && inRange(p, n) ? ok(String(n)) : { enabled: false, label: t('tray.chooseRange', { range: rangeText(p) }) };
   }
   if (p.kind === 'cardName') {
     const n = exactName(p.cardNames ?? [], text);
-    return n ? ok(n.name) : { enabled: false, label: 'Choose a card name' };
+    return n ? ok(n.name) : { enabled: false, label: t('tray.chooseName') };
   }
-  return text.trim() ? ok(text.trim()) : { enabled: false, label: 'Type an answer' };
+  return text.trim() ? ok(text.trim()) : { enabled: false, label: t('tray.typeAnswer') };
 }

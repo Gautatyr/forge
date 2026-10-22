@@ -1,5 +1,6 @@
 import type { Intent } from '../model/intents';
 import type { CardId, Decision, GameView } from '../model/types';
+import { t } from '../i18n';
 
 export interface PendingBlock {
   pendingBlocker?: CardId;
@@ -78,8 +79,8 @@ export function underBlocked(d: DeclareBlockers, attackerId: CardId): number | u
 export function refusedText(game: GameView, r: { blockerId: CardId; attackerId: CardId }): string {
   const name = (id: CardId) => {
     const c = game.cards[id];
-    return c?.name || (c?.faceDown ? 'a face-down creature' : 'that creature');
+    return c?.name || (c?.faceDown ? t('block.faceDown') : t('block.that'));
   };
-  const text = `${name(r.blockerId)} can't block ${name(r.attackerId)}.`;
+  const text = t('block.cant', { blocker: name(r.blockerId), attacker: name(r.attackerId) });
   return text[0]!.toUpperCase() + text.slice(1);
 }

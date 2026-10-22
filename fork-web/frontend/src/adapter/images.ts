@@ -7,6 +7,7 @@
  * direct cards.scryfall.io URLs; until then a card shows its text frame.
  */
 import type { CardImage } from '../model/types';
+import type { Lang } from '../i18n';
 
 export interface ImageRef {
   /** The view's image key (the bridge's `/img` key). */
@@ -123,14 +124,15 @@ export function bridgeOrigin(wsUrl: string): string {
 
 /**
  * Live images: the bridge's `/img` for every key (cards, tokens, face-down faces), with Scryfall by name
- * as the fallback when the bridge has none — by name and set for cards, by name for tokens.
+ * as the fallback when the bridge has none — by name and set for cards, by name for tokens. `lang=` asks for the
+ * printing in the viewer's language (the bridge falls back to English).
  */
-export function bridgeImageLookup(wsUrl: string, token: string): ImageLookup {
+export function bridgeImageLookup(wsUrl: string, token: string, lang: Lang = 'en'): ImageLookup {
   const origin = bridgeOrigin(wsUrl);
   const t = encodeURIComponent(token);
   return (r) => {
     if (!r.key) return undefined;
-    const url = `${origin}/img?key=${encodeURIComponent(r.key)}&token=${t}`;
+    const url = `${origin}/img?key=${encodeURIComponent(r.key)}&token=${t}&lang=${lang}`;
     return r.name ? { normal: url, large: url, fallback: namedImage(r) } : { normal: url, large: url };
   };
 }

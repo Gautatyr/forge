@@ -10,6 +10,7 @@ import { currentAttackAim, focusForIntent, focusOnTurnChange, pickDefender } fro
 import { buildScenario } from './seedGame';
 import { loadPrefs, savePrefs, type Prefs } from './prefs';
 import { INITIAL_UI, type UiState } from './ui';
+import { setLanguage } from '../i18n';
 
 interface MatchApi {
   game: GameView;
@@ -73,7 +74,9 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   const [ui, setUiState] = useState<UiState>(INITIAL_UI);
   const [prefs, setPrefsState] = useState<Prefs>(initialPrefs);
   const [source, setSource] = useState<SourceConfig>(() => sourceFromLocation(location));
-  const live = useLive(source, prefs.stops, prefs.autoPay);
+  // Before any child renders: every `t()` of this pass reads the new language.
+  setLanguage(prefs.language);
+  const live = useLive(source, prefs.stops, prefs.autoPay, prefs.language);
   const liveSend = live?.send;
 
   const setUi = useCallback((patch: Partial<UiState> | ((u: UiState) => UiState)) => {

@@ -1,4 +1,5 @@
 import type { Decision } from '../model/types';
+import { t } from '../i18n';
 
 type DeclareAttackers = Extract<Decision, { kind: 'declareAttackers' }>;
 
@@ -11,10 +12,10 @@ export const overAttackCap = (d: DeclareAttackers, n: number = d.draft.length) =
 /** "Attack all" would declare every candidate: not offered when the engine would refuse that many. */
 export const canAttackAll = (d: DeclareAttackers) => !overAttackCap(d, d.candidates.length);
 
-export const attackCapText = (max: number) => `At most ${max} creature${max === 1 ? '' : 's'} can attack together.`;
+export const attackCapText = (max: number) => t('atk.cap', { count: max });
 
 /** Why the engine refused the declaration, as far as the page can tell (the cap); else what such a refusal means. */
 export function attackInvalidReason(d: Decision): string {
-  if (d.kind === 'declareAttackers' && d.max !== undefined && overAttackCap(d)) return `Attack not allowed. ${attackCapText(d.max)}`;
-  return 'Attack not allowed: a creature is required to attack, or an attack restriction is broken. Change the attackers.';
+  if (d.kind === 'declareAttackers' && d.max !== undefined && overAttackCap(d)) return t('atk.notAllowedCap', { cap: attackCapText(d.max) });
+  return t('atk.notAllowed');
 }

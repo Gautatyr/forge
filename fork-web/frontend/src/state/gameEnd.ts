@@ -5,6 +5,7 @@
 import { nameLabel, opponents, player, you } from '../model/selectors';
 import type { GameView, OutReason, PlayerId, PlayerView } from '../model/types';
 import type { UiState } from './ui';
+import { t, uiLocale } from '../i18n';
 
 /** "Krenko, Mob Boss" → "Krenko". */
 export const shortName = (name: string) => name.split(',')[0]!.trim();
@@ -17,15 +18,15 @@ export const TOAST_MS = 5000;
 export function outReasonText(r: OutReason, o: { short?: boolean; you?: boolean } = {}): string {
   switch (r.kind) {
     case 'commanderDamage':
-      return `${r.amount} commander damage from ${o.short ? shortName(r.commanderName) : r.commanderName}`;
+      return t('out.commander', { amount: r.amount, name: o.short ? shortName(r.commanderName) : r.commanderName });
     case 'life':
-      return `life down to ${String(r.life).replace('-', '−')}`;
+      return t('out.life', { life: String(r.life).replace('-', '−') });
     case 'poison':
-      return `${r.count} poison counters`;
+      return t('out.poison', { count: r.count });
     case 'emptyLibrary':
-      return 'drew from an empty library';
+      return t('out.library');
     case 'conceded':
-      return o.you ? 'you conceded' : 'conceded';
+      return o.you ? t('out.concededYou') : t('out.conceded');
     case 'other':
       return r.text;
   }
@@ -33,17 +34,17 @@ export function outReasonText(r: OutReason, o: { short?: boolean; you?: boolean 
 
 /** Toast and log line: "Theo is out: 21 commander damage from Krenko, Mob Boss." (the seat shape goes before it). */
 export function outLine(p: PlayerView): string {
-  return p.out ? `${p.name} is out: ${outReasonText(p.out.reason)}.` : `${p.name} is out.`;
+  return p.out ? t('out.line', { name: p.name, reason: outReasonText(p.out.reason) }) : t('out.lineBare', { name: p.name });
 }
 
 export function youAreOutText(p: PlayerView): string {
-  return `You're out${p.out ? `: ${outReasonText(p.out.reason, { you: true })}` : ''}. The game continues.`;
+  return p.out ? t('out.youReason', { reason: outReasonText(p.out.reason, { you: true }) }) : t('out.youBare');
 }
 
 export function ordinal(n: number): string {
-  const teen = n % 100 >= 11 && n % 100 <= 13;
-  const suffix = teen ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th';
-  return `${n}${suffix}`;
+  // English: 1st 2nd 3rd 4th; French: 1er, then 2e 3e…
+  const form = new Intl.PluralRules(uiLocale(), { type: 'ordinal' }).select(n);
+  return t(form === 'one' ? 'ordinal.one' : form === 'two' ? 'ordinal.two' : form === 'few' ? 'ordinal.three' : 'ordinal.other', { n });
 }
 
 export interface RankRow {
@@ -65,7 +66,7 @@ export function rankingRows(game: GameView): RankRow[] {
       seat: p.seat,
       ordinal: ordinal(i + 1),
       name: nameLabel(p),
-      detail: p.out ? `turn ${p.out.turn}, ${outReasonText(p.out.reason, { short: true })}` : '',
+      detail: p.out ? t('out.detail', { turn: p.out.turn, reason: outReasonText(p.out.reason, { short: true }) }) : '',
     };
   });
 }
@@ -73,9 +74,9 @@ export function rankingRows(game: GameView): RankRow[] {
 /** "You won" / "Mira won" (the seat shape goes before the name) / "Draw". */
 export function headline(game: GameView): { playerId?: PlayerId; text: string } {
   const w = game.result?.winnerId;
-  if (!w) return { text: 'Draw' };
-  if (w === game.youId) return { playerId: undefined, text: 'You won' };
-  return { playerId: w, text: `${player(game, w).name} won` };
+  if (!w) return { text: t('result.draw') };
+  if (w === game.youId) return { playerId: undefined, text: t('result.youWon') };
+  return { playerId: w, text: t('result.won', { name: player(game, w).name }) };
 }
 
 export const liveIds = (game: GameView): PlayerId[] => game.players.filter((p) => !p.hasLost).map((p) => p.id);

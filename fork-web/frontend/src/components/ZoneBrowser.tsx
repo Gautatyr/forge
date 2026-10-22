@@ -4,6 +4,7 @@ import { Card } from './Card';
 import { Icon } from './Icon';
 import { zoneBrowserCards, zoneCardIds, zoneTitle } from './zoneBrowser';
 import styles from './ZoneBrowser.module.css';
+import { t } from '../i18n';
 
 /**
  * A graveyard or exile at a large size, over the board (playtest 1): search it by name or type.
@@ -28,26 +29,26 @@ function Browser() {
     <section className={styles.browser} role="dialog" aria-modal="false" aria-label={title}>
       <header className={styles.head}>
         <h2>
-          {title} <span className={styles.count}>{query.trim() ? `${ids.length} of ${total}` : total}</span>
+          {title} <span className={styles.count}>{query.trim() ? t('zb.count', { shown: ids.length, total }) : total}</span>
         </h2>
         <input
           type="search"
           className={styles.filter}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Filter by name or type"
-          aria-label="Filter by name or type"
+          placeholder={t('tray.filter')}
+          aria-label={t('tray.filter')}
           autoFocus
         />
         <button type="button" className={styles.ghost} onClick={() => setUi({ zoneView: { playerId: z.playerId, zone: z.zone } })}>
           <Icon name="shrink" />
-          Side panel
+          {t('zb.sidePanel')}
         </button>
-        <button type="button" className={styles.close} onClick={() => setUi({ zoneView: undefined })} aria-label="Close" title="Close (Esc)">
+        <button type="button" className={styles.close} onClick={() => setUi({ zoneView: undefined })} aria-label={t('common.close')} title={t('zb.closeTitle')}>
           <Icon name="close" />
         </button>
       </header>
-      {ids.length === 0 ? <p className={styles.empty}>{total === 0 ? 'Nothing here yet.' : 'No card matches.'}</p> : null}
+      {ids.length === 0 ? <p className={styles.empty}>{total === 0 ? t('rail.empty') : t('zb.noMatch')}</p> : null}
       <div className={styles.grid} data-scroll-region>
         {ids.map((id) => {
           const c = game.cards[id];

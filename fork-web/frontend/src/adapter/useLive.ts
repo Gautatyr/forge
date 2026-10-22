@@ -11,6 +11,7 @@ import { parseRecording, replaySource, RECORDINGS } from './replay';
 import type { Notice } from './session';
 import type { SourceConfig } from './source';
 import { NO_LOCAL, passUntilYourTurnDone, toGameView, type LiveLocal } from './toView';
+import { t, type Lang } from '../i18n';
 
 /** Shown until the first snapshot names the players. */
 export function placeholderView(what: string): GameView {
@@ -21,7 +22,7 @@ export function placeholderView(what: string): GameView {
     players: [
       {
         id: 'pending',
-        name: 'You',
+        name: t('live.you'),
         seat: 0,
         isYou: true,
         isAi: false,
@@ -66,15 +67,15 @@ export interface LiveApi {
 }
 
 /** Undefined for the mock source; hooks run either way. */
-export function useLive(config: SourceConfig, stops: StopPrefs = DEFAULT_STOPS, autoPay = false): LiveApi | undefined {
+export function useLive(config: SourceConfig, stops: StopPrefs = DEFAULT_STOPS, autoPay = false, language: Lang = 'en'): LiveApi | undefined {
   const [source, setSource] = useState<LiveSource>();
   const [error, setError] = useState<string>();
   const [imagesVersion, imagesChanged] = useReducer((n: number) => n + 1, 0);
   const [images] = useState(() => new ImageResolver(imagesChanged));
   // Live: the bridge serves every card's image (Scryfall as the fallback); a replay has no bridge.
   const lookup = useMemo(
-    () => (config.kind === 'live' ? bridgeImageLookup(config.url, config.token) : images.lookup),
-    [config, images],
+    () => (config.kind === 'live' ? bridgeImageLookup(config.url, config.token, language) : images.lookup),
+    [config, images, language],
   );
   const [local, setLocal] = useState<LiveLocal>(NO_LOCAL);
 
@@ -85,7 +86,7 @@ export function useLive(config: SourceConfig, stops: StopPrefs = DEFAULT_STOPS, 
     const ready: Promise<LiveSource> =
       config.kind === 'live'
         ? Promise.resolve(connectLive(streamUrl(config.url, config.token, config.seat)))
-        : (RECORDINGS[config.recording]?.() ?? Promise.reject(new Error(`Unknown recording "${config.recording}"`))).then((text) =>
+        : (RECORDINGS[config.recording]?.() ?? Promise.reject(new Error(t('live.unknownRecording', { name: config.recording })))).then((text) =>
             replaySource(parseRecording(text), { at: config.at, stepMs: config.stepMs }),
           );
     ready
@@ -108,14 +109,14 @@ export function useLive(config: SourceConfig, stops: StopPrefs = DEFAULT_STOPS, 
   const game = useMemo(() => {
     if (config.kind === 'mock') return undefined;
     if (error) return placeholderView(error);
-    if (!source) return placeholderView('Loading');
+    if (!source) return placeholderView(t('live.loading'));
     if (!source.session.gameObject?.props.Players?.length) {
-      return placeholderView(source.status === 'open' ? 'Waiting for the game to start' : 'Connecting to the bridge');
+      return placeholderView(source.status === 'open' ? t('live.waitStart') : t('live.connecting'));
     }
     return toGameView(source.session, lookup, local, autoPay);
     // version / imagesVersion track every session and image change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config, source, error, version, imagesVersion, lookup, local, autoPay]);
+  }, [config, source, error, version, imagesVersion, lookup, local, autoPay, language]);
 
   // Dev only: the current view-model, for checks from the browser console or Playwright.
   useEffect(() => {
@@ -163,6 +164,13 @@ export function useLive(config: SourceConfig, stops: StopPrefs = DEFAULT_STOPS, 
     // auto.key names the input; its frames do not change while it is shown
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auto?.key, source]);
+
+  // Language → the bridge (card text, images): after the greeting of every connection, and on every change.
+  const hello = source?.session.hello;
+  useEffect(() => {
+    if (config.kind !== 'live' || !source || source.status !== 'open' || !hello) return;
+    source.send([{ t: 'setLanguage', lang: language }]);
+  }, [config.kind, source, source?.status, hello, language]);
 
   // Phase stops → the engine (the bridge skips none until told): on connect, on a new game or player list, on every edit.
   const stopsKey =

@@ -8,6 +8,7 @@ import { canCancel, cancelLabel, primaryAction, promptText } from '../state/prim
 import { Icon } from './Icon';
 import { FloatingMana, PaymentCost } from './Payment';
 import styles from './ActionPanel.module.css';
+import { t } from '../i18n';
 
 /** How long the neutral note ("You can't play … right now.") holds the prompt line. */
 const NOTE_MS = 3000;
@@ -40,12 +41,12 @@ export function ActionPanel() {
       return;
     }
     if (note.sticky) return;
-    const t = window.setTimeout(() => setUi((u) => (u.promptNote?.id === note.id ? { ...u, promptNote: undefined } : u)), NOTE_MS);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => setUi((u) => (u.promptNote?.id === note.id ? { ...u, promptNote: undefined } : u)), NOTE_MS);
+    return () => window.clearTimeout(timer);
   }, [note, stale, setUi]);
 
   return (
-    <section className={styles.panel} aria-label="Your decision">
+    <section className={styles.panel} aria-label={t('action.decision')}>
       {/* Floating mana: shown only while the pool is not empty, directly above the prompt. */}
       <div className={styles.floatingMana} data-slot="floating-mana">
         <FloatingMana pool={you(game).manaPool} paying={paying} onSpend={(colour) => send({ type: 'spendPool', colour })} />
@@ -77,14 +78,14 @@ export function ActionPanel() {
             onClick={() => send({ type: 'attackWithAll', ...currentAttackAim(game, ui, prefs.layout)! })}
           >
             <Icon name="sword" />
-            Attack all ({d.candidates.length})
+            {t('action.attackAll', { count: d.candidates.length })}
             <kbd>A</kbd>
           </button>
         ) : null}
         {paying?.lifePays ? (
           // Phyrexian mana: auto-pay never pays life (issue #66); each click pays 2 life for one symbol.
           <button type="button" className={styles.secondary} onClick={() => send({ type: 'payLife' })}>
-            Pay 2 life
+            {t('action.payLife')}
           </button>
         ) : null}
         {cancel ? (
@@ -98,7 +99,7 @@ export function ActionPanel() {
             }}
           >
             <Icon name="close" />
-            <span className={styles.cancelText}>{cancelText}</span> <kbd>Esc</kbd>
+            <span className={styles.cancelText}>{cancelText}</span> <kbd>{t('key.esc')}</kbd>
           </button>
         ) : null}
       </div>
@@ -114,7 +115,7 @@ export function ActionPanel() {
             {action.tone === 'attack' ? <Icon name="sword" /> : action.tone === 'block' ? <Icon name="shield" /> : null}
             {ended ? <Icon name="eye" /> : !action.enabled && d.kind === 'waiting' ? <Icon name="hourglass" /> : null}
             {action.label}
-            {action.enabled ? <kbd className={styles.key}>Space</kbd> : null}
+            {action.enabled ? <kbd className={styles.key}>{t('key.space')}</kbd> : null}
           </span>
           {action.detail ? (
             <span className={styles.primaryDetail} title={action.detail}>
@@ -132,38 +133,38 @@ export function ActionPanel() {
             type="button"
             className={styles.small}
             disabled={!paying.canUndoTap}
-            title="Untap the last source, or return the last floating mana spent"
+            title={t('action.undoTapTitle')}
             onClick={() => send({ type: 'undoTap' })}
           >
             <Icon name="undo" />
-            Undo tap <kbd>Z</kbd>
+            {t('action.undoTap')} <kbd>Z</kbd>
           </button>
         ) : (
           <button type="button" className={styles.small} disabled={!canUndo || ended} onClick={() => send({ type: 'undo' })}>
             <Icon name="undo" />
-            Undo <kbd>Z</kbd>
+            {t('action.undo')} <kbd>Z</kbd>
           </button>
         )}
         {game.passingUntilYourTurn ? (
           <button type="button" className={`${styles.small} ${styles.on}`} onClick={() => send({ type: 'cancelPassUntilYourTurn' })}>
             <Icon name="close" />
-            Stop passing
+            {t('action.stopPassing')}
           </button>
         ) : (
           <button
             type="button"
             className={styles.small}
-            title="Pass priority until your next turn. Stops and the stack still interrupt."
+            title={t('action.toMyTurnTitle')}
             disabled={ended}
             onClick={() => send({ type: 'passUntilYourTurn' })}
           >
             <Icon name="endTurn" />
-            To my turn <kbd>⇧↵</kbd>
+            {t('action.toMyTurn')} <kbd>⇧↵</kbd>
           </button>
         )}
       </div>
 
-      <label className={styles.toggle} title="Pass priority automatically when you have nothing you can play. Off by default.">
+      <label className={styles.toggle} title={t('action.autoPassTitle')}>
         <input
           type="checkbox"
           role="switch"
@@ -174,12 +175,12 @@ export function ActionPanel() {
           <span className={styles.knob} />
         </span>
         <span>
-          Auto-pass when I can't act <b>{game.autoPass ? 'On' : 'Off'}</b>
+          {t('action.autoPass')} <b>{game.autoPass ? t('common.on') : t('common.off')}</b>
         </span>
         <kbd>P</kbd>
       </label>
 
-      <label className={styles.toggle} title="Pay mana costs at once when you cast or activate. Off by default: you click your lands.">
+      <label className={styles.toggle} title={t('action.autoPayTitle')}>
         <input
           type="checkbox"
           role="switch"
@@ -190,7 +191,7 @@ export function ActionPanel() {
           <span className={styles.knob} />
         </span>
         <span>
-          Auto-pay mana <b>{game.autoPay ? 'On' : 'Off'}</b>
+          {t('action.autoPay')} <b>{game.autoPay ? t('common.on') : t('common.off')}</b>
         </span>
       </label>
     </section>

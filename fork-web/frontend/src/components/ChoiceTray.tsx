@@ -21,6 +21,7 @@ import {
   visibleOptions,
 } from './tray/trayLogic';
 import styles from './ChoiceTray.module.css';
+import { t } from '../i18n';
 
 /**
  * Every question the engine asks outside targeting and combat (design pass 4
@@ -213,7 +214,7 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
   const confirmButton = (
     <button type="button" className={styles.confirm} disabled={!confirm.enabled} onClick={answer}>
       {confirm.label}
-      {confirm.enabled ? <kbd>Space</kbd> : null}
+      {confirm.enabled ? <kbd>{t('key.space')}</kbd> : null}
     </button>
   );
 
@@ -229,14 +230,14 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
 
   if (mode === 'peek') {
     return (
-      <div className={`${styles.tray} ${styles.peek}`} role="region" aria-label={`${prompt.title} (hidden while you look at the board)`}>
+      <div className={`${styles.tray} ${styles.peek}`} role="region" aria-label={t('tray.peekAria', { title: prompt.title })}>
         <span className={styles.peekTitle}>
           <Icon name="hourglass" />
-          {prompt.title} is waiting for you
+          {t('tray.waiting', { title: prompt.title })}
         </span>
         <button type="button" className={styles.ghost} onClick={() => setUi({ trayPeek: false })}>
           <Icon name="eye" />
-          Back to the choice <kbd>V</kbd>
+          {t('tray.back')} <kbd>V</kbd>
         </button>
       </div>
     );
@@ -248,7 +249,7 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
     prompt.shape === 'yesNo' ? null : (
       <footer className={styles.foot}>
         <span className={styles.status}>
-          {counter || (prompt.shape === 'order' && prompt.lists.length > 1 ? 'Click a card to move it between the lists. Arrows reorder.' : '')}
+          {counter || (prompt.shape === 'order' && prompt.lists.length > 1 ? t('tray.orderHint') : '')}
         </span>
         {confirmButton}
       </footer>
@@ -271,7 +272,7 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
         </div>
         <button type="button" className={styles.ghost} onClick={() => setUi({ trayPeek: true })}>
           <Icon name="eye" />
-          Peek at board <kbd>V</kbd>
+          {t('tray.peek')} <kbd>V</kbd>
         </button>
       </header>
 
@@ -281,8 +282,8 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Filter by name or type"
-            aria-label="Filter by name or type"
+            placeholder={t('tray.filter')}
+            aria-label={t('tray.filter')}
           />
         </div>
       ) : null}

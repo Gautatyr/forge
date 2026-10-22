@@ -5,6 +5,7 @@ import { PlayerText } from '../PlayerText';
 import type { BodyProps } from './TrayBody';
 import { yesNoKeys } from './trayLogic';
 import styles from '../ChoiceTray.module.css';
+import { t } from '../../i18n';
 
 /** Two buttons with the engine's labels; the default is primary and answers Space. Y / N (or the prompt's own keys) answer at once. */
 export function YesNo({ prompt, send }: BodyProps<YesNoPrompt>) {
@@ -31,7 +32,7 @@ export function YesNo({ prompt, send }: BodyProps<YesNoPrompt>) {
             >
               <PlayerText game={game} text={b.label} />
               {b.key ? <kbd>{b.key}</kbd> : null}
-              {primary ? <kbd>Space</kbd> : null}
+              {primary ? <kbd>{t('key.space')}</kbd> : null}
             </button>
           );
         })}

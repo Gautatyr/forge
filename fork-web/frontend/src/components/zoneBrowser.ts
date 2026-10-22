@@ -1,11 +1,12 @@
 import { player, typeLine } from '../model/selectors';
 import type { CardId, GameView, PlayerId } from '../model/types';
 import type { ViewableZone } from '../state/ui';
+import { t } from '../i18n';
 
 /** "Your graveyard", "Theo's exile". */
 export function zoneTitle(game: GameView, playerId: PlayerId, zone: ViewableZone): string {
   const p = player(game, playerId);
-  return `${p.isYou ? 'Your' : `${p.name}'s`} ${zone}`;
+  return p.isYou ? t(`zt.you.${zone}`) : t(`zt.their.${zone}`, { name: p.name });
 }
 
 /** A zone's cards, newest first (as the side panel lists them). */

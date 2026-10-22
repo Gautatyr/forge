@@ -4,15 +4,16 @@
  */
 import type { ChoiceOption } from '../model/types';
 import type { PromptChoice } from './protocol';
+import { t, tDynamic, type MsgKey } from '../i18n';
 
 /** MagicColor.Color names the engine lists (an enum's toString) with their mana symbol and word. */
-const COLOURS: Record<string, { symbol: string; label: string }> = {
-  WHITE: { symbol: '{W}', label: 'White' },
-  BLUE: { symbol: '{U}', label: 'Blue' },
-  BLACK: { symbol: '{B}', label: 'Black' },
-  RED: { symbol: '{R}', label: 'Red' },
-  GREEN: { symbol: '{G}', label: 'Green' },
-  COLORLESS: { symbol: '{C}', label: 'Colorless' },
+const COLOURS: Record<string, { symbol: string }> = {
+  WHITE: { symbol: '{W}' },
+  BLUE: { symbol: '{U}' },
+  BLACK: { symbol: '{B}' },
+  RED: { symbol: '{R}' },
+  GREEN: { symbol: '{G}' },
+  COLORLESS: { symbol: '{C}' },
 };
 
 /**
@@ -22,8 +23,8 @@ const COLOURS: Record<string, { symbol: string; label: string }> = {
 export function colourOptions(options: ChoiceOption[]): ChoiceOption[] | undefined {
   if (options.length === 0 || !options.every((o) => COLOURS[o.label.trim().toUpperCase()] && !o.cardId && !o.playerId)) return undefined;
   return options.map((o) => {
-    const c = COLOURS[o.label.trim().toUpperCase()]!;
-    return { ...o, label: c.label, symbol: c.symbol };
+    const key = o.label.trim().toUpperCase();
+    return { ...o, label: tDynamic(`colour.${key}` as MsgKey), symbol: COLOURS[key]!.symbol };
   });
 }
 
@@ -35,10 +36,10 @@ export const isSurveil = (message: string | null | undefined): boolean => (messa
 /** The surveil tray: "Surveil N", the cards that stay on top and the ones that go to the graveyard. */
 export function surveilWords(count: number) {
   return {
-    title: `Surveil ${count}`,
-    instruction: 'Click a card to move it to the graveyard. The cards that stay go back on top of your library.',
-    source: { label: 'Keep on top', hint: '', moveTo: 'top' },
-    dest: { label: 'Graveyard', hint: '', moveTo: 'graveyard' },
+    title: t('prompt.surveil', { count }),
+    instruction: t('prompt.surveilHint'),
+    source: { label: t('prompt.keepOnTop'), hint: '', moveTo: t('prompt.top') },
+    dest: { label: t('zone.graveyard'), hint: '', moveTo: t('prompt.graveyard') },
   };
 }
 
@@ -58,7 +59,7 @@ export function pickedNumber(list: NumberList, n: number): number | undefined {
  * "Enter a number greater than or equal to 0:" (an X has no maximum), "… less than or equal to 5:". Only what it says.
  */
 export function rangeOfNumberPrompt(message: string | null | undefined): { min?: number; max?: number } | undefined {
-  const num = (t: string) => Number(t.replace(/,/g, '')); // MessageFormat groups thousands: "1,200"
+  const num = (s: string) => Number(s.replace(/,/g, '')); // MessageFormat groups thousands: "1,200"
   const text = message ?? '';
   const between = /between (-?[\d,]+) and (-?[\d,]+)/.exec(text);
   if (between) return { min: num(between[1]!), max: num(between[2]!) };

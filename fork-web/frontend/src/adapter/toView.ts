@@ -37,6 +37,7 @@ import { tossTitle } from '../state/gameStart';
 import { commanderTax, defendingPlayerOf } from '../model/selectors';
 import { revealWords } from './revealWords';
 import type { LiveSession } from './session';
+import { t, tDynamic, type MsgKey } from '../i18n';
 
 const STEP_OF: Record<PhaseType, StepId> = {
   UNTAP: 'untap',
@@ -212,7 +213,7 @@ export function mapCard(s: LiveSession, id: number, images: ImageLookup = scryfa
   // A face-down card you may look at (your foretold card, your morph): the bridge sends you its real face too, and
   // it names the card for you (issue #80). Others get the face-down face only.
   const seen = faceDown && original !== undefined && original !== cur;
-  const downName = cur.props.Name || 'Face-down card';
+  const downName = cur.props.Name || t('view.faceDown');
   const name = seen ? original.props.Name || cp.Name || '?' : faceDown ? downName : cp.Name || cur.props.Name || '?';
   const front = face(frontState.props, name, false, images);
   const back = backState && backState !== frontState ? face(backState.props, faceDown ? downName : name, true, images) : undefined;
@@ -270,10 +271,10 @@ export const PAY_COST = /Pay Mana Cost:\s*(\S+)/;
 const LIFE_PAYS = /Click on your life total to pay life/;
 /** InputSelectCardsForConvokeOrImprovise: "Choose artifact to tap for Improvise.\nRemaining mana cost is {5}{B}{B}". */
 const TAP_TO_PAY = /Choose (artifact or creature|creature|artifact) to tap for (\w+)\.\s*Remaining mana cost is (\S+?)\.?(?=\s|$)/;
-const TAP_TO_PAY_KIND: Record<string, string> = {
-  artifact: 'artifacts',
-  creature: 'creatures',
-  'artifact or creature': 'artifacts or creatures',
+const TAP_TO_PAY_KIND: Record<string, MsgKey> = {
+  artifact: 'view.tapKind.artifact',
+  creature: 'view.tapKind.creature',
+  'artifact or creature': 'view.tapKind.both',
 };
 const ATTACK_CANCEL = new Set(['Alpha Strike', 'Call Back']);
 
@@ -357,7 +358,7 @@ function targetOption(view: Omit<GameView, 'decision'>, t: TargetRef): ChoiceOpt
   if (t.kind === 'player') return { id, label: view.players.find((p) => p.id === t.id)!.name, playerId: t.id };
   const item = view.stack.find((it) => it.id === t.id)!;
   const name = view.cards[item.sourceCardId]?.name;
-  const label = name ? (item.kind === 'spell' ? name : `${name} (${item.kind})`) : item.text;
+  const label = name ? (item.kind === 'spell' ? name : `${name} (${tDynamic(`rail.kind.${item.kind}` as MsgKey)})`) : item.text;
   return { id, label, ...(name && item.text ? { detail: item.text } : {}) };
 }
 
@@ -370,9 +371,9 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
   const waiting = (what?: string): Decision => {
     const id = holderId();
     const who = view.players.find((p) => p.id === id);
-    return { kind: 'waiting', forPlayerId: id, what: what ?? (who && !who.isYou ? `${who.name} is deciding` : 'Waiting for the game') };
+    return { kind: 'waiting', forPlayerId: id, what: what ?? (who && !who.isYou ? t('view.deciding', { name: who.name }) : t('view.waitingGame')) };
   };
-  if (s.finished) return waiting('Game over');
+  if (s.finished) return waiting(t('pa.gameOver'));
   const prompt = s.prompt;
   if (prompt) {
     return {
@@ -387,7 +388,7 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
     input.ownerId === you && (input.ok.enabled || input.cancel.enabled || !!input.selectable || input.targets.length > 0);
   if (!mine) return waiting();
   // Nothing to decide (a free mulligan's "return 0 cards"): useLive answers it (commands.ts, autoAnswer).
-  if (freeMulliganKeep(input)) return { kind: 'waiting', forPlayerId: view.youId, what: 'Drawing your new hand' };
+  if (freeMulliganKeep(input)) return { kind: 'waiting', forPlayerId: view.youId, what: t('view.newHand') };
 
   const youView = view.players.find((p) => p.isYou)!;
   const weakly = [...s.weakly.keys()];
@@ -440,7 +441,7 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
       prompt: {
         id: `input:ok:reveal:${shown.join(',')}`,
         shape: 'chooseN',
-        ...revealWords(view, shown, promptWords(msg, undefined, 'Revealed cards')),
+        ...revealWords(view, shown, promptWords(msg, undefined, t('view.revealedCards'))),
         confirmLabel: input.ok.label || 'OK',
         min: 0,
         max: 0,
@@ -535,11 +536,11 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
     // Convoke, improvise: the bridge names the permanents the input takes (issue #70); each click taps one for the cost.
     const tap = TAP_TO_PAY.exec(input.message);
     if (tap) {
-      const left = tap[3] === '0' ? 'nothing' : tap[3];
+      const left = tap[3] === '0' ? t('view.nothing') : tap[3]!;
       return {
         kind: 'chooseTargets',
         sourceCardId: castCard(),
-        instruction: `Tap ${TAP_TO_PAY_KIND[tap[1]!]} to pay for ${tap[2]} — ${left} left`,
+        instruction: t('view.tapToPay', { what: tDynamic(TAP_TO_PAY_KIND[tap[1]!]!), card: tap[2]!, left }),
         legal,
         chosen,
         min: 0,
@@ -599,11 +600,11 @@ function mulliganStates(s: LiveSession, players: { id: number; name: string }[])
 
 function outReason(s: LiveSession, p: PlayerProps, cards: Record<string, CardView>, poisonToLose = 10): OutReason {
   for (const [cid, amount] of Object.entries(p.CommanderDamage ?? {})) {
-    if (amount >= 21) return { kind: 'commanderDamage', amount, commanderName: cards[cid]?.name ?? s.get('card', Number(cid))?.props.Name ?? 'a commander' };
+    if (amount >= 21) return { kind: 'commanderDamage', amount, commanderName: cards[cid]?.name ?? s.get('card', Number(cid))?.props.Name ?? t('cmd.unknown') };
   }
   if ((p.Counters?.POISON ?? 0) >= poisonToLose) return { kind: 'poison', count: p.Counters!.POISON! };
   if ((p.Life ?? 0) <= 0) return { kind: 'life', life: p.Life ?? 0 };
-  return { kind: 'other', text: 'lost the game' };
+  return { kind: 'other', text: t('view.lost') };
 }
 
 /** Client-side settings of the live source (no wire form, or kept by the client). */
@@ -663,7 +664,7 @@ export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup,
     const lostAt = s.lostAt.get(pid);
     const pv: PlayerView = {
       id: sid(pid),
-      name: p.Name ?? `Player ${pid}`,
+      name: p.Name ?? t('view.player', { id: pid }),
       seat,
       isYou,
       isAi: p.IsAI === true,
@@ -837,7 +838,7 @@ function resultOf(s: LiveSession, g: GameView): GameResult {
   const winnerId = inGame.length === 1 ? inGame[0]!.id : undefined;
   return {
     ...(winnerId ? { winnerId } : {}),
-    reason: winnerId ? 'Last player standing.' : 'The game ended in a draw.',
+    reason: winnerId ? t('view.lastStanding') : t('view.draw'),
     ranking: [...inGame.map((p) => p.id), ...out.map((p) => p.id)],
     nextGame: false,
   };
