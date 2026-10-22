@@ -60,7 +60,13 @@ public class ChooseGenericEffect extends SpellAbilityEffect {
         }
         if (changeZoneTable) sa.setChangeZoneTable(new CardZoneTable());
 
+        boolean firstChooser = true;
         for (Player p : getDefinedPlayersOrTargeted(sa)) {
+            // fork #86: "any opponent may ..." - stop asking once an earlier pick invalidated this ability's conditions
+            if (!firstChooser && sa.getConditions() != null && !sa.getConditions().areMet(sa)) {
+                break;
+            }
+            firstChooser = false;
             if (!p.isInGame()) {
                 p = getNewChooser(sa, p);
             }
