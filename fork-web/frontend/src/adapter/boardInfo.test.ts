@@ -97,10 +97,8 @@ describe('cards held by another card: imprint, exiled with (#15)', () => {
     );
   it('names the held card on the holder and the holder on the held card', () => {
     const g = toGameView(vat([71]));
-    expect(g.cards['70']!.links).toEqual([
-      { kind: 'imprinted', cardIds: ['71'] },
-      { kind: 'exiled', cardIds: ['71'] },
-    ]);
+    // Imprinted and exiled with the same card (Mimic Vat): named once.
+    expect(g.cards['70']!.links).toEqual([{ kind: 'imprinted', cardIds: ['71'] }]);
     expect(g.cards['71']!.links).toEqual([{ kind: 'exiledWith', cardIds: ['70'] }]);
   });
   it('never names a card this viewer cannot see (an unseen id names no object)', () => {
@@ -108,6 +106,7 @@ describe('cards held by another card: imprint, exiled with (#15)', () => {
     expect(g.cards['70']!.links![0]).toEqual({ kind: 'imprinted', cardIds: ['71'] });
     const only = toGameView(vat([ALIAS + 5]));
     expect(only.cards['70']!.links).toEqual([{ kind: 'exiled', cardIds: ['71'] }]);
+    expect(only.cards['70']!.links).not.toContainEqual(expect.objectContaining({ kind: 'imprinted' }));
   });
   it('has no links when nothing is held', () => {
     const s = session(cardObj(10, { Owner: 0, Controller: 0, Zone: 'Battlefield' }, { Name: 'Bear', Type: 'Creature - Bear', Power: 2, Toughness: 2 }), { Battlefield: [10] });

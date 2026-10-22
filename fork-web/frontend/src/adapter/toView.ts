@@ -172,7 +172,11 @@ function cardLinks(cp: CardProps): CardLink[] {
 function linkCards(cards: Record<string, CardView>): void {
   for (const c of Object.values(cards)) {
     if (!c.links) continue;
-    const links = c.links.map((l) => ({ ...l, cardIds: l.cardIds.filter((id) => id !== c.id && cards[id]) })).filter((l) => l.cardIds.length);
+    // An imprinted card is also "exiled with" its holder (Mimic Vat): named once, as imprinted.
+    const imprinted = new Set(c.links.find((l) => l.kind === 'imprinted')?.cardIds);
+    const links = c.links
+      .map((l) => ({ ...l, cardIds: l.cardIds.filter((id) => id !== c.id && cards[id] && (l.kind === 'imprinted' || !imprinted.has(id))) }))
+      .filter((l) => l.cardIds.length);
     if (links.length) c.links = links;
     else delete c.links;
   }
