@@ -55,7 +55,8 @@ export function Hand() {
                     style={{ left: otherLeft + j * (g.cardW + g.gap), top: g.raise }}
                   >
                     <span className={styles.caption}>{caption}</span>
-                    <Card card={c} context="hand" />
+                    {/* The caption (zone, commander tax) is also in the card's accessible name (issue #67). */}
+                    <Card card={c} context="hand" ariaExtra={caption} />
                   </div>
                 ))}
               </>

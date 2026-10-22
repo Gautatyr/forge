@@ -1842,6 +1842,13 @@ export interface BlockOptionsMessage {
   attackers: { card: number; blockers: number[]; ifFreed: number[]; min?: number }[];
 }
 
+/** While the seat declares attackers, after each change: what the engine lets it attack (cleared by clearWeaklySelectable). */
+export interface AttackOptionsMessage {
+  t: 'attackOptions';
+  /** The combat's defenders: players, planeswalkers and battles. */
+  defenders: EntityRef[];
+}
+
 /** Answers the getActivateDescription action. */
 export interface ActivateDescriptionMessage {
   t: 'activateDescription';
@@ -1850,7 +1857,7 @@ export interface ActivateDescriptionMessage {
 }
 
 export type PromptMessage = PromptChoose | PromptConfirm | PromptOrder | PromptDistribute | PromptText;
-export type SeatMessage = CallMessage | PromptChoose | PromptConfirm | PromptOrder | PromptDistribute | PromptText | PromptClosedMessage | ReplyRejectedMessage | ActionRejectedMessage | RejectedMessage | BlockOptionsMessage | ActivateDescriptionMessage;
+export type SeatMessage = CallMessage | PromptChoose | PromptConfirm | PromptOrder | PromptDistribute | PromptText | PromptClosedMessage | ReplyRejectedMessage | ActionRejectedMessage | RejectedMessage | BlockOptionsMessage | AttackOptionsMessage | ActivateDescriptionMessage;
 
 /** Answers an open prompt; the value's form depends on its shape. */
 export interface ReplyMessage {

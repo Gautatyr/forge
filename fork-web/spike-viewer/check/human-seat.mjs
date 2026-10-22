@@ -50,6 +50,7 @@ class HumanSeat extends Stream {
       case 'actionRejected': if (this.stats.actionRejected.length < 20) this.stats.actionRejected.push(m); return true;
       case 'rejected': this.fail(`rejected: ${JSON.stringify(m)}`); return true;
       case 'activateDescription': return true;
+      case 'attackOptions': return true; // the defenders the engine offers (issue #65); this seat attacks with alphaStrike
       default: return false;
     }
   }

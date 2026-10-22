@@ -17,6 +17,7 @@ import {
   targetName,
 } from '../model/selectors';
 import type {
+  Attack,
   CardId,
   CardKeyword,
   CardView,
@@ -769,6 +770,11 @@ function goToStep(g: MockGame, step: GameView['turn']['step']) {
   emptyPools(g);
 }
 
+/** An attack intent's defender, as an Attack names it. */
+function defenderOf(i: { defenderId: PlayerId; defenderCardId?: CardId }): Pick<Attack, 'defenderId' | 'defenderCardId'> {
+  return i.defenderCardId ? { defenderId: i.defenderId, defenderCardId: i.defenderCardId } : { defenderId: i.defenderId };
+}
+
 function resolveCombatDamage(g: MockGame) {
   const combat = g.combat;
   if (!combat) return;
@@ -776,7 +782,13 @@ function resolveCombatDamage(g: MockGame) {
     const att = g.cards[a.attackerId];
     if (!att) continue;
     const blockers = combat.blocks.filter((b) => b.attackerId === a.attackerId).map((b) => g.cards[b.blockerId]!);
-    if (blockers.length === 0) {
+    const walker = a.defenderCardId ? g.cards[a.defenderCardId] : undefined;
+    if (blockers.length === 0 && walker) {
+      // Damage to a planeswalker removes that many loyalty counters.
+      const dmg = att.power ?? 0;
+      walker.counters = walker.counters.map((k) => (k.kind === 'Loyalty' ? { ...k, count: Math.max(0, k.count - dmg) } : k));
+      log(g, `${ref(att.id)} deals ${dmg} damage to ${ref(walker.id)}.`, att.controllerId);
+    } else if (blockers.length === 0) {
       const def = player(g, a.defenderId);
       const dmg = att.power ?? 0;
       def.life -= dmg;
@@ -1112,9 +1124,11 @@ function applyOne(prev: MockGame, intent: Intent): MockGame {
             .map((id) => g.cards[id]!)
             .filter((c) => isCreature(c) && !c.tapped && (!c.summoningSick || hasKeyword(c, 'Haste')))
             .map((c) => c.id);
-          const defenders = g.players.filter((p) => !p.isYou && !p.hasLost).map((p) => p.id);
+          const opps = g.players.filter((p) => !p.isYou && !p.hasLost);
+          const defenders = opps.map((p) => p.id);
+          const defenderCards = opps.flatMap((p) => p.battlefield).filter((id) => /\bPlaneswalker\b/.test(g.cards[id]?.front.typeLine ?? ''));
           g.combat = { attacks: [], blocks: [] };
-          g.decision = { kind: 'declareAttackers', candidates, defenders, draft: [] };
+          g.decision = { kind: 'declareAttackers', candidates, defenders, defenderCards, draft: [] };
           log(g, 'You move to combat.', you.id);
           return g;
         }
@@ -1173,18 +1187,18 @@ function applyOne(prev: MockGame, intent: Intent): MockGame {
       if (d.kind !== 'declareAttackers' || !d.candidates.includes(intent.cardId)) return prev;
       const i = d.draft.findIndex((a) => a.attackerId === intent.cardId);
       if (i >= 0) d.draft.splice(i, 1);
-      else d.draft.push({ attackerId: intent.cardId, defenderId: intent.defenderId });
+      else d.draft.push({ attackerId: intent.cardId, ...defenderOf(intent) });
       return g;
     }
     case 'setAttackDefender': {
       if (d.kind !== 'declareAttackers') return prev;
       const a = d.draft.find((x) => x.attackerId === intent.cardId);
-      if (a) a.defenderId = intent.defenderId;
+      if (a) Object.assign(a, { defenderCardId: undefined }, defenderOf(intent));
       return g;
     }
     case 'attackWithAll': {
       if (d.kind !== 'declareAttackers') return prev;
-      d.draft = d.candidates.map((id) => ({ attackerId: id, defenderId: intent.defenderId }));
+      d.draft = d.candidates.map((id) => ({ attackerId: id, ...defenderOf(intent) }));
       return g;
     }
     case 'assignBlock': {

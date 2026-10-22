@@ -1,4 +1,5 @@
 import { player } from '../model/selectors';
+import { pickedDefenderCard } from './focus';
 import type { CardId, GameView, PlayerId, StackItem, StackItemId, TargetRef } from '../model/types';
 import { blockTargets } from './blockClick';
 import type { UiState } from './ui';
@@ -12,12 +13,14 @@ export interface CardStatus {
   /** Can be clicked as part of the current decision (target, attacker, blocker, incoming attacker, mana source while paying). */
   actionable: boolean;
   /** Icon for the actionable state. */
-  actionKind?: 'target' | 'attack' | 'block' | 'blockTarget' | 'mana';
+  actionKind?: 'target' | 'attack' | 'block' | 'blockTarget' | 'mana' | 'defender';
   /** Chosen by you in the current decision (target, pending blocker…). */
   selected: boolean;
   /** Not usable for the current decision: drawn faded. */
   dimmed: boolean;
   attacking?: { defender: string; draft: boolean };
+  /** A planeswalker or battle attacked: the names of its attackers (issue #65). */
+  attackedBy: string[];
   blocking?: { attacker: string; draft: boolean };
   /** Names of every stack item targeting this card (hover text only, never a ring). */
   targetedBy: string[];
@@ -64,6 +67,7 @@ export function cardStatus(game: GameView, ui: UiState, id: CardId): CardStatus 
     actionable: false,
     selected: false,
     dimmed: false,
+    attackedBy: [],
     targetedBy: [],
   };
   if (!c) return s;
@@ -93,15 +97,21 @@ export function cardStatus(game: GameView, ui: UiState, id: CardId): CardStatus 
   if (d.kind === 'declareAttackers') attacks.push(...d.draft.map((a) => ({ ...a, draft: true })));
   if (d.kind === 'declareBlockers') blocks.push(...d.draft.map((b) => ({ ...b, draft: true })));
   const atk = attacks.find((a) => a.attackerId === id);
-  if (atk) s.attacking = { defender: player(game, atk.defenderId).name, draft: atk.draft };
+  if (atk) s.attacking = { defender: (atk.defenderCardId && game.cards[atk.defenderCardId]?.name) || player(game, atk.defenderId).name, draft: atk.draft };
+  // Live, the engine's combat also holds the draft: each attacker once.
+  const attackers = new Set(attacks.filter((a) => a.defenderCardId === id).map((a) => a.attackerId));
+  s.attackedBy = [...attackers].map((a) => game.cards[a]?.name ?? '?');
   const blk = blocks.find((b) => b.blockerId === id);
   if (blk) s.blocking = { attacker: game.cards[blk.attackerId]?.name ?? '?', draft: blk.draft };
 
   if (d.kind === 'declareAttackers') {
     const cand = d.candidates.includes(id);
-    s.actionable = cand;
-    s.actionKind = cand ? 'attack' : undefined;
-    s.dimmed = !cand && c.zone === 'battlefield' && c.controllerId === game.youId && !atk;
+    // A planeswalker or battle you may attack: picking it aims new attackers at it (issue #65).
+    const defender = d.defenderCards.includes(id);
+    s.actionable = cand || defender;
+    s.actionKind = cand ? 'attack' : defender ? 'defender' : undefined;
+    s.selected = defender && pickedDefenderCard(game, ui) === id;
+    s.dimmed = !cand && !defender && c.zone === 'battlefield' && c.controllerId === game.youId && !atk;
   }
   if (d.kind === 'declareBlockers') {
     // After a first click, only the partners the engine allows for it are lit (issue #48).
