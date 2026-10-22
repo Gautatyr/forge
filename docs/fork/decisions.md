@@ -235,3 +235,7 @@ Newest last. Each entry: the decision, why, and what it implies.
 - The engine's default dialog title "Forge" is dropped from notices; `InputInfo.declineWords` (bridge) stays for the Cancel words.
 - Target steps: the instruction is the prompt line plus "(N more can be targeted)" (`targetInstruction`), no longer the message's last line (which was the count, or a chosen target's name).
 - Player rows of a combat damage assignment read "Life N", deathtouch is noted on creatures only.
+
+## 2026-10-22 — Auto-pay wastes no mana; the Auto-pay toggle is remembered (issue #29, packet F)
+- Auto-pay toggle: stored with the other match prefs (`Prefs.autoPay`, `state/prefs.ts`), default Off (hand payment stays the default).
+- Damage before waste (owner, 2026-10-22; human Auto only): unused mana costs nothing, damage does. Floating mana is already spent first (`payManaCost` pays from the pool before tapping). **Upstream-file edit** (generic, not per card): `ComputerUtilMana.sortManaAbilities`, when `isAutoPayForHuman`, stably re-sorts each shard's candidate abilities by (1) `hurtsPayer` (the mana ability's own sub-abilities, or a Taps/TapsForMana trigger on its host, that deal damage to or make the activator lose life: painlands, City of Brass), then (2) `wastedMana` (units the ability makes that no unpaid shard can take), then the existing order. So {1}{R} with Sol Ring + Mountain + City of Brass taps Mountain + Sol Ring (one {C} floats, no damage). A painful source still pays when nothing else can (it is a mana cost, not an extra cost). AI payment is unchanged.
