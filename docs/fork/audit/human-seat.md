@@ -88,6 +88,8 @@ id -1: `actionRejected` "unknown card").
   its stack entry; the page shows the stack entry only);
   `isUiSetToSkipPhase` false, unused: `PlayerControllerHuman.isRemoteClient()` (gui is a `ProtocolGuiGame`) reads
   phase stops from its `YieldController`, which the client sets (`sendYieldUpdate SkipPhase`).
+- Upstream replay recording (`HostedMatch` → `ReplaySession.begin`) skips a human whose gui is a `ProtocolGuiGame`:
+  web seats are never recorded and nothing is written to the replay store.
 - `awaitInput` (WebGuiGame): the game thread waits for the input's latch and runs the seat's actions meanwhile
   (`InputPump`, see Threading); the seat's actions release it.
 
