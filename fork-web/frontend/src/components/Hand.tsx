@@ -6,6 +6,7 @@ import { handGeometry } from './handLayout';
 import { otherZoneGroup } from './otherZoneGroup';
 import { useSize } from './useSize';
 import styles from './Hand.module.css';
+import { t } from '../i18n';
 
 /** Width (rem) kept for the "Your hand is empty." message. */
 const EMPTY_REM = 13;
@@ -25,14 +26,14 @@ export function Hand() {
   const total = otherLeft + (other.length ? other.length * g.cardW + (other.length - 1) * g.gap : 0);
 
   return (
-    <section className={styles.hand} aria-label={`Your hand, ${hand.length} cards`}>
+    <section className={styles.hand} aria-label={t('hand.aria', { count: hand.length })}>
       <div ref={ref} className={styles.measure}>
         {box.w > 0 ? (
           <div
             className={styles.inner}
             style={{ width: total, '--cw': `${g.cardW}px`, '--raise': `${g.raise}px` } as CSSProperties}
           >
-            {hand.length === 0 ? <p className={styles.empty} style={{ width: handWidth }}>Your hand is empty.</p> : null}
+            {hand.length === 0 ? <p className={styles.empty} style={{ width: handWidth }}>{t('hand.empty')}</p> : null}
             {hand.map((c, i) => {
               const back = g.stagger && i % 2 === 1;
               return (

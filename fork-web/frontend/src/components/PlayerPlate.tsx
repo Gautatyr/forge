@@ -17,6 +17,7 @@ import { ManaSymbol, manaName } from './ManaSymbol';
 import styles from './PlayerPlate.module.css';
 import { poolGroups } from './poolGroups';
 import { useRoomForNames } from './useRoomForNames';
+import { t, tDynamic, type MsgKey } from '../i18n';
 
 const MULLIGAN_TAG_CLASS: Record<MulliganState['state'], string | undefined> = {
   deciding: styles.mulliganDeciding,
@@ -40,10 +41,10 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
   const turnOf = turnPlayerId(game);
   const active = turnOf === p.id;
   const priority = turnOf !== undefined && game.turn.priorityPlayerId === p.id;
-  const legalTarget = d.kind === 'chooseTargets' && d.legal.some((t) => t.kind === 'player' && t.id === p.id);
+  const legalTarget = d.kind === 'chooseTargets' && d.legal.some((x) => x.kind === 'player' && x.id === p.id);
   // A player picked for an effect, not targeted (issue #81).
   const picking = d.kind === 'chooseTargets' && d.purpose === 'pick';
-  const chosenTarget = d.kind === 'chooseTargets' && d.chosen.some((t) => t.kind === 'player' && t.id === p.id);
+  const chosenTarget = d.kind === 'chooseTargets' && d.chosen.some((x) => x.kind === 'player' && x.id === p.id);
   const defenderPick = d.kind === 'declareAttackers' && d.defenders.includes(p.id);
   const aim = currentAttackAim(game, ui, prefs.layout);
   const isDefender = defenderPick && aim?.defenderId === p.id && !aim.defenderCardId;
@@ -77,7 +78,7 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
           setUi({ zoneView: open ? undefined : { playerId: p.id, zone } });
         }}
         aria-pressed={open}
-        title={`Show ${p.isYou ? 'your' : `${p.name}'s`} ${label.toLowerCase()}`}
+        title={p.isYou ? tDynamic(`show.you.${zone}` as MsgKey) : tDynamic(`show.their.${zone}` as MsgKey, { name: p.name })}
       >
         {content}
       </button>
@@ -129,20 +130,20 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
       aria-label={
         clickable
           ? choice
-            ? `Choose ${p.name}`
+            ? t('plate.choose', { name: p.name })
             : legalTarget
-              ? `${picking ? 'Choose' : 'Target'} ${p.name}`
-              : `Attack ${p.name} with the next creatures you choose`
+              ? t(picking ? 'plate.choose' : 'plate.target', { name: p.name })
+              : t('plate.attack', { name: p.name })
           : undefined
       }
     >
-      <div className={styles.lifeBox} title={`${p.name}: ${p.life} life`}>
+      <div className={styles.lifeBox} title={t('plate.lifeTitle', { name: p.name, life: p.life })}>
         <span className={styles.life}>{p.life}</span>
         {/* Life change for 4 s (design pass 4, P6): ▼ loss / ▲ gain, never colour alone.
             It takes the "life" label's place, whose slot is sized for it, so nothing moves. */}
         <span className={styles.lifeTag} role="status">
           <span className={styles.lifeLabel} style={lifeChange !== 0 ? { visibility: 'hidden' } : undefined}>
-            life
+            {t('plate.life')}
           </span>
           {lifeChange !== 0 ? (
             <span key={`${lifeChange}`} className={`${styles.lifeChange} ${lifeChange < 0 ? styles.lifeLoss : styles.lifeGain}`}>
@@ -152,7 +153,13 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
                 {Math.abs(lifeChange)}
               </span>
               <span className={styles.srOnly}>
-                {`${p.isYou ? 'You' : p.name} ${lifeChange < 0 ? 'lost' : 'gained'} ${Math.abs(lifeChange)} life`}
+                {lifeChange < 0
+                  ? p.isYou
+                    ? t('plate.youLost', { n: Math.abs(lifeChange) })
+                    : t('plate.lost', { name: p.name, n: Math.abs(lifeChange) })
+                  : p.isYou
+                    ? t('plate.youGained', { n: lifeChange })
+                    : t('plate.gained', { name: p.name, n: lifeChange })}
               </span>
             </span>
           ) : null}
@@ -173,11 +180,11 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
                 e.stopPropagation();
                 onExpand();
               }}
-              aria-label={`Show ${p.name}'s whole board`}
-              title="Show whole board"
+              aria-label={t('plate.showWhole', { name: p.name })}
+              title={t('plate.showWholeTitle')}
             >
               <Icon name="eye" />
-              Show board
+              {t('plate.showBoard')}
             </button>
           ) : null}
           {mulligan ? (
@@ -189,52 +196,52 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
             </span>
           ) : null}
           {active ? (
-            <span className={`${styles.tag} ${styles.tagTurn}`} title={p.isYou ? 'Your turn' : 'Their turn'}>
+            <span className={`${styles.tag} ${styles.tagTurn}`} title={p.isYou ? t('top.yourTurn') : t('plate.theirTurn')}>
               <Icon name="play" />
-              <span className={styles.tagText}>{p.isYou ? 'Your turn' : 'Their turn'}</span>
+              <span className={styles.tagText}>{p.isYou ? t('top.yourTurn') : t('plate.theirTurn')}</span>
             </span>
           ) : null}
           {priority ? (
-            <span className={`${styles.tag} ${styles.tagPriority}`} title="Priority">
+            <span className={`${styles.tag} ${styles.tagPriority}`} title={t('plate.priority')}>
               <Icon name="hourglass" />
-              <span className={styles.tagText}>Priority</span>
+              <span className={styles.tagText}>{t('plate.priority')}</span>
             </span>
           ) : null}
           {incoming > 0 ? (
-            <span className={`${styles.tag} ${styles.tagAttacked}`} title={`${incoming} attacking`}>
+            <span className={`${styles.tag} ${styles.tagAttacked}`} title={`${incoming} ${t('plate.attacking')}`}>
               <Icon name="sword" />
               {incoming}
-              <span className={styles.tagText}> attacking</span>
+              <span className={styles.tagText}> {t('plate.attacking')}</span>
             </span>
           ) : null}
           {draftIncoming > 0 ? (
-            <span className={`${styles.tag} ${styles.tagAttacked}`} title={`${draftIncoming} from you`}>
+            <span className={`${styles.tag} ${styles.tagAttacked}`} title={`${draftIncoming} ${t('plate.fromYou')}`}>
               <Icon name="sword" />
               {draftIncoming}
-              <span className={styles.tagText}> from you</span>
+              <span className={styles.tagText}> {t('plate.fromYou')}</span>
             </span>
           ) : null}
           {stackSpot ? (
-            <span className={`${styles.tag} ${styles.tagTargeted}`} title={`Targeted by ${spotSource ?? 'a stack item'}`}>
+            <span className={`${styles.tag} ${styles.tagTargeted}`} title={t('plate.targetedBy', { source: spotSource ?? t('plate.stackItem') })}>
               <Icon name="target" />
-              <span className={styles.tagText}>Targeted</span>
+              <span className={styles.tagText}>{t('plate.targeted')}</span>
             </span>
           ) : null}
           {choice?.chosen ? (
-            <span className={`${styles.tag} ${styles.tagChosen}`} title="Chosen">
+            <span className={`${styles.tag} ${styles.tagChosen}`} title={t('plate.chosen')}>
               <Icon name="check" />
-              <span className={styles.tagText}>Chosen</span>
+              <span className={styles.tagText}>{t('plate.chosen')}</span>
             </span>
           ) : null}
           {legalTarget && !chosenTarget && !picking ? (
-            <span className={`${styles.tag} ${styles.tagTarget}`} title="Target">
+            <span className={`${styles.tag} ${styles.tagTarget}`} title={t('plate.targetTag')}>
               <Icon name="target" />
-              <span className={styles.tagText}>Target</span>
+              <span className={styles.tagText}>{t('plate.targetTag')}</span>
             </span>
           ) : null}
           {cmdDamage.length > 0 ? (
             <span className={styles.cmdGroup}>
-              <span className={styles.cmdLabel}>Commander damage taken</span>
+              <span className={styles.cmdLabel}>{t('plate.cmdTaken')}</span>
               {cmdDamage.map((x) => (
                 <span
                   key={x.commanderId}
@@ -264,7 +271,7 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
               className={`${styles.zone} ${styles.zoneButton} ${styles.commandZone}`}
               data-command-zone={x.cardId}
               title={x.title}
-              aria-label={`${x.title} Hover to see it, click to inspect.`}
+              aria-label={t('chip.hover', { title: x.title })}
               onPointerEnter={() => showCard(x.cardId)}
               onPointerLeave={() => hideCard(x.cardId)}
               onFocus={() => showCard(x.cardId)}
@@ -279,19 +286,19 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
               }}
             >
               <Icon name="crown" />
-              <span className={styles.zoneLabel}>Commander</span>
+              <span className={styles.zoneLabel}>{t('plate.commander')}</span>
               {x.tax > 0 ? <span className={styles.zoneCount}>+{x.tax}</span> : null}
             </button>
           ))}
           <StatusChips player={p} />
-          {zoneChip('hand', 'hand', 'Hand', p.isYou ? p.hand.length : p.handCount)}
-          {zoneChip('library', 'library', 'Library', p.libraryCount)}
-          {zoneChip('graveyard', 'grave', 'Graveyard', p.graveyard.length)}
-          {zoneChip('exile', 'exile', 'Exile', p.exile.length)}
+          {zoneChip('hand', 'hand', t('zone.hand'), p.isYou ? p.hand.length : p.handCount)}
+          {zoneChip('library', 'library', t('zone.library'), p.libraryCount)}
+          {zoneChip('graveyard', 'grave', t('zone.graveyard'), p.graveyard.length)}
+          {zoneChip('exile', 'exile', t('zone.exile'), p.exile.length)}
           {p.poison > 0 ? (
             <span className={`${styles.zone} ${styles.warn}`}>
               <Icon name="poison" />
-              <span className={styles.zoneLabel}>Poison</span>
+              <span className={styles.zoneLabel}>{t('plate.poison')}</span>
               <span className={styles.zoneCount}>{p.poison}</span>
             </span>
           ) : null}
@@ -306,10 +313,10 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
         {floating.length > 0 ? (
           <span
             className={`${styles.zone} ${styles.floating}`}
-            title={`${p.name}'s floating mana: ${floating.map((g) => `${g.times ?? g.symbols} ${manaName(g.colour)}`).join(', ')}`}
+            title={t('plate.floatTitle', { name: p.name, mana: floating.map((g) => `${g.times ?? g.symbols} ${manaName(g.colour)}`).join(', ') })}
           >
             <Icon name="mana" />
-            <span className={styles.zoneLabel}>Floating</span>
+            <span className={styles.zoneLabel}>{t('pay.floating')}</span>
             {floating.map((g) => (
               <span key={g.colour} className={styles.poolGroup}>
                 {Array.from({ length: g.symbols }, (_, i) => (

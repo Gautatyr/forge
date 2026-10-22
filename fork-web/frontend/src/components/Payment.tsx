@@ -3,6 +3,7 @@ import { costPips, parseCost, poolEntries, usefulColours } from '../model/mana';
 import type { Decision, GameView, ManaColour, ManaPool } from '../model/types';
 import { ManaSymbol, manaName } from './ManaSymbol';
 import styles from './Payment.module.css';
+import { t } from '../i18n';
 
 type Paying = Extract<Decision, { kind: 'payMana' }>;
 
@@ -24,8 +25,8 @@ export function FloatingMana({
   if (entries.length === 0) return null;
   const helps = (c: ManaColour) => !!paying && usefulColours(parseCost(paying.remaining), [c]).length > 0;
   return (
-    <div className={styles.floating} aria-label="Floating mana">
-      <span className={styles.floatLabel}>Floating</span>
+    <div className={styles.floating} aria-label={t('pay.floatingAria')}>
+      <span className={styles.floatLabel}>{t('pay.floating')}</span>
       <span className={styles.pool}>
         {entries.map(([colour, n]) => {
           const symbols =
@@ -42,8 +43,8 @@ export function FloatingMana({
               key={colour}
               type="button"
               className={styles.spend}
-              title={`Pay with ${manaName(colour)} mana`}
-              aria-label={`Pay with ${manaName(colour)} mana, ${n} floating`}
+              title={t('pay.spend', { colour: manaName(colour) })}
+              aria-label={t('pay.spendAria', { colour: manaName(colour), n })}
               onClick={() => onSpend(colour)}
             >
               {symbols}
@@ -55,34 +56,34 @@ export function FloatingMana({
           );
         })}
       </span>
-      <span className={styles.floatNote}>· empties at end of step</span>
+      <span className={styles.floatNote}>{t('pay.empties')}</span>
     </div>
   );
 }
 
 /** "Pay {2}{G}{W} for Sythis · includes tax {2}", paid symbols filled with ✓, unpaid outlined. */
 export function PaymentCost({ game, paying }: { game: GameView; paying: Paying }) {
-  const name = game.cards[paying.sourceCardId]?.name ?? 'this spell';
+  const name = game.cards[paying.sourceCardId]?.name ?? t('pay.thisSpell');
   const pips = costPips(paying.cost, paying.remaining);
   const extras = [
     paying.ability ? <Fragment key="ab">{paying.ability}</Fragment> : null,
     paying.x !== undefined ? <Fragment key="x">X = {paying.x}</Fragment> : null,
     paying.tax > 0 ? (
       <Fragment key="tax">
-        includes tax <ManaSymbol symbol={String(paying.tax)} />
+        {t('pay.tax')} <ManaSymbol symbol={String(paying.tax)} />
       </Fragment>
     ) : null,
   ].filter(Boolean);
   return (
     <p className={styles.cost}>
-      <span className={styles.costLead}>Pay</span>
+      <span className={styles.costLead}>{t('pay.lead')}</span>
       <span className={styles.pips}>
         {pips.map((p, i) => (
           <ManaSymbol key={i} symbol={p.symbol} state={p.paid ? 'paid' : 'unpaid'} />
         ))}
       </span>
       <span className={styles.costFor}>
-        for <b>{name}</b>
+        {t('pay.for')} <b>{name}</b>
         {extras.map((e, i) => (
           <Fragment key={i}>
             <span className={styles.sep}> · </span>

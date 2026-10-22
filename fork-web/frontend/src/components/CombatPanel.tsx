@@ -5,6 +5,7 @@ import { currentAttackAim, pickDefender } from '../state/focus';
 import { useMatch } from '../state/MatchContext';
 import { Icon, SeatGlyph } from './Icon';
 import styles from './CombatPanel.module.css';
+import { t } from '../i18n';
 
 /** Current loyalty (planeswalker) or defense (battle): what an attack on it takes away. */
 function defense(c: CardView): number | undefined {
@@ -27,12 +28,12 @@ export function CombatPanel() {
     const aim = currentAttackAim(game, ui, prefs.layout);
     const atPlayer = (id: string) => (a: Attack) => a.defenderId === id && !a.defenderCardId;
     return (
-      <section className={`${styles.panel} ${styles.attack}`} aria-label="Declare attackers">
+      <section className={`${styles.panel} ${styles.attack}`} aria-label={t('combat.declareAtk')}>
         <h2>
-          <Icon name="sword" /> Declare attackers
+          <Icon name="sword" /> {t('combat.declareAtk')}
         </h2>
-        <p className={styles.hint}>Click your creatures to attack. New attackers go at:</p>
-        <div className={styles.defenders} role="radiogroup" aria-label="What to attack" data-scroll-region>
+        <p className={styles.hint}>{t('combat.atkHint')}</p>
+        <div className={styles.defenders} role="radiogroup" aria-label={t('combat.whatToAttack')} data-scroll-region>
           {d.defenders.map((id) => {
             const p = player(game, id);
             const n = attacks.filter(atPlayer(id)).length;
@@ -95,18 +96,18 @@ export function CombatPanel() {
   const pendingBlocker = ui.pendingBlocker ? game.cards[ui.pendingBlocker] : undefined;
   const pendingAttacker = ui.pendingAttacker ? game.cards[ui.pendingAttacker] : undefined;
   return (
-    <section className={`${styles.panel} ${d.kind === 'declareBlockers' ? styles.block : styles.attack}`} aria-label="Combat">
+    <section className={`${styles.panel} ${d.kind === 'declareBlockers' ? styles.block : styles.attack}`} aria-label={t('combat.title')}>
       <h2>
-        <Icon name={d.kind === 'declareBlockers' ? 'shield' : 'sword'} /> {d.kind === 'declareBlockers' ? 'Declare blockers' : 'Combat'}
+        <Icon name={d.kind === 'declareBlockers' ? 'shield' : 'sword'} /> {d.kind === 'declareBlockers' ? t('combat.declareBlk') : t('combat.title')}
       </h2>
       {pendingBlocker ? (
         <p className={styles.pending}>
-          <Icon name="check" /> {pendingBlocker.name}: now click an attacker to block it
-          {blocks.some((b) => b.blockerId === ui.pendingBlocker) ? ', or one it blocks to drop that block.' : '.'}
+          <Icon name="check" /> {t('combat.pendingBlocker', { name: pendingBlocker.name })}
+          {blocks.some((b) => b.blockerId === ui.pendingBlocker) ? t('combat.dropBlock') : '.'}
         </p>
       ) : pendingAttacker ? (
         <p className={styles.pending}>
-          <Icon name="check" /> {pendingAttacker.name}: now click your creature that blocks it.
+          <Icon name="check" /> {t('combat.pendingAttacker', { name: pendingAttacker.name })}
         </p>
       ) : null}
       <ul className={styles.list} data-scroll-region>
@@ -117,8 +118,8 @@ export function CombatPanel() {
           const walker = a.defenderCardId ? game.cards[a.defenderCardId] : undefined;
           const yours = walker?.controllerId === game.youId;
           const target = walker
-            ? def.isYou ? (yours ? `your ${walker.name}` : `${walker.name}, which you protect`) : walker.name
-            : def.isYou ? 'you' : def.name;
+            ? def.isYou ? (yours ? t('combat.yourWalker', { name: walker.name }) : t('combat.protect', { name: walker.name })) : walker.name
+            : def.isYou ? t('combat.you') : def.name;
           const blockers = blocks.filter((b) => b.attackerId === a.attackerId);
           return (
             <li key={a.attackerId} className={def.isYou ? styles.atYou : ''}>
@@ -139,7 +140,7 @@ export function CombatPanel() {
                     <button
                       type="button"
                       className={styles.remove}
-                      aria-label={`Remove block by ${game.cards[b.blockerId]?.name}`}
+                      aria-label={t('combat.removeBlock', { name: game.cards[b.blockerId]?.name ?? '' })}
                       onClick={() => send({ type: 'removeBlock', blockerId: b.blockerId, attackerId: b.attackerId })}
                     >
                       <Icon name="close" />
@@ -149,7 +150,7 @@ export function CombatPanel() {
               ))}
               {def.isYou && blockers.length === 0 && d.kind === 'declareBlockers' ? (
                 <span className={styles.unblocked}>
-                  Unblocked: {strikeDamage(att)} damage to {target}
+                  {t('combat.unblocked', { damage: strikeDamage(att), target })}
                 </span>
               ) : null}
             </li>

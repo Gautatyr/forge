@@ -1,5 +1,6 @@
 import { Icon } from './Icon';
 import styles from './ManaSymbol.module.css';
+import { t, tDynamic, type MsgKey } from '../i18n';
 
 /** Mana font 1.18.0 codepoints (`ms-w` … `ms-c`): each kind has its own shape (sun, drop, skull, flame, tree, diamond). */
 const GLYPH: Record<string, string> = { W: '', U: '', B: '', R: '', G: '', C: '' };
@@ -13,13 +14,12 @@ const COLOUR: Record<string, string | undefined> = {
   C: styles.c,
 };
 
-const NAME: Record<string, string> = { W: 'white', U: 'blue', B: 'black', R: 'red', G: 'green', C: 'colourless' };
-
 export type ManaState = 'plain' | 'paid' | 'unpaid';
 
 /** Spoken name of a symbol: "green", "2 generic". */
 export function manaName(symbol: string): string {
-  return NAME[symbol] ?? (/^\d+$/.test(symbol) ? `${symbol} generic` : symbol);
+  if (/^[WUBRGC]$/.test(symbol)) return tDynamic(`mana.${symbol}` as MsgKey);
+  return /^\d+$/.test(symbol) ? t('mana.generic', { n: symbol }) : symbol;
 }
 
 /**
@@ -33,7 +33,7 @@ export function ManaSymbol({ symbol, state = 'plain' }: { symbol: string; state?
     <span
       className={`${styles.sym} ${COLOUR[symbol] ?? styles.generic} ${styles[state]}`}
       role="img"
-      aria-label={`${manaName(symbol)}${state === 'paid' ? ', paid' : state === 'unpaid' ? ', unpaid' : ''}`}
+      aria-label={`${manaName(symbol)}${state === 'paid' ? `, ${t('mana.paid')}` : state === 'unpaid' ? `, ${t('mana.unpaid')}` : ''}`}
     >
       {glyph ? (
         <span className={styles.glyph} aria-hidden>

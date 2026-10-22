@@ -8,8 +8,12 @@ import type { AttackOptionsMessage, BlockOptionsMessage, HelloMessage, InputInfo
 import { hasDrift, schemaDrift, type SchemaDrift } from '../wire/schemaDrift';
 import { engineNotice } from './engineText';
 import { asRef, type PromptMessage, type SeatRef, type ServerFrame } from './protocol';
+import { t } from '../i18n';
 
 export const LOG_LIMIT = 400;
+
+/** The bridge's reason for a message type it does not know. */
+const UNKNOWN_MESSAGE = 'unknown message type';
 
 export interface SessionLogEntry extends WireLogEntry {
   id: number;
@@ -296,10 +300,10 @@ export class LiveSession {
         return 'ok';
       case 'replyRejected':
         if (frame.id !== undefined) this.answering.delete(frame.id);
-        this.notice(`Answer not accepted: ${frame.reason}`);
+        this.notice(t('session.answerRefused', { reason: frame.reason }));
         return 'ok';
       case 'actionRejected':
-        this.notice(`${frame.method ?? 'Action'}: ${frame.reason}`);
+        this.notice(t('session.actionRefused', { method: frame.method ?? t('session.action'), reason: frame.reason }));
         return 'ok';
       case 'blockOptions':
         this.blockOptions = frame.attackers;
@@ -309,7 +313,8 @@ export class LiveSession {
         this.attackMax = frame.max;
         return 'ok';
       case 'rejected':
-        this.notice(frame.reason);
+        // A bridge without per-seat language (setLanguage) answers it "unknown message type": nothing to tell the player.
+        if (frame.reason !== UNKNOWN_MESSAGE) this.notice(frame.reason);
         return 'ok';
       default:
         return 'ok';

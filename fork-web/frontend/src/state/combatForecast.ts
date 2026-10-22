@@ -4,6 +4,7 @@
  * exact figure can't be known (a blocked attacker with trample) it is a range, never a guess.
  */
 import type { Block, CardId, CardView, GameView } from '../model/types';
+import { t } from '../i18n';
 
 const has = (c: CardView, keyword: string) => c.keywords.some((k) => k.name.toLowerCase() === keyword);
 
@@ -76,7 +77,7 @@ export function incoming(game: GameView, blocks: Block[]): Incoming {
   return out;
 }
 
-const amount = (r: Range) => (r.min === r.max ? `${r.min}` : r.min === 0 ? `up to ${r.max}` : `${r.min} to ${r.max}`);
+const amount = (r: Range) => (r.min === r.max ? `${r.min}` : r.min === 0 ? t('pa.upTo', { max: r.max }) : t('pa.range', { min: r.min, max: r.max }));
 
 /** "You take 9 damage", "You take 2 to 5 damage · Chandra, Torch of Defiance takes 2 damage". */
 export function incomingText(game: GameView, f: Incoming): string {
@@ -84,8 +85,8 @@ export function incomingText(game: GameView, f: Incoming): string {
   const onCards = f.cards.length > 0;
   const poison = f.poison.max > 0;
   const onYou = f.onYou > 0;
-  if (!(onCards || poison) || (onYou && (f.you.max > 0 || !poison))) parts.push(`You take ${amount(f.you)} damage`);
-  if (poison) parts.push(`You get ${amount(f.poison)} poison counter${f.poison.max === 1 ? '' : 's'}`);
-  for (const c of f.cards) parts.push(`${game.cards[c.cardId]?.name ?? 'Your permanent'} takes ${amount(c.damage)} damage`);
+  if (!(onCards || poison) || (onYou && (f.you.max > 0 || !poison))) parts.push(t('fc.take', { amount: amount(f.you) }));
+  if (poison) parts.push(t('fc.poison', { amount: amount(f.poison), count: f.poison.max }));
+  for (const c of f.cards) parts.push(t('fc.cardTakes', { name: game.cards[c.cardId]?.name ?? t('fc.yourPermanent'), amount: amount(c.damage) }));
   return parts.join(' · ');
 }

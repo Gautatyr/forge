@@ -8,6 +8,7 @@ import type { CardId, ChoiceOption, ChoicePrompt, ChooseNPrompt, GameView, Playe
 import { answerFromDraft, draftFor } from '../../state/primaryAction';
 import type { ChoiceDraft } from '../../state/ui';
 import { distributeConfirm, inputConfirm, inputStart, startAmounts } from './numberLogic';
+import { t } from '../../i18n';
 
 /** Lists longer than this get a filter box. */
 export const FILTER_FROM = 12;
@@ -89,14 +90,14 @@ export function stepGroup(p: ChooseNPrompt, d: ChoiceDraft, members: string[]): 
 }
 
 /** What a two-list move button says: "To graveyard". */
-export const moveLabel = (list: { label: string; moveTo?: string }): string => `To ${list.moveTo ?? list.label.toLowerCase()}`;
+export const moveLabel = (list: { label: string; moveTo?: string }): string => t('tray.to', { where: list.moveTo ?? list.label.toLowerCase() });
 
 export function counterText(p: ChooseNPrompt, n: number): string {
   if (p.quiet) return '';
-  if (p.progress) return `${n} of ${p.max} chosen`;
-  if (p.min === p.max) return `Choose exactly ${p.max}`;
-  if (p.min === 0) return `${n} chosen · up to ${p.max}`;
-  return `${n} chosen · ${p.min}–${p.max}`;
+  if (p.progress) return t('tray.progress', { n, max: p.max });
+  if (p.min === p.max) return t('tray.exactly', { count: p.max });
+  if (p.min === 0) return t('tray.upTo', { n, max: p.max });
+  return t('tray.between', { n, min: p.min, max: p.max });
 }
 
 export interface Confirm {
@@ -113,7 +114,7 @@ export function trayConfirm(p: ChoicePrompt, d: ChoiceDraft): Confirm {
   const answer = answerFromDraft(p, d);
   if (p.shape === 'chooseN' && !isReveal(p)) {
     const n = d.selected.length;
-    if (n < p.min) return { enabled: false, label: p.quiet ? p.confirmLabel : `Choose ${p.min - n} more` };
+    if (n < p.min) return { enabled: false, label: p.quiet ? p.confirmLabel : t('tray.chooseMore', { count: p.min - n }) };
     return { enabled: answer !== undefined, label: p.progress || p.quiet ? p.confirmLabel : `${p.confirmLabel} (${n})`, answer };
   }
   return { enabled: answer !== undefined, label: p.confirmLabel, answer };

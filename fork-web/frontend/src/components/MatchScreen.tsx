@@ -25,6 +25,9 @@ export function MatchScreen() {
   useEffect(() => {
     document.documentElement.style.setProperty('--ui-scale', String(prefs.uiScale));
   }, [prefs.uiScale]);
+  useEffect(() => {
+    document.documentElement.lang = prefs.language;
+  }, [prefs.language]);
 
   const onKey = useEffectEvent((e: KeyboardEvent) => {
     const { game, ui, setUi, send } = match;

@@ -1,6 +1,7 @@
 import { PRIORITY_STEPS, STEPS, stepInfo } from '../model/phases';
 import type { GameView, PlayerId, StepId } from '../model/types';
 import { DEFAULT_STOPS, type StopPrefs } from './prefs';
+import { t } from '../i18n';
 
 /** One cell of the Stops editor. "mixed": the shared row while opponents differ. */
 export type StopCell = 'stop' | 'pass' | 'mixed';
@@ -87,7 +88,8 @@ export function nextStopLabel(game: GameView, stops: StopPrefs): string | undefi
   const at = nextStop(game, stops);
   if (!at) return undefined;
   const p = game.players.find((x) => x.id === at.playerId)!;
-  return `${p.id === game.youId ? 'your' : `${p.name}'s`} ${stepInfo(at.step).stopName}`;
+  const step = stepInfo(at.step).stopName;
+  return p.id === game.youId ? t('stops.yours', { step }) : t('stops.theirs', { name: p.name, step });
 }
 
 /** Hover text of a strip step: on whose turns the game stops there. */
@@ -97,11 +99,11 @@ export function stepHint(game: GameView, stops: StopPrefs, step: StepId): string
   const mine = has(stops.yourTurn, step);
   const theirs = sharedOpponentCell(stops, opponents, step);
   const theirTurns =
-    theirs === 'mixed' ? "some opponents' turns" : opponents.length === 1 ? "your opponent's turns" : "opponents' turns";
+    theirs === 'mixed' ? t('stops.someOpp') : opponents.length === 1 ? t('stops.oneOpp') : t('stops.allOpp');
   let where: string;
-  if (!mine && theirs === 'pass') where = 'the game passes this step for you unless something is on the stack';
-  else if (!mine) where = `the game stops here for you on ${theirTurns}, not on your turns`;
-  else if (theirs === 'pass') where = `the game stops here for you on your turns, not on ${theirTurns}`;
-  else where = `the game stops here for you on your turns and on ${theirTurns}`;
-  return `${name}: ${where}. Click to change.`;
+  if (!mine && theirs === 'pass') where = t('stops.passes');
+  else if (!mine) where = t('stops.onlyTheirs', { theirs: theirTurns });
+  else if (theirs === 'pass') where = t('stops.onlyYours', { theirs: theirTurns });
+  else where = t('stops.both', { theirs: theirTurns });
+  return t('stops.hint', { name, where });
 }

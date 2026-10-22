@@ -5,6 +5,7 @@
  * against the package's stylesheet and the reference sheet.
  */
 import type { CardKeyword } from '../model/types';
+import { tDynamic, t, type MsgKey } from '../i18n';
 
 /** Mana font class (without "ms-") → codepoint. */
 export const MANA_GLYPHS = {
@@ -47,13 +48,14 @@ const GROUP_ORDER: Group[] = ['evasion', 'combat', 'protection', 'other'];
 interface KeywordDef {
   glyph: ManaGlyph;
   group: Group;
-  line: string;
+  /** Catalogue key of the one-line explanation. */
+  line: MsgKey;
 }
 
-const hexproofFrom = (colour: 'white' | 'blue' | 'black' | 'red' | 'green'): KeywordDef => ({
+const hexproofFrom = (colour: 'white' | 'blue' | 'black' | 'red' | 'green', line: MsgKey): KeywordDef => ({
   glyph: `ability-hexproof-${colour}`,
   group: 'protection',
-  line: `Your opponents' ${colour} spells and abilities can't target it.`,
+  line,
 });
 
 /**
@@ -61,75 +63,75 @@ const hexproofFrom = (colour: 'white' | 'blue' | 'black' | 'red' | 'green'): Key
  * Giving a long-tail keyword its own icon later is one entry here.
  */
 const SET: Record<string, KeywordDef> = {
-  flying: { glyph: 'ability-flying', group: 'evasion', line: 'Can be blocked only by creatures with flying or reach.' },
-  menace: { glyph: 'ability-menace', group: 'evasion', line: "Can't be blocked except by two or more creatures." },
-  reach: { glyph: 'ability-reach', group: 'combat', line: 'Can block creatures with flying.' },
+  flying: { glyph: 'ability-flying', group: 'evasion', line: 'kw.flying' },
+  menace: { glyph: 'ability-menace', group: 'evasion', line: 'kw.menace' },
+  reach: { glyph: 'ability-reach', group: 'combat', line: 'kw.reach' },
   trample: {
     glyph: 'ability-trample',
     group: 'combat',
-    line: 'Excess combat damage carries over to the player, planeswalker or battle it attacks.',
+    line: 'kw.trample',
   },
-  deathtouch: { glyph: 'ability-deathtouch', group: 'combat', line: 'Any damage it deals to a creature destroys that creature.' },
+  deathtouch: { glyph: 'ability-deathtouch', group: 'combat', line: 'kw.deathtouch' },
   'first strike': {
     glyph: 'ability-first-strike',
     group: 'combat',
-    line: 'Deals combat damage before creatures without first strike.',
+    line: 'kw.firstStrike',
   },
   'double strike': {
     glyph: 'ability-double-strike',
     group: 'combat',
-    line: 'Deals both first-strike and regular combat damage.',
+    line: 'kw.doubleStrike',
   },
-  lifelink: { glyph: 'ability-lifelink', group: 'combat', line: 'Damage it deals also gains you that much life.' },
-  vigilance: { glyph: 'ability-vigilance', group: 'combat', line: "Attacking doesn't tap it." },
-  haste: { glyph: 'ability-haste', group: 'combat', line: 'Can attack and use {T} abilities the turn it arrives.' },
-  defender: { glyph: 'ability-defender', group: 'combat', line: "Can't attack." },
+  lifelink: { glyph: 'ability-lifelink', group: 'combat', line: 'kw.lifelink' },
+  vigilance: { glyph: 'ability-vigilance', group: 'combat', line: 'kw.vigilance' },
+  haste: { glyph: 'ability-haste', group: 'combat', line: 'kw.haste' },
+  defender: { glyph: 'ability-defender', group: 'combat', line: 'kw.defender' },
   toxic: {
     glyph: 'ability-toxic',
     group: 'combat',
-    line: 'Combat damage it deals to a player also gives them that many poison counters.',
+    line: 'kw.toxic',
   },
-  hexproof: { glyph: 'ability-hexproof', group: 'protection', line: "Your opponents' spells and abilities can't target it." },
-  'hexproof from white': hexproofFrom('white'),
-  'hexproof from blue': hexproofFrom('blue'),
-  'hexproof from black': hexproofFrom('black'),
-  'hexproof from red': hexproofFrom('red'),
-  'hexproof from green': hexproofFrom('green'),
-  indestructible: { glyph: 'ability-indestructible', group: 'protection', line: 'Damage and “destroy” effects don\'t destroy it.' },
+  hexproof: { glyph: 'ability-hexproof', group: 'protection', line: 'kw.hexproof' },
+  'hexproof from white': hexproofFrom('white', 'kw.hexproofWhite'),
+  'hexproof from blue': hexproofFrom('blue', 'kw.hexproofBlue'),
+  'hexproof from black': hexproofFrom('black', 'kw.hexproofBlack'),
+  'hexproof from red': hexproofFrom('red', 'kw.hexproofRed'),
+  'hexproof from green': hexproofFrom('green', 'kw.hexproofGreen'),
+  indestructible: { glyph: 'ability-indestructible', group: 'protection', line: 'kw.indestructible' },
   ward: {
     glyph: 'ability-ward',
     group: 'protection',
-    line: "Opponents' spells and abilities that target it are countered unless they pay the ward cost.",
+    line: 'kw.ward',
   },
   prowess: {
     glyph: 'ability-prowess',
     group: 'other',
-    line: 'Whenever you cast a noncreature spell, it gets +1/+1 until end of turn.',
+    line: 'kw.prowess',
   },
   exalted: {
     glyph: 'ability-exalted',
     group: 'other',
-    line: 'When a creature you control attacks alone, it gets +1/+1 until end of turn for each exalted.',
+    line: 'kw.exalted',
   },
   afflict: {
     glyph: 'ability-afflict',
     group: 'other',
-    line: 'Whenever it becomes blocked, the defending player loses that much life.',
+    line: 'kw.afflict',
   },
   afterlife: {
     glyph: 'ability-afterlife',
     group: 'other',
-    line: 'When it dies, create that many 1/1 white and black Spirit tokens with flying.',
+    line: 'kw.afterlife',
   },
   enlist: {
     glyph: 'ability-enlist',
     group: 'other',
-    line: "As it attacks, you may tap a creature that isn't attacking to add its power until end of turn.",
+    line: 'kw.enlist',
   },
   training: {
     glyph: 'ability-training',
     group: 'other',
-    line: 'Whenever it attacks with a creature with greater power, put a +1/+1 counter on it.',
+    line: 'kw.training',
   },
 };
 
@@ -212,14 +214,22 @@ export function iconKeywords(keywords: CardKeyword[]): KeywordIcon[] {
 
 /** One-line explanation: ours for the set, else the engine's reminder text. */
 export function keywordLine(k: CardKeyword): string | undefined {
-  return definition(k)?.line ?? k.reminder;
+  const def = definition(k);
+  return def ? tDynamic(def.line) : k.reminder;
 }
 
 /** "Granted by Swiftfoot Boots", plus "· until end of turn" when it wears off. */
 export function grantedText(k: CardKeyword): string | undefined {
   const g = k.grantedBy;
   if (!g) return undefined;
-  return `Granted by ${g.name}${g.untilEndOfTurn ? ' · until end of turn' : ''}`;
+  return t(g.untilEndOfTurn ? 'kw.grantedEot' : 'kw.granted', { name: g.name });
+}
+
+/** Screen-reader name of a keyword added by another card. */
+export function grantedAria(k: CardKeyword): string {
+  const g = k.grantedBy;
+  if (!g) return k.label;
+  return t(g.untilEndOfTurn ? 'kw.grantedAriaEot' : 'kw.grantedAria', { label: k.label, name: g.name });
 }
 
 /**

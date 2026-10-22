@@ -4,6 +4,7 @@ import { useMatch } from '../state/MatchContext';
 import type { UiState } from '../state/ui';
 import { ManaSymbol } from './ManaSymbol';
 import styles from './ManaChooser.module.css';
+import { t } from '../i18n';
 
 /** The open chooser, if the game still offers that source (it closes itself when the decision moves on). */
 export function liveManaChoice(game: GameView, ui: UiState): UiState['manaChoice'] {
@@ -51,13 +52,13 @@ export function ManaChooser() {
   }, [choice, setUi]);
 
   if (!choice) return null;
-  const name = game.cards[choice.cardId]?.name ?? 'this land';
+  const name = game.cards[choice.cardId]?.name ?? t('mana.thisLand');
   const pick = (colour: ManaColour) => {
     setUi({ manaChoice: undefined });
     send({ type: 'tapForMana', cardId: choice.cardId, colour });
   };
   return (
-    <div ref={ref} className={styles.chooser} role="menu" aria-label={`Choose the mana ${name} adds`}>
+    <div ref={ref} className={styles.chooser} role="menu" aria-label={t('mana.chooserAria', { name })}>
       {choice.colours.map((c, i) => (
         <Fragment key={c}>
           {i > 0 ? (
@@ -66,7 +67,7 @@ export function ManaChooser() {
             </span>
           ) : null}
           <button type="button" role="menuitem" className={styles.option} onClick={() => pick(c)}>
-            Add <ManaSymbol symbol={c} />
+            {t('mana.add')} <ManaSymbol symbol={c} />
             {i < 9 ? <kbd>{i + 1}</kbd> : null}
           </button>
         </Fragment>
