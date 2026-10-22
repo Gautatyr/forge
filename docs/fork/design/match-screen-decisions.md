@@ -79,6 +79,10 @@ Source: [ui-direction-memo.md](ui-direction-memo.md) (section 4, open questions)
 - **Rematch** on the end-of-game screen: yes, if the launcher can start the same match again.
 - **"Changed since your last decision" marker** on cards: yes; it is information, not a hint.
 
+## Ruling on the hover preview at small heights (2026-10-22)
+Source: PR #107 (parked) and its reviews.
+- At small window heights (e.g. 1366×768), when the rail cannot hold a readable hover preview and the full Stack and Combat panels, **the preview shows over the board instead of in the rail**, so the panels stay complete. At larger sizes the fixed spot (refined in PRs #52 and #103) is unchanged. The preview never shrinks to an unreadable thumbnail.
+
 ## Language (2026-10-15)
 - The match screen is switchable between **English and French**: UI text, keyword explanations, card names and text, and card images where Scryfall has French printings.
 - Forge already ships the data: `forge-gui/res/languages/fr-FR.properties` (UI strings) and `forge-gui/res/languages/cardnames-fr-FR.txt` (card names and text).
