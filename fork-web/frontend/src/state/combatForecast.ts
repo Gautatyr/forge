@@ -5,6 +5,7 @@
  */
 import type { Block, CardId, CardView, GameView } from '../model/types';
 import { t } from '../i18n';
+import { nameOfCard } from '../model/selectors';
 
 const has = (c: CardView, keyword: string) => c.keywords.some((k) => k.name.toLowerCase() === keyword);
 
@@ -87,6 +88,6 @@ export function incomingText(game: GameView, f: Incoming): string {
   const onYou = f.onYou > 0;
   if (!(onCards || poison) || (onYou && (f.you.max > 0 || !poison))) parts.push(t('fc.take', { amount: amount(f.you) }));
   if (poison) parts.push(t('fc.poison', { amount: amount(f.poison), count: f.poison.max }));
-  for (const c of f.cards) parts.push(t('fc.cardTakes', { name: game.cards[c.cardId]?.name ?? t('fc.yourPermanent'), amount: amount(c.damage) }));
+  for (const c of f.cards) parts.push(t('fc.cardTakes', { name: nameOfCard(game, c.cardId) ?? t('fc.yourPermanent'), amount: amount(c.damage) }));
   return parts.join(' · ');
 }

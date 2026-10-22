@@ -114,7 +114,8 @@ public class SeatLanguageTest {
     public void nothingFrenchReachesEnglishViewersOrHiddenCards() {
         for (ClientModel c : List.of(en, spectator)) {
             for (String word : List.of("Foudre", "Elfes de Llanowar", "Éphémère", "Grizzlis", "Créature", "Local")) {
-                assertFalse(c.allText().contains(word), "English viewer got " + word);
+                // the hello's schema names the Local* properties for every viewer; no object carries one
+                assertFalse(c.allText().replaceAll("\"Local(Name|Type|OracleText)\":\"string\"", "").contains(word), "English viewer got " + word);
             }
         }
         // the French seat's view of the opponent's hand-held or face-down card names nothing, in either language

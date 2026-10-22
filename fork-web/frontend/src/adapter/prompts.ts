@@ -12,6 +12,7 @@ import { engineText, unlessChoice, unlessEffect } from './engineText';
 import { colourOptions, isSurveil, numberList, pickedNumber, rangeOfNumberPrompt, surveilWords } from './trayWords';
 import { londonLeft, type InputState } from './session';
 import { t } from '../i18n';
+import { cardName, nameOfCard } from '../model/selectors';
 
 /** View-model id of a wire prompt. */
 export const promptViewId = (id: number) => `prompt:${id}`;
@@ -184,7 +185,8 @@ export function promptToChoice(p: PromptMessage, cards: Record<string, CardView>
               ...(defender ? { trampleId: String(defender.i) } : {}),
             }
           : undefined;
-      const name = sourceCardId ? cards[sourceCardId]?.name : undefined;
+      const source = sourceCardId ? cards[sourceCardId] : undefined;
+      const name = source && cardName(source);
       return {
         id,
         shape: 'distribute',
@@ -334,7 +336,7 @@ export function inputToChoice(input: InputState, view: Pick<GameView, 'players' 
     const hand = you?.hand ?? [];
     return n === 0
       ? undefined
-      : bottomPrompt(hand, n, (id) => view.cards[id]?.name ?? t('prompt.card'), `${INPUT_PROMPT_PREFIX}bottom:${n}:${hand.join(',')}`);
+      : bottomPrompt(hand, n, (id) => nameOfCard(view, id) ?? t('prompt.card'), `${INPUT_PROMPT_PREFIX}bottom:${n}:${hand.join(',')}`);
   }
   const base = { ...promptWords(msg, undefined, t('prompt.yourDecision')), sourceCardId };
   const key = `${input.ok.label}|${input.cancel.label}|${msg}`;

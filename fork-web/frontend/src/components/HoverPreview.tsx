@@ -1,4 +1,4 @@
-import { currentFace, shownFace } from '../model/selectors';
+import { cardName, currentFace, shownFace } from '../model/selectors';
 import { cardStatus } from '../state/cardStatus';
 import { useMatch } from '../state/MatchContext';
 import { CardArt } from './CardArt';
@@ -42,7 +42,7 @@ export function HoverPreview() {
   if (added.length) notes.push(t('hp.has', { names: added.join(', ') }));
   if (s.targetedBy.length) notes.push(t('card.targetedBy', { names: s.targetedBy.join(', ') }));
   notes.push(...linkNotes(game, c));
-  if (c.attachments.length) notes.push(t('hp.attached', { names: c.attachments.map((a) => game.cards[a]?.name).join(', ') }));
+  if (c.attachments.length) notes.push(t('hp.attached', { names: c.attachments.map((a) => (game.cards[a] ? cardName(game.cards[a]!) : undefined)).join(', ') }));
 
   return (
     <div className={spot === 'rail' ? styles.preview : `${styles.preview} ${styles[spot]}`} aria-hidden>

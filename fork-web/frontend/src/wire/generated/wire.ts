@@ -933,6 +933,9 @@ export const PROPERTY_KINDS = {
   Object: 'object',
   RevealedCardsCollection: 'cards',
   Dependencies: 'string',
+  LocalName: 'string',
+  LocalType: 'string',
+  LocalOracleText: 'string',
 } as const satisfies Record<string, WireKind>;
 
 export type PropertyName = keyof typeof PROPERTY_KINDS;
@@ -1155,6 +1158,9 @@ export interface WireProps {
   Object?: unknown;
   RevealedCardsCollection?: CardId[];
   Dependencies?: string;
+  LocalName?: string;
+  LocalType?: string;
+  LocalOracleText?: string;
 }
 
 /** Properties of `game` objects (GameView). */
@@ -1343,6 +1349,7 @@ export interface CardProps {
   CantHaveKeyword?: string[];
   Stickers?: string;
   Object?: unknown;
+  LocalName?: string;
 }
 
 /** Properties of `cardState` objects (CardStateView). */
@@ -1375,6 +1382,9 @@ export interface CardStateProps {
   AbilityText?: string;
   HasDivideDamage?: boolean;
   FoilIndex?: number;
+  LocalName?: string;
+  LocalType?: string;
+  LocalOracleText?: string;
 }
 
 /** Properties of `stackItem` objects (StackItemView). */

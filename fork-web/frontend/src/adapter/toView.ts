@@ -34,7 +34,7 @@ import { engineLog, engineText, targetInstruction } from './engineText';
 import { parseImageKey, scryfallLookup, type ImageLookup } from './images';
 import { cancelValue, freeMulliganKeep, promptToChoice, promptWords, inputToChoice, SELECT_PROMPT_PREFIX, targetKey, tossChooser } from './prompts';
 import { tossTitle } from '../state/gameStart';
-import { commanderTax, defendingPlayerOf } from '../model/selectors';
+import { cardName, commanderTax, defendingPlayerOf } from '../model/selectors';
 import { revealWords } from './revealWords';
 import type { LiveSession } from './session';
 import { t, tDynamic, type MsgKey } from '../i18n';
@@ -125,6 +125,10 @@ function face(p: CardStateProps, fallbackName: string, back: boolean, images: Im
     oracleText: cleanText(p.OracleText || p.AbilityText),
     image: imageFromKey(p.ImageKey, back, images, p.Name),
   };
+  // Translations (issue #3): display only, the English fields above stay what the logic reads.
+  if (p.LocalName) f.localName = p.LocalName;
+  if (p.LocalType) f.localTypeLine = typeLineOf(p.LocalType);
+  if (p.LocalOracleText) f.localOracleText = cleanText(p.LocalOracleText);
   if (creature) {
     f.power = String(p.Power ?? 0);
     f.toughness = String(p.Toughness ?? 0);
@@ -215,6 +219,7 @@ export function mapCard(s: LiveSession, id: number, images: ImageLookup = scryfa
   const seen = faceDown && original !== undefined && original !== cur;
   const downName = cur.props.Name || t('view.faceDown');
   const name = seen ? original.props.Name || cp.Name || '?' : faceDown ? downName : cp.Name || cur.props.Name || '?';
+  const localName = seen ? original.props.LocalName || cp.LocalName : faceDown ? cur.props.LocalName : cp.LocalName || cur.props.LocalName;
   const front = face(frontState.props, name, false, images);
   const back = backState && backState !== frontState ? face(backState.props, faceDown ? downName : name, true, images) : undefined;
   const transformed = backState === cur && back !== undefined;
@@ -227,6 +232,7 @@ export function mapCard(s: LiveSession, id: number, images: ImageLookup = scryfa
   return {
     id: sid(id),
     name,
+    ...(localName ? { localName } : {}),
     front,
     back,
     transformed,
@@ -354,10 +360,11 @@ function declareBlockers(s: LiveSession, view: Omit<GameView, 'decision'>, comba
 /** A target as a tray option: a card shows its image, a player its plate, a stack item its source and text. */
 function targetOption(view: Omit<GameView, 'decision'>, t: TargetRef): ChoiceOption {
   const id = targetKey(t);
-  if (t.kind === 'card') return { id, label: view.cards[t.id]!.name, cardId: t.id };
+  if (t.kind === 'card') return { id, label: cardName(view.cards[t.id]!), cardId: t.id };
   if (t.kind === 'player') return { id, label: view.players.find((p) => p.id === t.id)!.name, playerId: t.id };
   const item = view.stack.find((it) => it.id === t.id)!;
-  const name = view.cards[item.sourceCardId]?.name;
+  const source = view.cards[item.sourceCardId];
+  const name = source && cardName(source);
   const label = name ? (item.kind === 'spell' ? name : `${name} (${tDynamic(`rail.kind.${item.kind}` as MsgKey)})`) : item.text;
   return { id, label, ...(name && item.text ? { detail: item.text } : {}) };
 }
@@ -445,7 +452,7 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
         confirmLabel: input.ok.label || 'OK',
         min: 0,
         max: 0,
-        options: shown.map((id) => ({ id, label: view.cards[id]!.name, cardId: id })),
+        options: shown.map((id) => ({ id, label: cardName(view.cards[id]!), cardId: id })),
       },
     };
   }

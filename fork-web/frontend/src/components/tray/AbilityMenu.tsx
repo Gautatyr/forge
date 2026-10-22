@@ -6,6 +6,7 @@ import { ManaCost } from '../ManaCost';
 import { anchorMenu } from './trayLogic';
 import styles from './AbilityMenu.module.css';
 import { t } from '../../i18n';
+import { cardName } from '../../model/selectors';
 
 /**
  * Which ability (or face) to use, anchored to its card (design pass 4 P2):
@@ -51,7 +52,7 @@ export function AbilityMenu({ prompt }: { prompt: ChooseNPrompt }) {
   return (
     <div ref={ref} className={styles.menu} role="menu" aria-label={prompt.title}>
       <header className={styles.head}>
-        <span className={styles.title}>{source?.name ?? prompt.title}</span>
+        <span className={styles.title}>{source ? cardName(source) : prompt.title}</span>
         {source ? <span className={styles.sub}>{prompt.title}</span> : null}
       </header>
       {prompt.options.map((o, i) => (

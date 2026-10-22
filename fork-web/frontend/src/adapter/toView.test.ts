@@ -3,6 +3,7 @@ import type { CallMessage, WireObject } from '../wire/generated/wire';
 import { autoAnswer, intentToFrames, stopFrames } from './commands';
 import { LiveSession } from './session';
 import { imageFromKey, logText, parseKeyword, passUntilYourTurnDone, toGameView } from './toView';
+import { cardName, faceName, faceText, faceType, isCreature, targetName, typeLine } from '../model/selectors';
 
 const ALIAS = 2 ** 30;
 
@@ -1012,5 +1013,42 @@ describe('payment, mana sources, "To my turn"', () => {
     expect(passUntilYourTurnDone(g, 5)).toBe(false);
     expect(passUntilYourTurnDone({ ...g, turn: { ...g.turn, number: 6, activePlayerId: '1' } }, 5)).toBe(false);
     expect(passUntilYourTurnDone({ ...g, turn: { ...g.turn, number: 9 } }, 5)).toBe(true);
+  });
+});
+
+describe('translations (issue #3)', () => {
+  function french(): LiveSession {
+    const s = session();
+    s.apply({
+      t: 'delta', game: 1, seq: 1, ts: 0, new: [], removed: [], log: [], events: [],
+      changed: [
+        { type: 'card', id: 10, props: { LocalName: 'Grizzli' } },
+        { type: 'cardState', id: 10, state: 'Original', props: { LocalName: 'Grizzli', LocalType: 'Créature - Ours', LocalOracleText: 'Piétinement\r\nTexte' } },
+      ],
+    });
+    return s;
+  }
+
+  it('carries LocalName / LocalType / LocalOracleText beside the English fields, for display only', () => {
+    const c = toGameView(french()).cards['10']!;
+    expect(c).toMatchObject({ name: 'Grizzly Bears', localName: 'Grizzli', front: { name: 'Grizzly Bears', typeLine: 'Creature — Bear', localName: 'Grizzli', localTypeLine: 'Créature — Ours', localOracleText: 'Piétinement\nTexte' } });
+    expect([cardName(c), faceName(c.front), faceType(c.front), faceText(c.front)]).toEqual(['Grizzli', 'Grizzli', 'Créature — Ours', 'Piétinement\nTexte']);
+    // logic still reads the English type line and the P/T
+    expect(typeLine(c)).toBe('Creature — Bear');
+    expect(isCreature(c)).toBe(true);
+    expect(c).toMatchObject({ power: 4, toughness: 4 });
+  });
+
+  it('shows the English fields when no translation was sent', () => {
+    const c = toGameView(session()).cards['10']!;
+    expect(c.localName).toBeUndefined();
+    expect(c.front.localName).toBeUndefined();
+    expect([cardName(c), faceName(c.front), faceType(c.front)]).toEqual(['Grizzly Bears', 'Grizzly Bears', 'Creature — Bear']);
+  });
+
+  it('names a target with the translated name', () => {
+    const g = toGameView(french());
+    expect(targetName(g, { kind: 'card', id: '10' })).toBe('Grizzli');
+    expect(targetName(toGameView(session()), { kind: 'card', id: '10' })).toBe('Grizzly Bears');
   });
 });

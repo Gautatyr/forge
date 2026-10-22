@@ -1,7 +1,7 @@
 import type { Intent, PromptAnswer } from '../model/intents';
 import { stepInfo } from '../model/phases';
 import { parseCost, poolTotal } from '../model/mana';
-import { player, targetName, you } from '../model/selectors';
+import { nameOfCard, player, targetName, you } from '../model/selectors';
 import type { ChoicePrompt, GameView, StepId } from '../model/types';
 import { distributeConfirm, inputConfirm, inputStart, startAmounts } from '../components/tray/numberLogic';
 import { trayConfirm, trayDraft } from '../components/tray/trayLogic';
@@ -68,7 +68,7 @@ export function primaryAction(game: GameView, ui: UiState, stops: StopPrefs): Pr
     case 'priority': {
       const top = game.stack.at(-1);
       if (top) {
-        const name = game.cards[top.sourceCardId]?.name ?? t('pa.topItem');
+        const name = nameOfCard(game, top.sourceCardId) ?? t('pa.topItem');
         return {
           label: t('pa.resolve'),
           detail: t('pa.resolveDetail', { name }),
@@ -91,7 +91,7 @@ export function primaryAction(game: GameView, ui: UiState, stops: StopPrefs): Pr
       };
     }
     case 'chooseTargets': {
-      const name = game.cards[d.sourceCardId]?.name ?? t('pa.spell');
+      const name = nameOfCard(game, d.sourceCardId) ?? t('pa.spell');
       if (d.purpose === 'pick') return pickAction(game, d);
       const ready = d.chosen.length >= d.min;
       const label =
@@ -131,7 +131,7 @@ export function primaryAction(game: GameView, ui: UiState, stops: StopPrefs): Pr
       };
     }
     case 'payMana': {
-      const taps = d.autoTaps.map((id) => game.cards[id]?.name ?? '?').join(', ');
+      const taps = d.autoTaps.map((id) => nameOfCard(game, id) ?? '?').join(', ');
       // Auto-pay never sacrifices or pays life (issue #66). Without it, a source per symbol left (at least one mana
       // each) or life may still pay: the player pays by hand.
       const left = parseCost(d.remaining);
@@ -241,7 +241,7 @@ export function promptText(game: GameView): string {
     case 'priority': {
       const top = game.stack.at(-1);
       if (top) {
-        const card = game.cards[top.sourceCardId]?.name ?? t('pa.spell');
+        const card = nameOfCard(game, top.sourceCardId) ?? t('pa.spell');
         return top.controllerId === game.youId
           ? t('prompt.topYours', { card })
           : t('prompt.topTheirs', { who: player(game, top.controllerId).name, card });
@@ -253,7 +253,7 @@ export function promptText(game: GameView): string {
     }
     case 'chooseTargets': {
       if (d.tapToPay) return `${d.instruction}.`;
-      const name = game.cards[d.sourceCardId]?.name;
+      const name = nameOfCard(game, d.sourceCardId);
       if (d.purpose === 'pick') return `${name ? `${name}: ` : ''}${d.instruction.replace(/\.$/, '')}.`;
       return t('prompt.forSpell', { instruction: d.instruction, name: name ?? t('prompt.thisSpell') });
     }

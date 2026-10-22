@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type FocusEvent, type MouseEvent } from 'react';
-import { currentFace, isCreature, shownFace } from '../model/selectors';
+import { currentFace, faceName, isCreature, shownFace } from '../model/selectors';
 import type { CardView } from '../model/types';
 import { useCardClick } from '../state/cardClick';
 import type { CardStatus } from '../state/cardStatus';
@@ -147,7 +147,7 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
   const avoid = { [KW_AVOID_ATTR]: '' };
 
   const label = [
-    face.name,
+    faceName(face),
     c.faceDown?.seen ? (c.faceDown.foretold ? t('card.foretoldFaceDown') : t('card.faceDown')) : '',
     count > 1 ? t('card.ofThem', { count }) : '',
     // Groups split into chosen and not chosen: the state is in the name, not only in the ring (playtest 1 #16).
@@ -214,7 +214,7 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
               }
             />
           ) : (
-            <span className={styles.noImage}>{face.name}</span>
+            <span className={styles.noImage}>{faceName(face)}</span>
           )}
         </span>
 
@@ -292,7 +292,7 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
       </button>
       {nameLabel ? (
         <span className={styles.nameLabel} aria-hidden>
-          {face.name}
+          {faceName(face)}
         </span>
       ) : null}
       {onBoard && c.zone === 'battlefield' ? (

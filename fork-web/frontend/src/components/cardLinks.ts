@@ -1,5 +1,6 @@
 import type { CardLinkKind, CardView, GameView } from '../model/types';
 import { t } from '../i18n';
+import { nameOfCard } from '../model/selectors';
 
 /** Getters: the labels follow the current language. */
 export const LINK_LABEL: Record<CardLinkKind, string> = {
@@ -29,7 +30,7 @@ export const LINK_LABEL: Record<CardLinkKind, string> = {
 /** One line per link of a card: "Imprinted: Dragon", "Exiled with: Mimic Vat". Only cards this viewer can see. */
 export function linkNotes(game: GameView, c: CardView): string[] {
   return (c.links ?? []).flatMap((l) => {
-    const names = l.cardIds.flatMap((id) => game.cards[id]?.name ?? []);
+    const names = l.cardIds.flatMap((id) => nameOfCard(game, id) ?? []);
     return names.length ? [t('link.note', { label: LINK_LABEL[l.kind], names: names.join(', ') })] : [];
   });
 }

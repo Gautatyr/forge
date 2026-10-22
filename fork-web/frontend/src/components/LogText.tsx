@@ -5,6 +5,7 @@ import { ManaSymbol } from './ManaSymbol';
 import { previewBeside } from './previewSpot';
 import styles from './LogText.module.css';
 import { t } from '../i18n';
+import { cardName } from '../model/selectors';
 
 /** Renders log text; {card:<id>} tokens become hoverable card names, {R} / {2} mana symbols. */
 export function LogText({ text }: { text: string }) {
@@ -22,7 +23,7 @@ export function LogText({ text }: { text: string }) {
         }
         const id = part.id;
         const c = game.cards[id];
-        const name = c?.name ?? 'a card';
+        const name = c ? cardName(c) : 'a card';
         const show = (e: PointerEvent<HTMLElement>) => {
           if (c) setUi({ hover: { cardId: id, beside: previewBeside(e.currentTarget) } });
         };

@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { nameLabel } from '../model/selectors';
+import { nameLabel, nameOfCard } from '../model/selectors';
 import type { Attack, MulliganState, PlayerView } from '../model/types';
 import { playerTargetSpot, spotlightItem } from '../state/cardStatus';
 import { mulliganTag, turnPlayerId } from '../state/gameStart';
@@ -57,7 +57,7 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
   const clickable = legalTarget || defenderPick || choice !== undefined;
   const onActivate = () => (choice ? pickInPlace({ kind: 'player', id: p.id }) : activatePlayer(p.id));
   const stackSpot = playerTargetSpot(game, ui, p.id);
-  const spotSource = stackSpot ? game.cards[spotlightItem(game, ui)?.sourceCardId ?? '']?.name : undefined;
+  const spotSource = stackSpot ? nameOfCard(game, spotlightItem(game, ui)?.sourceCardId ?? '') : undefined;
 
   const zoneChip = (zone: ViewableZone | 'hand' | 'library', icon: IconName, label: string, n: number) => {
     const viewable = zone === 'graveyard' || zone === 'exile';

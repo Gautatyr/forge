@@ -25,6 +25,13 @@ export interface CardFace {
   manaCost: string;
   typeLine: string;
   oracleText: string;
+  /**
+   * The viewer's-language name, type line and rules text (issue #3), when the bridge sent them. Display only (see
+   * `faceName`, `faceType`, `faceText`): logic reads the English fields above.
+   */
+  localName?: string;
+  localTypeLine?: string;
+  localOracleText?: string;
   power?: string;
   toughness?: string;
   loyalty?: string;
@@ -69,6 +76,8 @@ export interface CardView {
   id: CardId;
   /** Name of the face currently shown. */
   name: string;
+  /** Its name in the viewer's language, when the bridge sent one: display only (`cardName`). */
+  localName?: string;
   front: CardFace;
   /** Second face of a transforming or modal double-faced card. */
   back?: CardFace;

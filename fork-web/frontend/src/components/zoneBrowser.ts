@@ -25,6 +25,6 @@ export function zoneBrowserCards(game: GameView, playerId: PlayerId, zone: Viewa
   return zoneCardIds(game, playerId, zone).filter((id) => {
     const c = game.cards[id];
     if (!c) return false;
-    return !q || c.name.toLowerCase().includes(q) || typeLine(c).toLowerCase().includes(q);
+    return !q || c.name.toLowerCase().includes(q) || (c.localName ?? '').toLowerCase().includes(q) || typeLine(c).toLowerCase().includes(q);
   });
 }

@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { commanderTax, currentFace, isCreature, player } from '../model/selectors';
+import { cardName, commanderTax, currentFace, faceName, faceText, faceType, isCreature, player } from '../model/selectors';
 import type { CardFace } from '../model/types';
 import { useMatch } from '../state/MatchContext';
 import { Card } from './Card';
@@ -38,9 +38,9 @@ export function Inspector() {
   const printedT = Number(face.toughness) || 0;
 
   return (
-    <aside className={styles.inspector} aria-label={t('ins.aria', { name: c.name })}>
+    <aside className={styles.inspector} aria-label={t('ins.aria', { name: cardName(c) })}>
       <header className={styles.head}>
-        <h2>{c.name}</h2>
+        <h2>{cardName(c)}</h2>
         <button type="button" className={styles.close} onClick={() => setUi({ inspectId: undefined })}>
           <Icon name="close" /> {t('ins.close')} <kbd>{t('key.esc')}</kbd>
         </button>
@@ -50,7 +50,7 @@ export function Inspector() {
         <div className={styles.faces}>
           {faces.map((f) => (
             <figure key={f.label} className={styles.face}>
-              {f.face.image ? <CardArt key={f.face.image.large} image={f.face.image} size="large" alt={f.face.name} /> : null}
+              {f.face.image ? <CardArt key={f.face.image.large} image={f.face.image} size="large" alt={faceName(f.face)} /> : null}
               {c.back ? (
                 <figcaption>
                   {f.label}
@@ -65,10 +65,10 @@ export function Inspector() {
           {faces.map((f) => (
             <section key={f.label} className={styles.text}>
               <h3>
-                {f.face.name} <ManaCost cost={f.face.manaCost} />
+                {faceName(f.face)} <ManaCost cost={f.face.manaCost} />
               </h3>
-              <p className={styles.type}>{f.face.typeLine}</p>
-              {f.face.oracleText.split('\n').map((line, i) => (
+              <p className={styles.type}>{faceType(f.face)}</p>
+              {faceText(f.face).split('\n').map((line, i) => (
                 <p key={i}>{line}</p>
               ))}
             </section>
