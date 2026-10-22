@@ -77,10 +77,22 @@ final class TriggerAudit {
             } finally {
                 audit.inPut = false;
             }
+            // the trigger itself first: one trigger of one host can fire several times at once (Scrap Trawler, issue
+            // #63), and a look-alike match could pair the one cast with an instance that had no legal target
             List<SpellAbility> casts = new ArrayList<>(audit.putting);
+            List<SpellAbility> castFor = new ArrayList<>();
             for (SpellAbility t : triggers) {
-                SpellAbility cast = casts.stream().filter(c -> same(c, t)).findFirst().orElse(null);
+                SpellAbility cast = casts.stream().filter(c -> c == t).findFirst().orElse(null);
                 casts.remove(cast);
+                castFor.add(cast);
+            }
+            for (int i = 0; i < triggers.size(); i++) {
+                SpellAbility t = triggers.get(i);
+                SpellAbility cast = castFor.get(i);
+                if (cast == null) {
+                    cast = casts.stream().filter(c -> same(c, t)).findFirst().orElse(null);
+                    casts.remove(cast);
+                }
                 audit.handed(t, cast);
             }
         }
