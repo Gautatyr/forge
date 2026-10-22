@@ -58,6 +58,9 @@ export function intentToFrames(intent: Intent, s: LiveSession, view: GameView): 
       return [action('useMana', { color: COLOUR_MASK[intent.colour] })];
     case 'payAuto':
       return [action('selectButtonOk')];
+    case 'payLife':
+      // InputPayManaOfCostPayment: a click on your own player pays 2 life for one Phyrexian symbol.
+      return [selectPlayer(view.youId)];
     case 'undoTap':
       return [];
     case 'toggleTarget':

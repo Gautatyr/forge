@@ -27,6 +27,8 @@ export type Intent =
   | { type: 'spendPool'; colour: ManaColour }
   /** While paying: pay the rest automatically (floating mana first, then untapped sources). */
   | { type: 'payAuto' }
+  /** While paying: pay 2 life for one Phyrexian mana symbol. */
+  | { type: 'payLife' }
   /** While paying: undo the last tap or pool spend (Z). */
   | { type: 'undoTap' }
   /** Toggle a target while the decision is chooseTargets. */

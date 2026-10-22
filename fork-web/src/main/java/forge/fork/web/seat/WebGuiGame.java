@@ -1,15 +1,20 @@
 package forge.fork.web.seat;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
+import forge.game.card.Card;
 import forge.game.card.CardView;
 import forge.game.event.GameEvent;
 import forge.game.player.PlayerView;
 import forge.game.spellability.SpellAbilityView;
+import forge.gamemodes.match.Selection;
 import forge.gamemodes.match.input.Input;
 import forge.gamemodes.match.input.InputAttack;
 import forge.gamemodes.match.input.InputBlock;
+import forge.gamemodes.match.input.InputSelectEntitiesFromList;
+import forge.gamemodes.match.input.InputSelectManyBase;
 import forge.gamemodes.match.input.InputSynchronized;
 import forge.gamemodes.net.ProtocolGuiGame;
 import forge.interfaces.IGameController;
@@ -32,6 +37,8 @@ public final class WebGuiGame extends ProtocolGuiGame {
     private volatile PlayerControllerHuman human;
     /** The input {@link #stopIfOut} stopped last (game thread only). */
     private Input stopped;
+    /** The card-picking input whose cards {@link #setSelection} added, until it ends. */
+    private volatile Input lit;
 
     WebGuiGame(SeatSession session) {
         super(session);
@@ -156,8 +163,45 @@ public final class WebGuiGame extends ProtocolGuiGame {
             pch.getInputQueue().addObserver((o, arg) -> {
                 if (ThreadUtil.isGameThread()) {
                     session.flush();
+                    if (lit != null && lit != pch.getInputQueue().getInput()) {
+                        // the input that took the lit cards ended: its stop() sent its selection while still current
+                        lit = null;
+                        super.setSelection(Selection.ofChosen(pch.getKeptMarks()));
+                    }
                 }
             });
         }
+    }
+
+    /**
+     * {@code InputSelectCardsForConvokeOrImprovise} (convoke, improvise, waterbend) and
+     * {@code HumanCostDecision.InputSelectCardToRemoveCounter} pick cards to pay a cost, but their selection names only
+     * what is chosen ({@code InputSelectManyBase.getSelection}); the desktop lets the player click any card and says
+     * what a click does ({@code getActivateAction}). Add the cards they take now to each selection they send (issue
+     * #70); {@code InputSelectEntitiesFromList} names its own. Their {@code stop()} sends its selection while still the
+     * current input: the input queue observer clears the cards once it is gone.
+     */
+    @Override
+    public void setSelection(final Selection selection) {
+        super.setSelection(withCostPicks(selection));
+    }
+
+    private Selection withCostPicks(final Selection selection) {
+        PlayerControllerHuman pch = human;
+        if (pch == null || !selection.cards().isEmpty() || !selection.targets().isEmpty()
+                || !(pch.getInputQueue().getInput() instanceof InputSelectManyBase<?> in) || in instanceof InputSelectEntitiesFromList<?>) {
+            return selection;
+        }
+        List<CardView> cards = new ArrayList<>();
+        for (Card c : pch.getGame().getCardsInGame()) {
+            if (in.getActivateAction(c) != null) {
+                cards.add(c.getView());
+            }
+        }
+        if (cards.isEmpty()) {
+            return selection;
+        }
+        lit = in;
+        return new Selection(cards, 0, cards.size(), selection.targets(), selection.chosen());
     }
 }

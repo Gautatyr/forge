@@ -1055,6 +1055,8 @@ function applyOne(prev: MockGame, intent: Intent): MockGame {
       if (d.kind !== 'payMana' || !g.casting) return prev;
       return payAutomatically(g, g.casting) ? g : prev;
     }
+    case 'payLife':
+      return prev; // no Phyrexian mana in the mock
     case 'undoTap': {
       const cast = g.casting;
       const step = cast?.steps.pop();
