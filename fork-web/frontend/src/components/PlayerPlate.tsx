@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { nameLabel } from '../model/selectors';
 import type { Attack, MulliganState, PlayerView } from '../model/types';
 import { playerTargetSpot, spotlightItem } from '../state/cardStatus';
 import { mulliganTag, turnPlayerId } from '../state/gameStart';
@@ -162,7 +163,7 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
           <span className={styles.glyph}>
             <SeatGlyph seat={p.seat} />
           </span>
-          <span className={styles.name}>{p.isYou ? `${p.name} (you)` : p.name}</span>
+          <span className={styles.name}>{nameLabel(p)}</span>
           {onExpand ? (
             <button
               type="button"

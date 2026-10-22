@@ -10,6 +10,7 @@ import {
   inputStart,
   leftToAssign,
   rangeText,
+  rowNote,
   startAmounts,
   stepAmount,
   fitHeight,
@@ -110,6 +111,18 @@ describe('combat damage assignment', () => {
 });
 
 const xPrompt: InputPrompt = { ...base, shape: 'input', kind: 'number', min: 0, max: 7, defaultValue: '7', confirmLabel: 'Continue to payment' };
+
+describe('row notes', () => {
+  const dt: DistributePrompt = { ...combat, combat: { attackerId: 'knight', deathtouch: true, trampleId: 'ana' } };
+  const row = (id: string) => dt.recipients.find((r) => r.id === id)!;
+  it('names deathtouch on a creature only, and a player row by their life (pass 2 #2)', () => {
+    expect(rowNote(dt, { ...row('elder'), lethal: 1 }, false, true)).toBe('Lethal 1 · deathtouch');
+    expect(rowNote(dt, { ...row('ana'), lethal: 18 }, false, false)).toBe('Life 18');
+    // a planeswalker defender: lethal is its loyalty, deathtouch does not apply
+    expect(rowNote(dt, { id: 'jace', label: 'Jace', cardId: 'jace', lethal: 4 }, false, false)).toBe('Lethal 4');
+    expect(rowNote(dt, row('ana'), true, false)).toBe('Assign lethal damage to every blocker first');
+  });
+});
 
 describe('number', () => {
   it("opens on the engine's default and shows the range", () => {

@@ -2,7 +2,7 @@
  * Players leaving and the end of the game (design pass 4 §2.6): the words,
  * the ranking, who just went out, and which game-end view is open.
  */
-import { opponents, player, you } from '../model/selectors';
+import { nameLabel, opponents, player, you } from '../model/selectors';
 import type { GameView, OutReason, PlayerId, PlayerView } from '../model/types';
 import type { UiState } from './ui';
 
@@ -64,7 +64,7 @@ export function rankingRows(game: GameView): RankRow[] {
       playerId: id,
       seat: p.seat,
       ordinal: ordinal(i + 1),
-      name: p.isYou ? `${p.name} (you)` : p.name,
+      name: nameLabel(p),
       detail: p.out ? `turn ${p.out.turn}, ${outReasonText(p.out.reason, { short: true })}` : '',
     };
   });
