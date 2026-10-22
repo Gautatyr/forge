@@ -113,7 +113,7 @@ export function useLive(config: SourceConfig, stops: StopPrefs = DEFAULT_STOPS, 
     if (!source.session.gameObject?.props.Players?.length) {
       return placeholderView(source.status === 'open' ? t('live.waitStart') : t('live.connecting'));
     }
-    return toGameView(source.session, lookup, { ...local, autoPay });
+    return toGameView(source.session, lookup, local, autoPay);
     // version / imagesVersion track every session and image change
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config, source, error, version, imagesVersion, lookup, local, autoPay, language]);

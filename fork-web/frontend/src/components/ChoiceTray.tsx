@@ -49,6 +49,7 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
   // The tray may grow to the height of your board (the opponents keep theirs).
   const yourShare = opponents(game).length === 1 ? 50 : 100 - prefs.opponentShare;
   const barRef = useRef<HTMLDivElement>(null);
+  const trayRef = useRef<HTMLDivElement>(null);
 
   // The in-place bar sits at the bottom centre of your board; when that covers
   // an option, it takes the corner of your board that covers the fewest.
@@ -98,6 +99,78 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
     };
     place();
     return () => cancelAnimationFrame(frame);
+  });
+
+  // The tray keeps the cards the prompt is about (its source, the sources of the triggers to order, listed
+  // permanents) in view: when its usual place over your board covers one, it docks over the hand instead (CSS
+  // `data-dock`), or to a side; Peek still shows everything.
+  useLayoutEffect(() => {
+    const el = trayRef.current;
+    const area = el?.offsetParent;
+    if (!el || !(area instanceof HTMLElement)) return;
+    const ids = new Set<string>();
+    if (prompt.sourceCardId) ids.add(prompt.sourceCardId);
+    const lists = prompt.shape === 'order' ? prompt.lists.map((l) => l.items) : prompt.shape === 'chooseN' ? [prompt.options] : [];
+    for (const o of lists.flat()) if (o.cardId) ids.add(o.cardId);
+    const onBoard = [...ids].filter((id) => game.cards[id]?.zone === 'battlefield');
+    if (onBoard.length === 0) return;
+    // The listed cards the tray overlaps now.
+    const hits = () => {
+      const b = el.getBoundingClientRect();
+      return onBoard.flatMap((id) =>
+        [...area.querySelectorAll(`[data-card-id="${CSS.escape(id)}"]`)]
+          .filter((c) => !el.contains(c))
+          .map((c) => c.getBoundingClientRect())
+          .filter((r) => r.bottom > b.top && r.top < b.bottom && r.right > b.left && r.left < b.right),
+      );
+    };
+    const covered = () => hits().length;
+    // Over the hand the tray may be a little too tall to clear the lowest card above it: cap its height there
+    // (its body scrolls) when that still leaves a usable tray.
+    const MIN_DOCKED = 260;
+    const capAboveCards = () => {
+      const h = hits();
+      if (h.length === 0) return;
+      const room = el.getBoundingClientRect().bottom - Math.max(...h.map((r) => r.bottom)) - 2;
+      if (room >= MIN_DOCKED) el.style.maxHeight = `${room}px`;
+    };
+    let frame = 0;
+    // Every frame while open: the board lays itself out after paint and reflows.
+    const place = () => {
+      frame = requestAnimationFrame(place);
+      delete el.dataset.dock;
+      el.style.maxHeight = '';
+      let fewest = covered();
+      if (fewest === 0) return;
+      let best = '';
+      let bestCap = '';
+      // Over the hand first, then the sides of the board column; uncapped first, then capped: the first that
+      // covers none, else the one that covers the fewest.
+      outer: for (const capped of [false, true]) {
+        for (const dock of ['hand', 'handRight', 'handLeft', 'right', 'left']) {
+          if (capped && !dock.startsWith('hand')) continue;
+          el.dataset.dock = dock;
+          el.style.maxHeight = '';
+          if (capped) capAboveCards();
+          const n = covered();
+          if (n < fewest) [best, bestCap, fewest] = [dock, el.style.maxHeight, n];
+          if (n === 0) break outer;
+        }
+      }
+      if (best) {
+        el.dataset.dock = best;
+        el.style.maxHeight = bestCap;
+      } else {
+        delete el.dataset.dock;
+        el.style.maxHeight = '';
+      }
+    };
+    place();
+    return () => {
+      cancelAnimationFrame(frame);
+      delete el.dataset.dock;
+      el.style.maxHeight = '';
+    };
   });
   const filterable = prompt.shape === 'chooseN' && prompt.options.length > FILTER_FROM;
   const matching =
@@ -183,7 +256,7 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
     );
 
   return (
-    <div className={`${styles.tray} ${prompt.shape === 'order' ? styles.narrow : ''}`} role="region" aria-label={prompt.title} style={{ '--tray-max': `${yourShare}%` } as CSSProperties}>
+    <div ref={trayRef} className={`${styles.tray} ${prompt.shape === 'order' ? styles.narrow : ''}`} role="region" aria-label={prompt.title} style={{ '--tray-max': `${yourShare}%` } as CSSProperties}>
       <header className={styles.head}>
         {source ? <Card card={source} context="thumb" style={{ '--cw': '2.6rem' } as CSSProperties} /> : null}
         <div className={styles.titles}>
