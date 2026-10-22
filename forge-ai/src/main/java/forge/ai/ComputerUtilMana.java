@@ -235,12 +235,15 @@ public class ComputerUtilMana {
             });
 
             if (autoPayForHuman) {
-                // Auto for a human: a source that would leave mana floating (more units than the cost can still take) goes last
+                // Auto for a human: sources that hurt the payer go last (unused mana is free, damage is not),
+                // then sources that would leave mana floating (more units than the cost can still take)
+                final Map<SpellAbility, Integer> hurts = new HashMap<>();
                 final Map<SpellAbility, Integer> wasted = new HashMap<>();
                 for (SpellAbility m : newAbilities) {
+                    hurts.put(m, hurtsPayer(m) ? 1 : 0);
                     wasted.put(m, wastedMana(m, unpaidShards));
                 }
-                newAbilities.sort(Comparator.comparingInt(wasted::get)); // stable
+                newAbilities.sort(Comparator.<SpellAbility>comparingInt(hurts::get).thenComparingInt(wasted::get)); // stable
             }
 
             // stable partition: filter abilities to the back (or the front when they're needed)
@@ -1673,6 +1676,43 @@ public class ComputerUtilMana {
     /** Auto-pay for a human (InputPayMana): taps and spends mana only, never another cost the player did not choose. */
     private static boolean isAutoPayForHuman(final Player payer) {
         return payer.getController() instanceof PlayerControllerAi pca && pca.isAutoPayForHuman();
+    }
+
+    /** Whether using {@code ma} damages or costs life to its activator: its own sub-abilities, or a "becomes tapped" trigger on its host. */
+    private static boolean hurtsPayer(final SpellAbility ma) {
+        for (SpellAbility sub = ma.getSubAbility(); sub != null; sub = sub.getSubAbility()) {
+            if (hurtsController(sub)) {
+                return true;
+            }
+        }
+        final Card host = ma.getHostCard();
+        if (host == null || !ma.getPayCosts().hasTapCost()) {
+            return false;
+        }
+        for (final Trigger t : host.getTriggers()) {
+            if (t.getMode() != TriggerType.Taps && t.getMode() != TriggerType.TapsForMana) {
+                continue;
+            }
+            if (!t.hasParam("ValidCard") || !t.getParam("ValidCard").contains("Self") || !t.hasParam("Execute")) {
+                continue;
+            }
+            for (SpellAbility e = t.ensureAbility(); e != null; e = e.getSubAbility()) {
+                if (hurtsController(e)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** DealDamage / LoseLife aimed at "You" (the activator or controller); LoseLife defaults to that. */
+    private static boolean hurtsController(final SpellAbility sa) {
+        final ApiType api = sa.getApi();
+        if (api != ApiType.DealDamage && api != ApiType.LoseLife) {
+            return false;
+        }
+        final String defined = sa.getParamOrDefault("Defined", api == ApiType.LoseLife ? "You" : "");
+        return defined.equals("You") || defined.equals("Player.You");
     }
 
     /** Units of mana {@code ma} would make that no unpaid shard can still take (they would float and empty). */

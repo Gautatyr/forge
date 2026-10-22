@@ -603,20 +603,66 @@ public class HumanSeatPaymentTest {
                 HumanSeatPaymentTest::noPrompt);
     }
 
-    /** Issue #29 (QA playtest): Auto wastes no mana: {1}{R} is paid by Mountain and City of Brass, not Sol Ring's {C}{C}. */
+    /** Owner decision 2026-10-22: Auto never takes damage to avoid unused mana: {1}{R} is paid by Mountain and Sol Ring, not City of Brass. */
     @Test
-    public void autoPayWastesNoManaWhenAnExactSourceExists() throws Exception {
+    public void autoPayAvoidsDamageEvenIfManaFloats() throws Exception {
         start();
         Card sol = add("Sol Ring", me, ZoneType.Battlefield);
         Card mountain = add("Mountain", me, ZoneType.Battlefield);
         Card city = add("City of Brass", me, ZoneType.Battlefield);
         Card piker = add("Goblin Piker", me, ZoneType.Hand);
+        int life = me.getLife();
         List<String> seen = castWithAuto(piker);
         assertTrue(game.getCardState(piker).isInZone(ZoneType.Battlefield), "Goblin Piker resolved; seen " + seen);
-        assertTrue(mountain.isTapped() && city.isTapped(), "Mountain and City of Brass paid; seen " + seen);
-        assertFalse(sol.isTapped(), "Sol Ring stayed untapped: its second {C} would be wasted");
-        assertTrue(me.getManaPool().isEmpty(), "nothing left floating");
+        assertTrue(mountain.isTapped() && sol.isTapped(), "Mountain and Sol Ring paid; seen " + seen);
+        assertFalse(city.isTapped(), "City of Brass stayed untapped");
+        assertEquals(me.getLife(), life, "no damage taken");
         assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
+    }
+
+    /** Owner decision 2026-10-22: {1} with Sol Ring and City of Brass taps Sol Ring (one {C} floats, no life lost). */
+    @Test
+    public void autoPayPrefersSolRingOverCityOfBrassForGeneric() throws Exception {
+        start();
+        Card sol = add("Sol Ring", me, ZoneType.Battlefield);
+        Card city = add("City of Brass", me, ZoneType.Battlefield);
+        Card cast = add("Sol Ring", me, ZoneType.Hand); // {1} (spell)
+        int life = me.getLife();
+        List<String> seen = castWithAuto(cast);
+        assertTrue(game.getCardState(cast).isInZone(ZoneType.Battlefield), "Sol Ring resolved; seen " + seen);
+        assertTrue(sol.isTapped(), "Sol Ring paid; seen " + seen);
+        assertFalse(city.isTapped(), "City of Brass stayed untapped");
+        assertEquals(me.getLife(), life, "no life lost");
+    }
+
+    /** Owner decision 2026-10-22: for a colored shard a painland loses to a basic. */
+    @Test
+    public void autoPayPicksBasicOverPainland() throws Exception {
+        start();
+        Card mountain1 = add("Mountain", me, ZoneType.Battlefield);
+        Card mountain2 = add("Mountain", me, ZoneType.Battlefield);
+        Card forge = add("Battlefield Forge", me, ZoneType.Battlefield);
+        Card piker = add("Goblin Piker", me, ZoneType.Hand);
+        int life = me.getLife();
+        List<String> seen = castWithAuto(piker);
+        assertTrue(game.getCardState(piker).isInZone(ZoneType.Battlefield), "Goblin Piker resolved; seen " + seen);
+        assertTrue(mountain1.isTapped() && mountain2.isTapped(), "Mountains paid; seen " + seen);
+        assertFalse(forge.isTapped(), "Battlefield Forge stayed untapped");
+        assertEquals(me.getLife(), life, "no damage taken");
+    }
+
+    /** Pain is part of the mana cost, not an extra cost: when only a painful source can pay, Auto still pays. */
+    @Test
+    public void autoPayStillUsesPainfulSourceWhenNothingElsePays() throws Exception {
+        start();
+        Card mountain = add("Mountain", me, ZoneType.Battlefield);
+        Card city = add("City of Brass", me, ZoneType.Battlefield);
+        Card piker = add("Goblin Piker", me, ZoneType.Hand);
+        int life = me.getLife();
+        List<String> seen = castWithAuto(piker);
+        assertTrue(game.getCardState(piker).isInZone(ZoneType.Battlefield), "Goblin Piker resolved; seen " + seen);
+        assertTrue(mountain.isTapped() && city.isTapped(), "both paid; seen " + seen);
+        assertEquals(me.getLife(), life - 1, "City of Brass dealt 1 damage");
     }
 
     /** Issue #29: {1}{R} with two Mountains and Sol Ring: the Mountains pay, Sol Ring stays untapped. */
