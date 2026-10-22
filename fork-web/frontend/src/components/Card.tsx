@@ -145,6 +145,8 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
     face.name,
     c.faceDown?.seen ? (c.faceDown.foretold ? 'foretold, face down' : 'face down') : '',
     count > 1 ? `${count} of them` : '',
+    // Groups split into chosen and not chosen: the state is in the name, not only in the ring (playtest 1 #16).
+    showOverlays && s.selected ? 'selected' : '',
     c.tapped ? 'tapped' : '',
     c.power !== undefined ? `${c.power}/${c.toughness}` : '',
     s.actionKind === 'mana' ? 'can pay: click to tap for mana' : '',
@@ -262,8 +264,8 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
             ) : null}
 
             {count > 1 ? (
-              <span className={`${styles.count} ${hasIcons ? styles.countLeft : ''}`} data-arrow-occluder {...avoid}>
-                ×{count}
+              <span className={`${styles.count} ${hasIcons ? styles.countLeft : ''} ${s.selected ? styles.countSelected : ''}`} data-arrow-occluder {...avoid}>
+                {s.selected ? <Icon name="check" /> : null}×{count}
               </span>
             ) : null}
 

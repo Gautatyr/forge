@@ -52,7 +52,7 @@ describe('X asked as a list of numbers', () => {
     expect('max' in promptToChoice(OTHER_LIST, {})).toBe(false);
     expect(promptToChoice(xPrompt(9, ...upTo(5)), {})).toMatchObject({ shape: 'input', kind: 'number', min: 0, max: 5 });
     // the list of options the tray already knew (exactly one wanted): unchanged
-    expect(promptToChoice({ ...xPrompt(9, ...upTo(5)), min: 1 }, {})).toMatchObject({ shape: 'input', kind: 'number', min: 0, max: 5 });
+    expect(promptToChoice({ ...(xPrompt(9, ...upTo(5)) as Extract<PromptMessage, { shape: 'choose' }>), min: 1 }, {})).toMatchObject({ shape: 'input', kind: 'number', min: 0, max: 5 });
   });
 
   it('leaves other lists as they are', () => {
