@@ -116,6 +116,8 @@ export class LiveSession {
   blockOptions?: BlockOptionsMessage['attackers'];
   /** attackOptions: while you declare attackers, what the engine lets you attack (issue #65). */
   attackOptions?: AttackOptionsMessage['defenders'];
+  /** attackOptions.max: the most creatures that may attack together (Silent Arbiter). */
+  attackMax?: number;
   /** showRevealedCards: cards the engine shows you until the input ends (e.g. an opponent's hand). */
   revealed: number[] = [];
   /** Last card this client clicked (selectCard): names the spell being paid for when the engine's ref is unknown. */
@@ -234,6 +236,7 @@ export class LiveSession {
         this.weakly = new Map();
         this.blockOptions = undefined;
         this.attackOptions = undefined;
+        this.attackMax = undefined;
         if (newGame) {
           this.lastCard = undefined;
           this.lastCardFrom = undefined;
@@ -303,6 +306,7 @@ export class LiveSession {
         return 'ok';
       case 'attackOptions':
         this.attackOptions = frame.defenders;
+        this.attackMax = frame.max;
         return 'ok';
       case 'rejected':
         this.notice(frame.reason);
@@ -370,6 +374,7 @@ export class LiveSession {
         };
         this.blockOptions = undefined;
         this.attackOptions = undefined;
+        this.attackMax = undefined;
         return;
       case 'setSelection': {
         // Replaces every mark: cards to pick (none to pick when max is 0), players and stack items, chosen so far.
@@ -401,6 +406,7 @@ export class LiveSession {
         this.weakly = new Map();
         this.blockOptions = undefined;
         this.attackOptions = undefined;
+        this.attackMax = undefined;
         return;
       case 'showRevealedCards':
         this.revealed = toRefs(a[0], 'card').flatMap((r) => (r.type === 'card' ? [r.id] : []));

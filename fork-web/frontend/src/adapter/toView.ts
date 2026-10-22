@@ -469,6 +469,7 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
         : view.players.filter((p) => !p.isYou && !p.hasLost).map((p) => p.id),
       defenderCards: (options ?? []).filter((d) => d.type === 'card').map((d) => sid(d.id)).filter((id) => view.cards[id]?.zone === 'battlefield'),
       draft: combat.attacks,
+      ...(s.attackMax !== undefined ? { max: s.attackMax } : {}),
     };
   }
   if (view.turn.step === 'declareBlockers' && view.turn.activePlayerId !== view.youId && !/^Priority:/.test(input.message) && /block/i.test(input.message)) {

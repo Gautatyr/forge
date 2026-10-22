@@ -1858,6 +1858,8 @@ export interface AttackOptionsMessage {
   t: 'attackOptions';
   /** The combat's defenders: players, planeswalkers and battles. */
   defenders: EntityRef[];
+  /** Most creatures that may attack together (Silent Arbiter); absent when nothing caps it. */
+  max?: number;
 }
 
 /** Answers the getActivateDescription action. */

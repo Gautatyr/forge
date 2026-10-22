@@ -524,6 +524,19 @@ describe('attacking planeswalkers and battles (issue #65)', () => {
     expect(a.attackOptions).toBeUndefined();
   });
 
+  it('carries the engine\'s cap on attackers (attackOptions.max) until its options end', () => {
+    const a = withPermanents();
+    buttons(a, 'OK', 'Alpha Strike', 'Select creatures to attack AI or select player/card you wish to attack.');
+    a.apply({ t: 'call', method: 'setWeaklySelectable', args: [[card(10)]] });
+    a.apply({ t: 'attackOptions', defenders: [{ type: 'player', id: 1 }], max: 1 });
+    expect(toGameView(a).decision).toMatchObject({ kind: 'declareAttackers', max: 1 });
+    a.apply({ t: 'attackOptions', defenders: [{ type: 'player', id: 1 }] });
+    expect((toGameView(a).decision as { max?: number }).max).toBeUndefined();
+    a.apply({ t: 'attackOptions', defenders: [{ type: 'player', id: 1 }], max: 1 });
+    a.apply({ t: 'call', method: 'clearWeaklySelectable', args: [] });
+    expect(a.attackMax).toBeUndefined();
+  });
+
   it('draws an attack on a planeswalker or battle as an attack on that permanent, its defending player beside it', () => {
     const s = withPermanents('COMBAT_DECLARE_BLOCKERS', 1);
     s.apply({ t: 'delta', game: 1, seq: 2, ts: 0, new: [], changed: [{ type: 'game', id: 1, props: { CombatView: [band(10, { type: 'card', id: 50 }), band(30, { type: 'card', id: 60 }), band(20, { type: 'player', id: 0 })] } }], removed: [], log: [], events: [] });

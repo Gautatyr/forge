@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Block, CardId, Decision } from '../model/types';
-import { blockClick, blockTargets, type PendingBlock } from './blockClick';
+import type { CardView, GameView } from '../model/types';
+import { blockClick, blockTargets, refusedText, underBlocked, type PendingBlock } from './blockClick';
 
 type D = Extract<Decision, { kind: 'declareBlockers' }>;
 
@@ -72,10 +73,39 @@ describe('blockClick (ruling D5: either order)', () => {
     expect(blockClick(d, { pendingAttacker: 'a1' }, 'a2').pending).toEqual({ pendingBlocker: undefined, pendingAttacker: 'a2' });
   });
 
-  it('clicking a blocker that already blocks removes its block', () => {
+  it('clicking a blocker that already blocks only selects it: nothing is removed', () => {
     const withDraft = { ...d, draft: [{ blockerId: 'b1', attackerId: 'a1' }] };
-    expect(blockClick(withDraft, {}, 'b1').intents).toEqual([{ type: 'removeBlock', blockerId: 'b1' }]);
-    expect(clicks(withDraft, ['b1']).draft).toEqual([]);
+    const r = blockClick(withDraft, {}, 'b1');
+    expect(r.intents).toEqual([]);
+    expect(r.pending).toEqual({ pendingBlocker: 'b1', pendingAttacker: undefined });
+    expect(clicks(withDraft, ['b1']).draft).toEqual(withDraft.draft);
+  });
+
+  it('a blocker on two attackers loses only the pair it is clicked with, blocker first', () => {
+    const two = { ...d, draft: [{ blockerId: 'b1', attackerId: 'a1' }, { blockerId: 'b1', attackerId: 'a2' }] };
+    expect(clicks(two, ['b1', 'a1']).draft).toEqual([{ blockerId: 'b1', attackerId: 'a2' }]);
+    expect(clicks(two, ['a2', 'b1']).draft).toEqual([{ blockerId: 'b1', attackerId: 'a1' }]);
+  });
+
+  it('a selected blocker that blocks is deselected by a second click, and keeps its blocks', () => {
+    const withDraft = { ...d, draft: [{ blockerId: 'b1', attackerId: 'a1' }] };
+    const r = clicks(withDraft, ['b1', 'b1']);
+    expect(r.pending).toEqual({ pendingBlocker: undefined, pendingAttacker: undefined });
+    expect(r.draft).toEqual(withDraft.draft);
+  });
+
+  it('moves a block blocker-first in two clicks once the blocker is selected', () => {
+    const withDraft = { ...live, draft: [{ blockerId: 'b2', attackerId: 'a1' }] };
+    const opts = withDraft.options!.map((o) => (o.attackerId === 'a2' ? { ...o, blockers: ['b1'], ifFreed: ['b2'] } : o));
+    expect(clicks({ ...withDraft, options: opts }, ['b2', 'a2']).draft).toEqual([{ blockerId: 'b2', attackerId: 'a2' }]);
+  });
+
+  it('a selected blocker may add another attacker when the engine allows both', () => {
+    const withDraft = { ...live, draft: [{ blockerId: 'b2', attackerId: 'a1' }] };
+    expect(clicks(withDraft, ['b2', 'a2']).draft).toEqual([
+      { blockerId: 'b2', attackerId: 'a1' },
+      { blockerId: 'b2', attackerId: 'a2' },
+    ]);
   });
 
   it('pairing a blocker with the attacker it blocks removes that block, in either order', () => {
@@ -126,5 +156,46 @@ describe('blockTargets (highlights are the engine answers for the first click)',
 
   it('without engine options (mock scenarios), any pair', () => {
     expect(blockTargets(d, { pendingAttacker: 'a1' })).toEqual({ blockers: ['b1', 'b2'], attackers: ['a1', 'a2'] });
+  });
+});
+
+describe('blockTargets with a selected blocker that already blocks', () => {
+  it('still lights the attacker it blocks (to remove that pair) and the ones it may block', () => {
+    const withDraft = { ...live, draft: [{ blockerId: 'b2', attackerId: 'a1' }] };
+    expect(blockTargets(withDraft, { pendingBlocker: 'b2' }).attackers).toEqual(['a1', 'a2']);
+  });
+});
+
+describe('underBlocked (menace: BlockOption.min)', () => {
+  const menace: D = {
+    ...d,
+    options: [
+      { attackerId: 'a1', blockers: ['b1', 'b2'], ifFreed: [], min: 2 },
+      { attackerId: 'a2', blockers: ['b1', 'b2'], ifFreed: [], min: 1 },
+    ],
+  };
+  it('needs the minimum while fewer blockers are assigned', () => {
+    expect(underBlocked(menace, 'a1')).toBe(2);
+    expect(underBlocked({ ...menace, draft: [{ blockerId: 'b1', attackerId: 'a1' }] }, 'a1')).toBe(2);
+  });
+  it('is met by the minimum, and absent for ordinary attackers and without engine options', () => {
+    expect(underBlocked({ ...menace, draft: [{ blockerId: 'b1', attackerId: 'a1' }, { blockerId: 'b2', attackerId: 'a1' }] }, 'a1')).toBeUndefined();
+    expect(underBlocked(menace, 'a2')).toBeUndefined();
+    expect(underBlocked(d, 'a1')).toBeUndefined();
+  });
+});
+
+describe('refusedText', () => {
+  const card = (name: string, faceDown = false) => ({ name, ...(faceDown ? { faceDown: { seen: false } } : {}) }) as CardView;
+  const game = (cards: Record<string, CardView>) => ({ cards }) as unknown as GameView;
+  it('names both creatures', () => {
+    expect(refusedText(game({ b: card('Grizzly Bears'), a: card('Hawk') }), { blockerId: 'b', attackerId: 'a' })).toBe("Grizzly Bears can't block Hawk.");
+  });
+  it('falls back for a face-down creature with no name, on either side', () => {
+    const g = game({ b: card('', true), a: card('', true) });
+    expect(refusedText(g, { blockerId: 'b', attackerId: 'a' })).toBe("A face-down creature can't block a face-down creature.");
+  });
+  it('falls back for an unknown card', () => {
+    expect(refusedText(game({}), { blockerId: 'b', attackerId: 'a' })).toBe("That creature can't block that creature.");
   });
 });

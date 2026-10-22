@@ -240,6 +240,13 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
               </span>
             ) : null}
 
+            {s.needsBlockers && onBoard ? (
+              <span className={`${styles.combatStrip} ${styles.stripNeeds}`} title={`Needs ${s.needsBlockers} blockers, or none`} data-arrow-occluder {...avoid}>
+                <Icon name="shield" />
+                <span>Needs {s.needsBlockers}</span>
+              </span>
+            ) : null}
+
             {onBoard && c.counters.length > 0 ? (
               <span className={styles.counters} data-arrow-occluder {...avoid}>
                 {c.counters.map((k) => (

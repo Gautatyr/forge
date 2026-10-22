@@ -5,6 +5,7 @@ import { player, targetName, you } from '../model/selectors';
 import type { ChoicePrompt, GameView, StepId } from '../model/types';
 import { distributeConfirm, inputConfirm, inputStart, startAmounts } from '../components/tray/numberLogic';
 import { trayConfirm, trayDraft } from '../components/tray/trayLogic';
+import { attackCapText, overAttackCap } from './attackLimit';
 import { incoming, incomingText, strikeDamage } from './combatForecast';
 import { watching } from './gameEnd';
 import type { StopPrefs } from './prefs';
@@ -107,6 +108,10 @@ export function primaryAction(game: GameView, ui: UiState, stops: StopPrefs): Pr
     case 'declareAttackers': {
       const n = d.draft.length;
       const damage = d.draft.reduce((s, a) => s + strikeDamage(game.cards[a.attackerId]), 0);
+      // The engine refuses more attackers than its cap (Silent Arbiter): say so instead of offering it.
+      if (d.max !== undefined && overAttackCap(d)) {
+        return { label: `Attack with ${n}`, detail: attackCapText(d.max), enabled: false, tone: 'attack' };
+      }
       return n === 0
         ? { label: 'Skip attack', detail: 'No creatures attack this turn', enabled: true, tone: 'neutral', intent: { type: 'primary' } }
         : { label: `Attack with ${n}`, detail: `${damage} damage if unblocked`, enabled: true, tone: 'attack', intent: { type: 'primary' } };

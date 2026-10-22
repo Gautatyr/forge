@@ -4,7 +4,8 @@ import { useLive } from '../adapter/useLive';
 import type { Intent } from '../model/intents';
 import type { CardId, GameView, PlayerId } from '../model/types';
 import { applyIntent, type MockGame } from '../mock/engine';
-import { blockClick } from './blockClick';
+import { ATTACK_INVALID, attackInvalidReason } from './attackLimit';
+import { blockClick, refusedText } from './blockClick';
 import { currentAttackAim, focusForIntent, focusOnTurnChange, pickDefender } from './focus';
 import { scenarioById } from '../mock/scenarios';
 import { loadPrefs, savePrefs, type Prefs } from './prefs';
@@ -93,6 +94,8 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     if (['primary', 'cancel', 'undo', 'answer', 'play'].includes(intent.type)) {
       setUiState((u) => ({ ...u, pendingAttacker: undefined, pendingBlocker: undefined, trayPeek: false }));
     }
+    // Any action changes the declaration: a refusal note has done its job.
+    setUiState((u) => (u.promptNote?.sticky ? { ...u, promptNote: undefined } : u));
     const focus = focusForIntent(intent);
     if (focus) setUiState((u) => ({ ...u, focusOpponentId: focus }));
   }, [liveSend]);
@@ -112,7 +115,10 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   const [seenNotice, setSeenNotice] = useState(notice?.id);
   if (notice && seenNotice !== notice.id) {
     setSeenNotice(notice.id);
-    setUiState((u) => ({ ...u, promptNote: { id: (u.promptNote?.id ?? 0) + 1, text: notice.text } }));
+    // A refused attack declaration says why and stays until the declaration changes.
+    const refused = ATTACK_INVALID.test(notice.text);
+    const text = refused ? attackInvalidReason(game.decision) : notice.text;
+    setUiState((u) => ({ ...u, promptNote: { id: (u.promptNote?.id ?? 0) + 1, text, ...(refused ? { sticky: true } : {}) } }));
   }
 
   // Focus layout: when the turn passes, focus follows it (see focus.ts).
@@ -149,8 +155,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
           setUi(r.pending);
           if (r.refused) {
             // The engine's answer (blockOptions), never a local guess (issue #48).
-            const name = (cid: CardId) => game.cards[cid]?.name ?? 'That creature';
-            const text = `${name(r.refused.blockerId)} can't block ${name(r.refused.attackerId)}.`;
+            const text = refusedText(game, r.refused);
             setUi((u) => ({ ...u, promptNote: { id: (u.promptNote?.id ?? 0) + 1, text } }));
           }
           return;

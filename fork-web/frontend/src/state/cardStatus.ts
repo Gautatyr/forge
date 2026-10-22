@@ -1,7 +1,7 @@
 import { player } from '../model/selectors';
 import { pickedDefenderCard } from './focus';
 import type { CardId, GameView, PlayerId, StackItem, StackItemId, TargetRef } from '../model/types';
-import { blockTargets } from './blockClick';
+import { blockTargets, underBlocked } from './blockClick';
 import type { UiState } from './ui';
 
 /**
@@ -22,6 +22,8 @@ export interface CardStatus {
   /** A planeswalker or battle attacked: the names of its attackers (issue #65). */
   attackedBy: string[];
   blocking?: { attacker: string; draft: boolean };
+  /** An attacker that needs more blockers than it has (menace): the fewest the engine accepts. */
+  needsBlockers?: number;
   /** Names of every stack item targeting this card (hover text only, never a ring). */
   targetedBy: string[];
   /**
@@ -126,6 +128,7 @@ export function cardStatus(game: GameView, ui: UiState, id: CardId): CardStatus 
     s.actionKind = cand ? 'block' : incoming ? 'blockTarget' : undefined;
     s.selected = ui.pendingBlocker === id || ui.pendingAttacker === id;
     s.dimmed = !cand && !incoming && c.zone === 'battlefield' && c.controllerId === game.youId;
+    s.needsBlockers = underBlocked(d, id);
   }
 
   for (const item of game.stack) {

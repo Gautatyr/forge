@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { you } from '../model/selectors';
+import { canAttackAll } from '../state/attackLimit';
 import { currentAttackAim } from '../state/focus';
 import { watching } from '../state/gameEnd';
 import { useMatch } from '../state/MatchContext';
@@ -30,11 +31,18 @@ export function ActionPanel() {
   // A Cancel that is a game choice says what it does ("Decline: You lose 3 life", issue #81).
   const cancelText = cancelLabel(game);
 
+  // A refused attack declaration stays until the player acts (send clears it) or the declaration ends.
+  const stale = note?.sticky && d.kind !== 'declareAttackers';
   useEffect(() => {
     if (!note) return;
+    if (stale) {
+      setUi((u) => (u.promptNote?.id === note.id ? { ...u, promptNote: undefined } : u));
+      return;
+    }
+    if (note.sticky) return;
     const t = window.setTimeout(() => setUi((u) => (u.promptNote?.id === note.id ? { ...u, promptNote: undefined } : u)), NOTE_MS);
     return () => window.clearTimeout(t);
-  }, [note, setUi]);
+  }, [note, stale, setUi]);
 
   return (
     <section className={styles.panel} aria-label="Your decision">
@@ -62,7 +70,7 @@ export function ActionPanel() {
       {/* Contextual buttons that answer the prompt; the row exists only while
           one shows. It sits above the main button, so nothing below moves. */}
       <div className={styles.contextual}>
-        {d.kind === 'declareAttackers' ? (
+        {d.kind === 'declareAttackers' && canAttackAll(d) ? (
           <button
             type="button"
             className={styles.secondary}

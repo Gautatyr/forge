@@ -174,7 +174,8 @@ public final class WireEnvelope {
                     "While the seat declares attackers, after each change: what the engine lets it attack (cleared by clearWeaklySelectable).",
                     List.of(
                             field("t", "'attackOptions'", null),
-                            field("defenders", "EntityRef[]", "The combat's defenders: players, planeswalkers and battles."))),
+                            field("defenders", "EntityRef[]", "The combat's defenders: players, planeswalkers and battles."),
+                            new Field("max", "number", true, "Most creatures that may attack together (Silent Arbiter); absent when nothing caps it."))),
             new Message("activateDescription", "ActivateDescriptionMessage", "Answers the getActivateDescription action.", List.of(
                     field("t", "'activateDescription'", null),
                     field("card", "number", null),

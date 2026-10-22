@@ -16,11 +16,15 @@ import forge.fork.web.bridge.SeatRefs;
  * What the engine lets a seat attack while it declares attackers (issue #65): the combat's defenders
  * ({@code Combat.getDefenders}, which {@code InputAttack} offers): players, planeswalkers and battles. Sent as
  * {@code {"t":"attackOptions"}} with each {@code InputAttack} refresh, so the page offers only what the engine allows.
+ * {@code max}: the most creatures that may attack together (Silent Arbiter), or null when nothing caps it; the page
+ * does not offer "Attack all" above it and names it when the engine refuses a declaration.
  */
-record AttackOptions(List<GameEntity> defenders) {
+record AttackOptions(List<GameEntity> defenders, Integer max) {
 
     static AttackOptions of(Combat combat) {
-        return new AttackOptions(combat == null ? List.of() : new ArrayList<>(combat.getDefenders()));
+        return combat == null
+                ? new AttackOptions(List.of(), null)
+                : new AttackOptions(new ArrayList<>(combat.getDefenders()), combat.getAttackConstraints().getGlobalRestrictions().getMax());
     }
 
     /** Defenders as entity refs in the seat's id space; a card the seat has no id for is left out. */
@@ -42,6 +46,9 @@ record AttackOptions(List<GameEntity> defenders) {
             ds.add(o);
         }
         j.add("defenders", ds);
+        if (max != null) {
+            j.addProperty("max", max);
+        }
         return j;
     }
 }

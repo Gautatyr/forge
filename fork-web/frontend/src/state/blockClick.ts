@@ -1,5 +1,5 @@
 import type { Intent } from '../model/intents';
-import type { CardId, Decision } from '../model/types';
+import type { CardId, Decision, GameView } from '../model/types';
 
 export interface PendingBlock {
   pendingBlocker?: CardId;
@@ -28,8 +28,9 @@ function pair(d: DeclareBlockers, b: CardId, a: CardId): Intent[] | undefined {
 
 /**
  * One click while declaring blockers. Blocks can be built in either order (ruling D5): blocker then attacker, or
- * attacker then blocker; the first click waits in `pending` until its partner is clicked. Clicking a blocking creature
- * on its own removes its block. A pair the engine does not allow is `refused` and the first click stays pending.
+ * attacker then blocker; the first click waits in `pending` until its partner is clicked. A blocker clicked first is
+ * only selected, even when it already blocks: the pair it then completes is removed, added or moved, and a second click
+ * on it deselects. A pair the engine does not allow is `refused` and the first click stays pending.
  */
 export function blockClick(
   d: DeclareBlockers,
@@ -44,7 +45,6 @@ export function blockClick(
   if (d.candidates.includes(id)) {
     if (pending.pendingAttacker) return complete(id, pending.pendingAttacker);
     if (pending.pendingBlocker === id) return { intents: [], pending: cleared };
-    if (d.draft.some((b) => b.blockerId === id)) return { intents: [{ type: 'removeBlock', blockerId: id }], pending: cleared };
     return { intents: [], pending: { pendingBlocker: id, pendingAttacker: undefined } };
   }
   if (d.attackers.includes(id)) {
@@ -66,4 +66,20 @@ export function blockTargets(d: DeclareBlockers, pending: PendingBlock): { block
     blockers: a ? d.candidates.filter((c) => pair(d, c, a)) : d.candidates,
     attackers: b ? d.attackers.filter((x) => pair(d, b, x)) : d.attackers,
   };
+}
+
+/** Fewest blockers the engine accepts on this attacker (menace), while fewer are assigned; else undefined. */
+export function underBlocked(d: DeclareBlockers, attackerId: CardId): number | undefined {
+  const min = option(d, attackerId)?.min ?? 1;
+  return min > 1 && d.draft.filter((b) => b.attackerId === attackerId).length < min ? min : undefined;
+}
+
+/** "X can't block Y." for a pair the engine refused; a face-down creature has no name to show. */
+export function refusedText(game: GameView, r: { blockerId: CardId; attackerId: CardId }): string {
+  const name = (id: CardId) => {
+    const c = game.cards[id];
+    return c?.name || (c?.faceDown ? 'a face-down creature' : 'that creature');
+  };
+  const text = `${name(r.blockerId)} can't block ${name(r.attackerId)}.`;
+  return text[0]!.toUpperCase() + text.slice(1);
 }
