@@ -20,7 +20,8 @@ web-front-check: ## Frontend: install, type-check, lint, unit tests, build
 	@$(GATE) web-front-check bash -c 'cd fork-web/frontend && pnpm install --frozen-lockfile && pnpm check && pnpm build'
 
 desktop-test: ## Engine/AI/desktop suite (~2 min); needed only when upstream modules or the root pom change
-	@$(GATE) desktop-test mvn -B -pl forge-gui-desktop -am test
+	@# alphabetical class order: surefire's default (filesystem) order varies per checkout, and upstream's sticker tests fail when a card-mock class runs between two AI test classes (#43, docs/fork/decisions.md)
+	@$(GATE) desktop-test mvn -B -pl forge-gui-desktop -am test -Dsurefire.runOrder=alphabetical
 
 web-sweep: ## Card-pool sweep: full games with a scripted human web seat, strict (SHARDS=4; ARGS="-Dforge.web.sweep.duel=40")
 	@$(GATE) web-sweep scripts/web-sweep.sh $(ARGS)

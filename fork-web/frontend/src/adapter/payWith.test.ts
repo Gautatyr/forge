@@ -1,6 +1,6 @@
 /**
  * Issues #66 and #70: paying with permanents (convoke, improvise) and with life (Phyrexian mana) from the page. The
- * bridge names the permanents the input takes (setSelectables); each click taps one for the cost. Auto-pay only taps and
+ * bridge adds the permanents the input takes to its setSelection; each click taps one for the cost. Auto-pay only taps and
  * spends mana, so life is paid by hand.
  */
 import { describe, expect, it } from 'vitest';
@@ -37,9 +37,15 @@ function session(): LiveSession {
   return s;
 }
 
-/** InputSelectCardsForConvokeOrImprovise as the bridge sends it: the artifacts it takes, then its prompt and buttons. */
-function improvise(s: LiveSession, remaining = '{5}{B}{B}') {
-  s.apply({ t: 'call', method: 'setSelectables', args: [[card(61), card(62)], 0, 2] });
+/** forge.gamemodes.match.Selection as the bridge sends it (setSelection). */
+const selection = (cards: object[], chosen: object[] = []) => ({
+  t: 'call' as const,
+  method: 'setSelection',
+  args: [{ kind: 'Selection', cards, min: 0, max: cards.length, targets: [], chosen }],
+});
+
+/** InputSelectCardsForConvokeOrImprovise as the bridge sends it: its prompt and buttons, then the artifacts it takes. */
+function improvise(s: LiveSession, remaining = '{5}{B}{B}', chosen: object[] = []) {
   const line = '- Herald of Anguish - Creature 5 / 5';
   s.apply({
     t: 'call',
@@ -47,6 +53,7 @@ function improvise(s: LiveSession, remaining = '{5}{B}{B}') {
     args: [YOU, `${line}\nHerald of Anguish - Creature 5 / 5\nChoose artifact to tap for Improvise.\nRemaining mana cost is ${remaining}`, card(60)],
   });
   s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', true, false, true] });
+  s.apply(selection([card(61), card(62)], chosen));
 }
 
 describe('improvise and convoke', () => {
@@ -79,8 +86,7 @@ describe('improvise and convoke', () => {
   it('names what is tapped once picked; OK goes on to the mana payment', () => {
     const s = session();
     improvise(s);
-    s.apply({ t: 'call', method: 'setHighlighted', args: [[card(61)], true] });
-    improvise(s, '{4}{B}{B}');
+    improvise(s, '{4}{B}{B}', [card(61)]);
     const g = toGameView(s);
     expect(g.decision).toMatchObject({ kind: 'chooseTargets', chosen: [{ kind: 'card', id: '61' }], instruction: 'Tap artifacts to pay for Improvise — {4}{B}{B} left' });
     expect(primaryAction(g, INITIAL_UI, DEFAULT_STOPS)).toMatchObject({ detail: 'Taps: Ornithopter', enabled: true });
@@ -89,9 +95,9 @@ describe('improvise and convoke', () => {
 
   it('reads convoke and a cost paid in full', () => {
     const s = session();
-    s.apply({ t: 'call', method: 'setSelectables', args: [[card(61), card(62), card(63)], 0, 3] });
     s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Choose creature to tap for Convoke.\nRemaining mana cost is 0', card(60)] });
     s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', true, false, true] });
+    s.apply(selection([card(61), card(62), card(63)]));
     expect(toGameView(s).decision).toMatchObject({ kind: 'chooseTargets', instruction: 'Tap creatures to pay for Convoke — nothing left', tapToPay: true });
   });
 });

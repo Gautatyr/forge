@@ -7,9 +7,9 @@ import java.util.concurrent.CountDownLatch;
 import forge.game.card.Card;
 import forge.game.card.CardView;
 import forge.game.event.GameEvent;
-import forge.game.player.Player;
 import forge.game.player.PlayerView;
 import forge.game.spellability.SpellAbilityView;
+import forge.gamemodes.match.Selection;
 import forge.gamemodes.match.input.Input;
 import forge.gamemodes.match.input.InputAttack;
 import forge.gamemodes.match.input.InputBlock;
@@ -37,7 +37,7 @@ public final class WebGuiGame extends ProtocolGuiGame {
     private volatile PlayerControllerHuman human;
     /** The input {@link #stopIfOut} stopped last (game thread only). */
     private Input stopped;
-    /** The card-picking input whose cards {@link #showPromptMessage} named, until it ends. */
+    /** The card-picking input whose cards {@link #setSelection} added, until it ends. */
     private volatile Input lit;
 
     WebGuiGame(SeatSession session) {
@@ -163,11 +163,10 @@ public final class WebGuiGame extends ProtocolGuiGame {
             pch.getInputQueue().addObserver((o, arg) -> {
                 if (ThreadUtil.isGameThread()) {
                     session.flush();
-                    Input in = pch.getInputQueue().getInput();
-                    selectablePlayers(in);
-                    if (lit != null && lit != in) {
+                    if (lit != null && lit != pch.getInputQueue().getInput()) {
+                        // the input that took the lit cards ended: its stop() sent its selection while still current
                         lit = null;
-                        clearSelectables();
+                        super.setSelection(Selection.ofChosen(pch.getKeptMarks()));
                     }
                 }
             });
@@ -175,47 +174,34 @@ public final class WebGuiGame extends ProtocolGuiGame {
     }
 
     /**
-     * Inputs that pick cards to pay a cost without naming them ({@code setSelectables}), unlike
-     * {@code InputSelectEntitiesFromList}: {@code InputSelectCardsForConvokeOrImprovise} (convoke, improvise, waterbend)
-     * and {@code HumanCostDecision.InputSelectCardToRemoveCounter}. The desktop lets the player click any card and
-     * says what a click does ({@code getActivateAction}). Name the cards it takes now as the input's selectables, at each
-     * of its prompts (issue #70); cleared when it ends (the input queue observer). A prompt with a card comes from
-     * the input itself, with the game thread waiting for it.
+     * {@code InputSelectCardsForConvokeOrImprovise} (convoke, improvise, waterbend) and
+     * {@code HumanCostDecision.InputSelectCardToRemoveCounter} pick cards to pay a cost, but their selection names only
+     * what is chosen ({@code InputSelectManyBase.getSelection}); the desktop lets the player click any card and says
+     * what a click does ({@code getActivateAction}). Add the cards they take now to each selection they send (issue
+     * #70); {@code InputSelectEntitiesFromList} names its own. Their {@code stop()} sends its selection while still the
+     * current input: the input queue observer clears the cards once it is gone.
      */
     @Override
-    public void showPromptMessage(final PlayerView playerView, final String message, final CardView card) {
-        PlayerControllerHuman pch = human;
-        if (card != null && pch != null
-                && pch.getInputQueue().getInput() instanceof InputSelectManyBase<?> in && !(in instanceof InputSelectEntitiesFromList<?>)) {
-            List<CardView> cards = new ArrayList<>();
-            for (Card c : pch.getGame().getCardsInGame()) {
-                if (in.getActivateAction(c) != null) {
-                    cards.add(c.getView());
-                }
-            }
-            lit = in;
-            setSelectables(cards, 0, cards.size()); // before the prompt: the page reads both together
-        }
-        super.showPromptMessage(playerView, message, card);
+    public void setSelection(final Selection selection) {
+        super.setSelection(withCostPicks(selection));
     }
 
-    /**
-     * {@code InputSelectEntitiesFromList} names only its cards ({@code setSelectables}); the desktop lets
-     * the player click any portrait. Name its players as selectable targets, cleared with the selectables
-     * when the input stops (e.g. choosing who starts the game).
-     */
-    private void selectablePlayers(final Input input) {
-        if (!(input instanceof InputSelectEntitiesFromList<?> in)) {
-            return;
+    private Selection withCostPicks(final Selection selection) {
+        PlayerControllerHuman pch = human;
+        if (pch == null || !selection.cards().isEmpty() || !selection.targets().isEmpty()
+                || !(pch.getInputQueue().getInput() instanceof InputSelectManyBase<?> in) || in instanceof InputSelectEntitiesFromList<?>) {
+            return selection;
         }
-        List<PlayerView> players = new ArrayList<>();
-        for (Object e : in.getValidChoices()) {
-            if (e instanceof Player p) {
-                players.add(p.getView());
+        List<CardView> cards = new ArrayList<>();
+        for (Card c : pch.getGame().getCardsInGame()) {
+            if (in.getActivateAction(c) != null) {
+                cards.add(c.getView());
             }
         }
-        if (!players.isEmpty()) {
-            setSelectableTargets(players);
+        if (cards.isEmpty()) {
+            return selection;
         }
+        lit = in;
+        return new Selection(cards, 0, cards.size(), selection.targets(), selection.chosen());
     }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DeltaMessage, SnapshotMessage } from '../wire/generated/wire';
+import type { CallMessage, DeltaMessage, SnapshotMessage } from '../wire/generated/wire';
 import { LiveSession } from './session';
 
 const snapshot = (game = 1, seq = 10): SnapshotMessage => ({
@@ -89,17 +89,23 @@ describe('LiveSession state stream', () => {
 
 const P0 = { type: 'player', id: 0 } as const;
 const card = (id: number) => ({ type: 'card', id }) as const;
+/** InputBase.showSelection: what the prompt marks (forge.gamemodes.match.Selection). */
+const selection = (sel: { cards?: object[]; min?: number; max?: number; targets?: object[]; chosen?: object[] }): CallMessage => ({
+  t: 'call',
+  method: 'setSelection',
+  args: [{ kind: 'Selection', cards: [], min: 0, max: 0, targets: [], chosen: [], ...sel }],
+});
 const confirm = (id: number) => ({ t: 'prompt', id, method: 'confirm', shape: 'confirm', message: 'Draw?', yes: 'Yes', no: 'No', default: true }) as const;
 
 describe('LiveSession input state (bridge seat protocol)', () => {
-  it('follows showPromptMessage, updateButtons, selectables and highlights with {type,id} refs', () => {
+  it('follows showPromptMessage, updateButtons and setSelection with {type,id} refs', () => {
     const s = new LiveSession();
     s.apply(snapshot());
-    s.apply({ t: 'call', method: 'setSelectables', args: [[card(10), card(12)], 1, 1] });
-    s.apply({ t: 'call', method: 'setSelectableTargets', args: [[{ type: 'player', id: 1 }]] });
+    const offered = { cards: [card(10), card(12)], min: 1, max: 1, targets: [{ type: 'player', id: 1 }] };
     s.apply({ t: 'call', method: 'showPromptMessage', args: [P0, 'Lightning Bolt - Select target', card(33)] });
     s.apply({ t: 'call', method: 'updateButtons', args: [P0, 'OK', 'Cancel', false, true, false] });
-    s.apply({ t: 'call', method: 'setHighlighted', args: [[{ type: 'player', id: 1 }], true] });
+    s.apply(selection(offered));
+    s.apply(selection({ ...offered, chosen: [{ type: 'player', id: 1 }] }));
     expect(s.input).toEqual({
       ownerId: 0,
       message: 'Lightning Bolt - Select target',
@@ -111,10 +117,27 @@ describe('LiveSession input state (bridge seat protocol)', () => {
       targets: [{ type: 'player', id: 1 }],
       highlighted: [{ type: 'player', id: 1 }],
     });
-    s.apply({ t: 'call', method: 'setHighlighted', args: [[{ type: 'player', id: 1 }], false] });
+    s.apply(selection(offered));
     expect(s.input.highlighted).toEqual([]);
-    s.apply({ t: 'call', method: 'clearSelectables', args: [] });
+    // InputSyncronizedBase.stop: only the marks kept while the spell's cost is paid
+    s.apply(selection({ chosen: [card(12)] }));
     expect(s.input.selectable).toBeUndefined();
+    expect(s.input.targets).toEqual([]);
+    expect(s.input.highlighted).toEqual([card(12)]);
+  });
+
+  it('offers no cards for a selection that picks none (max 0: stack items only)', () => {
+    const s = new LiveSession();
+    s.apply(selection({ targets: [{ type: 'stackItem', id: 7 }] }));
+    expect(s.input.selectable).toBeUndefined();
+    expect(s.input.targets).toEqual([{ type: 'stackItem', id: 7 }]);
+  });
+
+  it('keeps the selection across awaitNextInput: the engine sends one only when it changes', () => {
+    const s = new LiveSession();
+    s.apply(selection({ chosen: [card(12)] }));
+    s.apply({ t: 'call', method: 'awaitNextInput', args: [] });
+    expect(s.input.highlighted).toEqual([card(12)]);
   });
 
   it('ends the input on awaitNextInput', () => {

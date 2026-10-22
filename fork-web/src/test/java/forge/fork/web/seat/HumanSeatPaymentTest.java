@@ -227,21 +227,43 @@ public class HumanSeatPaymentTest {
         return lastArgs("updateButtons").get(3).getAsBoolean();
     }
 
-    /** The card ids the seat's input names now: its last {@code setSelectables}, none once cleared since. */
+    /** The card ids the seat's input offers now: the cards of its last {@code setSelection}. */
     private Set<Integer> selectables() {
+        return selectionIds("cards");
+    }
+
+    /**
+     * {@link #selectables()} once it names any: an input's first display sends its selection after its message
+     * ({@code InputBase.showMessageInitial}, on the EDT), so it may still be on its way. Waits up to 5 s.
+     */
+    private Set<Integer> awaitSelectables() {
+        long end = System.currentTimeMillis() + 5000;
+        Set<Integer> ids = selectables();
+        while (ids.isEmpty() && System.currentTimeMillis() < end) {
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            ids = selectables();
+        }
+        return ids;
+    }
+
+    /** The card ids the seat's input shows as chosen: the {@code chosen} of its last {@code setSelection}. */
+    private Set<Integer> chosen() {
+        return selectionIds("chosen");
+    }
+
+    private Set<Integer> selectionIds(String field) {
         Set<Integer> ids = new HashSet<>();
-        synchronized (seat) {
-            for (int i = seat.frames.size() - 1; i >= 0; i--) {
-                String f = seat.frames.get(i);
-                if (f.contains("\"method\":\"clearSelectables\"")) {
-                    return ids;
-                }
-                if (f.contains("\"method\":\"setSelectables\"")) {
-                    JsonArray args = JsonParser.parseString(f).getAsJsonObject().getAsJsonArray("args");
-                    for (JsonElement e : args.get(0).getAsJsonArray()) {
-                        ids.add(e.getAsJsonObject().get("id").getAsInt());
-                    }
-                    return ids;
+        String call = seat.lastCall("setSelection");
+        if (call != null) {
+            JsonObject sel = JsonParser.parseString(call).getAsJsonObject().getAsJsonArray("args").get(0).getAsJsonObject();
+            for (JsonElement e : sel.getAsJsonArray(field)) {
+                if (e.isJsonObject() && "card".equals(e.getAsJsonObject().get("type").getAsString())) {
+                    ids.add(e.getAsJsonObject().get("id").getAsInt());
                 }
             }
         }
@@ -424,6 +446,7 @@ public class HumanSeatPaymentTest {
         mainPhase();
         int hand = me.getCardsIn(ZoneType.Hand).size();
         List<Set<Integer>> lit = new ArrayList<>();
+        List<Set<Integer>> picked = new ArrayList<>();
         List<Card> toPick = new ArrayList<>(List.of(o1, o2, o3));
         List<String> seen = play(() -> game.getCardState(spell).isInZone(ZoneType.Graveyard) || game.getPhaseHandler().getPhase() != PhaseType.MAIN1,
                 in -> {
@@ -431,7 +454,8 @@ public class HumanSeatPaymentTest {
                         return cast(spell);
                     }
                     if (in instanceof InputSelectCardsForConvokeOrImprovise) {
-                        lit.add(selectables());
+                        lit.add(awaitSelectables());
+                        picked.add(chosen());
                         if (!toPick.isEmpty()) {
                             Card c = toPick.remove(0);
                             return () -> select(c);
@@ -441,6 +465,8 @@ public class HumanSeatPaymentTest {
                 }, HumanSeatPaymentTest::noPrompt);
         assertFalse(lit.isEmpty(), "the seat met the improvise input; seen " + seen);
         assertEquals(lit.get(0), ids(o1, o2, o3), "exactly the untapped artifacts were lit: " + lit);
+        assertEquals(lit.get(1), ids(o1, o2, o3), "a picked artifact stays lit (a click unpicks it): " + lit);
+        assertEquals(picked.subList(0, 3), List.of(Set.of(), ids(o1), ids(o1, o2)), "the selection shows what is chosen: " + picked);
         assertTrue(o1.isTapped() && o2.isTapped() && o3.isTapped(), "the picked artifacts paid {3}");
         assertFalse(bears.isTapped(), "the Bears (not an artifact) stayed untapped");
         assertEquals(castOffered, Boolean.TRUE, "the page offered Reverse Engineer as playable (improvise counted)");
@@ -473,7 +499,7 @@ public class HumanSeatPaymentTest {
                         return () -> selectPlayer(ai);
                     }
                     if (in instanceof InputSelectCardsForConvokeOrImprovise) {
-                        lit.add(selectables());
+                        lit.add(awaitSelectables());
                         if (!toPick.isEmpty()) {
                             Card c = toPick.remove(0);
                             return () -> select(c);
@@ -510,7 +536,7 @@ public class HumanSeatPaymentTest {
                         return () -> select(fain);
                     }
                     if (in instanceof forge.player.HumanCostDecision.InputSelectCardToRemoveCounter) {
-                        lit.add(selectables());
+                        lit.add(awaitSelectables());
                         return () -> select(bears);
                     }
                     return null;

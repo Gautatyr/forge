@@ -64,6 +64,7 @@ public class SeatCoverageTest {
             afterGameEnd() = ProtocolGuiGame
             alertUser() = ProtocolGuiGame
             applyDelta(DeltaPacket) = NetworkGuiGame
+            applyMacroState(State) = ProtocolGuiGame
             applyYieldUpdate(YieldUpdate) = ProtocolGuiGame
             assignCombatDamage(CardView,List,int,GameEntityView,boolean,boolean) = ProtocolGuiGame
             assignGenericAmount(CardView,Map,int,boolean,String) = ProtocolGuiGame
@@ -73,7 +74,6 @@ public class SeatCoverageTest {
             cancelAwaitNextInput() = AbstractGuiGame
             chooseEntitiesForEffect(String,List,int,int,DelayedReveal) = ProtocolGuiGame
             chooseSingleEntityForEffect(String,List,DelayedReveal,boolean) = ProtocolGuiGame
-            clearSelectables() = ProtocolGuiGame
             clearWeaklySelectable() = ProtocolGuiGame
             confirm(CardView,String) = IGuiGame
             confirm(CardView,String,boolean,List) = ProtocolGuiGame
@@ -129,13 +129,11 @@ public class SeatCoverageTest {
             setGameSpeed(PlaybackSpeed) = AbstractGuiGame
             setGameView(GameView) = ProtocolGuiGame
             setGameView(GameView,long) = IGuiGame
-            setHighlighted(Iterable,boolean) = ProtocolGuiGame
             setNetGame() = AbstractGuiGame
             setOriginalGameController(PlayerView,IGameController) = WebGuiGame
             setPanelSelection(CardView) = ProtocolGuiGame
             setPlayerAvatar(LobbyPlayer,IHasIcon) = ProtocolGuiGame
-            setSelectableTargets(Iterable) = ProtocolGuiGame
-            setSelectables(Iterable,int,int) = ProtocolGuiGame
+            setSelection(Selection) = WebGuiGame
             setSpectator(IGameController) = AbstractGuiGame
             setWeaklySelectable(Iterable) = ProtocolGuiGame
             showCoinFlip(boolean,String,boolean) = IGuiGame
@@ -150,7 +148,7 @@ public class SeatCoverageTest {
             showManaPool(PlayerView) = ProtocolGuiGame
             showOptionDialog(String,String,FSkinProp,List,int) = ProtocolGuiGame
             showPromptMessage(PlayerView,String) = IGuiGame
-            showPromptMessage(PlayerView,String,CardView) = WebGuiGame
+            showPromptMessage(PlayerView,String,CardView) = ProtocolGuiGame
             showRevealedCards(Iterable) = ProtocolGuiGame
             sideboard(CardPool,CardPool,String) = ProtocolGuiGame
             updateAutoPassPrompt() = ProtocolGuiGame
