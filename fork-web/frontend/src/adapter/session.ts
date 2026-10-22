@@ -173,9 +173,15 @@ export class LiveSession {
 
   /** This client sent selectCard: remember the card it casts or activates (a click with priority, not a target or a mana source). */
   clicked(card: number) {
-    if (!/^Priority:/.test(this.input.message) || card === this.lastCard) return;
+    if (!/^Priority:/.test(this.input.message)) return;
+    // A repeat click keeps the limbo and the cast name, but the card may have changed zone since (issue #75).
+    const zone = this.get('card', card)?.props.Zone;
+    if (card === this.lastCard) {
+      if (zone !== undefined) this.lastCardFrom = zone;
+      return;
+    }
     this.lastCard = card;
-    this.lastCardFrom = this.get('card', card)?.props.Zone;
+    this.lastCardFrom = zone;
     this.limbo = new Map();
     this.castNamed = undefined;
   }
