@@ -712,6 +712,30 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'combat-stack',
+    label: '2a · Commander: blockers with a stack',
+    description: 'Declare blockers (4 attackers at you) while two spells wait on the stack: the rail is crowded, the combat list must still show three attackers.',
+    build: () => {
+      const b = new GameBuilder('combat-stack', 'commander');
+      const ids = commanderTable(b);
+      yourHand(b, HAND_7);
+      b.turn(10, 'mira', 'declareBlockers', undefined);
+      const attackers = [ids.krenko, ids.chieftain, ids.goblins[0]!, ids.goblins[1]!];
+      for (const id of attackers) b.g.cards[id]!.tapped = true;
+      b.g.combat = { attacks: attackers.map((attackerId) => ({ attackerId, defenderId: 'you' })), blocks: [] };
+      b.g.cards[ids.spirit]!.summoningSick = false;
+      b.g.decision = { kind: 'declareBlockers', candidates: [ids.sythis, ids.eidolon, ids.knight, ids.champion, ids.spirit], attackers, draft: [] };
+      const bolt = b.card('Lightning Bolt', 'mira', 'stack');
+      const swords = b.card('Swords to Plowshares', 'theo', 'stack');
+      b.g.stack = [
+        { id: 's1', sourceCardId: bolt, controllerId: 'mira', kind: 'spell', text: 'Lightning Bolt deals 3 damage to any target.', targets: [{ kind: 'card', id: ids.eidolon }] },
+        { id: 's2', sourceCardId: swords, controllerId: 'theo', kind: 'spell', text: 'Exile target creature.', targets: [{ kind: 'card', id: ids.goblins[0]! }] },
+      ];
+      b.log('Mira attacks Hugo with 4 creatures.', 'mira', 10);
+      return b.done();
+    },
+  },
+  {
     id: 'scry',
     label: '3a · Choice tray: scry 2',
     description: 'You played Temple of Plenty: scry 2. The tray asks; the board stays visible.',
@@ -861,6 +885,7 @@ export const SCENARIOS: Scenario[] = [
     HAND_12,
   ),
   handScenario('hand15', '5d · Hand of 15 (overflow)', 'Fifteen cards, still staggered at full size.', HAND_15),
+  handScenario('hand0', '5e · Empty hand', 'No cards in hand: the message stays on one line beside the command-zone group.', []),
   {
     id: 'board',
     label: '5e · Catching up: Mira’s Bolt at you',

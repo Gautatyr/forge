@@ -7,6 +7,9 @@ import { otherZoneGroup } from './otherZoneGroup';
 import { useSize } from './useSize';
 import styles from './Hand.module.css';
 
+/** Width (rem) kept for the "Your hand is empty." message. */
+const EMPTY_REM = 13;
+
 export function Hand() {
   const { game } = useMatch();
   const me = you(game);
@@ -16,7 +19,8 @@ export function Hand() {
   // Every card you may cast from another zone, whatever you can afford (design pass 4, P4).
   const other = otherZoneGroup(game);
   const g = handGeometry(hand.length, other.length, box.w, box.h, box.rem);
-  const handWidth = hand.length > 0 ? (hand.length - 1) * g.step + g.cardW : 0;
+  // An empty hand still takes the width of its message, so it never wraps inside a zero-width box.
+  const handWidth = hand.length > 0 ? (hand.length - 1) * g.step + g.cardW : EMPTY_REM * box.rem;
   const otherLeft = handWidth + (other.length ? g.groupGap : 0);
   const total = otherLeft + (other.length ? other.length * g.cardW + (other.length - 1) * g.gap : 0);
 
@@ -28,7 +32,7 @@ export function Hand() {
             className={styles.inner}
             style={{ width: total, '--cw': `${g.cardW}px`, '--raise': `${g.raise}px` } as CSSProperties}
           >
-            {hand.length === 0 ? <p className={styles.empty}>Your hand is empty.</p> : null}
+            {hand.length === 0 ? <p className={styles.empty} style={{ width: handWidth }}>Your hand is empty.</p> : null}
             {hand.map((c, i) => {
               const back = g.stagger && i % 2 === 1;
               return (

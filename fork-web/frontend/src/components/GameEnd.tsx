@@ -41,12 +41,13 @@ function useDialogKeys(handlers: Partial<Record<'Escape' | 'Enter', () => void>>
 
 /** "■ Theo is out: 21 commander damage from Krenko, Mob Boss." at the top of the board for 5 s. */
 export function OutToast() {
-  const { game } = useMatch();
+  const { game, prefs } = useMatch();
+  const yourShare = opponents(game).length === 1 ? 50 : 100 - prefs.opponentShare;
   const out = useJustOut(game, TOAST_MS)
     .map((id) => player(game, id))
     .filter((p) => !p.isYou);
   return (
-    <div className={styles.toasts} role="status" aria-live="polite">
+    <div className={styles.toasts} style={{ '--your-share': `${yourShare}%` } as CSSProperties} role="status" aria-live="polite">
       {out.map((p) => (
         <p key={p.id} className={styles.toast}>
           <SeatGlyph seat={p.seat} />

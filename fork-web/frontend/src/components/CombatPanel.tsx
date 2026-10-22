@@ -20,7 +20,8 @@ export function CombatPanel() {
   const d = game.decision;
   const attacks = d.kind === 'declareAttackers' ? d.draft : (game.combat?.attacks ?? []);
   const blocks = d.kind === 'declareBlockers' ? d.draft : (game.combat?.blocks ?? []);
-  if (d.kind !== 'declareAttackers' && !game.combat) return null;
+  // Once the game is decided, combat is over: its last attackers are not a live list.
+  if (game.result || (d.kind !== 'declareAttackers' && !game.combat)) return null;
 
   if (d.kind === 'declareAttackers') {
     const aim = currentAttackAim(game, ui, prefs.layout);

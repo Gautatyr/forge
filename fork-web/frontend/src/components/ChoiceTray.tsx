@@ -182,7 +182,7 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
     );
 
   return (
-    <div className={styles.tray} role="region" aria-label={prompt.title} style={{ '--tray-max': `${yourShare}%` } as CSSProperties}>
+    <div className={`${styles.tray} ${prompt.shape === 'order' ? styles.narrow : ''}`} role="region" aria-label={prompt.title} style={{ '--tray-max': `${yourShare}%` } as CSSProperties}>
       <header className={styles.head}>
         {source ? <Card card={source} context="thumb" style={{ '--cw': '2.6rem' } as CSSProperties} /> : null}
         <div className={styles.titles}>
