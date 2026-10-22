@@ -110,9 +110,12 @@ export function CombatPanel() {
         {attacks.map((a) => {
           const att = game.cards[a.attackerId];
           const def = player(game, a.defenderId);
-          // An attack on a planeswalker or battle names it (issue #65).
+          // An attack on a planeswalker or battle names it (issue #65); a battle you protect is not yours (issue #75).
           const walker = a.defenderCardId ? game.cards[a.defenderCardId] : undefined;
-          const target = walker ? (def.isYou ? `your ${walker.name}` : walker.name) : def.isYou ? 'you' : def.name;
+          const yours = walker?.controllerId === game.youId;
+          const target = walker
+            ? def.isYou ? (yours ? `your ${walker.name}` : `${walker.name}, which you protect`) : walker.name
+            : def.isYou ? 'you' : def.name;
           const blockers = blocks.filter((b) => b.attackerId === a.attackerId);
           return (
             <li key={a.attackerId} className={def.isYou ? styles.atYou : ''}>

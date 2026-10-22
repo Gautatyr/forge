@@ -70,6 +70,7 @@ public class HumanSeatTriggersTest {
     private PlayerControllerHuman pch;
     private GameStream stream;
     private Seat seat;
+    private TriggerAudit audit;
 
     /** The seat's browser: records every frame; the test thread reads them. */
     static final class Seat implements ClientSink {
@@ -146,11 +147,16 @@ public class HumanSeatTriggersTest {
 
     /** As {@code HostedMatch.startGame} wires a {@code ProtocolGuiGame} human, then seat 0's client connects. */
     private void start() {
+        start(new LobbyPlayerHuman("You"));
+    }
+
+    /** As {@link #start()}, the seat's player being {@code human} (e.g. a {@link TriggerAudit.Human}). */
+    private void start(LobbyPlayerHuman human) {
         SilentDefaults.reset();
         SilentDefaults.setStrict(true);
         gameThread = Executors.newSingleThreadExecutor(r -> new Thread(r, "Game-46"));
         List<RegisteredPlayer> rps = new ArrayList<>();
-        rps.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerHuman("You")));
+        rps.add(new RegisteredPlayer(new Deck()).setPlayer(human));
         rps.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("ai1", null)));
         rps.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("ai2", null)));
         GameRules rules = new GameRules(GameType.Constructed);
@@ -509,6 +515,100 @@ public class HumanSeatTriggersTest {
         assertTrue(seen.contains("InputConfirm"), "the optional trigger asked the seat: " + seen);
         assertEquals(me.getLife(), 18, "paid life equal to its mana value");
         assertNotNull(stackText("Anrakyr"), "the seat saw the trigger on the stack: " + seat.stackItems());
+        assertNoSilentDefault();
+    }
+
+    // --- issue #63: a trigger whose target restriction depends on the triggering object ---
+
+    /** The first choice whose text names {@code name}, else the first legal answer (as the sweep's seat). */
+    private static JsonElement pick(JsonObject p, String name) {
+        JsonArray choices = p.getAsJsonArray("choices");
+        for (int i = 0; name != null && choices != null && i < choices.size(); i++) {
+            if (choices.get(i).toString().contains(name)) {
+                return JsonParser.parseString("[" + i + "]");
+            }
+        }
+        return ScriptedSeat.answer(p);
+    }
+
+    /**
+     * Kuldotha Forgemaster (mana value 5) sacrifices itself and two Ornithopters (0): three Scrap Trawler triggers from
+     * one trigger of one host. The Forgemaster's has Mind Stone (2) to return; the Ornithopters' have no artifact card of
+     * lesser mana value. The audit must match the trigger cast to the Forgemaster's and count the other two as having
+     * no legal target (the sweep reported the Forgemaster's as dropped).
+     */
+    @Test
+    public void scrapTrawlerReturnsALesserArtifactAndTheAuditCountsTheOthersAsNoTarget() throws Exception {
+        audit = new TriggerAudit(100);
+        start(new TriggerAudit.Human(audit));
+        add("Scrap Trawler", me, ZoneType.Battlefield);
+        Card forgemaster = add("Kuldotha Forgemaster", me, ZoneType.Battlefield);
+        Card o1 = add("Ornithopter", me, ZoneType.Battlefield);
+        Card o2 = add("Ornithopter", me, ZoneType.Battlefield);
+        Card stone = add("Mind Stone", me, ZoneType.Graveyard);
+        Card sphere = add("Myr Battlesphere", me, ZoneType.Graveyard);
+        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, me);
+        game.getPhaseHandler().onStackResolved();
+        boolean[] activated = {false};
+        List<String> seen = play(() -> activated[0] && game.getStack().isEmpty() && game.getCardState(stone).isInZone(ZoneType.Hand)
+                        || game.getPhaseHandler().getPhase() != PhaseType.MAIN1,
+                in -> {
+                    if (in instanceof InputPassPriority && !activated[0] && game.getStack().isEmpty()) {
+                        activated[0] = true;
+                        return () -> select(forgemaster);
+                    }
+                    if (in instanceof forge.gamemodes.match.input.InputSelectCardsFromList && forgemaster.isInPlay()) {
+                        return () -> List.of(o1, o2, forgemaster).forEach(this::select); // then OK
+                    }
+                    if (in instanceof forge.gamemodes.match.input.InputSelectTargets) {
+                        return () -> select(stone);
+                    }
+                    return null;
+                },
+                p -> pick(p, "Mind Stone"));
+        assertTrue(game.getCardState(forgemaster).isInZone(ZoneType.Graveyard), "sacrificed; seen " + seen);
+        assertTrue(game.getCardState(stone).isInZone(ZoneType.Hand), "the Forgemaster's trigger returned Mind Stone; seen " + seen);
+        assertTrue(game.getCardState(sphere).isInZone(ZoneType.Graveyard), "Myr Battlesphere (7) was never a legal target");
+        assertNotNull(stackText("Scrap Trawler"), "the seat saw the trigger on the stack: " + seat.stackItems());
+        assertEquals(audit.dropped, List.of(), audit.dropped + "; seen " + seen);
+        assertEquals(audit.onStack, 1, "the Forgemaster's trigger");
+        assertEquals(audit.noLegalTarget, 2, "the Ornithopters' triggers: " + audit.noTargetCards);
+        assertEquals(audit.handed, 3);
+        assertNoSilentDefault();
+    }
+
+    /** Kuldotha Forgemaster (5) dies alone; the graveyard holds only Myr Battlesphere (7): no legal target, counted so. */
+    @Test
+    public void scrapTrawlerWithNoLesserArtifactHasNoLegalTarget() throws Exception {
+        audit = new TriggerAudit(100);
+        start(new TriggerAudit.Human(audit));
+        add("Scrap Trawler", me, ZoneType.Battlefield);
+        Card forgemaster = add("Kuldotha Forgemaster", me, ZoneType.Battlefield);
+        Card vampire = add("Bloodthrone Vampire", me, ZoneType.Battlefield);
+        Card sphere = add("Myr Battlesphere", me, ZoneType.Graveyard);
+        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, me);
+        game.getPhaseHandler().onStackResolved();
+        boolean[] activated = {false};
+        List<String> seen = play(() -> activated[0] && game.getStack().isEmpty() && vampire.getNetPower() == 3
+                        || game.getPhaseHandler().getPhase() != PhaseType.MAIN1,
+                in -> {
+                    if (in instanceof InputPassPriority && !activated[0] && game.getStack().isEmpty()) {
+                        activated[0] = true;
+                        return () -> select(vampire);
+                    }
+                    if (in instanceof forge.gamemodes.match.input.InputSelectCardsFromList && forgemaster.isInPlay()) {
+                        return () -> select(forgemaster); // then OK
+                    }
+                    return null;
+                },
+                p -> pick(p, null));
+        assertTrue(game.getCardState(forgemaster).isInZone(ZoneType.Graveyard), "sacrificed; seen " + seen);
+        assertTrue(game.getCardState(sphere).isInZone(ZoneType.Graveyard), "Myr Battlesphere (7) is no legal target");
+        assertEquals(vampire.getNetPower(), 3, "the Vampire's ability resolved; seen " + seen);
+        assertEquals(audit.dropped, List.of(), "seen " + seen);
+        assertEquals(audit.onStack, 0);
+        assertEquals(audit.handed, 1, "the Forgemaster's trigger was handed to the seat");
+        assertEquals(audit.noLegalTarget, 1, "counted as no legal target: " + audit.noTargetCards);
         assertNoSilentDefault();
     }
 }

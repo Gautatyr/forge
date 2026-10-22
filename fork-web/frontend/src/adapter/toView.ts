@@ -119,6 +119,27 @@ function face(p: CardStateProps, fallbackName: string, back: boolean, images: Im
 
 const sid = (n: number) => String(n);
 
+/** A spell you are casting known only by name (LiveSession.castNamed). */
+function namedSpell(named: { id: number; name: string }, you: string): CardView {
+  return {
+    id: sid(named.id),
+    name: named.name,
+    front: { name: named.name, manaCost: '', typeLine: '', oracleText: '' },
+    ownerId: you,
+    controllerId: you,
+    zone: 'stack',
+    isToken: false,
+    isCommander: false,
+    tapped: false,
+    summoningSick: false,
+    counters: [],
+    damage: 0,
+    ptModifiers: [],
+    keywords: [],
+    attachments: [],
+  };
+}
+
 /** A player of this game, or undefined (the engine sends -1 for cards outside the game, e.g. a mutated card's merged copy). */
 function gamePlayer(s: LiveSession, id: number | undefined): number | undefined {
   return id !== undefined && (s.gameObject?.props.Players ?? []).includes(id) ? id : undefined;
@@ -311,7 +332,11 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
   // The engine's ref to the spell being cast can be unknown (-1): fall back to the card you clicked. An input
   // that names no card (discard to hand size, who starts) is for no spell, whatever was clicked before.
   const known = (id: number | undefined) => (id !== undefined && id >= 0 && view.cards[sid(id)] ? sid(id) : undefined);
-  const castCard = () => known(input.cardId) ?? (input.namesCard ? known(s.lastCard) : undefined) ?? '';
+  // After a reload no click is known: the targeting message names the spell (s.castNamed, drawn by toGameView).
+  const castCard = () =>
+    known(input.cardId) ?? (input.namesCard ? (known(s.lastCard) ?? known(s.castNamed?.id)) : undefined) ?? '';
+  // The input's Cancel, unless its button does something else (InputSelectEntitiesFromList's "Select all").
+  const cancellable = input.cancel.enabled && input.cancel.label === 'Cancel';
 
   const pay = PAY_COST.exec(input.message);
   if (pay) {
@@ -426,12 +451,13 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
       const toss = tossChooser(msg);
       return {
         kind: 'choice',
+        ...(cancellable ? { cancellable } : {}),
         prompt: {
           id: `${SELECT_PROMPT_PREFIX}${legal.map(targetKey).join(',')}|${msg}`,
           shape: 'chooseN',
           // "Cultivate (12)\nSelect up to 2 cards from your library", "Cleanup Phase\nSelect 2 card(s) to discard…"
           ...(toss ? { title: tossTitle(toss), instruction: '', quiet: true } : promptWords(msg, undefined, 'Choose')),
-          ...(source ? { sourceCardId: source } : {}),
+          ...(source || castCard() ? { sourceCardId: source ?? castCard() } : {}),
           confirmLabel: input.ok.label || 'OK',
           options: legal.map((t) => targetOption(view, t)),
           min: input.selectable?.min ?? (input.ok.enabled ? 0 : 1),
@@ -530,6 +556,9 @@ export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup,
     const c = mapCard(s, s.lastCard, images);
     if (c) cards[c.id] = { ...c, zone: 'stack' };
   }
+  // After a reload, the spell being cast as its targeting message names it: no objects, only its name.
+  const named = s.castNamed;
+  if (named && !cards[sid(named.id)] && youNum !== undefined) cards[sid(named.id)] = namedSpell(named, sid(youNum));
   const visible = (ids: number[] | undefined) => (ids ?? []).map(sid).filter((id) => cards[id]);
   const names = playerIds.map((id) => ({ id, name: s.get('player', id)?.props.Name ?? '' })).filter((x) => x.name);
   const mulligans = starting ? mulliganStates(s, names) : new Map<number, MulliganState>();

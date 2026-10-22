@@ -34,7 +34,7 @@ When the game ends, the page shows the result and Forge's lobby is ready for the
 Checked on a 4-player Commander game (you plus 3 AIs, 40 life) started from the lobby:
 - Mulligan (keep or mulligan), land drops, casting spells and your commander from the command zone (with commander tax).
 - Mana payment: click your lands and mana rocks one by one, or **Pay automatically**; the plan shows which sources it would tap. Floating mana is used by **Pay automatically**.
-- Attacks: click your creatures, then **Attack with N** (or **Attack all**); click an opponent first to change who they attack.
+- Attacks: click your creatures, then **Attack with N** (or **Attack all**); click an opponent, planeswalker or battle first to change what they attack.
 - Prompts: yes/no questions (for example, sending your commander back to the command zone) and cards an opponent reveals to you. Blocks, targets and library searches were checked in earlier test games, not in this one.
 - Discard to hand size at the end of your turn: click the cards in your hand, then **OK**.
 - **To my turn** passes until your next turn; it stops when the game asks you something.

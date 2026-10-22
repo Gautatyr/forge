@@ -154,6 +154,19 @@ export function primaryAction(game: GameView, ui: UiState, stops: StopPrefs): Pr
   }
 }
 
+/** Cancel (button and Esc): a half-cast spell or ability, a choice the engine lets you back out of, a combat draft. */
+export function canCancel(game: GameView, ui: UiState): boolean {
+  const d = game.decision;
+  return (
+    d.kind === 'chooseTargets' ||
+    d.kind === 'payMana' ||
+    (d.kind === 'choice' && d.cancellable === true) ||
+    ((d.kind === 'declareAttackers' || d.kind === 'declareBlockers') && d.draft.length > 0) ||
+    ui.pendingBlocker !== undefined ||
+    ui.pendingAttacker !== undefined
+  );
+}
+
 /** "combat", "upkeep"…: the step as the prompt line names it. */
 function stepPhrase(step: StepId): string {
   if (stepInfo(step).combat) return 'combat';
@@ -194,7 +207,7 @@ export function promptText(game: GameView): string {
     case 'payMana':
       return 'Click your lands or creatures that add mana.';
     case 'declareAttackers':
-      return 'Click creatures to attack with them. Click an opponent first to change who they attack.';
+      return 'Click creatures to attack with them. Click an opponent, planeswalker or battle first to change what they attack.';
     case 'declareBlockers':
       return 'Click your creature, then the attacker it blocks — or the attacker first, then your creature.';
     case 'choice':

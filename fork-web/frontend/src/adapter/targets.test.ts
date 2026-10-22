@@ -3,6 +3,9 @@
  * clicks map to the input's own actions (stack items: selectStackItem). Also the floating-pool click while paying.
  */
 import { describe, expect, it } from 'vitest';
+import { canCancel, primaryAction, promptText } from '../state/primaryAction';
+import { DEFAULT_PREFS } from '../state/prefs';
+import { INITIAL_UI } from '../state/ui';
 import type { CallMessage, WireObject } from '../wire/generated/wire';
 import { intentToFrames } from './commands';
 import { LiveSession } from './session';
@@ -185,6 +188,89 @@ describe('other target kinds a targeting input offers', () => {
     });
     const id = g.decision.kind === 'choice' ? g.decision.prompt.id : '';
     expect(intentToFrames({ type: 'answer', promptId: id, answer: { shape: 'chooseN', optionIds: ['c70'] } }, s, g)).toEqual([act('selectCard', { card: 70 })]);
+  });
+});
+
+/**
+ * Issue #62: the page reloaded while you cast a spell. The new session never saw the click, and the engine's ref to
+ * the spell is -1; its targeting message still names it, "Lightning Bolt (27) - …".
+ */
+describe('after a reload mid-cast', () => {
+  const ask = (s: LiveSession, message: string, cancel = { label: 'Cancel', enabled: true }) => {
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, message, card(-1)] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', cancel.label, false, cancel.enabled, false] });
+  };
+  const bolt = (s: LiveSession) => {
+    ask(s, 'Lightning Bolt (27) - Lightning Bolt deals 3 damage to any target.\n\nSelect any target');
+    s.apply(selection({ cards: [card(55)], min: 1, max: 1, targets: [YOU, { type: 'player', id: 1 }] }));
+  };
+
+  it('restores the spell from the prompt and keeps card targets on the board, with Cancel', () => {
+    const s = session();
+    bolt(s);
+    const g = toGameView(s);
+    expect(g.decision).toEqual({
+      kind: 'chooseTargets',
+      sourceCardId: '27',
+      instruction: 'Select any target',
+      legal: [
+        { kind: 'card', id: '55' },
+        { kind: 'player', id: '0' },
+        { kind: 'player', id: '1' },
+      ],
+      chosen: [],
+      min: 1,
+      max: 1,
+    });
+    expect(g.cards['27']).toMatchObject({ name: 'Lightning Bolt', zone: 'stack', ownerId: '0', controllerId: '0' });
+    expect(promptText(g)).toBe('Select any target for Lightning Bolt.');
+    expect(primaryAction(g, INITIAL_UI, DEFAULT_PREFS.stops)).toMatchObject({ label: 'Choose a target', enabled: false });
+    expect(canCancel(g, INITIAL_UI)).toBe(true);
+    expect(intentToFrames({ type: 'cancel' }, s, g)).toEqual([act('selectButtonCancel')]);
+  });
+
+  it('still names the spell while you pay for it, until you have priority again', () => {
+    const s = session();
+    bolt(s);
+    s.apply({ t: 'call', method: 'awaitNextInput', args: [] });
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Lightning Bolt deals 3 damage to Llanowar Elves.\n\nPay Mana Cost: {R}', card(-1)] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'Auto', 'Cancel', true, true, true] });
+    let g = toGameView(s);
+    expect(g.decision).toMatchObject({ kind: 'payMana', sourceCardId: '27' });
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Priority: Hugo', null] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'End Turn', true, true, true] });
+    g = toGameView(s);
+    expect(g.cards['27']).toBeUndefined();
+  });
+
+  it('keeps Cancel for targets the tray lists (a graveyard card)', () => {
+    const s = session();
+    ask(s, 'Raise Dead (27) - Return target creature card from a graveyard to your hand.\n\nSelect target creature card in a graveyard');
+    s.apply(selection({ cards: [card(70)], min: 1, max: 1 }));
+    const g = toGameView(s);
+    expect(g.decision).toMatchObject({ kind: 'choice', cancellable: true, prompt: { options: [{ id: 'c70', cardId: '70' }] } });
+    expect(canCancel(g, INITIAL_UI)).toBe(true);
+    expect(intentToFrames({ type: 'cancel' }, s, g)).toEqual([act('selectButtonCancel')]);
+  });
+
+  it('offers no Cancel when the input has none, or uses that button for something else', () => {
+    for (const cancel of [{ label: 'Cancel', enabled: false }, { label: 'Select all', enabled: true }]) {
+      const s = session();
+      ask(s, 'Raise Dead (27) - Return target creature card from a graveyard to your hand.\n\nSelect target creature card in a graveyard', cancel);
+      s.apply(selection({ cards: [card(70)], min: 1, max: 1 }));
+      const g = toGameView(s);
+      expect(g.decision.kind).toBe('choice');
+      expect(canCancel(g, INITIAL_UI)).toBe(false);
+    }
+  });
+
+  it('a clicked card still wins over an older named spell', () => {
+    const s = session();
+    bolt(s);
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Priority: Hugo', null] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'End Turn', true, true, true] });
+    counterspell(s);
+    expect(toGameView(s).decision).toMatchObject({ kind: 'chooseTargets', sourceCardId: '60' });
   });
 });
 
