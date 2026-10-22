@@ -54,7 +54,16 @@ const STEP_OF: Record<PhaseType, StepId> = {
 };
 
 /** GamePieceTypes that live in the command zone as game state rather than as a card you can cast. */
-const EFFECT_PIECES = new Set<string>(['EFFECT', 'DUNGEON', 'PLANAR', 'SCHEME', 'AVATAR']);
+const EFFECT_PIECES = new Set<string>([
+  'EFFECT',
+  'DUNGEON',
+  'PLANAR',
+  'SCHEME',
+  'AVATAR',
+  'STICKER_SHEET',
+  'ATTRACTION',
+  'CONTRAPTION',
+]);
 
 const ZONE_OF: Partial<Record<ZoneType, Zone>> = {
   Hand: 'hand',

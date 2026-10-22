@@ -296,8 +296,11 @@
 /* Effects in force and cards attached to the player: hover shows the card. */
 .statusChip {
   color: var(--c-text);
+  max-width: 100%;
+  min-width: 0;
 }
 .statusName {
+  min-width: 0;
   max-width: 11rem;
   overflow: hidden;
   text-overflow: ellipsis;

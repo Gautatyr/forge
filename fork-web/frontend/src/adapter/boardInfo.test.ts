@@ -52,13 +52,14 @@ describe('command zone: castable cards vs effects (#14, pass 2 #8)', () => {
         ...cardObj(43, { Owner: 1, Controller: 1, Zone: 'Command', GamePieceType: 'EFFECT' }, { Name: "Stomp's Effect", Type: 'Effect' }),
         ...cardObj(44, { Owner: 1, Controller: 1, Zone: 'Command', GamePieceType: 'DUNGEON' }, { Name: 'Tomb of Annihilation', Type: 'Dungeon' }),
         ...cardObj(45, { Owner: 0, Controller: 0, Zone: 'Command', GamePieceType: 'CARD' }, { Name: 'Lurrus', Type: 'Legendary Creature - Cat' }),
+        ...cardObj(46, { Owner: 0, Controller: 0, Zone: 'Command', GamePieceType: 'STICKER_SHEET' }, { Name: 'Sticker Sheet', Type: 'Sticker Sheet' }),
       ],
-      { Command: [40, 41, 42, 45], Commander: [40] },
+      { Command: [40, 41, 42, 45, 46], Commander: [40] },
       { Command: [43, 44] },
     );
   it('keeps only castable cards in `command` and puts engine effects, emblems and dungeons in `effects`', () => {
     const g = toGameView(s());
-    expect(g.players[0]).toMatchObject({ command: ['40', '45'], effects: ['41', '42'] });
+    expect(g.players[0]).toMatchObject({ command: ['40', '45'], effects: ['41', '42', '46'] });
     expect(g.players[1]).toMatchObject({ command: [], effects: ['43', '44'] });
   });
 });
