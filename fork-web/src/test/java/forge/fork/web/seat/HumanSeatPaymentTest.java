@@ -594,4 +594,43 @@ public class HumanSeatPaymentTest {
         assertEquals(me.getCardsIn(ZoneType.Hand).size(), hand - 1 + 3, "three cards drawn");
         assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
     }
+
+    /** Casts {@code spell} and lets Auto (what the page's Auto-pay switch sends) pay; returns the seen log. */
+    private List<String> castWithAuto(Card spell) throws Exception {
+        mainPhase();
+        return play(() -> game.getCardState(spell).isInZone(ZoneType.Battlefield) || game.getPhaseHandler().getPhase() != PhaseType.MAIN1,
+                in -> in instanceof InputPassPriority && game.getCardState(spell).isInZone(ZoneType.Hand) ? () -> select(spell) : null,
+                HumanSeatPaymentTest::noPrompt);
+    }
+
+    /** Issue #29 (QA playtest): Auto wastes no mana: {1}{R} is paid by Mountain and City of Brass, not Sol Ring's {C}{C}. */
+    @Test
+    public void autoPayWastesNoManaWhenAnExactSourceExists() throws Exception {
+        start();
+        Card sol = add("Sol Ring", me, ZoneType.Battlefield);
+        Card mountain = add("Mountain", me, ZoneType.Battlefield);
+        Card city = add("City of Brass", me, ZoneType.Battlefield);
+        Card piker = add("Goblin Piker", me, ZoneType.Hand);
+        List<String> seen = castWithAuto(piker);
+        assertTrue(game.getCardState(piker).isInZone(ZoneType.Battlefield), "Goblin Piker resolved; seen " + seen);
+        assertTrue(mountain.isTapped() && city.isTapped(), "Mountain and City of Brass paid; seen " + seen);
+        assertFalse(sol.isTapped(), "Sol Ring stayed untapped: its second {C} would be wasted");
+        assertTrue(me.getManaPool().isEmpty(), "nothing left floating");
+        assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
+    }
+
+    /** Issue #29: {1}{R} with two Mountains and Sol Ring: the Mountains pay, Sol Ring stays untapped. */
+    @Test
+    public void autoPayKeepsSolRingWhenLandsPayExactly() throws Exception {
+        start();
+        Card sol = add("Sol Ring", me, ZoneType.Battlefield);
+        Card mountain1 = add("Mountain", me, ZoneType.Battlefield);
+        Card mountain2 = add("Mountain", me, ZoneType.Battlefield);
+        Card piker = add("Goblin Piker", me, ZoneType.Hand);
+        List<String> seen = castWithAuto(piker);
+        assertTrue(game.getCardState(piker).isInZone(ZoneType.Battlefield), "Goblin Piker resolved; seen " + seen);
+        assertTrue(mountain1.isTapped() && mountain2.isTapped(), "both Mountains paid; seen " + seen);
+        assertFalse(sol.isTapped(), "Sol Ring stayed untapped");
+        assertTrue(me.getManaPool().isEmpty(), "nothing left floating");
+    }
 }

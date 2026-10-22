@@ -73,7 +73,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   const [ui, setUiState] = useState<UiState>(INITIAL_UI);
   const [prefs, setPrefsState] = useState<Prefs>(initialPrefs);
   const [source, setSource] = useState<SourceConfig>(() => sourceFromLocation(location));
-  const live = useLive(source, prefs.stops);
+  const live = useLive(source, prefs.stops, prefs.autoPay);
   const liveSend = live?.send;
 
   const setUi = useCallback((patch: Partial<UiState> | ((u: UiState) => UiState)) => {
@@ -89,6 +89,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const send = useCallback((intent: Intent) => {
+    if (intent.type === 'setAutoPay') setPrefs({ autoPay: intent.on });
     if (liveSend) liveSend(intent);
     else dispatch({ type: 'intent', intent });
     if (['primary', 'cancel', 'undo', 'answer', 'play'].includes(intent.type)) {
@@ -98,7 +99,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     setUiState((u) => (u.promptNote?.sticky ? { ...u, promptNote: undefined } : u));
     const focus = focusForIntent(intent);
     if (focus) setUiState((u) => ({ ...u, focusOpponentId: focus }));
-  }, [liveSend]);
+  }, [liveSend, setPrefs]);
 
   const loadScenario = useCallback((id: string) => {
     setSource({ kind: 'mock' });

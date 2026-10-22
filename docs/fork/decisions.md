@@ -235,3 +235,7 @@ Newest last. Each entry: the decision, why, and what it implies.
 - The engine's default dialog title "Forge" is dropped from notices; `InputInfo.declineWords` (bridge) stays for the Cancel words.
 - Target steps: the instruction is the prompt line plus "(N more can be targeted)" (`targetInstruction`), no longer the message's last line (which was the count, or a chosen target's name).
 - Player rows of a combat damage assignment read "Life N", deathtouch is noted on creatures only.
+
+## 2026-10-22 — Auto-pay wastes no mana; the Auto-pay toggle is remembered (issue #29, packet F)
+- Auto-pay toggle: stored with the other match prefs (`Prefs.autoPay`, `state/prefs.ts`), default Off (hand payment stays the default).
+- Waste-free plan (human Auto only): floating mana is already spent first (`payManaCost` pays from the pool before tapping). **Upstream-file edit** (generic, not per card): `ComputerUtilMana.sortManaAbilities`, when `isAutoPayForHuman`, stably re-sorts each shard's candidate abilities by `wastedMana` (units the ability makes that no unpaid shard can take), so Sol Ring ({C}{C}) is not tapped for the {1} of {1}{R} while an exact source exists. AI payment is unchanged.

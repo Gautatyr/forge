@@ -178,6 +178,8 @@ public class ComputerUtilMana {
         final int freeMana = orderedCards.stream().mapToInt(c -> getAIPlayableMana(c).stream()
                 .filter(m -> getGenericCostToActivate(m) == 0).mapToInt(m -> m.amountOfManaGenerated(true)).max().orElse(0)).sum();
         final boolean filtersFirst = freeMana < cost.getConvertedManaCost();
+        final boolean autoPayForHuman = isAutoPayForHuman(sa.getActivatingPlayer());
+        final List<ManaCostShard> unpaidShards = autoPayForHuman ? cost.getUnpaidShards() : null;
 
         for (final ManaCostShard shard : sourcesForShards.keySet()) {
             final Collection<SpellAbility> abilities = sourcesForShards.get(shard);
@@ -231,6 +233,15 @@ public class ComputerUtilMana {
 
                 return ability1.compareTo(ability2);
             });
+
+            if (autoPayForHuman) {
+                // Auto for a human: a source that would leave mana floating (more units than the cost can still take) goes last
+                final Map<SpellAbility, Integer> wasted = new HashMap<>();
+                for (SpellAbility m : newAbilities) {
+                    wasted.put(m, wastedMana(m, unpaidShards));
+                }
+                newAbilities.sort(Comparator.comparingInt(wasted::get)); // stable
+            }
 
             // stable partition: filter abilities to the back (or the front when they're needed)
             final List<SpellAbility> filters = new ArrayList<>();
@@ -1662,6 +1673,45 @@ public class ComputerUtilMana {
     /** Auto-pay for a human (InputPayMana): taps and spends mana only, never another cost the player did not choose. */
     private static boolean isAutoPayForHuman(final Player payer) {
         return payer.getController() instanceof PlayerControllerAi pca && pca.isAutoPayForHuman();
+    }
+
+    /** Units of mana {@code ma} would make that no unpaid shard can still take (they would float and empty). */
+    private static int wastedMana(final SpellAbility ma, final List<ManaCostShard> unpaidShards) {
+        final AbilityManaPart mp = ma.getManaPart();
+        final int units = ma.amountOfManaGenerated(true);
+        if (mp == null || units <= 0) {
+            return 0;
+        }
+        final List<Byte> masks = new ArrayList<>();
+        if (mp.isAnyMana() || mp.isComboMana() || mp.isSpecialMana()) {
+            for (int i = 0; i < units; i++) {
+                masks.add(ManaAtom.ALL_MANA_TYPES);
+            }
+        } else {
+            final int amount = Math.max(1, units / Math.max(1, mp.mana(ma).split(" ").length));
+            for (int i = 0; i < amount; i++) {
+                for (String token : mp.mana(ma).split(" ")) {
+                    masks.add(ManaAtom.fromName(token));
+                }
+            }
+        }
+        final List<ManaCostShard> open = new ArrayList<>(unpaidShards);
+        int wasted = 0;
+        for (byte mask : masks) {
+            ManaCostShard taker = null;
+            for (ManaCostShard shard : open) {
+                if (shard.canBePaidWithManaOfColor(mask)) {
+                    taker = shard;
+                    break;
+                }
+            }
+            if (taker == null) {
+                wasted++;
+            } else {
+                open.remove(taker);
+            }
+        }
+        return wasted;
     }
 
     private static boolean costsOnlyTapAndMana(final SpellAbility ma) {

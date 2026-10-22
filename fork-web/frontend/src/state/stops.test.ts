@@ -157,3 +157,11 @@ describe('strip hover text', () => {
     expect(stepHint(g, DEFAULT_STOPS, 'end')).toBe("End step: the game stops here for you on your opponent's turns, not on your turns. Click to change.");
   });
 });
+
+describe('auto-pay is kept in prefs', () => {
+  it('defaults Off, restores On, ignores garbage', () => {
+    expect(parsePrefs('{}').autoPay).toBe(false);
+    expect(parsePrefs(JSON.stringify({ autoPay: true })).autoPay).toBe(true);
+    expect(parsePrefs(JSON.stringify({ autoPay: 'yes' })).autoPay).toBe(false);
+  });
+});

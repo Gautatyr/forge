@@ -66,7 +66,7 @@ export interface LiveApi {
 }
 
 /** Undefined for the mock source; hooks run either way. */
-export function useLive(config: SourceConfig, stops: StopPrefs = DEFAULT_STOPS): LiveApi | undefined {
+export function useLive(config: SourceConfig, stops: StopPrefs = DEFAULT_STOPS, autoPay = false): LiveApi | undefined {
   const [source, setSource] = useState<LiveSource>();
   const [error, setError] = useState<string>();
   const [imagesVersion, imagesChanged] = useReducer((n: number) => n + 1, 0);
@@ -112,10 +112,10 @@ export function useLive(config: SourceConfig, stops: StopPrefs = DEFAULT_STOPS):
     if (!source.session.gameObject?.props.Players?.length) {
       return placeholderView(source.status === 'open' ? 'Waiting for the game to start' : 'Connecting to the bridge');
     }
-    return toGameView(source.session, lookup, local);
+    return toGameView(source.session, lookup, { ...local, autoPay });
     // version / imagesVersion track every session and image change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config, source, error, version, imagesVersion, lookup, local]);
+  }, [config, source, error, version, imagesVersion, lookup, local, autoPay]);
 
   // Dev only: the current view-model, for checks from the browser console or Playwright.
   useEffect(() => {
@@ -125,7 +125,6 @@ export function useLive(config: SourceConfig, stops: StopPrefs = DEFAULT_STOPS):
   const send = useCallback(
     (intent: Intent) => {
       if (!source || !game) return;
-      if (intent.type === 'setAutoPay') setLocal((l) => ({ ...l, autoPay: intent.on }));
       if (intent.type === 'passUntilYourTurn') setLocal((l) => ({ ...l, passingUntilYourTurn: true, passFromTurn: game.turn.number }));
       if (intent.type === 'cancelPassUntilYourTurn') setLocal((l) => ({ ...l, passingUntilYourTurn: false }));
       source.send(intentToFrames(intent, source.session, game));
@@ -145,10 +144,10 @@ export function useLive(config: SourceConfig, stops: StopPrefs = DEFAULT_STOPS):
   // One "Auto" per payment: the key is the payment, not its card or cost (both can change while it settles).
   const payKey = d?.kind === 'payMana' && d.autoCanPay ? String(source?.session.payment?.seq ?? '') : undefined;
   useEffect(() => {
-    if (!local.autoPay || !payKey || paid.current === payKey || !source) return;
+    if (!autoPay || !payKey || paid.current === payKey || !source) return;
     paid.current = payKey;
     source.send([{ t: 'action', method: 'selectButtonOk' }]);
-  }, [local.autoPay, payKey, source]);
+  }, [autoPay, payKey, source]);
 
   // Inputs with nothing to decide are answered without a prompt, once each (playtest 1).
   const auto = config.kind === 'live' && source ? autoAnswer(source.session) : undefined;

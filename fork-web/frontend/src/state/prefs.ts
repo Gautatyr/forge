@@ -37,6 +37,8 @@ export interface Prefs {
   /** Multiplayer: percent of the board height given to opponents; you get the rest. */
   opponentShare: OpponentShare;
   stops: StopPrefs;
+  /** Pay mana automatically when the engine can. Hand payment is the default. */
+  autoPay: boolean;
 }
 
 export const OPPONENT_SHARES = [35, 40, 45, 50, 55] as const;
@@ -50,6 +52,7 @@ export const DEFAULT_PREFS: Prefs = {
   uiScale: 1,
   opponentShare: 45,
   stops: DEFAULT_STOPS,
+  autoPay: false,
 };
 
 const KEY = 'forge.match.prefs.v1';
@@ -78,6 +81,7 @@ export function parsePrefs(raw: string): Prefs {
     delete p.focusedOpponentId;
     // Pass 3 replaced the S/M/L card size with adaptive sizing.
     delete (p as { cardSize?: unknown }).cardSize;
+    if (typeof p.autoPay !== 'boolean') p.autoPay = false;
     if (!OPPONENT_SHARES.includes(p.opponentShare)) p.opponentShare = DEFAULT_PREFS.opponentShare;
     return p;
   } catch {
