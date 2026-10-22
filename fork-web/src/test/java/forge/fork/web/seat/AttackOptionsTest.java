@@ -63,4 +63,25 @@ public class AttackOptionsTest {
         assertEquals(j.toString(), "{\"t\":\"attackOptions\",\"defenders\":[{\"type\":\"player\",\"id\":" + opp.getId()
                 + "},{\"type\":\"card\",\"id\":" + (teferi.getId() + 1000) + "}]}");
     }
+
+    @Test
+    public void silentArbiterCapsAttackersAtOneAndNothingElseDoes() {
+        Game game = TestEngine.newGame(2);
+        Player me = game.getPlayers().get(0);
+        assertEquals(AttackOptions.of(new Combat(me)).max(), null);
+        TestEngine.add("Silent Arbiter", game.getPlayers().get(1), ZoneType.Battlefield);
+        AttackOptions o = AttackOptions.of(new Combat(me));
+        assertEquals(o.max(), Integer.valueOf(1));
+        assertTrue(o.toJson(new SeatRefs() {
+            @Override
+            public int card(int realId) {
+                return realId;
+            }
+
+            @Override
+            public Visibility visibility(forge.game.card.CardView card) {
+                return null;
+            }
+        }).toString().endsWith(",\"max\":1}"));
+    }
 }

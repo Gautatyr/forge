@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent } from 'react';
+import { canAttackAll } from '../state/attackLimit';
 import { currentAttackAim } from '../state/focus';
 import { gameEndView, watching } from '../state/gameEnd';
 import { useMatch } from '../state/MatchContext';
@@ -78,7 +79,7 @@ export function MatchScreen() {
         // While paying, Z undoes the last tap (design pass 4, §2.1).
         return send(d.kind === 'payMana' ? { type: 'undoTap' } : { type: 'undo' });
       case 'a':
-        if (d.kind === 'declareAttackers') {
+        if (d.kind === 'declareAttackers' && canAttackAll(d)) {
           const aim = currentAttackAim(game, ui, prefs.layout);
           if (aim) send({ type: 'attackWithAll', ...aim });
         }
@@ -107,7 +108,16 @@ export function MatchScreen() {
   return (
     <div className={styles.screen}>
       <TopBar />
-      <main className={styles.boardArea}>
+      <main
+        className={styles.boardArea}
+        // A click on empty board (not a card or a button) drops a half-made block, like Esc.
+        onClick={(e) => {
+          const { ui, setUi } = match;
+          if ((ui.pendingBlocker || ui.pendingAttacker) && !(e.target as HTMLElement).closest('button, a, input, select, textarea')) {
+            setUi({ pendingBlocker: undefined, pendingAttacker: undefined });
+          }
+        }}
+      >
         <Board />
         <ChoiceTray />
         <StopsPanel />

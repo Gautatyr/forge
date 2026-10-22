@@ -100,7 +100,8 @@ export function CombatPanel() {
       </h2>
       {pendingBlocker ? (
         <p className={styles.pending}>
-          <Icon name="check" /> {pendingBlocker.name}: now click the attacker it blocks.
+          <Icon name="check" /> {pendingBlocker.name}: now click an attacker to block it
+          {blocks.some((b) => b.blockerId === ui.pendingBlocker) ? ', or one it blocks to drop that block.' : '.'}
         </p>
       ) : pendingAttacker ? (
         <p className={styles.pending}>

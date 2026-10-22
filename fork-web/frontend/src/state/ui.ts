@@ -26,8 +26,11 @@ export interface UiState {
   zoneView?: { playerId: PlayerId; zone: ViewableZone; large?: boolean };
   /** Answer being built in the choice tray. */
   choiceDraft?: ChoiceDraft;
-  /** Neutral note shown in the prompt line for 3 s ("You can't play … right now."); `id` restarts the timer. */
-  promptNote?: { id: number; text: string };
+  /**
+   * Neutral note shown in the prompt line for 3 s ("You can't play … right now."); `id` restarts the timer.
+   * `sticky`: stays until the player's next action (a refused attack declaration).
+   */
+  promptNote?: { id: number; text: string; sticky?: boolean };
   /** Chooser at a mana source that adds two or more kinds ("Add {G} · Add {W}"). */
   manaChoice?: { cardId: CardId; colours: ManaColour[] };
   /** You are out and chose "Watch the rest" in this game (its id). */

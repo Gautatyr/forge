@@ -443,8 +443,11 @@ export type Decision =
       tapToPay?: boolean;
     }
   /** `draft` is the attack being built; the engine validates on confirm. */
-  /** `defenders`: players you may attack; `defenderCards`: planeswalkers and battles you may attack (the engine's). */
-  | { kind: 'declareAttackers'; candidates: CardId[]; defenders: PlayerId[]; defenderCards: CardId[]; draft: Attack[] }
+  /**
+   * `defenders`: players you may attack; `defenderCards`: planeswalkers and battles you may attack (the engine's).
+   * `max`: the most creatures the engine lets attack together (Silent Arbiter), when something caps it.
+   */
+  | { kind: 'declareAttackers'; candidates: CardId[]; defenders: PlayerId[]; defenderCards: CardId[]; draft: Attack[]; max?: number }
   | { kind: 'declareBlockers'; candidates: CardId[]; attackers: CardId[]; draft: Block[]; options?: BlockOption[] }
   /** `cancellable`: the engine lets you back out (a spell's targets listed in the tray): Cancel / Esc. */
   | { kind: 'choice'; prompt: ChoicePrompt; cancellable?: boolean }
