@@ -481,6 +481,29 @@ describe('commander tax (issue #67)', () => {
     pay(s, 70, '{1}{B}{B}{B}');
     expect(toGameView(s).decision).toMatchObject({ kind: 'payMana', tax: 0 });
   });
+
+  // Issue #75: a repeat click of the same card must still record the zone it is in now.
+  const move = (s: LiveSession, seq: number, from: 'Command' | 'Hand', to: 'Command' | 'Hand') =>
+    s.apply({ t: 'delta', game: 1, seq, ts: 0, new: [], changed: [{ type: 'card', id: 70, props: { Zone: to } }, { type: 'player', id: 0, props: { [from]: [], [to]: [70] } }], removed: [], log: [], events: [] });
+
+  it('reads the zone again when the same commander is clicked after moving from the command zone to the hand', () => {
+    const s = withCommander(1);
+    pay(s, 70, '{3}{B}{B}{B}');
+    move(s, 2, 'Command', 'Hand');
+    buttons(s, 'OK', 'End Turn', 'Priority: Hugo');
+    pay(s, 70, '{1}{B}{B}{B}');
+    expect(toGameView(s).decision).toMatchObject({ kind: 'payMana', sourceCardId: '70', tax: 0 });
+  });
+
+  it('reads the zone again when the same commander is clicked after moving from the hand to the command zone', () => {
+    const s = withCommander(1);
+    move(s, 2, 'Command', 'Hand');
+    pay(s, 70, '{1}{B}{B}{B}');
+    move(s, 3, 'Hand', 'Command');
+    buttons(s, 'OK', 'End Turn', 'Priority: Hugo');
+    pay(s, 70, '{3}{B}{B}{B}');
+    expect(toGameView(s).decision).toMatchObject({ kind: 'payMana', sourceCardId: '70', tax: 2 });
+  });
 });
 
 describe('helpers', () => {

@@ -192,7 +192,7 @@ export function promptText(game: GameView): string {
     case 'payMana':
       return 'Click your lands or creatures that add mana.';
     case 'declareAttackers':
-      return 'Click creatures to attack with them. Click an opponent first to change who they attack.';
+      return 'Click creatures to attack with them. Click an opponent, planeswalker or battle first to change what they attack.';
     case 'declareBlockers':
       return 'Click your creature, then the attacker it blocks — or the attacker first, then your creature.';
     case 'choice':
