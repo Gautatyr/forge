@@ -99,7 +99,15 @@ public class ComputerUtilCost {
             if (part instanceof CostRemoveCounter remCounter) {
                 final CounterType type = remCounter.counter;
                 if (!part.payCostFromSource()) {
-                    if (type.is(CounterEnumType.P1P1)) {
+                    // null type = "Any" counters (fork #92, e.g. Moxite Refinery): AiCostDecision decides the payment
+                    if (type != null && type.is(CounterEnumType.P1P1)) {
+                        return false;
+                    }
+                    continue;
+                }
+                if (type == null) {
+                    PaymentDecision pay = decision.visit(remCounter);
+                    if (pay == null || pay.counterTable.totalValues() <= 0) {
                         return false;
                     }
                     continue;
