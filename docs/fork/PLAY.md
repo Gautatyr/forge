@@ -2,6 +2,14 @@
 
 Forge's desktop app, with the match itself in your browser. You set the game up in Forge's normal lobby, with your own decks.
 
+## For friends (installed app, no terminal)
+- **Download:** the installer for your system from the project's Actions page (workflow `fork-package`, artifact `forge-fork-<system>`), or from the person who runs the project. Linux: `.deb` or `.tar.gz`; Windows: `.msi`; macOS: `.dmg`.
+- **Install:** Windows/macOS: open the installer. The builds are unsigned: Windows SmartScreen says "Windows protected your PC": click **More info**, then **Run anyway**. macOS blocks the app on first open: System Settings, Privacy & Security, **Open Anyway** (the `.dmg` is built for Apple Silicon Macs only, not Intel). Linux `.deb`: `sudo apt install ./forge*.deb`; `.tar.gz`: extract anywhere. Java is included.
+- **Start:** open **Forge** from your applications menu (`bin/Forge` in the extracted folder). Forge's window opens; set up a game as in [Set up the game](#set-up-the-game) and press **Start**: your browser opens the match.
+- **Decks:** `.dck` files go in `decks/commander/` of Forge's data folder (Linux `~/.forge`, Windows `%APPDATA%\Forge`, macOS `~/Library/Application Support/Forge`), or build them in Forge's deck editor. Same folders as any Forge install.
+- **Back to the Swing screen:** untick **Use the new match screen** ([The toggle](#the-toggle)).
+- Build the installer yourself: `make package` on the OS you want (JDK 17 with `jpackage`, Maven, Node, pnpm; Windows: also WiX, from Git Bash). Output: `target/package/`.
+
 ## Start
 From the repository root, on `develop`:
 

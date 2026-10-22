@@ -103,7 +103,8 @@ public final class LobbyRun {
                 deckFiles.put(Integer.parseInt(e.getKey().substring(4)), new File(p).getAbsoluteFile());
             }
         }
-        String assets = Files.isDirectory(Paths.get("../forge-gui/res")) ? "../forge-gui/" : "forge-gui/";
+        String assets = GuiDesktopWeb.assetsDir(System.getProperty(GuiDesktopWeb.ASSETS_PROPERTY),
+                Files.isDirectory(Paths.get("../forge-gui/res")) ? "../forge-gui/" : "forge-gui/");
         WebMatchHost host = new WebMatchHost(new WebMatchHost.Options(Integer.parseInt(opt.getOrDefault("port", "0")),
                 Paths.get(opt.getOrDefault("web-root", "../fork-web/frontend/dist")), WebSeats.Timeouts.DEFAULT),
                 url -> System.out.println("[web] would open the browser at " + url));
