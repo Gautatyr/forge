@@ -27,6 +27,7 @@ echo "== frontend"
 cp -r fork-web/frontend/dist/. "$OUT/input/web/"
 
 echo "== jars"
+rm -f fork-desktop-web/target/fork-desktop-web-*.jar  # stale jars from earlier versions would win the --main-jar pick
 mvn -B -q -pl fork-desktop-web -am -DskipTests package dependency:copy-dependencies \
   -DincludeScope=runtime -DoutputDirectory="$OUT/input/lib"
 cp fork-desktop-web/target/fork-desktop-web-*.jar "$OUT/input/lib/"

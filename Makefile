@@ -1,6 +1,6 @@
 # Fork-owned entry points (upstream Card-Forge has no Makefile).
 # Gates log to target/gate-logs/<name>.log and print a summary plus the real exit code.
-.PHONY: help check packageweb-java-test web-desktop-test web-front-check desktop-test web-sweep web-dev web-server play
+.PHONY: help check package web-java-test web-desktop-test web-front-check desktop-test web-sweep web-dev web-server play
 
 GATE := scripts/gate.sh
 
