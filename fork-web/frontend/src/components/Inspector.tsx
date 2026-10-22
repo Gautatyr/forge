@@ -4,6 +4,7 @@ import type { CardFace } from '../model/types';
 import { useMatch } from '../state/MatchContext';
 import { Card } from './Card';
 import { CardArt } from './CardArt';
+import { LINK_LABEL } from './cardLinks';
 import { Icon } from './Icon';
 import { KeywordBadge } from './KeywordIcons';
 import { grantedText, keywordLine } from './keywordCatalog';
@@ -90,22 +91,27 @@ export function Inspector() {
               <h3>Power / toughness</h3>
               <table className={styles.pt}>
                 <tbody>
-                  <tr>
-                    <td>Printed</td>
-                    <td>
-                      {printedP}/{printedT}
-                    </td>
-                  </tr>
-                  {c.ptModifiers.map((m) => (
-                    <tr key={m.source}>
-                      <td>{m.source}</td>
-                      <td>
-                        {m.power >= 0 ? '+' : ''}
-                        {m.power}/{m.toughness >= 0 ? '+' : ''}
-                        {m.toughness}
-                      </td>
-                    </tr>
-                  ))}
+                  {/* Without a breakdown (live: the engine view has the net P/T only) "Printed" would be a guess. */}
+                  {c.ptModifiers ? (
+                    <>
+                      <tr>
+                        <td>Printed</td>
+                        <td>
+                          {printedP}/{printedT}
+                        </td>
+                      </tr>
+                      {c.ptModifiers.map((m) => (
+                        <tr key={m.source}>
+                          <td>{m.source}</td>
+                          <td>
+                            {m.power >= 0 ? '+' : ''}
+                            {m.power}/{m.toughness >= 0 ? '+' : ''}
+                            {m.toughness}
+                          </td>
+                        </tr>
+                      ))}
+                    </>
+                  ) : null}
                   <tr className={styles.total}>
                     <td>Now</td>
                     <td>
@@ -157,6 +163,23 @@ export function Inspector() {
               </div>
             </section>
           ) : null}
+          {/* Imprint, exiled with…: the cards this one holds, or the one that holds it (what the engine tracks). */}
+          {(c.links ?? []).map((l) => {
+            const shown = l.cardIds.flatMap((id) => (game.cards[id] ? [game.cards[id]!] : []));
+            return shown.length ? (
+              <section key={l.kind}>
+                <h3>{LINK_LABEL[l.kind]}</h3>
+                <div className={styles.attachments}>
+                  {shown.map((a) => (
+                    <div key={a.id} className={styles.attachment}>
+                      <Card card={a} context="thumb" style={{ '--cw': '5.5rem' } as CSSProperties} onActivate={() => setUi({ inspectId: a.id })} />
+                      <span>{a.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null;
+          })}
         </div>
       </div>
     </aside>

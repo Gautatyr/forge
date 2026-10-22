@@ -10,6 +10,7 @@ import type {
   ChoiceOption,
   CardFace,
   CardKeyword,
+  CardLink,
   Counter,
   Decision,
   GameView,
@@ -28,11 +29,12 @@ import type {
   OtherZoneCastVia,
   OutReason,
 } from '../model/types';
-import type { CardProps, CardStateProps, PhaseType, PlayerProps, ZoneType } from '../wire/generated/wire';
+import type { CardProps, CardStateProps, PhaseType, PlayerProps, StackItemProps, ZoneType } from '../wire/generated/wire';
 import { parseImageKey, scryfallLookup, type ImageLookup } from './images';
 import { freeMulliganKeep, promptToChoice, promptWords, inputToChoice, SELECT_PROMPT_PREFIX, targetKey, tossChooser } from './prompts';
 import { tossTitle } from '../state/gameStart';
 import { commanderTax, defendingPlayerOf } from '../model/selectors';
+import { revealWords } from './revealWords';
 import type { LiveSession } from './session';
 
 const STEP_OF: Record<PhaseType, StepId> = {
@@ -50,6 +52,9 @@ const STEP_OF: Record<PhaseType, StepId> = {
   END_OF_TURN: 'end',
   CLEANUP: 'cleanup',
 };
+
+/** GamePieceTypes that live in the command zone as game state rather than as a card you can cast. */
+const EFFECT_PIECES = new Set<string>(['EFFECT', 'DUNGEON', 'PLANAR', 'SCHEME', 'AVATAR']);
 
 const ZONE_OF: Partial<Record<ZoneType, Zone>> = {
   Hand: 'hand',
@@ -134,7 +139,6 @@ function namedSpell(named: { id: number; name: string }, you: string): CardView 
     summoningSick: false,
     counters: [],
     damage: 0,
-    ptModifiers: [],
     keywords: [],
     attachments: [],
   };
@@ -143,6 +147,35 @@ function namedSpell(named: { id: number; name: string }, you: string): CardView 
 /** A player of this game, or undefined (the engine sends -1 for cards outside the game, e.g. a mutated card's merged copy). */
 function gamePlayer(s: LiveSession, id: number | undefined): number | undefined {
   return id !== undefined && (s.gameObject?.props.Players ?? []).includes(id) ? id : undefined;
+}
+
+/**
+ * What one card holds or is held by, as the engine tracks it (ImprintedCards, ExiledCards, ExiledWith…); the ids
+ * are as the bridge sent them, so a card this viewer can't see is an unseen id that `linkCards` drops.
+ */
+function cardLinks(cp: CardProps): CardLink[] {
+  const out: CardLink[] = [];
+  const add = (kind: CardLink['kind'], ids: number[] | undefined) => {
+    if (ids?.length) out.push({ kind, cardIds: ids.map(sid) });
+  };
+  add('imprinted', cp.ImprintedCards);
+  add('exiled', cp.ExiledCards);
+  add('untilLeaves', cp.UntilLeavesBattlefield);
+  add('exiledWith', cp.ExiledWith !== undefined && cp.ExiledWith >= 0 ? [cp.ExiledWith] : undefined);
+  add('hauntedBy', cp.HauntedBy);
+  add('haunting', cp.Haunting !== undefined && cp.Haunting >= 0 ? [cp.Haunting] : undefined);
+  add('encoded', cp.EncodedCards);
+  return out;
+}
+
+/** Keeps the linked cards the view can draw (hidden ones are unseen ids), and a link only while it names one. */
+function linkCards(cards: Record<string, CardView>): void {
+  for (const c of Object.values(cards)) {
+    if (!c.links) continue;
+    const links = c.links.map((l) => ({ ...l, cardIds: l.cardIds.filter((id) => id !== c.id && cards[id]) })).filter((l) => l.cardIds.length);
+    if (links.length) c.links = links;
+    else delete c.links;
+  }
 }
 
 /** Undefined for cards this viewer can't see, cards in no drawn zone, and cards of no player of the game. */
@@ -174,6 +207,8 @@ export function mapCard(s: LiveSession, id: number, images: ImageLookup = scryfa
   const creature = /\bCreature\b/.test(typeLineOf(cur.props.Type)) && (!faceDown || zone === 'battlefield');
   const attached = cp.EntityAttachedTo;
   const protector = gamePlayer(s, cp.ProtectingPlayer);
+  const keywords = (cur.props.Keywords ?? []).map(parseKeyword);
+  const links = cardLinks(cp);
   return {
     id: sid(id),
     name,
@@ -187,15 +222,16 @@ export function mapCard(s: LiveSession, id: number, images: ImageLookup = scryfa
     isToken: cp.Token === true,
     isCommander: cp.IsCommander === true,
     tapped: cp.Tapped === true,
-    summoningSick: cp.Sickness === true && creature && zone === 'battlefield',
+    // The engine's Sickness is "came under control this turn"; Card.hasSickness() also lets Haste through.
+    summoningSick: cp.Sickness === true && creature && zone === 'battlefield' && !keywords.some((k) => k.name === 'Haste'),
     counters: counters(cp.Counters),
     damage: cp.Damage ?? 0,
     power: creature ? (cur.props.Power ?? 0) : undefined,
     toughness: creature ? (cur.props.Toughness ?? 0) : undefined,
-    ptModifiers: [],
-    keywords: (cur.props.Keywords ?? []).map(parseKeyword),
+    keywords,
     attachedTo: attached?.type === 'card' ? sid(attached.id) : undefined,
     attachments: (cp.AttachedCards ?? []).map(sid),
+    ...(links.length ? { links } : {}),
     ...(protector !== undefined ? { protectorId: sid(protector) } : {}),
   };
 }
@@ -380,7 +416,7 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
       prompt: {
         id: `input:ok:reveal:${shown.join(',')}`,
         shape: 'chooseN',
-        ...promptWords(msg, undefined, 'Revealed cards'),
+        ...revealWords(view, shown, promptWords(msg, undefined, 'Revealed cards')),
         confirmLabel: input.ok.label || 'OK',
         min: 0,
         max: 0,
@@ -585,7 +621,13 @@ export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup,
   // After a reload, the spell being cast as its targeting message names it: no objects, only its name.
   const named = s.castNamed;
   if (named && !cards[sid(named.id)] && youNum !== undefined) cards[sid(named.id)] = namedSpell(named, sid(youNum));
+  linkCards(cards);
   const visible = (ids: number[] | undefined) => (ids ?? []).map(sid).filter((id) => cards[id]);
+  // Engine objects in the command zone that are status, not cards to cast (the Monarch, emblems, effect cards, dungeons…).
+  const isEffect = (id: string) => {
+    const props = s.get('card', Number(id))?.props;
+    return props?.IsEmblem === true || (props?.GamePieceType !== undefined && EFFECT_PIECES.has(props.GamePieceType));
+  };
   const names = playerIds.map((id) => ({ id, name: s.get('player', id)?.props.Name ?? '' })).filter((x) => x.name);
   const mulligans = starting ? mulliganStates(s, names) : new Map<number, MulliganState>();
   const startingLife = (pid: number) => s.startingLife.get(pid) ?? (commander ? 40 : 20);
@@ -611,13 +653,17 @@ export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup,
       battlefield: visible(p.Battlefield),
       graveyard: visible(p.Graveyard),
       exile: visible(p.Exile),
-      command: visible(p.Command),
+      command: visible(p.Command).filter((id) => !isEffect(id)),
       commanders: visible(p.Commander),
       commanderCasts: Object.fromEntries(Object.entries(p.CommanderCast ?? {})),
       commanderDamageTaken: cmdDamage,
       landsPlayedThisTurn: p.NumLandThisTurn ?? 0,
       hasLost: p.HasLost === true,
     };
+    const effects = visible(p.Command).filter(isEffect);
+    if (effects.length) pv.effects = effects;
+    const attachments = visible(p.AttachedCards);
+    if (attachments.length) pv.attachments = attachments;
     if (pv.hasLost) {
       const reason: OutReason = isYou && s.conceded ? { kind: 'conceded' } : outReason(s, p, cards, gp.PoisonCountersToLose ?? 10);
       pv.out = { turn: lostAt ?? gp.Turn ?? 0, reason };
@@ -635,11 +681,7 @@ export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup,
   const stack: StackItem[] = [...(gp.Stack ?? [])].reverse().flatMap((id): StackItem[] => {
     const si = s.get('stackItem', id)?.props;
     if (!si) return [];
-    const targets: TargetRef[] = [
-      ...(si.TargetCards ?? []).filter((c) => cards[sid(c)]).map((c): TargetRef => ({ kind: 'card', id: sid(c) })),
-      ...(si.TargetPlayers ?? []).filter((p) => gamePlayer(s, p) !== undefined).map((p): TargetRef => ({ kind: 'player', id: sid(p) })),
-      ...(si.TargetStackItems ?? []).filter((t) => gp.Stack?.includes(t)).map((t): TargetRef => ({ kind: 'stackItem', id: sid(t) })),
-    ];
+    const targets = stackTargets(s, id, cards, gp.Stack ?? []);
     const source = cards[sid(si.SourceCard ?? -1)];
     const controller = gamePlayer(s, si.ActivatingPlayer);
     return [
@@ -721,6 +763,33 @@ export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup,
   else if (decision.kind !== 'waiting') view.turn = { ...view.turn, priorityPlayerId: undefined };
   if (s.finished) view.result = resultOf(s, view);
   return view;
+}
+
+/**
+ * What a stack item targets: its own targets, then those of its sub-abilities (a modal ability's chosen mode is a
+ * sub-ability, SubInstance, and the item itself carries none), each target once.
+ */
+function stackTargets(s: LiveSession, id: number, cards: Record<string, CardView>, stack: number[]): TargetRef[] {
+  const out: TargetRef[] = [];
+  const seen = new Set<string>();
+  const add = (t: TargetRef) => {
+    const key = `${t.kind}:${t.id}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(t);
+  };
+  const visited = new Set<number>();
+  let next: number | undefined = id;
+  while (next !== undefined && next >= 0 && !visited.has(next)) {
+    visited.add(next);
+    const si: StackItemProps | undefined = s.get('stackItem', next)?.props;
+    if (!si) break;
+    for (const c of si.TargetCards ?? []) if (cards[sid(c)]) add({ kind: 'card', id: sid(c) });
+    for (const p of si.TargetPlayers ?? []) if (gamePlayer(s, p) !== undefined) add({ kind: 'player', id: sid(p) });
+    for (const t of si.TargetStackItems ?? []) if (stack.includes(t)) add({ kind: 'stackItem', id: sid(t) });
+    next = si.SubInstance;
+  }
+  return out;
 }
 
 function castVia(c: CardView): OtherZoneCastVia {

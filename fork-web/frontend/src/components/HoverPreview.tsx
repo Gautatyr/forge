@@ -2,6 +2,7 @@ import { currentFace, shownFace } from '../model/selectors';
 import { cardStatus } from '../state/cardStatus';
 import { useMatch } from '../state/MatchContext';
 import { CardArt } from './CardArt';
+import { linkNotes } from './cardLinks';
 import { Icon } from './Icon';
 import { previewSpot } from './previewSpot';
 import styles from './HoverPreview.module.css';
@@ -19,7 +20,7 @@ export function HoverPreview() {
   const notes: string[] = [];
   if (c.faceDown?.seen) notes.push(`${c.faceDown.foretold ? 'Foretold' : 'Face down'}: only you can look at it`);
   if (c.zone === 'battlefield' && c.tapped) notes.push('Tapped');
-  if (c.zone === 'battlefield' && c.power !== undefined && c.ptModifiers.length)
+  if (c.zone === 'battlefield' && c.power !== undefined && c.ptModifiers?.length)
     notes.push(`Now ${c.power}/${c.toughness} (printed ${face.power}/${face.toughness})`);
   if (c.summoningSick && c.zone === 'battlefield') notes.push('Summoning sick: can’t attack or tap this turn');
   for (const k of c.counters) notes.push(`${k.count} × ${k.kind} counter`);
@@ -27,6 +28,7 @@ export function HoverPreview() {
   const added = c.keywords.filter((k) => k.grantedBy).map((k) => k.label);
   if (added.length) notes.push(`Has ${added.join(', ')}`);
   if (s.targetedBy.length) notes.push(`Targeted by ${s.targetedBy.join(', ')}`);
+  notes.push(...linkNotes(game, c));
   if (c.attachments.length) notes.push(`Attached: ${c.attachments.map((a) => game.cards[a]?.name).join(', ')}`);
 
   return (

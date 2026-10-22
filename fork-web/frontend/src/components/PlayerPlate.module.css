@@ -293,6 +293,17 @@
   color: var(--c-text);
 }
 
+/* Effects in force and cards attached to the player: hover shows the card. */
+.statusChip {
+  color: var(--c-text);
+}
+.statusName {
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Compact plates (focus layout, side seats). */
 .compact {
   padding: var(--sp-1) var(--sp-2);

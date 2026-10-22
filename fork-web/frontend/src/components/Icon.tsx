@@ -153,6 +153,20 @@ const PATHS = {
       <path d="M6 18L18 6" />
     </g>
   ),
+  /** An effect in force (the Monarch, an emblem): a ringed spark. */
+  effect: (
+    <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round">
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 6.5l1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5z" fill="currentColor" fillOpacity="0.3" />
+    </g>
+  ),
+  /** A card attached to a player (a Curse): a ring around a dot. */
+  aura: (
+    <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <circle cx="12" cy="12" r="8.5" strokeDasharray="3.5 3" />
+      <circle cx="12" cy="12" r="3" fill="currentColor" />
+    </g>
+  ),
   poison: (
     <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
       <path d="M12 3c3 4.5 6 7.5 6 11a6 6 0 01-12 0c0-3.5 3-6.5 6-11z" />
