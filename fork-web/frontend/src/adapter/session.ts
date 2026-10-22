@@ -12,6 +12,9 @@ import { t } from '../i18n';
 
 export const LOG_LIMIT = 400;
 
+/** The bridge's reason for a message type it does not know. */
+const UNKNOWN_MESSAGE = 'unknown message type';
+
 export interface SessionLogEntry extends WireLogEntry {
   id: number;
   /** GameView.Turn when the entry arrived. */
@@ -310,7 +313,8 @@ export class LiveSession {
         this.attackMax = frame.max;
         return 'ok';
       case 'rejected':
-        this.notice(frame.reason);
+        // A bridge without per-seat language (setLanguage) answers it "unknown message type": nothing to tell the player.
+        if (frame.reason !== UNKNOWN_MESSAGE) this.notice(frame.reason);
         return 'ok';
       default:
         return 'ok';

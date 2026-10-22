@@ -62,6 +62,7 @@ const ENGINE_TEXT = new Set([
   'empty recording',
   '[live] wire schema differs from this build',
   'useMatch outside MatchProvider',
+  'unknown message type',
 ]);
 
 /** Template pieces that are code, not words: URLs, CSS functions and units, message-markup placeholders, developer errors. */

@@ -230,4 +230,12 @@ describe('LiveSession input state (bridge seat protocol)', () => {
     expect(s.notices.at(-1)?.text).toBe("Llanowar Elves can't block");
     expect(s.notices[1]!.id).toBeGreaterThan(s.notices[0]!.id);
   });
+
+  it('says nothing when a bridge does not know setLanguage, but shows any other rejection', () => {
+    const s = new LiveSession();
+    s.apply({ t: 'rejected', reason: 'unknown message type' });
+    expect(s.notices).toEqual([]);
+    s.apply({ t: 'rejected', reason: 'bad frame' });
+    expect(s.notices.map((n) => n.text)).toEqual(['bad frame']);
+  });
 });
