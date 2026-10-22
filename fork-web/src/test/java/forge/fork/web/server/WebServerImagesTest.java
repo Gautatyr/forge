@@ -29,15 +29,25 @@ public class WebServerImagesTest {
     private static final String KEY = "c:Fire // Ice|MH2|1$alt";
 
     private final List<String> asked = new CopyOnWriteArrayList<>();
+    private final List<String> langs = new CopyOnWriteArrayList<>();
     private volatile CompletableFuture<ImageSource.Image> next;
     private WebServer server;
     private String self;
 
     @BeforeClass
     public void start() throws Exception {
-        ImageSource images = key -> {
-            asked.add(key);
-            return next;
+        ImageSource images = new ImageSource() {
+            @Override
+            public CompletableFuture<Image> find(String key) {
+                asked.add(key);
+                return next;
+            }
+
+            @Override
+            public CompletableFuture<Image> find(String key, String lang) {
+                langs.add(lang);
+                return find(key);
+            }
         };
         server = new WebServer(0, Files.createTempDirectory("forge-web-test"), new FakeHub(), TOKEN, images);
         server.start();
@@ -52,6 +62,7 @@ public class WebServerImagesTest {
     @BeforeMethod
     public void reset() {
         asked.clear();
+        langs.clear();
         next = CompletableFuture.completedFuture(new ImageSource.Image(JPEG, "image/jpeg"));
     }
 
@@ -64,6 +75,17 @@ public class WebServerImagesTest {
         assertEquals(get(img(KEY, null)).status, 403);
         assertEquals(get(img(KEY, "wrong")).status, 403);
         assertEquals(asked, List.of(), "refused requests never reach the image source");
+    }
+
+    @Test
+    public void langIsPassedOnAndTheTokenStillRequired() throws Exception {
+        assertEquals(get(img(KEY, null) + "&lang=fr").status, 403);
+        assertEquals(get(img(KEY, "wrong") + "&lang=fr").status, 403);
+        assertEquals(asked, List.of(), "refused requests never reach the image source");
+        assertEquals(get(img(KEY, TOKEN) + "&lang=fr").status, 200);
+        assertEquals(get(img(KEY, TOKEN)).status, 200);
+        assertEquals(get(img(KEY, TOKEN) + "&lang=fr&lang=en").status, 200);
+        assertEquals(langs, java.util.Arrays.asList("fr", null, null));
     }
 
     @Test
