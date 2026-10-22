@@ -8,6 +8,7 @@ import { Icon, SeatGlyph, type IconName } from './Icon';
 import { GameOverChip } from './GameEnd';
 import { PhaseTrack } from './PhaseTrack';
 import styles from './TopBar.module.css';
+import { getLanguage, t } from '../i18n';
 
 /**
  * True once `key` has stayed the same for `delayMs` (0: at once), see
@@ -97,7 +98,7 @@ export function TopBar() {
   const wordsHidden = level >= 1;
 
   // Names and step change the natural widths without resizing a constrained box: re-measure.
-  const contentKey = `${JSON.stringify(heading)}|${waiting.id}|${game.turn.step}`;
+  const contentKey = `${JSON.stringify(heading)}|${waiting.id}|${game.turn.step}|${getLanguage()}`;
   useLayoutEffect(() => measure(), [contentKey, measure]);
 
   const tool = (icon: IconName, label: string, key: string | undefined, pressed: boolean, onClick: () => void, title: string) => (
@@ -115,9 +116,9 @@ export function TopBar() {
   // The seat shape of whose turn it is, or of the winner ("● You won", "▲ Mira won").
   const winnerId = game.result?.winnerId;
   const headSeat = active ?? (heading.kind === 'over' && winnerId ? player(game, winnerId) : undefined);
-  const whose = heading.kind === 'turn' ? (active!.isYou ? 'Your turn' : `${active!.name}'s turn`) : heading.text;
-  const turnLine = heading.kind === 'turn' ? `Turn ${heading.number}${next ? ` · next: ${next.isYou ? 'you' : next.name}` : ''}` : '';
-  const chipText = waiting.isYou ? 'Waiting for you' : `Waiting for ${waiting.name}`;
+  const whose = heading.kind === 'turn' ? (active!.isYou ? t('top.yourTurn') : t('top.theirTurn', { name: active!.name })) : heading.text;
+  const turnLine = heading.kind === 'turn' ? `${t('top.turn', { n: heading.number })}${next ? ` · ${t('top.next')} ${next.isYou ? t('top.you') : next.name}` : ''}` : '';
+  const chipText = waiting.isYou ? t('top.waitYou') : t('top.waitName', { name: waiting.name });
 
   return (
     <header ref={barRef} className={styles.bar}>
@@ -127,11 +128,11 @@ export function TopBar() {
         </span>
         {heading.kind === 'turn' ? (
           <span className={styles.turnLine} title={turnLine}>
-            Turn {heading.number}
+            {t('top.turn', { n: heading.number })}
             {next ? (
               <>
-                {' · next: '}
-                <SeatGlyph seat={next.seat} /> {next.isYou ? 'you' : next.name}
+                {` · ${t('top.next')} `}
+                <SeatGlyph seat={next.seat} /> {next.isYou ? t('top.you') : next.name}
               </>
             ) : null}
           </span>
@@ -151,10 +152,10 @@ export function TopBar() {
       <PhaseTrack ref={trackRef} shortNames={level >= 2} foldCombat={level >= 3} />
       <div className={styles.tools}>
         <div ref={toolsRef} className={styles.toolsInner} data-words={wordsHidden ? 'hidden' : 'shown'}>
-          {tool('log', 'Log', 'L', ui.logOpen, () => setUi((u) => ({ ...u, logOpen: !u.logOpen })), 'Log (L)')}
-          {tool('sliders', 'Display', 'D', ui.overlay === 'display', () => toggle('display'), 'Display (D)')}
-          {tool('keyboard', 'Keys', '?', ui.overlay === 'shortcuts', () => toggle('shortcuts'), 'Keys (?)')}
-          {tool('menu', 'Game', undefined, ui.overlay === 'menu', () => toggle('menu'), 'Game menu: concede, settings')}
+          {tool('log', t('top.log'), 'L', ui.logOpen, () => setUi((u) => ({ ...u, logOpen: !u.logOpen })), `${t('top.log')} (L)`)}
+          {tool('sliders', t('top.display'), 'D', ui.overlay === 'display', () => toggle('display'), `${t('top.display')} (D)`)}
+          {tool('keyboard', t('top.keys'), '?', ui.overlay === 'shortcuts', () => toggle('shortcuts'), `${t('top.keys')} (?)`)}
+          {tool('menu', t('top.game'), undefined, ui.overlay === 'menu', () => toggle('menu'), t('top.gameTitle'))}
         </div>
       </div>
     </header>

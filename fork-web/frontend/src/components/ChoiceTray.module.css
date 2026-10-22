@@ -22,6 +22,29 @@
   width: min(40rem, calc(100% - 2rem));
 }
 
+/* Docked (ChoiceTray.tsx), so the permanents the prompt is about stay visible: over the hand (the same box moved
+   down by the hand's height; the hand is not what it asks about), and/or in a corner instead of the centre. Peek
+   shows everything. */
+.tray[data-dock='hand'],
+.tray[data-dock='handRight'],
+.tray[data-dock='handLeft'] {
+  bottom: calc(var(--sp-2) - var(--hand-h));
+  max-height: calc(var(--tray-max, 55%) - 2 * var(--sp-2) + var(--hand-h));
+}
+
+.tray[data-dock='handRight'],
+.tray[data-dock='right'] {
+  left: auto;
+  right: var(--sp-2);
+  transform: none;
+}
+
+.tray[data-dock='handLeft'],
+.tray[data-dock='left'] {
+  left: var(--sp-2);
+  transform: none;
+}
+
 .peek {
   flex-direction: row;
   align-items: center;

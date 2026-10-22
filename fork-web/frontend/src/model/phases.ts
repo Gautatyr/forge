@@ -1,4 +1,5 @@
 import type { StepId } from './types';
+import { t, tDynamic, type MsgKey } from '../i18n';
 
 export interface StepInfo {
   id: StepId;
@@ -21,33 +22,53 @@ export interface StepInfo {
 
 export type StepGroup = 'beginning' | 'combat' | 'ending';
 
-/** One step: `name` is the CR name (CR 500.1; 505.1 calls the main phases first and second). */
-function step(id: StepId, name: string, more: Omit<StepInfo, 'id' | 'label' | 'longLabel' | 'stopName'>): StepInfo {
-  return { id, label: name.slice(0, name.lastIndexOf(' ')), longLabel: name, stopName: name.toLowerCase(), ...more };
+/** One step: its long name is the CR name (CR 500.1; 505.1 calls the main phases first and second). */
+function step(id: StepId, more: Omit<StepInfo, 'id' | 'label' | 'longLabel' | 'stopName'>): StepInfo {
+  // Getters: the names follow the current language.
+  return {
+    id,
+    get label() {
+      return tDynamic(`step.${id}.s` as MsgKey);
+    },
+    get longLabel() {
+      return tDynamic(`step.${id}` as MsgKey);
+    },
+    get stopName() {
+      return tDynamic(`step.${id}` as MsgKey).toLowerCase();
+    },
+    ...more,
+  };
 }
 
 export const STEPS: StepInfo[] = [
-  step('untap', 'Untap step', { group: 'beginning', combat: false, noPriority: true }),
-  step('upkeep', 'Upkeep step', { group: 'beginning', combat: false }),
-  step('draw', 'Draw step', { group: 'beginning', combat: false }),
-  step('main1', 'First main phase', { combat: false }),
-  step('beginCombat', 'Beginning of combat step', { group: 'combat', combat: true }),
-  step('declareAttackers', 'Declare attackers step', { group: 'combat', combat: true }),
-  step('declareBlockers', 'Declare blockers step', { group: 'combat', combat: true }),
-  step('combatDamage', 'Combat damage step', { group: 'combat', combat: true }),
-  step('endCombat', 'End of combat step', { group: 'combat', combat: true }),
-  step('main2', 'Second main phase', { combat: false }),
-  step('end', 'End step', { group: 'ending', combat: false }),
-  step('cleanup', 'Cleanup step', { group: 'ending', combat: false, noPriority: true }),
+  step('untap', { group: 'beginning', combat: false, noPriority: true }),
+  step('upkeep', { group: 'beginning', combat: false }),
+  step('draw', { group: 'beginning', combat: false }),
+  step('main1', { combat: false }),
+  step('beginCombat', { group: 'combat', combat: true }),
+  step('declareAttackers', { group: 'combat', combat: true }),
+  step('declareBlockers', { group: 'combat', combat: true }),
+  step('combatDamage', { group: 'combat', combat: true }),
+  step('endCombat', { group: 'combat', combat: true }),
+  step('main2', { combat: false }),
+  step('end', { group: 'ending', combat: false }),
+  step('cleanup', { group: 'ending', combat: false, noPriority: true }),
 ];
 
 /** Steps where someone gets priority: the turn strip and the Stops editor show only these. */
 export const PRIORITY_STEPS: StepInfo[] = STEPS.filter((s) => !s.noPriority);
 
+/** Getters: the captions follow the current language. */
 export const GROUP_CAPTIONS: Record<StepGroup, string> = {
-  beginning: 'Beginning phase',
-  combat: 'Combat phase',
-  ending: 'Ending phase',
+  get beginning() {
+    return t('group.beginning');
+  },
+  get combat() {
+    return t('group.combat');
+  },
+  get ending() {
+    return t('group.ending');
+  },
 };
 
 /** Runs of consecutive priority steps sharing a group (or standing alone), in turn order. */

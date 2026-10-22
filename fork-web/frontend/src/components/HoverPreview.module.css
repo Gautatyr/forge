@@ -1,19 +1,16 @@
-/* One fixed place whatever the card's position (playtest 1 ruling): over the
-   rail, above the action block (Rail.module.css .upper is the container), so it
-   never covers the board, the seats, the hand, the choice tray or the action
-   block. The image sits at the bottom, as wide as the rail allows, in the same
-   rect for every card; the notes stack above it. Its height leaves the notes
-   room under the top of the rail.
-   A card hovered inside the rail or the log drawer would sit under it: its
-   preview takes the same box moved left of the rail, or of the drawer while
-   it is open (previewSpot.ts). */
+/* One fixed place whatever the card's position (playtest 1 ruling): the bottom of the rail, below the panels
+   (Rail.module.css .upper is the container), so it never covers the board, the seats, the hand, the choice tray
+   or the action block. It takes its own height in the column, so the panels above it (stack, combat, Recent)
+   reflow and stay readable while it shows; the image is at most half of the column, the notes stack above it.
+   A card hovered inside the rail or the log drawer would sit under it: its preview takes the same box moved
+   left of the rail, or of the drawer while it is open (previewSpot.ts), as an overlay over the board. */
 .preview {
   --pv-notes: 5rem;
   /* The image's width, shared with the notes block above it. */
-  --pv-w: min(100%, calc((100cqh - 2 * var(--sp-2) - var(--pv-notes)) * var(--card-ratio)));
-  position: absolute;
-  inset: var(--sp-2);
-  z-index: var(--z-preview);
+  --pv-w: min(100%, calc(50cqh * var(--card-ratio)));
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  padding: 0 var(--sp-2) var(--sp-2);
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -26,6 +23,11 @@
 
 .besideRail,
 .besideDrawer {
+  --pv-w: min(100%, calc((100cqh - 2 * var(--sp-2) - var(--pv-notes)) * var(--card-ratio)));
+  position: absolute;
+  inset: var(--sp-2);
+  z-index: var(--z-preview);
+  padding: 0;
   right: calc(100% + var(--sp-2));
   left: auto;
   width: calc(100% - 2 * var(--sp-2));
@@ -44,8 +46,7 @@
   box-shadow: var(--shadow-float);
 }
 
-/* One opaque block as wide as the image, so the text behind it (Recent's last lines) is cut cleanly at its edge
-   instead of showing between loose chips. */
+/* One opaque block as wide as the image. */
 .info {
   display: flex;
   flex-wrap: wrap;

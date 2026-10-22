@@ -1,4 +1,5 @@
 import type { CardFace, CardView, GameView, PlayerId, PlayerView, TargetRef } from './types';
+import { t } from '../i18n';
 
 export function currentFace(c: CardView): CardFace {
   return c.transformed && c.back ? c.back : c.front;
@@ -43,7 +44,7 @@ export function you(game: GameView): PlayerView {
 
 /** A player's name for lists and plates: your own gets "(you)" unless the engine already calls the seat "You". */
 export function nameLabel(p: Pick<PlayerView, 'name' | 'isYou'>): string {
-  return p.isYou && p.name.trim().toLowerCase() !== 'you' ? `${p.name} (you)` : p.name;
+  return p.isYou && p.name.trim().toLowerCase() !== 'you' ? t('plate.nameYou', { name: p.name }) : p.name;
 }
 
 export function opponents(game: GameView): PlayerView[] {

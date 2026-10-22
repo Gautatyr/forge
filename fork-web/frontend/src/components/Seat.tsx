@@ -5,6 +5,7 @@ import { Battlefield } from './Battlefield';
 import { hiddenInCompact } from './battlefieldGroups';
 import { PlayerPlate } from './PlayerPlate';
 import styles from './Seat.module.css';
+import { t } from '../i18n';
 
 interface Props {
   player: PlayerView;
@@ -28,15 +29,14 @@ export function Seat({ player, density, orientation = 'stacked', onExpand }: Pro
   return (
     <section
       className={`${styles.seat} ${side ? styles.side : ''} ${compact ? styles.compact : ''} ${player.isYou ? styles.you : ''} ${active ? styles.active : ''}`}
-      aria-label={player.isYou ? 'Your side' : `${player.name}'s side`}
+      aria-label={player.isYou ? t('seat.yours') : t('seat.theirs', { name: player.name })}
     >
       <div className={`${styles.plateCol} ${compact ? styles.compactCol : ''}`}>
         <PlayerPlate player={player} density={density} vertical={side} onExpand={onExpand} />
         {compact ? (
           <div className={styles.summary} data-arrow-occluder>
             <span>
-              Hidden here: {hidden.others} other permanent{hidden.others === 1 ? '' : 's'}, {hidden.lands} lands ({hidden.untappedLands}{' '}
-              untapped)
+              {t('seat.hidden', { count: hidden.others, lands: hidden.lands, untapped: hidden.untappedLands })}
             </span>
           </div>
         ) : null}

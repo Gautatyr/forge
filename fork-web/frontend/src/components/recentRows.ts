@@ -1,4 +1,5 @@
 import type { GameView, LogEntry } from '../model/types';
+import { t } from '../i18n';
 
 export type RecentRow =
   | { kind: 'divider'; key: string; label: string; seat?: number }
@@ -17,7 +18,7 @@ export function recentRows(game: GameView, limit: number): RecentRow[] {
     if (key !== turnKey) {
       turnKey = key;
       const p = entry.turnPlayerId ? game.players.find((x) => x.id === entry.turnPlayerId) : undefined;
-      const label = !p ? `Turn ${entry.turn}` : p.isYou ? `Your turn ${entry.turn}` : `${p.name}’s turn ${entry.turn}`;
+      const label = !p ? t('row.turn', { n: entry.turn }) : p.isYou ? t('row.yourTurn', { n: entry.turn }) : t('row.theirTurn', { name: p.name, n: entry.turn });
       rows.push({ kind: 'divider', key: `turn-${entry.id}`, label, seat: p?.seat });
     }
     rows.push({ kind: 'entry', key: entry.id, entry, bold: entry.youLost !== undefined });

@@ -81,6 +81,13 @@ describe('connectLive', () => {
     expect(src.session.prompts).toEqual([]);
   });
 
+  it('sends the language frame as JSON', () => {
+    const { src, sockets } = setup();
+    sockets[0]!.open();
+    src.send([{ t: 'setLanguage', lang: 'fr' }]);
+    expect(sockets[0]!.sent).toContainEqual({ t: 'setLanguage', lang: 'fr' });
+  });
+
   it('remembers the card clicked to cast, not the mana sources clicked to pay for it', () => {
     const { src, sockets } = setup();
     const ws = sockets[0]!;

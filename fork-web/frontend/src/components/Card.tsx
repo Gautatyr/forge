@@ -13,6 +13,7 @@ import { iconKeywords } from './keywordCatalog';
 import { cardStatusWithChoice } from './tray/inPlace';
 import { useInPlacePick } from './tray/useInPlacePick';
 import styles from './Card.module.css';
+import { t } from '../i18n';
 
 export type CardContext = 'board' | 'hand' | 'thumb';
 
@@ -54,28 +55,28 @@ interface Badge {
 
 function badges(c: CardView, s: CardStatus, links: string[]): Badge[] {
   const out: Badge[] = [];
-  if (s.selected) out.push({ icon: 'check', cls: styles.bSelected!, label: 'Selected' });
+  if (s.selected) out.push({ icon: 'check', cls: styles.bSelected!, label: t('card.selected') });
   if (s.actionable && s.actionKind === 'target' && !s.selected)
-    out.push({ icon: 'target', cls: styles.bActionable!, label: 'Legal target' });
+    out.push({ icon: 'target', cls: styles.bActionable!, label: t('card.legalTarget') });
   if (s.actionable && s.actionKind === 'blockTarget' && !s.selected)
-    out.push({ icon: 'sword', cls: styles.bAttack!, label: 'Attacking you: click to block it' });
+    out.push({ icon: 'sword', cls: styles.bAttack!, label: t('card.blockIt') });
   if (s.actionable && s.actionKind === 'block' && !s.blocking && !s.selected)
-    out.push({ icon: 'shield', cls: styles.bActionable!, label: 'Can block' });
+    out.push({ icon: 'shield', cls: styles.bActionable!, label: t('card.canBlock') });
   if (s.actionable && s.actionKind === 'attack' && !s.attacking)
-    out.push({ icon: 'sword', cls: styles.bActionable!, label: 'Can attack' });
+    out.push({ icon: 'sword', cls: styles.bActionable!, label: t('card.canAttack') });
   if (s.actionable && s.actionKind === 'defender' && !s.selected)
-    out.push({ icon: 'sword', cls: styles.bActionable!, label: 'Can be attacked: click it, then your attackers' });
+    out.push({ icon: 'sword', cls: styles.bActionable!, label: t('card.canBeAttacked') });
   if (s.attackedBy.length > 0)
-    out.push({ icon: 'sword', cls: styles.bAttack!, label: `Attacked by ${s.attackedBy.join(', ')}` });
+    out.push({ icon: 'sword', cls: styles.bAttack!, label: t('card.attackedBy', { names: s.attackedBy.join(', ') }) });
   if (s.targetSpot)
-    out.push({ icon: 'target', cls: styles.bTargeted!, label: `Targeted by ${s.targetedBy.join(', ')}` });
+    out.push({ icon: 'target', cls: styles.bTargeted!, label: t('card.targetedBy', { names: s.targetedBy.join(', ') }) });
   if (c.faceDown?.seen)
-    out.push({ icon: 'eye', cls: styles.bNeutral!, label: `${c.faceDown.foretold ? 'Foretold' : 'Face down'}: only you can look at it` });
+    out.push({ icon: 'eye', cls: styles.bNeutral!, label: c.faceDown.foretold ? t('card.foretoldNote') : t('card.faceDownNote') });
   // Imprint, exiled with…: the held card is in the hover preview and the inspector, this marks that there is one.
   if (links.length) out.push({ icon: 'exile', cls: styles.bNeutral!, label: links.join('. ') });
-  if (c.isCommander) out.push({ icon: 'crown', cls: styles.bNeutral!, label: 'Commander' });
+  if (c.isCommander) out.push({ icon: 'crown', cls: styles.bNeutral!, label: t('card.commander') });
   if (c.summoningSick && isCreature(c) && c.zone === 'battlefield')
-    out.push({ icon: 'sick', cls: styles.bNeutral!, label: 'Summoning sick' });
+    out.push({ icon: 'sick', cls: styles.bNeutral!, label: t('card.sick') });
   return out;
 }
 
@@ -147,13 +148,13 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
 
   const label = [
     face.name,
-    c.faceDown?.seen ? (c.faceDown.foretold ? 'foretold, face down' : 'face down') : '',
-    count > 1 ? `${count} of them` : '',
+    c.faceDown?.seen ? (c.faceDown.foretold ? t('card.foretoldFaceDown') : t('card.faceDown')) : '',
+    count > 1 ? t('card.ofThem', { count }) : '',
     // Groups split into chosen and not chosen: the state is in the name, not only in the ring (playtest 1 #16).
-    showOverlays && s.selected ? 'selected' : '',
-    c.tapped ? 'tapped' : '',
+    showOverlays && s.selected ? t('card.selectedLower') : '',
+    c.tapped ? t('card.tapped') : '',
     c.power !== undefined ? `${c.power}/${c.toughness}` : '',
-    s.actionKind === 'mana' ? 'can pay: click to tap for mana' : '',
+    s.actionKind === 'mana' ? t('card.canPay') : '',
     onBoard ? c.keywords.map((k) => k.label).join(', ') : '',
     links.join(', '),
     ariaExtra ?? '',
@@ -241,16 +242,16 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
             ) : null}
 
             {s.needsBlockers && onBoard ? (
-              <span className={`${styles.combatStrip} ${styles.stripNeeds}`} title={`Needs ${s.needsBlockers} blockers, or none`} data-arrow-occluder {...avoid}>
+              <span className={`${styles.combatStrip} ${styles.stripNeeds}`} title={t('card.needsTitle', { count: s.needsBlockers })} data-arrow-occluder {...avoid}>
                 <Icon name="shield" />
-                <span>Needs {s.needsBlockers}</span>
+                <span>{t('card.needs', { count: s.needsBlockers })}</span>
               </span>
             ) : null}
 
             {onBoard && c.counters.length > 0 ? (
               <span className={styles.counters} data-arrow-occluder {...avoid}>
                 {c.counters.map((k) => (
-                  <span key={k.kind} className={styles.counter} title={`${k.count} ${k.kind} counter(s)`}>
+                  <span key={k.kind} className={styles.counter} title={t('card.counterTitle', { count: k.count, kind: k.kind })}>
                     {k.kind === '+1/+1' ? `+${k.count}` : `${k.kind} ${k.count}`}
                   </span>
                 ))}
@@ -258,7 +259,7 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
             ) : null}
 
             {onBoard && c.damage > 0 ? (
-              <span className={styles.damage} title={`${c.damage} damage marked`} data-arrow-occluder {...avoid}>
+              <span className={styles.damage} title={t('card.damage', { count: c.damage })} data-arrow-occluder {...avoid}>
                 <Icon name="burst" />
                 {c.damage}
               </span>

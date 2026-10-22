@@ -5,6 +5,7 @@ import { Card } from '../Card';
 import type { BodyProps } from './TrayBody';
 import { moveBetween, moveItem, moveLabel, revealScrollTop } from './trayLogic';
 import styles from '../ChoiceTray.module.css';
+import { t } from '../../i18n';
 
 /** One list: a column, first item at the top. Two lists: the scry layout, click moves a card across. */
 export function Order(props: BodyProps<OrderPrompt>) {
@@ -46,7 +47,7 @@ function SingleList({ prompt, draft, setDraft }: BodyProps<OrderPrompt>) {
       <h3>
         {list.label} {list.hint ? <span>{list.hint}</span> : null}
         <span>
-          <kbd>Alt</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd> moves the focused item
+          <kbd>{t('key.alt')}</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd> {t('tray.altMoves')}
         </span>
       </h3>
       <ol className={styles.columnItems}>
@@ -72,14 +73,14 @@ function SingleList({ prompt, draft, setDraft }: BodyProps<OrderPrompt>) {
                 {o.detail ? <span className={styles.optionDetail}>{o.detail}</span> : null}
               </span>
               <span className={styles.orderControls}>
-                <button type="button" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move ${o.label} up`}>
+                <button type="button" onClick={() => move(i, -1)} disabled={i === 0} aria-label={t('tray.moveUp', { label: o.label })}>
                   ↑
                 </button>
                 <button
                   type="button"
                   onClick={() => move(i, 1)}
                   disabled={i === ids.length - 1}
-                  aria-label={`Move ${o.label} down`}
+                  aria-label={t('tray.moveDown', { label: o.label })}
                 >
                   ↓
                 </button>
@@ -107,7 +108,7 @@ function TwoLists({ prompt, draft, setDraft }: BodyProps<OrderPrompt>) {
               {l.label} <span>{l.hint}</span>
             </h3>
             <div className={styles.listCards}>
-              {ids.length === 0 ? <p className={styles.empty}>Empty — click a card on the other side to move it here.</p> : null}
+              {ids.length === 0 ? <p className={styles.empty}>{t('tray.emptyList')}</p> : null}
               {ids.map((id, i) => {
                 const o = items.get(id)!;
                 const card = o.cardId ? game.cards[o.cardId] : undefined;
@@ -115,7 +116,7 @@ function TwoLists({ prompt, draft, setDraft }: BodyProps<OrderPrompt>) {
                   <div key={id} className={styles.orderItem}>
                     {card ? <Card card={card} context="thumb" style={{ '--cw': '6.6rem' } as CSSProperties} onActivate={() => move(id)} /> : null}
                     <div className={styles.orderControls}>
-                      <button type="button" onClick={() => setDraft(moveItem(draft, l.id, i, -1))} disabled={i === 0} aria-label={`Move ${o.label} left`}>
+                      <button type="button" onClick={() => setDraft(moveItem(draft, l.id, i, -1))} disabled={i === 0} aria-label={t('tray.moveLeft', { label: o.label })}>
                         ◀
                       </button>
                       <button type="button" className={styles.moveBtn} onClick={() => move(id)}>
@@ -125,7 +126,7 @@ function TwoLists({ prompt, draft, setDraft }: BodyProps<OrderPrompt>) {
                         type="button"
                         onClick={() => setDraft(moveItem(draft, l.id, i, 1))}
                         disabled={i === ids.length - 1}
-                        aria-label={`Move ${o.label} right`}
+                        aria-label={t('tray.moveRight', { label: o.label })}
                       >
                         ▶
                       </button>

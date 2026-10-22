@@ -1,5 +1,6 @@
 import { commanderTax } from '../model/selectors';
 import type { CardId, GameView, PlayerView } from '../model/types';
+import { t } from '../i18n';
 
 export interface CommandZoneChip {
   cardId: CardId;
@@ -20,7 +21,7 @@ export function commandZoneChips(p: PlayerView, game: GameView): CommandZoneChip
     const c = game.cards[cardId];
     if (!c) return [];
     const tax = commanderTax(p, cardId);
-    const taxText = tax > 0 ? `Commander tax +${tax}.` : 'No commander tax yet.';
-    return [{ cardId, tax, title: `${c.name} is in ${p.name}'s command zone. ${taxText}` }];
+    const taxText = tax > 0 ? t('cz.tax', { tax }) : t('cz.noTax');
+    return [{ cardId, tax, title: t('cz.title', { name: c.name, owner: p.name, tax: taxText }) }];
   });
 }

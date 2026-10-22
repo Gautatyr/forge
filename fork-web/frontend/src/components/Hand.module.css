@@ -56,9 +56,9 @@
   font-weight: var(--fw-medium);
   color: var(--c-text-2);
   text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* French captions run longer ("Zone de commandement · taxe +2"): wrap upward instead of clipping. */
+  line-height: 1.1;
+  text-wrap: balance;
 }
 
 .other:hover .caption {

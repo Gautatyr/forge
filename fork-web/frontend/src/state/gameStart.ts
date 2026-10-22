@@ -7,6 +7,7 @@ import type { CardId, ChooseNPrompt, GameView, MulliganState, PlayerId, YesNoPro
 import type { IconName } from '../components/Icon';
 import { headline } from './gameEnd';
 import { nextPlayer } from './turnStrip';
+import { t } from '../i18n';
 
 /**
  * The player whose turn it is; undefined before turn 1 (toss, opening hands)
@@ -28,7 +29,7 @@ export type TurnHeading =
 export function turnHeading(game: GameView): TurnHeading {
   if (game.result) return { kind: 'over', ...headline(game) };
   const id = turnPlayerId(game);
-  if (!id) return { kind: 'start', text: game.players.some((p) => p.mulligan) ? 'Opening hands' : 'Game start' };
+  if (!id) return { kind: 'start', text: game.players.some((p) => p.mulligan) ? t('start.openingHands') : t('start.gameStart') };
   return { kind: 'turn', playerId: id, number: game.turn.number, nextId: nextPlayer(game)?.id };
 }
 
@@ -37,7 +38,7 @@ export type TossChooser = 'wonToss' | 'lostLastGame';
 
 /** The starting player's question (playtest 1): "You won the coin toss. Who plays first?" */
 export function tossTitle(chooser: TossChooser): string {
-  return `${chooser === 'wonToss' ? 'You won the coin toss.' : 'You lost the last game.'} Who plays first?`;
+  return chooser === 'wonToss' ? t('start.toss.won') : t('start.toss.lost');
 }
 
 export interface MulliganFacts {
@@ -58,15 +59,19 @@ export const BOTTOM_PROMPT_ID = 'mulligan-bottom';
 
 /** "Opening hand · 7 cards": Keep (Space) or Mulligan (M). */
 export function mulliganPrompt(f: MulliganFacts, id = MULLIGAN_PROMPT_ID): YesNoPrompt {
-  const keep = f.toBottom > 0 ? `Keep · put ${f.toBottom} on the bottom` : `Keep ${f.handSize}`;
+  const keep = f.toBottom > 0 ? t('mull.keepBottom', { count: f.toBottom }) : t('mull.keep', { count: f.handSize });
   return {
     id,
     shape: 'yesNo',
-    title: `Opening hand · ${f.handSize} cards`,
-    instruction: `Keep these cards, or shuffle and draw ${f.draw ?? f.handSize} new ones${f.nextBottom ? `, then put ${f.nextBottom} on the bottom` : ''}.${f.freeNext ? ' Your first mulligan is free.' : ''}`,
+    title: t('mull.title', { count: f.handSize }),
+    instruction: t('mull.instruction', {
+      draw: f.draw ?? f.handSize,
+      bottom: f.nextBottom ? t('mull.thenBottom', { count: f.nextBottom }) : '',
+      free: f.freeNext ? ` ${t('mull.free')}` : '',
+    }),
     confirmLabel: keep,
     yesLabel: keep,
-    noLabel: 'Mulligan',
+    noLabel: t('mull.mulligan'),
     defaultAnswer: 'yes',
     keys: { no: 'M' },
   };
@@ -77,9 +82,9 @@ export function bottomPrompt(hand: CardId[], n: number, nameOf: (id: CardId) => 
   return {
     id,
     shape: 'chooseN',
-    title: `Choose ${n} card${n === 1 ? '' : 's'} to put on the bottom of your library`,
-    instruction: `The other ${hand.length - n} are your opening hand.`,
-    confirmLabel: 'Put on bottom',
+    title: t('mull.bottomTitle', { count: n }),
+    instruction: t('mull.bottomInstruction', { count: hand.length - n }),
+    confirmLabel: t('mull.putBottom'),
     min: n,
     max: n,
     progress: true,
@@ -99,10 +104,10 @@ export interface MulliganTag {
 export function mulliganTag(m: MulliganState): MulliganTag {
   switch (m.state) {
     case 'deciding':
-      return { icon: 'hourglass', text: 'Deciding…', count: undefined, title: 'Deciding on their opening hand' };
+      return { icon: 'hourglass', text: t('mull.deciding'), count: undefined, title: t('mull.decidingTitle') };
     case 'kept':
-      return { icon: 'check', text: 'Kept ', count: String(m.cards), title: `Kept ${m.cards} cards` };
+      return { icon: 'check', text: `${t('mull.kept')} `, count: String(m.cards), title: t('mull.keptTitle', { count: m.cards }) };
     case 'mulligan':
-      return { icon: 'flip', text: 'Mulligan ', count: `→ ${m.cards}`, title: `Took a mulligan: going down to ${m.cards} cards` };
+      return { icon: 'flip', text: `${t('mull.tag')} `, count: `→ ${m.cards}`, title: t('mull.tagTitle', { count: m.cards }) };
   }
 }

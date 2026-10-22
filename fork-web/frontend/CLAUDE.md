@@ -25,8 +25,9 @@ design-token file. Data comes from mock scenarios, a recorded game, or the live 
 - Every colour, spacing, radius and font size comes from the design tokens; never
   hard-code them in components.
 - Every state is shape/icon + colour, never colour alone (colour-blind players).
-- No user-facing string hard-coded once i18n lands (issue #3): English and French, and
-  French runs ~30 % longer.
+- No user-facing string hard-coded (issue #3): add it to `src/i18n/en.ts` and `fr.ts` and call `t('key', {…})`
+  (a missing French key fails `tsc`; `i18n/hardcoded.test.ts` fails on hard-coded text). French runs ~30 % longer:
+  fix overflow with layout, not shorter French. Engine-written text and the mock stay English (decisions.md).
 - Card images (`src/adapter/images.ts`): live, the bridge's `/img?key=<image key>&token=…` for every card
   and token (Vite proxies `/img`), Scryfall by name as the fallback (`CardImage.fallback`); replay and mock,
   Scryfall (`cards/collection` in batches).

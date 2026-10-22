@@ -1,3 +1,5 @@
+import { t } from '../i18n';
+
 /** Keyboard shortcuts, Arena-style where they do not clash (D9). Shown by the ? overlay. */
 export interface Shortcut {
   keys: string;
@@ -5,22 +7,25 @@ export interface Shortcut {
   group: 'Play' | 'Look' | 'Screen';
 }
 
-export const SHORTCUTS: Shortcut[] = [
-  { keys: 'Space', action: 'Main button: pass, resolve, attack, block, confirm, pay automatically', group: 'Play' },
-  { keys: 'Esc', action: 'Cancel a spell being cast or paid for (its lands untap), clear a pending choice, close panels', group: 'Play' },
-  { keys: 'Shift + Enter', action: 'Pass until my next turn', group: 'Play' },
-  { keys: 'Z', action: 'Undo (while paying: untap the last land)', group: 'Play' },
-  { keys: 'A', action: 'Attack all (while declaring attackers)', group: 'Play' },
-  { keys: 'P', action: 'Auto-pass when I can’t act: on / off', group: 'Play' },
-  { keys: '1 – 9', action: 'Pick an option in the choice tray, a row of the ability menu, or the mana a dual land adds', group: 'Play' },
-  { keys: 'Y / N', action: 'Answer a yes / no question', group: 'Play' },
-  { keys: 'M', action: 'Mulligan (opening hand)', group: 'Play' },
-  { keys: 'Alt + ↑ / ↓', action: 'Move the focused item while ordering', group: 'Play' },
-  { keys: 'I', action: 'Inspect the hovered card (or right-click it)', group: 'Look' },
-  { keys: 'V', action: 'Peek at the board while a choice is open', group: 'Look' },
-  { keys: 'Hold Alt', action: 'Show keywords on permanents in words', group: 'Look' },
-  { keys: 'L', action: 'Full game log', group: 'Look' },
-  { keys: 'D', action: 'Display options: layout, card size, grouping, scale', group: 'Screen' },
-  { keys: '?', action: 'This list', group: 'Screen' },
-  { keys: '`', action: 'Mock scenarios (development only)', group: 'Screen' },
-];
+/** Built per call: the words follow the current language. */
+export function shortcuts(): Shortcut[] {
+  return [
+    { keys: t('key.space'), action: t('sc.space'), group: 'Play' },
+    { keys: t('key.esc'), action: t('sc.esc'), group: 'Play' },
+    { keys: t('sc.shiftEnter'), action: t('sc.passTurn'), group: 'Play' },
+    { keys: 'Z', action: t('sc.undo'), group: 'Play' },
+    { keys: 'A', action: t('sc.attackAll'), group: 'Play' },
+    { keys: 'P', action: t('sc.autoPass'), group: 'Play' },
+    { keys: '1 – 9', action: t('sc.pick'), group: 'Play' },
+    { keys: 'Y / N', action: t('sc.yesNo'), group: 'Play' },
+    { keys: 'M', action: t('sc.mulligan'), group: 'Play' },
+    { keys: 'Alt + ↑ / ↓', action: t('sc.move'), group: 'Play' },
+    { keys: 'I', action: t('sc.inspect'), group: 'Look' },
+    { keys: 'V', action: t('sc.peek'), group: 'Look' },
+    { keys: t('sc.holdAlt'), action: t('sc.holdAltAction'), group: 'Look' },
+    { keys: 'L', action: t('sc.log'), group: 'Look' },
+    { keys: 'D', action: t('sc.display'), group: 'Screen' },
+    { keys: '?', action: t('sc.help'), group: 'Screen' },
+    { keys: '`', action: t('sc.mock'), group: 'Screen' },
+  ];
+}
