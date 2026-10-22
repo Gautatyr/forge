@@ -55,7 +55,7 @@ export function MatchScreen() {
       else if (ui.logOpen) setUi({ logOpen: false });
       else if (manaChoice) setUi({ manaChoice: undefined });
       else if (ui.pendingBlocker || ui.pendingAttacker) setUi({ pendingBlocker: undefined, pendingAttacker: undefined });
-      else if (d.kind === 'chooseTargets' || d.kind === 'payMana') send({ type: 'cancel' });
+      else if (d.kind === 'chooseTargets' || d.kind === 'payMana' || (d.kind === 'choice' && d.cancellable)) send({ type: 'cancel' });
       else if (ui.zoneView) setUi({ zoneView: undefined });
       else if (ui.trayPeek) setUi({ trayPeek: false });
       return;

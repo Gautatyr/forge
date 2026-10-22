@@ -423,7 +423,8 @@ export type Decision =
   /** `draft` is the attack being built; the engine validates on confirm. */
   | { kind: 'declareAttackers'; candidates: CardId[]; defenders: PlayerId[]; draft: Attack[] }
   | { kind: 'declareBlockers'; candidates: CardId[]; attackers: CardId[]; draft: Block[]; options?: BlockOption[] }
-  | { kind: 'choice'; prompt: ChoicePrompt }
+  /** `cancellable`: the engine lets you back out (a spell's targets listed in the tray): Cancel / Esc. */
+  | { kind: 'choice'; prompt: ChoicePrompt; cancellable?: boolean }
   /**
    * Paying the mana cost of a spell or ability (design pass 4, §2.1). The spell
    * goes on the stack as soon as `remaining` is empty: no confirm step.
