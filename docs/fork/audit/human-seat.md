@@ -26,6 +26,17 @@ A question answered without the player is a silent default. `SilentDefaults.repo
 
 Strict mode runs in `HumanSeatTriggersTest` and the card-pool sweep (`make web-sweep`).
 
+Deliberate automations (not silent defaults: no player is left to answer; logged `[web] seat N is out of the game: …`
+on stdout, never reported):
+- a seat out of a game that goes on (its player conceded or lost and the engine removed it from the game's players,
+  `SeatSession.outOfGame`): every bridged prompt gets its engine default (`Prompt.fallback`; a reveal closes) at once
+  and is not sent (issue #78). The engine still asks such a player, e.g. `Player.revealFaceDownCards` reveals a leaving
+  player's face-down cards to every registered player; the out seat's OK held the game up to `--disconnect-grace` /
+  `--prompt-timeout`. A player still in `Game.onPlayerLost` is not out: the end-of-game reveal of a 2-player game still
+  reaches the losing seat. Its inputs: `WebGuiGame.stopIfOut` (Threading). `HumanSeatConcedeTest.aRevealToEveryPlayer…`,
+  `…LastOpponentButOne…`, `…TwoPlayerGameStillSeesTheEndOfGameReveal`; the sweep's seat concedes in every 4th 4-player
+  game and fails on a prompt sent after it left.
+
 ## IGuiGame methods
 Class = the class that answers the call for a `WebGuiGame` (`SeatCoverageTest.EXPECTED`).
 
@@ -180,7 +191,8 @@ the refresh share the Swing EDT and the input is locked while the ability runs. 
   first priority); a game that goes on without the seat
   (multiplayer) takes it at the first priority, because the engine still asks a player out of the game for its mulligan.
 - A seat out of a game that goes on (it conceded at one of its inputs) holds no one up: `WebGuiGame.stopIfOut` stops its
-  waiting input unanswered (priority passes; attackers, blockers and payments end with what the seat recorded).
+  waiting input unanswered (priority passes; attackers, blockers and payments end with what the seat recorded); its
+  prompts get their engine default unsent (Silent defaults, deliberate automations; issue #78).
 - A player leaving a game that goes on restarts the priority round with the player who has priority next
   (`SeatSession.SafePoints`, at `GameEventPlayerPriority`): `PhaseHandler` ends a round only when priority comes back to
   the player it started with (`pFirstPriority`), so a round started by the player who left never ended (a concede at an

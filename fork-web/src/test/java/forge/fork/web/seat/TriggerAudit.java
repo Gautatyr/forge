@@ -32,7 +32,7 @@ import forge.player.PlayerControllerHuman;
  * {@code GameEventSpellAbilityCast} during that call), unless it has no legal target or the game is over; a static trigger
  * ({@code playTrigger}, no stack) must be played. Every trigger cast must resolve or leave the stack before the game
  * ends, unless it is still there at game over. Also ends a game early (a draw) at a turn cap, or once the seat lost in
- * a multiplayer game, at the start of a turn on the game thread.
+ * a multiplayer game (unless {@link #playOnWithoutTheSeat}), at the start of a turn on the game thread.
  */
 final class TriggerAudit {
 
@@ -108,6 +108,7 @@ final class TriggerAudit {
     private Game game;
     private Player me;
     private final int turnCap;
+    private boolean playOn;
     private boolean inPut;
     private final List<SpellAbility> putting = new ArrayList<>();
     /** View ids of this seat's triggers cast, with a description. */
@@ -139,6 +140,12 @@ final class TriggerAudit {
 
     TriggerAudit(int turnCap) {
         this.turnCap = turnCap;
+    }
+
+    /** A multiplayer game goes on once the seat lost (the seat concedes in it, issue #78), up to the turn cap. */
+    TriggerAudit playOnWithoutTheSeat() {
+        playOn = true;
+        return this;
     }
 
     Game game() {
@@ -266,7 +273,7 @@ final class TriggerAudit {
                 playedCards.add(l.land().getName());
             }
         } else if (ev instanceof GameEventTurnBegan t) {
-            boolean seatOut = me.hasLost() && game.getPlayers().size() > 1;
+            boolean seatOut = !playOn && me.hasLost() && game.getPlayers().size() > 1;
             if (t.turnNumber() > turnCap || seatOut) {
                 capped = t.turnNumber() > turnCap;
                 game.setGameOver(GameEndReason.Draw);

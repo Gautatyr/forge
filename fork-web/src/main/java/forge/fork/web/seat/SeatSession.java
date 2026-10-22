@@ -367,11 +367,19 @@ final class SeatSession implements IRemote {
         toSeat(options::toJson, text -> sticky.put("attackOptions", text));
     }
 
-    /** Blocks the calling thread (the game thread, or this seat's action thread) until answered, timed out or abandoned. */
+    /**
+     * Blocks the calling thread (the game thread, or this seat's action thread) until answered, timed out or abandoned.
+     * A seat out of a game that goes on is not asked ({@link #outOfGame}).
+     */
     Object ask(Prompt p) {
         if (closed) {
             Object d = p.fallback();
             SilentDefaults.report(where(), p.method + " asked after the seat closed: engine default " + d);
+            return d;
+        }
+        if (outOfGame()) {
+            Object d = p.fallback();
+            System.out.println("[web] seat " + seat + " is out of the game: " + p.method + " not sent, engine default " + d);
             return d;
         }
         // must-fix: a reveal for this prompt (tempShowCards) has no event of its own; flush so the seat sees the cards
@@ -396,6 +404,23 @@ final class SeatSession implements IRemote {
             SilentDefaults.report(where(), "prompt " + pd.id + " (" + p.method + ") closed " + how + ": engine default " + r[0]);
         }
         return r[0];
+    }
+
+    /**
+     * The seat's player left a game that goes on (it conceded or lost, and the engine removed it from the players in
+     * the game): the engine may still ask it, e.g. {@code Player.revealFaceDownCards} reveals to every registered
+     * player. Such a prompt gets the engine default at once, unsent (issue #78): no one waits for a player who left, and
+     * the page, which may still watch, shows no prompt for a game it left. A deliberate automation, not a silent default
+     * (audit: {@code docs/fork/audit/human-seat.md}). A player losing is still in the game while the engine runs its
+     * loss ({@code Game.onPlayerLost}), so the end-of-game reveal of a 2-player game still reaches it.
+     */
+    private boolean outOfGame() {
+        if (!(controller instanceof PlayerControllerHuman pch)) {
+            return false;
+        }
+        Player p = pch.getPlayer();
+        Game g = pch.getGame();
+        return p != null && g != null && p.hasLost() && !g.isGameOver() && !g.getPlayers().contains(p);
     }
 
     private String where() {
