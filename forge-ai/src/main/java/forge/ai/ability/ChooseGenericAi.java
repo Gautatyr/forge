@@ -188,6 +188,10 @@ public class ChooseGenericAi extends SpellAbilityAi {
                 }
             }
 
+            // fork #86: the revealed card may already be gone (an earlier chooser took it)
+            if (host.getImprintedCards().isEmpty()) {
+                return allow;
+            }
             Card imprinted = host.getImprintedCards().getFirst();
             int dmg = imprinted.getCMC();
             Player owner = imprinted.getOwner();
