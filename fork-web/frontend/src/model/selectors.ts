@@ -10,6 +10,12 @@ export function shownFace(c: CardView): CardFace {
   return c.faceDown?.seen ? c.front : currentFace(c);
 }
 
+/** What to SHOW (issue #3): the viewer's-language text when the bridge sent it, else the English. Logic keeps reading the English fields. */
+export const faceName = (f: CardFace): string => f.localName || f.name;
+export const faceType = (f: CardFace): string => f.localTypeLine || f.typeLine;
+export const faceText = (f: CardFace): string => f.localOracleText || f.oracleText;
+export const cardName = (c: CardView): string => c.localName || c.name;
+
 export function typeLine(c: CardView): string {
   return currentFace(c).typeLine;
 }
@@ -51,11 +57,17 @@ export function opponents(game: GameView): PlayerView[] {
   return game.players.filter((p) => !p.isYou);
 }
 
+/** The shown name of a card by id; undefined when the card is not in the view. */
+export const nameOfCard = (game: Pick<GameView, 'cards'>, id: string): string | undefined => {
+  const c = game.cards[id];
+  return c && cardName(c);
+};
+
 export function targetName(game: GameView, t: TargetRef): string {
-  if (t.kind === 'card') return game.cards[t.id]?.name ?? '?';
+  if (t.kind === 'card') return nameOfCard(game, t.id) ?? '?';
   if (t.kind === 'player') return player(game, t.id).name;
   const item = game.stack.find((it) => it.id === t.id);
-  return (item && game.cards[item.sourceCardId]?.name) || item?.text || 'a spell';
+  return (item && nameOfCard(game, item.sourceCardId)) || item?.text || 'a spell';
 }
 
 /** The player who defends a planeswalker (its controller) or a battle (its protector) when it is attacked. */

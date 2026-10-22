@@ -71,6 +71,14 @@ final class FakeHub implements StreamHub {
         return "{}";
     }
 
+    /** {@code seat:lang} of every {@link #setLanguage}, in order. */
+    final List<String> languages = new CopyOnWriteArrayList<>();
+
+    @Override
+    public void setLanguage(int seat, String lang) {
+        languages.add(seat + ":" + lang);
+    }
+
     /** {@code seat:message} of every {@link #clientMessage}, in order. */
     final List<String> messages = new CopyOnWriteArrayList<>();
 

@@ -28,6 +28,9 @@ public interface StreamHub {
      */
     default void clientMessage(int seat, JsonObject msg, ClientSink from) { }
 
+    /** A seat's client chose a card-text language ({@code en} or {@code fr}); see {@link GameStream#setSeatLanguage}. */
+    default void setLanguage(int seat, String lang) { }
+
     static StreamHub of(GameStream stream) {
         return new StreamHub() {
             @Override
@@ -53,6 +56,11 @@ public interface StreamHub {
             @Override
             public String metricsJson() {
                 return stream.metricsJson();
+            }
+
+            @Override
+            public void setLanguage(int seat, String lang) {
+                stream.setSeatLanguage(seat, lang);
             }
 
             @Override

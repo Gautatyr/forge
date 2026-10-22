@@ -175,7 +175,10 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
   const filterable = prompt.shape === 'chooseN' && prompt.options.length > FILTER_FROM;
   const matching =
     prompt.shape === 'chooseN' && mode === 'tray'
-      ? visibleOptions(prompt.options, filterable ? query : '', (id) => game.cards[id]?.front.typeLine)
+      ? visibleOptions(prompt.options, filterable ? query : '', (id) => {
+            const f = game.cards[id]?.front;
+            return f && `${f.typeLine} ${f.localTypeLine ?? ''}`;
+          })
       : [];
   // Identical cards (17 Swamps of a library search) are one tile with a count; digit keys name the tiles.
   const groups = groupOptions(matching, (id) => game.cards[id]?.name);

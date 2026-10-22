@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { player, targetName } from '../model/selectors';
+import { cardName, player, targetName } from '../model/selectors';
 import type { TargetRef } from '../model/types';
 import { spotlightItem, stackTargetSpot } from '../state/cardStatus';
 import { useMatch } from '../state/MatchContext';
@@ -47,6 +47,7 @@ function StackPanel() {
   if (game.stack.length === 0) return null;
   const items = [...game.stack].reverse();
   const spot = spotlightItem(game, ui);
+  const spotSrc = spot ? game.cards[spot.sourceCardId] : undefined;
   // Targeting a spell or ability (counterspells, Stifle, redirects): the items the input accepts are lit and
   // clickable, only while it is open (highlights are answers, never hints).
   const d = game.decision;
@@ -103,7 +104,7 @@ function StackPanel() {
               {src ? <Card card={src} context="thumb" style={{ '--cw': '3.6rem' } as CSSProperties} onActivate={toggle} /> : null}
               <div className={styles.itemText}>
                 <span className={styles.itemName}>
-                  {src?.name}
+                  {src ? cardName(src) : undefined}
                   {item.kind !== 'spell' ? <em> · {tDynamic(`rail.kind.${item.kind}` as MsgKey)}</em> : null}
                 </span>
                 <span className={styles.by}>
@@ -120,7 +121,7 @@ function StackPanel() {
                 {targeted && spot ? (
                   <span className={styles.targetedBy}>
                     <Icon name="target" />
-                    {t('rail.targetedBy', { name: game.cards[spot.sourceCardId]?.name ?? t('rail.aSpell') })}
+                    {t('rail.targetedBy', { name: spotSrc ? cardName(spotSrc) : t('rail.aSpell') })}
                   </span>
                 ) : null}
                 {toggle ? (

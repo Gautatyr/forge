@@ -3,6 +3,8 @@ package forge.fork.web.bridge;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -38,6 +40,28 @@ public final class WireSchema {
                 REF_KINDS.put(p.name(), k);
             }
         }
+    }
+
+    /**
+     * Properties the bridge adds beside the engine's (all strings): name -> the wire object types carrying it.
+     * The viewer's-language translation of the English field it shadows; the English field stays.
+     * Part of the wire contract: in {@link #schemaJson()} and in the generated TypeScript types.
+     */
+    public static final Map<String, List<String>> FORK_PROPERTIES = forkProperties();
+
+    private static Map<String, List<String>> forkProperties() {
+        Map<String, List<String>> m = new LinkedHashMap<>();
+        m.put("LocalName", List.of("card", "cardState"));
+        m.put("LocalType", List.of("cardState"));
+        m.put("LocalOracleText", List.of("cardState"));
+        for (String n : m.keySet()) {
+            for (TrackableProperty p : TrackableProperty.values()) {
+                if (p.name().equals(n)) {
+                    throw new IllegalStateException("fork property " + n + " now exists upstream as a TrackableProperty");
+                }
+            }
+        }
+        return m;
     }
 
     private WireSchema() { }
@@ -88,6 +112,9 @@ public final class WireSchema {
         JsonObject o = new JsonObject();
         for (Map.Entry<TrackableProperty, Kind> e : KINDS.entrySet()) {
             o.addProperty(e.getKey().name(), e.getValue().name().toLowerCase());
+        }
+        for (String n : FORK_PROPERTIES.keySet()) {
+            o.addProperty(n, Kind.STRING.name().toLowerCase());
         }
         return o;
     }

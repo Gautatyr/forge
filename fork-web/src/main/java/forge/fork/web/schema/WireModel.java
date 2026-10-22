@@ -133,6 +133,10 @@ public final class WireModel {
             properties.add(new Property(p.name(), kind, enumTs, placed.get(p.name())));
         }
 
+        for (Map.Entry<String, List<String>> f : WireSchema.FORK_PROPERTIES.entrySet()) {
+            properties.add(new Property(f.getKey(), Kind.STRING, null, f.getValue()));
+        }
+
         List<Method> methods = new ArrayList<>();
         for (ProtocolMethod m : ProtocolMethod.values()) {
             List<String> args = new ArrayList<>();

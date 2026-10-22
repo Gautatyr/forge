@@ -3,6 +3,7 @@ import type { Intent } from '../model/intents';
 import type { CardId, GameView, ManaColour, ManaSource } from '../model/types';
 import { useMatch } from './MatchContext';
 import { t } from '../i18n';
+import { cardName } from '../model/selectors';
 
 /** What a click on a card means while you hold priority or pay a cost (design pass 4, §2.1 and P1–P2). */
 export type CardClick =
@@ -34,7 +35,7 @@ export function cardClick(game: GameView, id: CardId): CardClick {
   if (c.zone !== 'battlefield') {
     if (c.ownerId !== game.youId || c.zone === 'stack' || c.zone === 'library') return { kind: 'none' };
     if (d.kind === 'priority' && d.playable.includes(id)) return { kind: 'intent', intent: { type: 'play', cardId: id } };
-    return { kind: 'note', text: t('click.cantPlay', { name: c.name }) };
+    return { kind: 'note', text: t('click.cantPlay', { name: cardName(c) }) };
   }
   if (d.kind !== 'priority' || c.controllerId !== game.youId) return { kind: 'none' };
   const source = d.manaSources?.find((s) => s.cardId === id);

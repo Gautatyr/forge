@@ -4,6 +4,7 @@ import type { Decision, GameView, ManaColour, ManaPool } from '../model/types';
 import { ManaSymbol, manaName } from './ManaSymbol';
 import styles from './Payment.module.css';
 import { t } from '../i18n';
+import { nameOfCard } from '../model/selectors';
 
 type Paying = Extract<Decision, { kind: 'payMana' }>;
 
@@ -63,7 +64,7 @@ export function FloatingMana({
 
 /** "Pay {2}{G}{W} for Sythis · includes tax {2}", paid symbols filled with ✓, unpaid outlined. */
 export function PaymentCost({ game, paying }: { game: GameView; paying: Paying }) {
-  const name = game.cards[paying.sourceCardId]?.name ?? t('pay.thisSpell');
+  const name = nameOfCard(game, paying.sourceCardId) ?? t('pay.thisSpell');
   const pips = costPips(paying.cost, paying.remaining);
   const extras = [
     paying.ability ? <Fragment key="ab">{paying.ability}</Fragment> : null,

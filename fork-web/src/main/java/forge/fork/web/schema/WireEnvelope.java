@@ -201,7 +201,10 @@ public final class WireEnvelope {
                     new Field("action", "DrawOfferMessageAction", true, null),
                     new Field("update", "{ kind: string; [field: string]: unknown }", true, "sendYieldUpdate."))),
             new Message("requestResync", "RequestResyncMessage", "Asks for a fresh snapshot, then the seat's greeting.", List.of(
-                    field("t", "'requestResync'", null))));
+                    field("t", "'requestResync'", null))),
+            new Message("setLanguage", "SetLanguageMessage", "Sets the language of this seat's card translations: fully visible cards then carry LocalName, LocalType and LocalOracleText (display only; Name, Type and OracleText stay English); anything but 'fr' is English and carries none. Sent after the greeting and on change; spectators stay English.", List.of(
+                    field("t", "'setLanguage'", null),
+                    field("lang", "'en' | 'fr'", null))));
 
     private WireEnvelope() { }
 

@@ -1,6 +1,7 @@
 import type { CardId, GameView, PlayerView } from '../model/types';
 import { seatChar } from './seatChar';
 import { t } from '../i18n';
+import { cardName } from '../model/selectors';
 
 /** Commander damage that eliminates a player. */
 export const COMMANDER_LETHAL = 21;
@@ -30,7 +31,7 @@ export function commanderChips(game: GameView, p: PlayerView): CommanderChip[] {
     .map((x) => {
       const card = game.cards[x.commanderId];
       const ctrl = card ? game.players.find((q) => q.id === card.ownerId) : undefined;
-      const name = card?.name ?? t('cmd.unknown');
+      const name = (card && cardName(card)) ?? t('cmd.unknown');
       const seat = ctrl?.seat ?? 0;
       const by = ctrl ? ` (${t('cmd.by', { seat: seatChar(seat), who: ctrl.isYou ? t('top.you') : ctrl.name })})` : '';
       return {

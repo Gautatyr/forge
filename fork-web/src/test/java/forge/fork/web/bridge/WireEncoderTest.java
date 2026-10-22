@@ -34,8 +34,8 @@ public class WireEncoderTest {
         assertEquals(WireSchema.kindOf(TrackableProperty.EntityAttachedTo), WireSchema.Kind.ENTITY);
         assertEquals(WireSchema.kindOf(TrackableProperty.CombatView), WireSchema.Kind.COMBAT);
         assertEquals(WireSchema.kindOf(TrackableProperty.PlayerTurn), WireSchema.Kind.PLAYER);
-        // every property gets a kind, so the schema covers the whole enum
-        assertEquals(WireSchema.schemaJson().size(), TrackableProperty.values().length);
+        // every property gets a kind, so the schema covers the whole enum plus the bridge's own properties
+        assertEquals(WireSchema.schemaJson().size(), TrackableProperty.values().length + WireSchema.FORK_PROPERTIES.size());
     }
 
     @Test

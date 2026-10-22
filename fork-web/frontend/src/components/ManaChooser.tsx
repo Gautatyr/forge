@@ -5,6 +5,7 @@ import type { UiState } from '../state/ui';
 import { ManaSymbol } from './ManaSymbol';
 import styles from './ManaChooser.module.css';
 import { t } from '../i18n';
+import { nameOfCard } from '../model/selectors';
 
 /** The open chooser, if the game still offers that source (it closes itself when the decision moves on). */
 export function liveManaChoice(game: GameView, ui: UiState): UiState['manaChoice'] {
@@ -52,7 +53,7 @@ export function ManaChooser() {
   }, [choice, setUi]);
 
   if (!choice) return null;
-  const name = game.cards[choice.cardId]?.name ?? t('mana.thisLand');
+  const name = nameOfCard(game, choice.cardId) ?? t('mana.thisLand');
   const pick = (colour: ManaColour) => {
     setUi({ manaChoice: undefined });
     send({ type: 'tapForMana', cardId: choice.cardId, colour });

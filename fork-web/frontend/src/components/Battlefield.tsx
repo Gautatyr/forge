@@ -7,6 +7,7 @@ import { Card } from './Card';
 import { useSize } from './useSize';
 import styles from './Battlefield.module.css';
 import { t } from '../i18n';
+import { cardName } from '../model/selectors';
 
 /** Cards drawn narrower than this get a name label (pass-3 spec, section 4). */
 const NAME_LABEL_BELOW = 150;
@@ -49,7 +50,7 @@ function Lines({ entries, fit, label }: { entries: Entry[]; fit: RowFit; label: 
                     context="board"
                     className={styles.attachment}
                     style={{ '--j': e.card.attachments.length - j } as CSSProperties}
-                    ariaExtra={t('bf.attachedTo', { name: e.card.name })}
+                    ariaExtra={t('bf.attachedTo', { name: cardName(e.card) })}
                     nameLabel={nameLabel}
                   />
                 ) : null;

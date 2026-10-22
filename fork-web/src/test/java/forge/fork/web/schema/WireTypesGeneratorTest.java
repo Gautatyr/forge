@@ -39,6 +39,21 @@ public class WireTypesGeneratorTest {
     }
 
     @Test
+    public void translationPropertiesAreInTheHelloSchemaAndTheGeneratedTypes() {
+        com.google.gson.JsonObject schema = WireSchema.schemaJson();
+        String kinds = block(TS, "export const PROPERTY_KINDS = {");
+        String card = block(TS, "export interface CardProps {");
+        String state = block(TS, "export interface CardStateProps {");
+        for (String n : List.of("LocalName", "LocalType", "LocalOracleText")) {
+            assertEquals(schema.get(n).getAsString(), "string", n);
+            assertTrue(kinds.contains("\n  " + n + ": 'string',"), n);
+            assertTrue(state.contains("\n  " + n + "?: string"), n);
+        }
+        assertTrue(card.contains("\n  LocalName?: string"));
+        assertFalse(card.contains("LocalType"));
+    }
+
+    @Test
     public void outputDoesNotDependOnTheDefaultLocale() {
         Locale saved = Locale.getDefault();
         try {

@@ -1,4 +1,4 @@
-import { player } from '../model/selectors';
+import { nameOfCard, player } from '../model/selectors';
 import { pickedDefenderCard } from './focus';
 import type { CardId, GameView, PlayerId, StackItem, StackItemId, TargetRef } from '../model/types';
 import { blockTargets, underBlocked } from './blockClick';
@@ -103,12 +103,12 @@ export function cardStatus(game: GameView, ui: UiState, id: CardId): CardStatus 
   if (d.kind === 'declareAttackers') attacks.push(...d.draft.map((a) => ({ ...a, draft: true })));
   if (d.kind === 'declareBlockers') blocks.push(...d.draft.map((b) => ({ ...b, draft: true })));
   const atk = attacks.find((a) => a.attackerId === id);
-  if (atk) s.attacking = { defender: (atk.defenderCardId && game.cards[atk.defenderCardId]?.name) || player(game, atk.defenderId).name, draft: atk.draft };
+  if (atk) s.attacking = { defender: (atk.defenderCardId && nameOfCard(game, atk.defenderCardId)) || player(game, atk.defenderId).name, draft: atk.draft };
   // Live, the engine's combat also holds the draft: each attacker once.
   const attackers = new Set(attacks.filter((a) => a.defenderCardId === id).map((a) => a.attackerId));
-  s.attackedBy = [...attackers].map((a) => game.cards[a]?.name ?? '?');
+  s.attackedBy = [...attackers].map((a) => nameOfCard(game, a) ?? '?');
   const blk = blocks.find((b) => b.blockerId === id);
-  if (blk) s.blocking = { attacker: game.cards[blk.attackerId]?.name ?? '?', draft: blk.draft };
+  if (blk) s.blocking = { attacker: nameOfCard(game, blk.attackerId) ?? '?', draft: blk.draft };
 
   if (d.kind === 'declareAttackers') {
     const cand = d.candidates.includes(id);
@@ -132,7 +132,7 @@ export function cardStatus(game: GameView, ui: UiState, id: CardId): CardStatus 
   }
 
   for (const item of game.stack) {
-    if (item.targets.some((t) => t.kind === 'card' && t.id === id)) s.targetedBy.push(game.cards[item.sourceCardId]?.name ?? 'a spell');
+    if (item.targets.some((t) => t.kind === 'card' && t.id === id)) s.targetedBy.push(nameOfCard(game, item.sourceCardId) ?? 'a spell');
   }
   s.targetSpot = spotFor(game, ui, (t) => t.kind === 'card' && t.id === id);
   return s;

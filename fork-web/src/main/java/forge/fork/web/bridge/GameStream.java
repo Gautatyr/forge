@@ -96,6 +96,8 @@ public final class GameStream {
     private int lastSampledTurn = -1;
     private ViewerStream spectator;
     private List<ViewerStream> seats = List.of();
+    /** Each seat's card-text language ({@code en} unless set), kept across games. */
+    private final Map<Integer, String> seatLanguage = new HashMap<>();
     /** Last known card order of every zone, {@code playerId:Zone -> ids}, to detect shuffles. */
     private Map<String, List<Integer>> zoneOrders = new HashMap<>();
     private volatile CountDownLatch gameOver = new CountDownLatch(1);
@@ -129,6 +131,7 @@ public final class GameStream {
 
     /** Binds a new game. Called from the spectator GUI's openView, before the game thread starts. */
     public void startGame(GameView gv) {
+        forge.fork.web.bridge.visibility.CardText.warm(); // off the event loop, outside the lock
         synchronized (lock) {
             gameView = gv;
             dsm = new DeltaSyncManager();
@@ -136,7 +139,9 @@ public final class GameStream {
             spectator = new ViewerStream(viewer(SPECTATOR, players));
             List<ViewerStream> s = new ArrayList<>();
             for (int i = 0; i < players.size(); i++) {
-                s.add(new ViewerStream(viewer(i, players)));
+                ViewerStream vs = new ViewerStream(viewer(i, players));
+                vs.setLanguage(seatLanguage.getOrDefault(i, "en"));
+                s.add(vs);
             }
             seats = s;
             zoneOrders = new HashMap<>();
@@ -218,6 +223,35 @@ public final class GameStream {
             }
         }
         return n;
+    }
+
+    /**
+     * Sets the language of the card names, type lines and oracle text one seat is sent ({@code fr}; anything
+     * else is English), and re-sends the seat's clients what they hold in the new language. Spectators are
+     * always English. Thread-safe; reads only the seat's copy, never the live game.
+     */
+    public void setSeatLanguage(int seat, String lang) {
+        if (seat < 0) {
+            return;
+        }
+        synchronized (lock) {
+            String l = "fr".equals(lang) ? "fr" : "en";
+            seatLanguage.put(seat, l);
+            if (seat >= seats.size()) {
+                return;
+            }
+            ViewerStream vs = seats.get(seat);
+            ViewerStream.Delta d = vs.setLanguage(l);
+            if (d.isEmpty()) {
+                return;
+            }
+            String text = deltaJson(vs, d, new JsonArray(), new JsonArray(), false);
+            for (Map.Entry<ClientSink, Integer> c : clients.entrySet()) {
+                if (c.getValue() == seat) {
+                    c.getKey().send(text);
+                }
+            }
+        }
     }
 
     /** A message from a seat's client; see {@link SeatHooks#receive}. */
