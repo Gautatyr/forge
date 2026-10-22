@@ -5,7 +5,7 @@ import type { Intent } from '../model/intents';
 import type { CardId, GameView, PlayerId } from '../model/types';
 import { applyIntent, type MockGame } from '../mock/engine';
 import { blockClick } from './blockClick';
-import { currentDefender, focusForIntent, focusOnTurnChange } from './focus';
+import { currentAttackAim, focusForIntent, focusOnTurnChange, pickDefender } from './focus';
 import { scenarioById } from '../mock/scenarios';
 import { loadPrefs, savePrefs, type Prefs } from './prefs';
 import { INITIAL_UI, type UiState } from './ui';
@@ -136,9 +136,11 @@ export function MatchProvider({ children }: { children: ReactNode }) {
           send({ type: 'toggleTarget', target: { kind: 'card', id } });
           return;
         case 'declareAttackers': {
+          // A planeswalker or battle the engine lets you attack: new attackers go at it (issue #65).
+          if (d.defenderCards.includes(id)) return setUi(pickDefender(game, { kind: 'card', id }));
           if (!d.candidates.includes(id)) return;
-          const defender = currentDefender(game, ui, prefs.layout);
-          if (defender) send({ type: 'toggleAttacker', cardId: id, defenderId: defender });
+          const aim = currentAttackAim(game, ui, prefs.layout);
+          if (aim) send({ type: 'toggleAttacker', cardId: id, ...aim });
           return;
         }
         case 'declareBlockers': {
@@ -168,9 +170,9 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     (id: PlayerId) => {
       const d = game.decision;
       if (d.kind === 'chooseTargets') send({ type: 'toggleTarget', target: { kind: 'player', id } });
-      if (d.kind === 'declareAttackers' && d.defenders.includes(id)) setUi({ attackDefender: id, focusOpponentId: id });
+      if (d.kind === 'declareAttackers' && d.defenders.includes(id)) setUi(pickDefender(game, { kind: 'player', id }));
     },
-    [game.decision, send, setUi],
+    [game, send, setUi],
   );
 
   const api = useMemo<MatchApi>(
