@@ -35,9 +35,10 @@ export type Intent =
   | { type: 'primary' }
   /** Cancel a half-cast spell (targets or payment: its sources untap) or clear an attack/block draft. */
   | { type: 'cancel' }
-  | { type: 'toggleAttacker'; cardId: CardId; defenderId: PlayerId }
-  | { type: 'attackWithAll'; defenderId: PlayerId }
-  | { type: 'setAttackDefender'; cardId: CardId; defenderId: PlayerId }
+  /** `defenderCardId`: the planeswalker or battle attacked, of the defending player `defenderId`. */
+  | { type: 'toggleAttacker'; cardId: CardId; defenderId: PlayerId; defenderCardId?: CardId }
+  | { type: 'attackWithAll'; defenderId: PlayerId; defenderCardId?: CardId }
+  | { type: 'setAttackDefender'; cardId: CardId; defenderId: PlayerId; defenderCardId?: CardId }
   | { type: 'assignBlock'; blockerId: CardId; attackerId: CardId }
   /** Without attackerId: every block of that blocker. */
   | { type: 'removeBlock'; blockerId: CardId; attackerId?: CardId }

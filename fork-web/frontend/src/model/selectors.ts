@@ -47,6 +47,11 @@ export function targetName(game: GameView, t: TargetRef): string {
   return (item && game.cards[item.sourceCardId]?.name) || item?.text || 'a spell';
 }
 
+/** The player who defends a planeswalker (its controller) or a battle (its protector) when it is attacked. */
+export function defendingPlayerOf(c: CardView): PlayerId {
+  return c.protectorId ?? c.controllerId;
+}
+
 /** Commander tax for the next cast from the command zone. */
 export function commanderTax(p: PlayerView, commanderId: string): number {
   return 2 * (p.commanderCasts[commanderId] ?? 0);

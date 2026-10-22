@@ -13,6 +13,8 @@ export interface UiState {
   pendingAttacker?: CardId;
   /** Defender that newly toggled attackers will attack. */
   attackDefender?: PlayerId;
+  /** The planeswalker or battle of `attackDefender` they attack instead of the player. */
+  attackDefenderCard?: CardId;
   hoveredStackItem?: StackItemId;
   /** Focus layout: the expanded opponent (see focus.ts for when it changes). */
   focusOpponentId?: PlayerId;

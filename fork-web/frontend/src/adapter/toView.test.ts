@@ -371,6 +371,113 @@ describe('combat inputs', () => {
   });
 });
 
+describe('attacking planeswalkers and battles (issue #65)', () => {
+  /** The AI controls Teferi (50); a battle (60) you control is protected by the AI. */
+  function withPermanents(phase: 'COMBAT_DECLARE_ATTACKERS' | 'COMBAT_DECLARE_BLOCKERS' = 'COMBAT_DECLARE_ATTACKERS', active = 0): LiveSession {
+    const s = session(phase, active);
+    s.apply({
+      t: 'delta',
+      game: 1,
+      seq: 1,
+      ts: 0,
+      new: [
+        { type: 'card', id: 50, props: { Owner: 1, Controller: 1, Zone: 'Battlefield', CurrentState: 'Original', Counters: { LOYALTY: 4 } } },
+        { type: 'cardState', id: 50, state: 'Original', props: { Name: 'Teferi, Temporal Archmage', Type: 'Legendary Planeswalker - Teferi', Loyalty: '5' } },
+        { type: 'card', id: 60, props: { Owner: 0, Controller: 0, Zone: 'Battlefield', CurrentState: 'Original', ProtectingPlayer: 1, Counters: { DEFENSE: 5 } } },
+        { type: 'cardState', id: 60, state: 'Original', props: { Name: 'Invasion of Ergamon', Type: 'Battle - Siege' } },
+      ],
+      changed: [
+        { type: 'player', id: 1, props: { Battlefield: [20, 50] } },
+        { type: 'player', id: 0, props: { Battlefield: [10, 30, 60] } },
+      ],
+      removed: [],
+      log: [],
+      events: [],
+    });
+    return s;
+  }
+  const band = (attacker: number, defender: { type: 'card' | 'player'; id: number }) => ({ attackers: [attacker], defender, blockers: [], plannedBlockers: [] });
+
+  it('offers the defenders the engine allows (attackOptions): players, planeswalkers and battles', () => {
+    const a = withPermanents();
+    buttons(a, 'OK', 'Alpha Strike', 'Select creatures to attack AI or select player/card you wish to attack.');
+    a.apply({ t: 'call', method: 'setWeaklySelectable', args: [[card(10)]] });
+    a.apply({ t: 'attackOptions', defenders: [{ type: 'player', id: 1 }, { type: 'card', id: 50 }, { type: 'card', id: 60 }] });
+    expect(toGameView(a).decision).toMatchObject({ kind: 'declareAttackers', candidates: ['10'], defenders: ['1'], defenderCards: ['50', '60'] });
+    // A defender the engine leaves out is not offered (e.g. a planeswalker it can't attack now).
+    a.apply({ t: 'attackOptions', defenders: [{ type: 'player', id: 1 }] });
+    expect(toGameView(a).decision).toMatchObject({ defenders: ['1'], defenderCards: [] });
+    // InputAttack.onStop clears the actionable cards: its options go with it.
+    a.apply({ t: 'call', method: 'clearWeaklySelectable', args: [] });
+    expect(a.attackOptions).toBeUndefined();
+  });
+
+  it('draws an attack on a planeswalker or battle as an attack on that permanent, its defending player beside it', () => {
+    const s = withPermanents('COMBAT_DECLARE_BLOCKERS', 1);
+    s.apply({ t: 'delta', game: 1, seq: 2, ts: 0, new: [], changed: [{ type: 'game', id: 1, props: { CombatView: [band(10, { type: 'card', id: 50 }), band(30, { type: 'card', id: 60 }), band(20, { type: 'player', id: 0 })] } }], removed: [], log: [], events: [] });
+    expect(toGameView(s).combat?.attacks).toEqual([
+      { attackerId: '10', defenderId: '1', defenderCardId: '50' },
+      // A battle's defending player is its protector, not its controller.
+      { attackerId: '30', defenderId: '1', defenderCardId: '60' },
+      { attackerId: '20', defenderId: '0' },
+    ]);
+  });
+
+  it('picks a planeswalker as the defender with selectCard, then the attacker', () => {
+    const s = withPermanents();
+    const g = toGameView(s);
+    expect(intentToFrames({ type: 'toggleAttacker', cardId: '10', defenderId: '1', defenderCardId: '50' }, s, g)).toEqual([
+      act('selectCard', { card: 50 }),
+      act('selectCard', { card: 10 }),
+    ]);
+    expect(intentToFrames({ type: 'attackWithAll', defenderId: '1', defenderCardId: '50' }, s, g)).toEqual([act('selectCard', { card: 50 }), act('alphaStrike')]);
+  });
+});
+
+describe('commander tax (issue #67)', () => {
+  function withCommander(casts: number): LiveSession {
+    const s = session();
+    s.apply(
+      delta1({
+        new: [
+          { type: 'card', id: 70, props: { Owner: 0, Controller: 0, Zone: 'Command', CurrentState: 'Original', IsCommander: true } },
+          { type: 'cardState', id: 70, state: 'Original', props: { Name: 'Szarekh, the Silent King', Type: 'Legendary Artifact Creature - Necron', ManaCost: '{1}{B}{B}{B}', Power: 3, Toughness: 4 } },
+        ],
+        changed: [{ type: 'player', id: 0, props: { Command: [70], Commander: [70], CommanderCast: { '70': casts } } }],
+      }),
+    );
+    buttons(s, 'OK', 'End Turn', 'Priority: Hugo');
+    return s;
+  }
+  const pay = (s: LiveSession, card: number, cost: string) => {
+    s.clicked(card);
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'Auto', 'Cancel', true, true, true] });
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, `Pay Mana Cost: ${cost}`, { type: 'card', id: card }] });
+  };
+
+  it('includes the tax (2 per earlier cast) when your commander is cast from the command zone', () => {
+    const s = withCommander(1);
+    pay(s, 70, '{3}{B}{B}{B}');
+    expect(toGameView(s).decision).toMatchObject({ kind: 'payMana', sourceCardId: '70', cost: '{3}{B}{B}{B}', tax: 2 });
+  });
+
+  it('has no tax on a first cast, nor for a spell that is not your commander', () => {
+    const first = withCommander(0);
+    pay(first, 70, '{1}{B}{B}{B}');
+    expect(toGameView(first).decision).toMatchObject({ kind: 'payMana', tax: 0 });
+    const other = withCommander(2);
+    pay(other, 10, '{1}{G}');
+    expect(toGameView(other).decision).toMatchObject({ kind: 'payMana', tax: 0 });
+  });
+
+  it('has no tax for your commander cast from another zone (an ability or a cast from hand pays none)', () => {
+    const s = withCommander(1);
+    s.apply({ t: 'delta', game: 1, seq: 2, ts: 0, new: [], changed: [{ type: 'card', id: 70, props: { Zone: 'Hand' } }, { type: 'player', id: 0, props: { Command: [], Hand: [70] } }], removed: [], log: [], events: [] });
+    pay(s, 70, '{1}{B}{B}{B}');
+    expect(toGameView(s).decision).toMatchObject({ kind: 'payMana', tax: 0 });
+  });
+});
+
 describe('helpers', () => {
   it('parses engine keyword strings', () => {
     expect(parseKeyword('Flying (This creature can’t be blocked except by creatures with flying or reach.)')).toMatchObject({ name: 'Flying', label: 'Flying' });
@@ -437,7 +544,7 @@ function playerIdsIn(g: View): string[] {
 function cardIdsIn(g: View): string[] {
   const ids: string[] = [];
   for (const p of g.players) ids.push(...p.hand, ...p.battlefield, ...p.graveyard, ...p.exile, ...p.command, ...p.commanders);
-  for (const a of g.combat?.attacks ?? []) ids.push(a.attackerId);
+  for (const a of g.combat?.attacks ?? []) ids.push(a.attackerId, ...(a.defenderCardId ? [a.defenderCardId] : []));
   for (const b of g.combat?.blocks ?? []) ids.push(b.blockerId, b.attackerId);
   return ids;
 }
@@ -476,8 +583,8 @@ describe('cards in no zone, of no player (a mutated commander’s merged copy)',
     const players = new Set(g.players.map((p) => p.id));
     expect(playerIdsIn(g).filter((id) => !players.has(id))).toEqual([]);
     expect(cardIdsIn(g).filter((id) => !g.cards[id])).toEqual([]);
-    // Jace's controller is the defender; the ghost attacker, the ghost defender and the unknown player are dropped.
-    expect(g.combat).toEqual({ attacks: [{ attackerId: '10', defenderId: '1' }], blocks: [] });
+    // Jace is attacked, his controller defends; the ghost attacker, the ghost defender and the unknown player are dropped.
+    expect(g.combat).toEqual({ attacks: [{ attackerId: '10', defenderId: '1', defenderCardId: '50' }], blocks: [] });
     // The stack item stays, held by a real player (the active one when its controller is unknown).
     expect(g.stack).toEqual([expect.objectContaining({ id: '7', controllerId: '1', targets: [{ kind: 'player', id: '0' }] })]);
   });

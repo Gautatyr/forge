@@ -59,6 +59,7 @@ Server to seat (after `hello` and `snapshot`):
   - `text`: `message`, `initial`, `options?`, `numeric`.
 - `{"t":"promptClosed","id","reason":"answered|timeout|disconnected|cancelled"}` closes a prompt on every client of the seat.
 - `{"t":"blockOptions","attackers":[{card,blockers,ifFreed,min?}]}` (#48): with each `InputBlock` refresh (`WebGuiGame.showCombat`), per attacker whose blocks the seat declares, the creatures `CombatUtil.canBlock` allows now (or already blocking it), those that could once taken off the attacker they block, and `min` when more than 1 (menace). Sticky; ends with `clearWeaklySelectable` (`InputBlock.onStop`). While blocks are declared the engine holds them in the combat band's `plannedBlockers`; `blockers` fills once they are declared (#54).
+- `{"t":"attackOptions","defenders":[EntityRef]}` (#65): with each `InputAttack` refresh (`WebGuiGame.showCombat`), the combat's defenders (`Combat.getDefenders`: players, planeswalkers, battles). A card defender is picked with `selectCard`, a player with `selectPlayer`. Sticky; ends with `clearWeaklySelectable` (`InputAttack.onStop`).
 - A client that (re)connects gets, after its snapshot, the seat's current input calls and its open prompts again.
 
 Seat to server (dropped from a spectator token):

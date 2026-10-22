@@ -170,3 +170,7 @@ Newest last. Each entry: the decision, why, and what it implies.
 - **Why:** upstream is building its own `forge-gui-web` module (package `forge.web`, artifactId `forge-gui-web`); the old names would give add/add conflicts on sync.
 - Unchanged: runtime flags `-Dforge.web.strictPrompts`, `forge.web.sweep.*`, and the prefs file `preferences/fork-web.preferences`. Older entries keep the old names.
 - Fork code goes under `forge.fork.*`; never reuse upstream's `forge.web` or a `forge-gui-*` module name.
+
+## 2026-10-22 — Attacking planeswalkers and battles; own commander tax (issues #65, #67)
+- What a seat may attack comes from the engine: new seat message `attackOptions` (the combat's defenders), sent from `WebGuiGame.showCombat` while the input is `InputAttack`. The view-model's `Attack` keeps `defenderId` = the defending player and adds `defenderCardId` for a planeswalker or battle (a battle's defending player is its protector, `CardView.protectorId`).
+- Commander tax while paying: 2 × `CommanderCast` when the clicked card is your commander and was in the command zone when clicked (`CostAdjustment` adds it only for a cast from there).
