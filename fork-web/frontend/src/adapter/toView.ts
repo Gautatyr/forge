@@ -170,7 +170,8 @@ export function mapCard(s: LiveSession, id: number, images: ImageLookup = scryfa
   const front = face(frontState.props, name, false, images);
   const back = backState && backState !== frontState ? face(backState.props, faceDown ? downName : name, true, images) : undefined;
   const transformed = backState === cur && back !== undefined;
-  const creature = /\bCreature\b/.test(typeLineOf(cur.props.Type));
+  // A face-down card is a 2/2 creature only on the battlefield (a foretold card in exile is no 2/2).
+  const creature = /\bCreature\b/.test(typeLineOf(cur.props.Type)) && (!faceDown || zone === 'battlefield');
   const attached = cp.EntityAttachedTo;
   const protector = gamePlayer(s, cp.ProtectingPlayer);
   return {

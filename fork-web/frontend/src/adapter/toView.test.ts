@@ -80,7 +80,7 @@ describe('toGameView', () => {
       ts: 0,
       new: [
         { type: 'card', id: 40, props: { Owner: 0, Controller: 0, Zone: 'Exile', CurrentState: 'FaceDown', Foretold: true, Facedown: true } },
-        { type: 'cardState', id: 40, state: 'FaceDown', props: { ImageKey: 't:foretell' } },
+        { type: 'cardState', id: 40, state: 'FaceDown', props: { ImageKey: 't:foretell', Type: 'Creature', Power: 2, Toughness: 2 } },
         { type: 'cardState', id: 40, state: 'Original', props: { Name: 'Saw It Coming', Type: 'Instant', ManaCost: '{1}{U}{U}', ImageKey: 'c:Saw It Coming|KHM|1', Keywords: ['Foretell {1}{U}'] } },
       ],
       changed: [{ type: 'player', id: 0, props: { Exile: [40] } }],
@@ -98,6 +98,9 @@ describe('toGameView', () => {
       transformed: true,
       faceDown: { seen: true, foretold: true },
     });
+    // the face-down 2/2 is a creature only on the battlefield
+    expect(g.cards['40']!.power).toBeUndefined();
+    expect(g.cards['30']!.power).toBe(2);
     expect(g.players[0]!.otherZoneCasts).toEqual([{ cardId: '40', via: 'foretell' }]);
   });
 
