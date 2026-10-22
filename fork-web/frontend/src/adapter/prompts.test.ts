@@ -198,6 +198,10 @@ describe('prompt → choice tray', () => {
       recipients: [{ id: '0', lethal: 2 }, { id: '1', playerId: '1' }],
     });
     expect(replyValue(d, { shape: 'distribute', amounts: { '0': 2, '1': 3 } })).toEqual([2, 3]);
+    // an infect attacker (Blightsteel Colossus): the combat flag the player row's note reads
+    const infectCards = { '12': { id: '12', name: 'Blightsteel Colossus', keywords: [{ name: 'Infect', label: 'Infect' }] } as CardView };
+    expect(promptToChoice(d, infectCards)).toMatchObject({ combat: { attackerId: '12', infect: true } });
+    expect(promptToChoice(d, cards)).toMatchObject({ combat: { infect: false } });
   });
 
   it('maps text: free text, number, a short option list, a card name', () => {

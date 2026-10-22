@@ -1,3 +1,5 @@
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { engineLog, engineNotice, engineText, resolveFilters, stripCardIds, targetInstruction, unlessChoice, youGrammar } from './engineText';
 
@@ -23,6 +25,10 @@ describe('engineText: engine words → player words', () => {
     expect(engineText('Choose one:')).toBe('Choose one:');
   });
 
+  it('keeps a list of cards that share a name', () => {
+    expect(engineText('Goblin (45)\nGoblin (46)')).toBe('Goblin\nGoblin');
+  });
+
   it('shows a repeated line once (pass 1 #7)', () => {
     expect(engineText('- Herald of Anguish - Creature 5 / 5\nHerald of Anguish - Creature 5 / 5\nChoose artifact to tap for Improvise.\nRemaining mana cost is {5}{B}{B}')).toBe(
       'Herald of Anguish - Creature 5 / 5\nChoose artifact to tap for Improvise.\nRemaining mana cost is {5}{B}{B}',
@@ -40,6 +46,31 @@ describe('engineText: engine words → player words', () => {
     expect(resolveFilters('Select target Card.Zzz')).toBe('Select target card');
     // plain text is left alone
     expect(resolveFilters('Select up to 2 cards from your library. Then shuffle.')).toBe('Select up to 2 cards from your library. Then shuffle.');
+  });
+
+  it('leaves card names with dots alone (review round 1)', () => {
+    const names = [
+      'S.H.I.E.L.D. Flying Car', 'Agents of S.H.I.E.L.D.', 'M.O.D.O.K.', 'Summon: G.F. Ifrit', 'V.A.T.S.', 'U.S.Agent, John Walker',
+      'B.O.B. (Bevy of Beebles)',
+    ];
+    for (const n of names) expect(engineText(n)).toBe(n);
+    expect(engineText('Cast M.O.D.O.K. (33)?')).toBe('Cast M.O.D.O.K.?');
+    expect(engineText('Select target Creature.YouCtrl or M.O.D.O.K.')).toBe('Select target creature you control or M.O.D.O.K.');
+    // a subtype filter is recognised by its properties
+    expect(resolveFilters('Select target Goblin.Other+YouCtrl')).toBe('Select target other goblin you control');
+  });
+
+  it('leaves every card name of the card pool as it is', () => {
+    const dir = join(__dirname, '../../../../forge-gui/res/cardsfolder');
+    if (!existsSync(dir) || !statSync(dir).isDirectory()) return;
+    const walk = (d: string): string[] =>
+      readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(join(d, e.name)) : [join(d, e.name)]));
+    const changed: string[] = [];
+    for (const f of walk(dir)) {
+      const m = /^Name:(.+)$/m.exec(readFileSync(f, 'utf8'));
+      if (m && resolveFilters(m[1]!.trim()) !== m[1]!.trim()) changed.push(m[1]!.trim());
+    }
+    expect(changed).toEqual([]);
   });
 
   it('names a zone search that is not a library search (pass 1 #2)', () => {
@@ -78,6 +109,11 @@ describe('engineText: the seat is "You"', () => {
     expect(youGrammar("You's library", 'You')).toBe('Your library');
     expect(youGrammar('AI 1 deals 3 damage to You.', 'You')).toBe('AI 1 deals 3 damage to you.');
     expect(youGrammar('You mulligans. You draws 7 cards.', 'You')).toBe('You mulligan. You draw 7 cards.');
+    // a negated verb agrees too, and the seat after "targeting" is "you"
+    expect(youGrammar("You doesn't pay.", 'You')).toBe("You don't pay.");
+    expect(youGrammar("Hugo isn't able to block.", 'Hugo')).toBe("You aren't able to block.");
+    expect(youGrammar("Hugo can't draw.", 'Hugo')).toBe("You can't draw.");
+    expect(youGrammar('AI 1 casts Lightning Bolt targeting Hugo.', 'Hugo')).toBe('AI 1 casts Lightning Bolt targeting you.');
     // other players and other verbs stay
     expect(youGrammar('AI 1 searches their library.', 'You')).toBe('AI 1 searches their library.');
     expect(youGrammar('You cast Llanowar Elves.', 'You')).toBe('You cast Llanowar Elves.');

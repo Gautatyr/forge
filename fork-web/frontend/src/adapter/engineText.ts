@@ -75,11 +75,26 @@ function filterWords(type: string, props: string[]): string {
   return [other ? 'other' : '', ...before, lower(type), ...after, control].filter(Boolean).join(' ');
 }
 
+/** Types a filter starts with besides creature subtypes ("Goblin.YouCtrl" is recognised by its properties instead). */
+const FILTER_TYPE = new Set([
+  'Card', 'Permanent', 'Creature', 'Artifact', 'Enchantment', 'Land', 'Planeswalker', 'Battle', 'Instant', 'Sorcery', 'Spell', 'Player',
+  'Opponent', 'Aura', 'Equipment', 'Vehicle', 'Saga', 'Basic',
+]);
+const KNOWN_PROP = /^(?:Other|non[A-Z]\w*|(?:cmc|power|toughness)(?:EQ|NE|LE|LT|GE|GT)\w+|with(?:out)?[A-Z]\w*)$/;
+
+/**
+ * Whether `Type.prop+prop` is a Forge filter and not a name with dots ("S.H.I.E.L.D. Flying Car", "M.O.D.O.K.", "B.O.B."):
+ * every property is a word, never an initial, and the type is a filter type or some property is one the words know.
+ */
+const isFilter = (type: string, props: string[]): boolean =>
+  props.every((p) => p.length >= 2) && (FILTER_TYPE.has(type) || props.some((p) => CONTROL[p] || ADJECTIVE.has(p) || KNOWN_PROP.test(p)));
+
 /** Every raw `Type.prop+prop` token of a line as words ("Select target Artifact.cmcLTX+YouCtrl"). */
 export function resolveFilters(s: string): string {
-  return s.replace(/(?<![\w.])([A-Z][A-Za-z]*)\.([A-Za-z][A-Za-z0-9]*(?:[+.][A-Za-z][A-Za-z0-9]*)*)(?!\w)/g, (_m, type: string, props: string) =>
-    filterWords(type, props.split(/[+.]/)),
-  );
+  return s.replace(/(?<![\w.])([A-Z][A-Za-z]*)\.([A-Za-z][A-Za-z0-9]*(?:[+.][A-Za-z][A-Za-z0-9]*)*)(?!\w)/g, (m, type: string, props: string) => {
+    const list = props.split(/[+.]/);
+    return isFilter(type, list) ? filterWords(type, list) : m;
+  });
 }
 
 // --- zone searches: "Search your graveyard and exile?" ---
@@ -101,13 +116,17 @@ const cleanLine = (line: string): string => zoneSearch(tidyLine(resolveFilters(s
 
 /**
  * An engine message as player words: card ids, raw filters and stray dashes gone, a line the engine repeats shown once,
- * empty lines dropped. Lines stay lines (the caller splits title and instruction).
+ * empty lines dropped. Lines stay lines (the caller splits title and instruction). A repeat is judged with the ids still on,
+ * so a list of two cards of one name ("Goblin (45)", "Goblin (46)") keeps both.
  */
 export function engineText(s: string): string {
   const out: string[] = [];
+  let prev = '';
   for (const raw of s.split('\n')) {
+    const key = tidyLine(raw);
     const line = cleanLine(raw);
-    if (line && line !== out.at(-1)) out.push(line);
+    if (line && key !== prev) out.push(line);
+    if (line) prev = key;
   }
   return out.join('\n');
 }
@@ -115,7 +134,12 @@ export function engineText(s: string): string {
 // --- the seat is "You" ---
 
 /** A third-person present verb agreeing with "you": has → have, loses → lose, searches → search, scries → scry. */
-function agree(verb: string): string {
+function agree(word: string): string {
+  const neg = /^(.+)n['’]t$/.exec(word);
+  return neg ? `${agreeVerb(neg[1]!)}n't` : agreeVerb(word);
+}
+
+function agreeVerb(verb: string): string {
   const irregular: Record<string, string> = { has: 'have', is: 'are', does: 'do', was: 'were', goes: 'go' };
   if (irregular[verb]) return irregular[verb];
   if (verb.length > 3 && verb.endsWith('ies')) return `${verb.slice(0, -3)}y`;
@@ -139,11 +163,11 @@ export function youGrammar(text: string, seatName: string): string {
     .replace(new RegExp(`(?<![\\w'’])${n}['’]s(?!\\w)`, 'g'), (_m, off: number, all: string) =>
       SENTENCE_START.test(all.slice(0, off)) ? 'Your' : 'your',
     )
-    .replace(new RegExp(`(?<![\\w'’])${n}\\s+([a-z]+)\\b([^.!?\\n]*)`, 'g'), (m, verb: string, rest: string, off: number, all: string) => {
+    .replace(new RegExp(`(?<![\\w'’])${n}\\s+([a-z]+n['’]t|[a-z]+)\\b([^.!?\\n]*)`, 'g'), (m, verb: string, rest: string, off: number, all: string) => {
       if (!SENTENCE_START.test(all.slice(0, off))) return m;
       return `You ${agree(verb)}${rest.replace(/\btheir\b/g, 'your').replace(/\bthemselves\b/g, 'yourself')}`;
     })
-    .replace(new RegExp(`\\b(to|on|from|of|with|by|for|against|at|targets?|controls?)\\s+${n}(?![\\w'’]|\\s+[A-Z])`, 'g'), '$1 you');
+    .replace(new RegExp(`\\b(to|on|from|of|with|by|for|against|at|targets?|targeting|controls?)\\s+${n}(?![\\w'’]|\\s+[A-Z])`, 'g'), '$1 you');
 }
 
 /** A log line: engine words, then the seat as "you". */

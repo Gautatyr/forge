@@ -160,6 +160,8 @@ export function promptToChoice(p: PromptMessage, cards: Record<string, CardView>
           ? {
               attackerId: sourceCardId,
               deathtouch: p.choices.some((c) => c.ref?.type === 'card' && c.lethal === 1),
+              // an infect attacker: a player's lethal is the poison still to take (Prompt.damageToKill), not their life
+              infect: (cards[sourceCardId]?.keywords ?? []).some((k) => k.name.toLowerCase() === 'infect'),
               ...(defender ? { trampleId: String(defender.i) } : {}),
             }
           : undefined;

@@ -122,6 +122,10 @@ describe('row notes', () => {
     expect(rowNote(dt, { id: 'jace', label: 'Jace', cardId: 'jace', lethal: 4 }, false, false)).toBe('Lethal 4');
     expect(rowNote(dt, row('ana'), true, false)).toBe('Assign lethal damage to every blocker first');
   });
+  it('an infect attacker: a player row is the poison still to take, not their life', () => {
+    const infect: DistributePrompt = { ...combat, combat: { attackerId: 'colossus', deathtouch: false, infect: true, trampleId: 'ana' } };
+    expect(rowNote(infect, { id: 'ana', label: 'Ana', playerId: 'ana', lethal: 10 }, false, false)).toBe('Lethal 10 · poison');
+  });
 });
 
 describe('number', () => {
