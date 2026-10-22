@@ -68,6 +68,17 @@ Source: [playtest-1.md](playtest-1.md).
 - **Music and sounds** play during web matches as they do in Forge.
 - **Legal choices come from the engine:** possible blockers and attackers are what Forge allows (flying, reach, menace, …), never a local guess.
 
+## Rulings on the UI direction memo (2026-10-22)
+Source: [ui-direction-memo.md](ui-direction-memo.md) (section 4, open questions).
+- **Stops only when you're involved** (memo U1a: opponents' declare attackers when you or your planeswalkers are attacked, declare blockers when you're in the combat, end step only before your turn): a **setting**, offered as an alternative to auto-pass. Like auto-pass (D4), it is not on by default.
+- **Pass after casting your own spell** (U1b): a toggle, off by default.
+- **Style direction:** not chosen yet. The owner first wants to see directions A, B and C (prototype in the mock).
+- **Motion:** "medium" by default, with Subtle / Medium / Showy and Reduced / Off in the Display settings.
+- **Incoming-attack lane:** yes, shown only when you are attacked.
+- **Playmat art:** Scryfall's art crop when online, otherwise a crop of the card image.
+- **Rematch** on the end-of-game screen: yes, if the launcher can start the same match again.
+- **"Changed since your last decision" marker** on cards: yes; it is information, not a hint.
+
 ## Language (2026-10-15)
 - The match screen is switchable between **English and French**: UI text, keyword explanations, card names and text, and card images where Scryfall has French printings.
 - Forge already ships the data: `forge-gui/res/languages/fr-FR.properties` (UI strings) and `forge-gui/res/languages/cardnames-fr-FR.txt` (card names and text).
