@@ -198,12 +198,15 @@ public final class WebServer {
                 return;
             }
             if (IMG_PATH.equals(path)) {
-                List<String> key = new QueryStringDecoder(req.uri()).parameters().get("key");
-                images.find(key == null || key.size() != 1 ? null : key.get(0)).whenComplete((img, err) -> {
+                Map<String, List<String>> q = new QueryStringDecoder(req.uri()).parameters();
+                List<String> key = q.get("key");
+                List<String> lang = q.get("lang");
+                images.find(key == null || key.size() != 1 ? null : key.get(0),
+                        lang == null || lang.size() != 1 ? null : lang.get(0)).whenComplete((img, err) -> {
                     if (img == null) {
                         send(ctx, HttpResponseStatus.NOT_FOUND, "text/plain", "no image".getBytes(StandardCharsets.UTF_8));
                     } else {
-                        // the key names one printing's image, and the URL carries this launch's token
+                        // the key names one printing's image (in one language), and the URL carries this launch's token
                         send(ctx, HttpResponseStatus.OK, img.contentType(), img.bytes(), "private, max-age=31536000, immutable");
                     }
                 });

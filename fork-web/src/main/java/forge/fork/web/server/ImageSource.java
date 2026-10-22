@@ -14,5 +14,13 @@ public interface ImageSource {
      */
     CompletableFuture<Image> find(String key);
 
+    /**
+     * Like {@link #find(String)} for a viewer language ({@code "fr"}, {@code "en"}, or null/unknown =
+     * English): the localized printing when there is one, else the English image. Same contract.
+     */
+    default CompletableFuture<Image> find(String key, String lang) {
+        return find(key);
+    }
+
     record Image(byte[] bytes, String contentType) { }
 }

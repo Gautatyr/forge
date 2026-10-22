@@ -77,6 +77,28 @@ public class ForgeImagesTest {
     }
 
     @Test
+    public void frenchUrlsPointAtTheFrenchPrinting() throws Exception {
+        Game game = TestEngine.newGame(2);
+        Card delver = TestEngine.add("Delver of Secrets", game.getPlayers().get(0), ZoneType.Battlefield);
+        String frontKey = delver.getView().getCurrentState().getTrackableImageKey();
+        String backKey = delver.getView().getAlternateState().getTrackableImageKey();
+        String front = onEdt(() -> ForgeImages.frenchUrl(frontKey));
+        String back = onEdt(() -> ForgeImages.frenchUrl(backKey));
+        assertTrue(front.startsWith(ForgeConstants.URL_PIC_SCRYFALL_DOWNLOAD), front);
+        assertTrue(front.contains("/fr?format=image&version=normal"), front);
+        assertTrue(front.endsWith("&face=front"), front);
+        assertTrue(back.endsWith("&face=back"), back);
+        assertNull(onEdt(() -> ForgeImages.frenchUrl("t:hidden")), "tokens and face-down keys have no French printing");
+        assertNull(onEdt(() -> ForgeImages.frenchUrl("c:No Such Card Anywhere|XXX|1")));
+    }
+
+    private static <T> T onEdt(java.util.function.Supplier<T> s) throws Exception {
+        CompletableFuture<T> f = new CompletableFuture<>();
+        FThreads.invokeInEdtLater(() -> f.complete(s.get()));
+        return f.get(5, TimeUnit.SECONDS);
+    }
+
+    @Test
     public void unknownCardsResolveToNothing() {
         assertNull(ForgeImages.locate("c:No Such Card Anywhere|XXX|1"));
     }
