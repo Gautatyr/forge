@@ -121,6 +121,11 @@ export class LiveSession {
   lastCardFrom?: string;
   /** That card's objects while it is in no zone (cast, being paid for). */
   limbo = new Map<string, WireObject>();
+  /**
+   * The spell being cast as the engine's targeting message names it ("Lightning Bolt (27) - …") when its ref is
+   * unknown (-1): names it when no click did, e.g. after a page reload (issue #62). Kept until you have priority again.
+   */
+  castNamed?: { id: number; name: string };
   /** This client conceded the game (the view has no loss reason). */
   conceded = false;
   /** Game over (final delta or finishGame). */
@@ -172,6 +177,7 @@ export class LiveSession {
     this.lastCard = card;
     this.lastCardFrom = this.get('card', card)?.props.Zone;
     this.limbo = new Map();
+    this.castNamed = undefined;
   }
 
   /** A card the client clicked that is in no zone now (a spell being cast). */
@@ -219,6 +225,7 @@ export class LiveSession {
           this.lastCard = undefined;
           this.lastCardFrom = undefined;
           this.limbo = new Map();
+          this.castNamed = undefined;
           this.conceded = false;
           this.finished = false;
           this.payment = undefined;
@@ -309,6 +316,10 @@ export class LiveSession {
         if (!pay) this.payment = undefined;
         else if (!this.payment || this.payment.cardId !== card) this.payment = { cardId: card, cost: pay[1]!, seq: ++this.paymentSeq };
         const message = typeof a[1] === 'string' ? a[1] : '';
+        // InputSelectTargets: "<host card> - …", the card printed "Name (id)"
+        const spell = /^(.+?) \((\d+)\) - /.exec(message.split('\n')[0] ?? '');
+        if (/^Priority:/.test(message)) this.castNamed = undefined;
+        else if (card === -1 && spell) this.castNamed = { id: Number(spell[2]), name: spell[1]! };
         const left = londonLeft(message);
         const chosen = this.input.highlighted.filter((h) => h.type === 'card').length;
         this.input = {
