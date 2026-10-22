@@ -1768,6 +1768,9 @@ public class AiController {
                     } catch (RuntimeException e) {
                         // fork #92: one candidate's failing AI check skips that candidate only, not the whole priority pass
                         logCandidateFailure(sa, e);
+                        // canPlaySa's debug extras would otherwise stick to later, unrelated Sentry events
+                        Sentry.removeExtra("Card");
+                        Sentry.removeExtra("SA");
                         continue;
                     } finally {
                         // reset LastStateBattlefield - also when the deadline fired inside canPlayAndPayFor

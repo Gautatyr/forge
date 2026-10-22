@@ -106,9 +106,10 @@ public class AiCheckThrowersTest extends AITest {
         }
     }
 
-    // Moxite Refinery: SubCounter<X/Any/Artifact.YouCtrl;Creature.YouCtrl/...>, "Any" is a null counter type
+    // Moxite Refinery: SubCounter<X/Any/Artifact.YouCtrl;Creature.YouCtrl/...>, "Any" is a null counter type.
+    // AiCostDecision cannot pay "Any" yet, so the check must decline it rather than pick an ability it fails to pay.
     @Test
-    public void removeAnyCounterCostIsCheckedWithoutThrowing() {
+    public void removeAnyCounterCostIsDeclinedWithoutThrowing() {
         final Game game = aiMain1();
         final Player ai = game.getPlayers().get(1);
         final Card refinery = addCard("Moxite Refinery", ai);
@@ -118,8 +119,11 @@ public class AiCheckThrowersTest extends AITest {
         game.getAction().checkStateEffects(true);
 
         final SpellAbility charm = firstWithApi(refinery, ApiType.Charm, ai);
-        ComputerUtilCost.checkRemoveCounterCost(charm.getPayCosts(), refinery, charm);
-        AssertJUnit.assertNotNull(aiOf(ai).canPlaySa(charm));
+        AssertJUnit.assertFalse(ComputerUtilCost.checkRemoveCounterCost(charm.getPayCosts(), refinery, charm));
+        AssertJUnit.assertNotSame(AiPlayDecision.WillPlay, aiOf(ai).canPlaySa(charm));
+        final List<SpellAbility> choice = aiOf(ai).chooseSpellAbilityToPlay();
+        AssertJUnit.assertTrue("AI picked an ability it cannot pay: " + choice,
+                choice == null || choice.stream().noneMatch(sa -> sa.getHostCard() == refinery));
     }
 
     // Tempest Caller: ETB "tap all creatures target opponent controls"
@@ -159,6 +163,23 @@ public class AiCheckThrowersTest extends AITest {
         final AiAbilityDecision d = SpellApiToAi.Converter.get(ApiType.TapAll).doTriggerNoCostWithSubs(ai, trig, false);
         AssertJUnit.assertEquals(AiPlayDecision.WillPlay, d.decision());
         AssertJUnit.assertEquals(opp, trig.getTargets().getFirstTargetedPlayer());
+    }
+
+    // the targeted opponent's lands and tapped creatures are not worth tapping (ValidCards + untapped, as checkApiLogic)
+    @Test
+    public void tapAllTriggerOnAnOpponentWithNothingToTapIsNotWanted() {
+        final Game game = aiMain1();
+        final Player ai = game.getPlayers().get(1);
+        final Player opp = game.getPlayers().get(0);
+        final Card caller = addCardToZone("Tempest Caller", ai, ZoneType.Hand);
+        addCards("Plains", 3, opp);
+        addCard("Grizzly Bears", opp).setTapped(true);
+        game.getAction().checkStateEffects(true);
+
+        final SpellAbility trig = caller.getTriggers().iterator().next().ensureAbility();
+        trig.setActivatingPlayer(ai);
+        final AiAbilityDecision d = SpellApiToAi.Converter.get(ApiType.TapAll).doTriggerNoCostWithSubs(ai, trig, false);
+        AssertJUnit.assertEquals(AiPlayDecision.CantPlayAi, d.decision());
     }
 
     // Copy target activated or triggered ability (Adric) while a face-down (morph) spell, which has no API, is on top of the stack

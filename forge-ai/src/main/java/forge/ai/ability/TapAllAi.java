@@ -102,7 +102,8 @@ public class TapAllAi extends SpellAbilityAi {
             }
             sa.resetTargets();
             sa.getTargets().add(target);
-            validTappables = target.getCardsIn(ZoneType.Battlefield);
+            // fork #92: keep the ValidCards + untapped filter (was target.getCardsIn(Battlefield): lands counted)
+            validTappables = CardLists.filterControlledBy(validTappables, target);
         }
 
         if (mandatory) {
