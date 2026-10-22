@@ -4,6 +4,7 @@ import { logParts } from './logParts';
 import { ManaSymbol } from './ManaSymbol';
 import { previewBeside } from './previewSpot';
 import styles from './LogText.module.css';
+import { t } from '../i18n';
 
 /** Renders log text; {card:<id>} tokens become hoverable card names, {R} / {2} mana symbols. */
 export function LogText({ text }: { text: string }) {
@@ -33,7 +34,7 @@ export function LogText({ text }: { text: string }) {
             onPointerEnter={show}
             onPointerLeave={() => setUi({ hover: undefined })}
             onClick={() => setUi({ inspectId: id, hover: undefined })}
-            title="Hover to see the card, click to inspect"
+            title={t('log.hover')}
           >
             {name}
           </button>

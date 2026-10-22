@@ -14,8 +14,9 @@ import {
 } from '../state/stops';
 import { Icon, SeatGlyph } from './Icon';
 import styles from './StopsPanel.module.css';
+import { t } from '../i18n';
 
-const CELL_WORD: Record<StopCell, string> = { stop: 'Stop', pass: 'Pass', mixed: 'Mixed' };
+const cellWord = (c: StopCell): string => (c === 'stop' ? t('stops.cellStop') : c === 'pass' ? t('stops.cellPass') : t('stops.cellMixed'));
 
 /** Where the strip's steps sit, in px from the board area's left edge. */
 interface Columns {
@@ -97,7 +98,7 @@ function StopsEditor() {
     const left = Math.max(pad, first - pad - 9 * cols.rem);
     const tracks = cols.lefts.map((x, i) => (i + 1 < cols.lefts.length ? cols.lefts[i + 1]! - x : cols.widths[i]!));
     panelStyle = { left };
-    gridStyle = { gridTemplateColumns: `${first - left - pad}px ${tracks.map((t) => `${t}px`).join(' ')}` };
+    gridStyle = { gridTemplateColumns: `${first - left - pad}px ${tracks.map((w) => `${w}px`).join(' ')}` };
   }
   const cellStyle = (i: number): CSSProperties | undefined => (cols ? { width: cols.widths[i] } : undefined);
   const cellClass = (id: StepId) => `${styles.cell} ${SEPARATOR_BEFORE.has(id) ? styles.separator : ''}`;
@@ -107,11 +108,11 @@ function StopsEditor() {
       type="button"
       className={`${styles.toggle} ${styles[cell]}`}
       aria-pressed={cell === 'mixed' ? 'mixed' : cell === 'stop'}
-      aria-label={`${rowLabel}, ${stepLabel}: ${CELL_WORD[cell]}`}
-      title={`${rowLabel}, ${stepLabel}: ${CELL_WORD[cell]}. Click to ${cell === 'stop' ? 'pass' : 'stop'} there.`}
+      aria-label={t('stops.toggleAria', { row: rowLabel, step: stepLabel, cell: cellWord(cell) })}
+      title={t('stops.toggleTitle', { row: rowLabel, step: stepLabel, cell: cellWord(cell), action: cell === 'stop' ? t('stops.actionPass') : t('stops.actionStop') })}
       onClick={() => onToggle(cell !== 'stop')}
     >
-      {CELL_WORD[cell]}
+      {cellWord(cell)}
     </button>
   );
 
@@ -137,14 +138,14 @@ function StopsEditor() {
     </div>
   );
 
-  const theirTurns = multi ? "On opponents' turns" : "On opponent's turns";
+  const theirTurns = multi ? t('stops.onOpps') : t('stops.onOpp');
   const opponentRow = (p: PlayerView) =>
     row(
       p.id,
       <>
         <SeatGlyph seat={p.seat} /> {p.name}
       </>,
-      `On ${p.name}'s turns`,
+      t('stops.onName', { name: p.name }),
       (id) => opponentCell(stops, p.id, id),
       (id, on) => setStops(setOpponentStop(stops, p.id, id, on)),
       true,
@@ -154,15 +155,15 @@ function StopsEditor() {
     <section ref={panelRef} className={styles.panel} style={panelStyle} role="dialog" aria-modal="false" aria-labelledby="stops-title">
       <header className={styles.head}>
         <div className={styles.titles}>
-          <h2 id="stops-title">Stops: where the game waits for you</h2>
-          <p className={styles.help}>You always get to respond when something is on the stack.</p>
+          <h2 id="stops-title">{t('stops.title')}</h2>
+          <p className={styles.help}>{t('stops.help')}</p>
         </div>
         <button type="button" className={styles.done} onClick={() => setUi({ overlay: undefined })}>
-          Done <kbd>Esc</kbd>
+          {t('stops.done')} <kbd>{t('key.esc')}</kbd>
         </button>
       </header>
 
-      <div className={styles.grid} style={gridStyle} data-aligned={cols ? true : undefined} role="table" aria-label="Stops by step">
+      <div className={styles.grid} style={gridStyle} data-aligned={cols ? true : undefined} role="table" aria-label={t('stops.byStep')}>
         <div className={`${styles.row} ${styles.heads}`} role="row">
           <span className={styles.rowLabel} role="columnheader" />
           {PRIORITY_STEPS.map((s, i) => (
@@ -178,8 +179,8 @@ function StopsEditor() {
         </div>
         {row(
           'you',
-          'On my turn',
-          'On my turn',
+          t('stops.onMine'),
+          t('stops.onMine'),
           (id) => (stops.yourTurn.includes(id) ? 'stop' : 'pass'),
           (id, on) => setStops(setYourStop(stops, id, on)),
         )}
@@ -196,14 +197,14 @@ function StopsEditor() {
       <footer className={styles.foot}>
         {multi ? (
           <button type="button" className={styles.link} aria-expanded={perOpen} onClick={() => setPerOpen((o) => !o)}>
-            Set per opponent <span aria-hidden>{perOpen ? '▾' : '▸'}</span>
+            {t('stops.perOpp')} <span aria-hidden>{perOpen ? '▾' : '▸'}</span>
           </button>
         ) : null}
         <button type="button" className={styles.link} onClick={() => setStops(resetStops())}>
           <Icon name="undo" />
-          Reset to defaults
+          {t('stops.reset')}
         </button>
-        <label className={styles.switchRow} title="Pass priority automatically when you have nothing you can play. Off by default.">
+        <label className={styles.switchRow} title={t('action.autoPassTitle')}>
           <input
             type="checkbox"
             role="switch"
@@ -214,7 +215,7 @@ function StopsEditor() {
             <span className={styles.knob} />
           </span>
           <span>
-            Auto-pass when I can't act: <b>{game.autoPass ? 'On' : 'Off'}</b>
+            {t('stops.autoPass')} <b>{game.autoPass ? t('common.on') : t('common.off')}</b>
           </span>
         </label>
       </footer>

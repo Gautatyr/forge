@@ -8,6 +8,7 @@ import type { AttackOptionsMessage, BlockOptionsMessage, HelloMessage, InputInfo
 import { hasDrift, schemaDrift, type SchemaDrift } from '../wire/schemaDrift';
 import { engineNotice } from './engineText';
 import { asRef, type PromptMessage, type SeatRef, type ServerFrame } from './protocol';
+import { t } from '../i18n';
 
 export const LOG_LIMIT = 400;
 
@@ -296,10 +297,10 @@ export class LiveSession {
         return 'ok';
       case 'replyRejected':
         if (frame.id !== undefined) this.answering.delete(frame.id);
-        this.notice(`Answer not accepted: ${frame.reason}`);
+        this.notice(t('session.answerRefused', { reason: frame.reason }));
         return 'ok';
       case 'actionRejected':
-        this.notice(`${frame.method ?? 'Action'}: ${frame.reason}`);
+        this.notice(t('session.actionRefused', { method: frame.method ?? t('session.action'), reason: frame.reason }));
         return 'ok';
       case 'blockOptions':
         this.blockOptions = frame.attackers;

@@ -1,4 +1,5 @@
 import type { CardId, GameView, PlayerView } from '../model/types';
+import { t } from '../i18n';
 
 export interface StatusChip {
   /** Stable key: kind and card name. */
@@ -34,9 +35,9 @@ function group(game: GameView, ids: CardId[] | undefined, kind: StatusChip['kind
  * their controller's battlefield too.
  */
 export function statusChips(p: PlayerView, game: GameView): StatusChip[] {
-  const owner = p.isYou ? 'you' : p.name;
+  const owner = p.isYou ? t('top.you') : p.name;
   return [
-    ...group(game, p.effects, 'effect', (name, n) => `${name}${n > 1 ? ` ×${n}` : ''}: in effect for ${owner}.`),
-    ...group(game, p.attachments, 'attached', (name, n) => `${name}${n > 1 ? ` ×${n}` : ''} is attached to ${owner}.`),
+    ...group(game, p.effects, 'effect', (name, n) => t('chip.effect', { name: `${name}${n > 1 ? ` ×${n}` : ''}`, owner })),
+    ...group(game, p.attachments, 'attached', (name, n) => t('chip.attached', { name: `${name}${n > 1 ? ` ×${n}` : ''}`, owner })),
   ];
 }

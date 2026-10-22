@@ -4,6 +4,7 @@ import { useMatch } from '../../state/MatchContext';
 import { inputConfirm, inputStart, rangeText, stepNumber } from './numberLogic';
 import type { BodyProps } from './TrayBody';
 import styles from './NumberShapes.module.css';
+import { t } from '../../i18n';
 
 /** Focus the field when the prompt opens, its text selected so typing replaces it. */
 export function useOpenFocus<T extends HTMLInputElement>() {
@@ -57,7 +58,7 @@ export function NumberField(props: BodyProps<InputPrompt>) {
   return (
     <div className={styles.number}>
       <span className={styles.stepper}>
-        <button type="button" tabIndex={-1} disabled={down === text} onClick={() => set(down)} aria-label="One less">
+        <button type="button" tabIndex={-1} disabled={down === text} onClick={() => set(down)} aria-label={t('tray.oneLess')}>
           −
         </button>
         <input
@@ -71,13 +72,13 @@ export function NumberField(props: BodyProps<InputPrompt>) {
           onKeyDown={onKey}
           aria-label={`${prompt.title}, ${rangeText(prompt)}`}
         />
-        <button type="button" tabIndex={-1} disabled={up === text} onClick={() => set(up)} aria-label="One more">
+        <button type="button" tabIndex={-1} disabled={up === text} onClick={() => set(up)} aria-label={t('tray.oneMore')}>
           +
         </button>
       </span>
       <span className={styles.range}>{rangeText(prompt)}</span>
       <span className={styles.keys}>
-        <kbd>↑</kbd> / <kbd>↓</kbd> ±1 · <kbd>Shift</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd> ±5 · <kbd>Enter</kbd> confirms
+        <kbd>↑</kbd> / <kbd>↓</kbd> ±1 · <kbd>{t('key.shift')}</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd> ±5 · <kbd>{t('key.enter')}</kbd> {t('tray.confirms')}
       </span>
     </div>
   );

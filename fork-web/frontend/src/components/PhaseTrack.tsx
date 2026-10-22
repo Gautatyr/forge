@@ -5,6 +5,7 @@ import { useMatch } from '../state/MatchContext';
 import { stepHint } from '../state/stops';
 import { Icon } from './Icon';
 import styles from './PhaseTrack.module.css';
+import { t } from '../i18n';
 
 interface Props {
   /** The full official names do not fit: each step shows its short name (the full one on hover). */
@@ -71,7 +72,7 @@ export function PhaseTrack({ shortNames, foldCombat, ref }: Props) {
   );
 
   return (
-    <nav ref={ref} className={styles.track} aria-label="Turn steps">
+    <nav ref={ref} className={styles.track} aria-label={t('track.aria')}>
       {STEP_RUNS.map((r) =>
         r.group === 'combat' && fold ? (
           <div key="combat" className={styles.foldWrap}>
@@ -82,10 +83,10 @@ export function PhaseTrack({ shortNames, foldCombat, ref }: Props) {
                 <button
                   type="button"
                   className={`${styles.step} ${combatPast ? styles.past : ''}`}
-                  title={`Combat phase: ${STEPS.filter((x) => x.combat).map((x) => x.longLabel.toLowerCase()).join(', ')}. Click to change stops.`}
+                  title={t('track.combatTitle', { steps: STEPS.filter((x) => x.combat).map((x) => x.longLabel.toLowerCase()).join(', ') })}
                   onClick={openStops}
                 >
-                  Combat
+                  {t('track.combat')}
                 </button>
               </span>
             </div>
@@ -101,11 +102,11 @@ export function PhaseTrack({ shortNames, foldCombat, ref }: Props) {
           className={styles.stopsButton}
           aria-pressed={stopsOpen}
           aria-haspopup="dialog"
-          title="Stops: where the game waits for you"
+          title={t('track.stopsTitle')}
           onClick={() => setUi({ overlay: stopsOpen ? undefined : 'stops' })}
         >
           <Icon name="stop" />
-          Stops
+          {t('track.stops')}
         </button>
       </span>
     </nav>

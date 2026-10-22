@@ -7,6 +7,7 @@ import { SeatGlyph } from '../Icon';
 import { canStep, distributeConfirm, everyBlockerLethal, leftToAssign, rowNote, rowTabTarget, startAmounts, stepAmount } from './numberLogic';
 import type { BodyProps } from './TrayBody';
 import styles from './NumberShapes.module.css';
+import { t } from '../../i18n';
 
 /**
  * Distribute an amount, and combat damage assignment (same shape): one row per
@@ -39,9 +40,9 @@ export function Distribute({ prompt, draft, setDraft }: BodyProps<DistributeProm
   return (
     <div className={styles.distribute}>
       <p className={styles.left} aria-live="polite">
-        Left to assign: <strong>{left}</strong>
+        {t('tray.leftToAssign')} <strong>{left}</strong>
         <span className={styles.keys}>
-          <kbd>Tab</kbd> next row · <kbd>↑</kbd> / <kbd>↓</kbd> ±1 · <kbd>Shift</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd> ±5
+          <kbd>{t('key.tab')}</kbd> {t('tray.keysRow')} <kbd>↑</kbd> / <kbd>↓</kbd> ±1 · <kbd>{t('key.shift')}</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd> ±5
         </span>
       </p>
       <ul ref={list} className={styles.rows}>
@@ -102,18 +103,18 @@ function Row({ r, amount, note, trample, disabled, canDown, canUp, step, onTab }
         ) : null}
         <span className={styles.name}>
           {r.label}
-          {who && trample ? <span className={styles.kind}> (player)</span> : null}
+          {who && trample ? <span className={styles.kind}> {t('tray.player')}</span> : null}
         </span>
       </span>
       <span className={styles.note}>{note}</span>
       <span className={styles.stepper}>
-        <button type="button" tabIndex={-1} disabled={disabled || !canDown} onClick={() => step(-1)} aria-label={`One less for ${r.label}`}>
+        <button type="button" tabIndex={-1} disabled={disabled || !canDown} onClick={() => step(-1)} aria-label={t('tray.less', { label: r.label })}>
           −
         </button>
         <span
           role="spinbutton"
           tabIndex={disabled ? -1 : 0}
-          aria-label={`Amount for ${r.label}`}
+          aria-label={t('tray.amount', { label: r.label })}
           aria-valuenow={amount}
           aria-valuemin={r.min ?? 0}
           aria-disabled={disabled || undefined}
@@ -122,7 +123,7 @@ function Row({ r, amount, note, trample, disabled, canDown, canUp, step, onTab }
         >
           {amount}
         </span>
-        <button type="button" tabIndex={-1} disabled={disabled || !canUp} onClick={() => step(1)} aria-label={`One more for ${r.label}`}>
+        <button type="button" tabIndex={-1} disabled={disabled || !canUp} onClick={() => step(1)} aria-label={t('tray.more', { label: r.label })}>
           +
         </button>
       </span>

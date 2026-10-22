@@ -3,6 +3,7 @@ import type { PlayerView } from '../model/types';
 import { Icon } from './Icon';
 import styles from './PlayerPlate.module.css';
 import { statusChips } from './statusChips';
+import { t } from '../i18n';
 
 /**
  * Effects in force for a player (the Monarch, emblems, engine effect cards) and cards attached to them (a Curse),
@@ -24,7 +25,7 @@ export function StatusChips({ player }: { player: PlayerView }) {
           className={`${styles.zone} ${styles.zoneButton} ${styles.statusChip}`}
           data-status-chip={x.cardId}
           title={x.title}
-          aria-label={`${x.title} Hover to see it, click to inspect.`}
+          aria-label={t('chip.hover', { title: x.title })}
           onPointerEnter={() => show(x.cardId)}
           onPointerLeave={() => hide(x.cardId)}
           onFocus={() => show(x.cardId)}

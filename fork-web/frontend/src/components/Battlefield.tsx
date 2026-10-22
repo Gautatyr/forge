@@ -6,6 +6,7 @@ import { fitBattlefield, fitRow, RATIO, STAGGER_RAISE, type LayoutItem, type Row
 import { Card } from './Card';
 import { useSize } from './useSize';
 import styles from './Battlefield.module.css';
+import { t } from '../i18n';
 
 /** Cards drawn narrower than this get a name label (pass-3 spec, section 4). */
 const NAME_LABEL_BELOW = 150;
@@ -48,7 +49,7 @@ function Lines({ entries, fit, label }: { entries: Entry[]; fit: RowFit; label: 
                     context="board"
                     className={styles.attachment}
                     style={{ '--j': e.card.attachments.length - j } as CSSProperties}
-                    ariaExtra={`attached to ${e.card.name}`}
+                    ariaExtra={t('bf.attachedTo', { name: e.card.name })}
                     nameLabel={nameLabel}
                   />
                 ) : null;
@@ -101,12 +102,12 @@ export function Battlefield({ player, rows = 'all' }: Props) {
   const style = { '--nudge-dir': player.isYou ? -1 : 1, '--gap': `${gap}px` } as CSSProperties;
   let content = null;
   if (size.w > 0) {
-    const c = creatures.length ? <Lines key="c" entries={creatures} fit={fit.creatures} label="Creatures" /> : null;
-    const s = fit.support && support.length ? <Lines key="s" entries={support} fit={fit.support} label="Lands and other permanents" /> : null;
+    const c = creatures.length ? <Lines key="c" entries={creatures} fit={fit.creatures} label={t('bf.creatures')} /> : null;
+    const s = fit.support && support.length ? <Lines key="s" entries={support} fit={fit.support} label={t('bf.lands')} /> : null;
     content = player.isYou ? [c, s] : [s, c];
   }
   return (
-    <div ref={ref} className={styles.bf} style={style} aria-label={`${player.name}'s battlefield`}>
+    <div ref={ref} className={styles.bf} style={style} aria-label={t('bf.aria', { name: player.name })}>
       {content}
     </div>
   );

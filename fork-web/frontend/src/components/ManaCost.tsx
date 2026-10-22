@@ -1,4 +1,5 @@
 import styles from './ManaCost.module.css';
+import { t } from '../i18n';
 
 const COLOUR: Record<string, string | undefined> = {
   W: styles.w,
@@ -13,7 +14,7 @@ export function ManaCost({ cost }: { cost: string }) {
   const symbols = [...cost.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]!);
   if (symbols.length === 0) return null;
   return (
-    <span className={styles.cost} aria-label={`Mana cost ${symbols.join(' ')}`}>
+    <span className={styles.cost} aria-label={t('mana.cost', { symbols: symbols.join(' ') })}>
       {symbols.map((s, i) => (
         <span key={i} className={`${styles.pip} ${COLOUR[s] ?? styles.generic}`} aria-hidden>
           {s.replace('/', '')}
