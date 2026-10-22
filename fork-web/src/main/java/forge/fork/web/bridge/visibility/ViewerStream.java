@@ -82,6 +82,17 @@ public final class ViewerStream {
     private int nextAlias = ALIAS_BASE;
     private long seq;
 
+    /** Card text properties by object type: the ones shown in the viewer's language. */
+    private static final Map<String, List<String>> TEXT_PROPS = Map.of(
+            "card", List.of(TrackableProperty.Name.name()),
+            "cardState", List.of(TrackableProperty.Name.name(), TrackableProperty.Type.name(),
+                    TrackableProperty.OracleText.name()));
+
+    /** The viewer's language, {@code en} or {@code fr}; names, type lines and oracle text of fully visible cards follow it. */
+    private String lang = "en";
+    /** The English value of each translated property of each object in the mirror, by object key. */
+    private final Map<String, Map<String, String>> english = new HashMap<>();
+
     public ViewerStream(Viewer viewer) {
         this.viewer = viewer;
     }
@@ -191,11 +202,14 @@ public final class ViewerStream {
             Visibility lvl = now.get(id);
             int w = wire(id);
             JsonObject projected = CardRefs.map(Projection.card(props, lvl), refs);
+            localise("card:" + w, projected, lvl, true);
             putNew(news, new StateMirror.Obj("card", w, null, projected));
             JsonElement current = projected.get("CurrentState");
             for (Map.Entry<String, JsonObject> st : f.cardStates(id).entrySet()) {
                 if (stateAllowed(lvl, st.getKey(), current)) {
-                    putNew(news, new StateMirror.Obj("cardState", w, st.getKey(), CardRefs.map(st.getValue(), refs)));
+                    JsonObject sp = CardRefs.map(st.getValue(), refs);
+                    localise("cardState:" + w + ":" + st.getKey(), sp, lvl, true);
+                    putNew(news, new StateMirror.Obj("cardState", w, st.getKey(), sp));
                 }
             }
         }
@@ -211,7 +225,9 @@ public final class ViewerStream {
                 Visibility lvl = now.get(ref.id());
                 JsonElement current = currentState(ref.id());
                 if (stateAllowed(lvl, ref.state(), current)) {
-                    putNew(news, new StateMirror.Obj("cardState", wire(ref.id()), ref.state(), CardRefs.map(e.props(), refs)));
+                    JsonObject sp = CardRefs.map(e.props(), refs);
+                    localise("cardState:" + wire(ref.id()) + ":" + ref.state(), sp, lvl, true);
+                    putNew(news, new StateMirror.Obj("cardState", wire(ref.id()), ref.state(), sp));
                 }
                 continue;
             }
@@ -227,12 +243,14 @@ public final class ViewerStream {
                 }
                 key = "card:" + wire(ref.id());
                 props = CardRefs.map(Projection.card(e.props(), now.get(ref.id())), refs);
+                localise(key, props, now.get(ref.id()), false);
             } else if ("cardState".equals(ref.type())) {
                 if (whole.contains(ref.id()) || !stateAllowed(now.get(ref.id()), ref.state(), currentState(ref.id()))) {
                     continue;
                 }
                 key = "cardState:" + wire(ref.id()) + ":" + ref.state();
                 props = CardRefs.map(e.props(), refs);
+                localise(key, props, now.get(ref.id()), false);
             } else {
                 key = ref.key();
                 props = CardRefs.map(e.props(), refs);
@@ -271,6 +289,7 @@ public final class ViewerStream {
             }
         }
         List<String> removed = new ArrayList<>();
+        english.keySet().removeIf(k -> mirror.get(k) == null);
         for (String k : mirror.prune()) {
             changes.remove(k);
             if (news.remove(k) == null || heldBefore.contains(k)) {
@@ -340,6 +359,106 @@ public final class ViewerStream {
     private static boolean onBattlefield(StateMirror.Obj card) {
         JsonElement z = card == null ? null : card.props().get(TrackableProperty.Zone.name());
         return z != null && z.isJsonPrimitive() && ZoneType.Battlefield.name().equals(z.getAsString());
+    }
+
+    public String language() {
+        return lang;
+    }
+
+    /**
+     * Switches the language of the card text. Returns what changed in the mirror, for the client to
+     * merge; reads only the mirror (the English originals it keeps), never the live game.
+     */
+    public Delta setLanguage(String newLang) {
+        String l = CardText.locale(newLang) == null ? "en" : newLang;
+        Map<String, JsonObject> changes = new LinkedHashMap<>();
+        if (!l.equals(lang)) {
+            lang = l;
+            for (Map.Entry<String, Map<String, String>> e : english.entrySet()) {
+                StateMirror.Obj o = mirror.get(e.getKey());
+                if (o == null) {
+                    continue;
+                }
+                JsonObject ch = new JsonObject();
+                for (Map.Entry<String, String> f : e.getValue().entrySet()) {
+                    String want = shown(f.getKey(), f.getValue(), o.props());
+                    JsonElement cur = o.props().get(f.getKey());
+                    if (cur == null || !cur.isJsonPrimitive() || !want.equals(cur.getAsString())) {
+                        ch.addProperty(f.getKey(), want);
+                    }
+                }
+                if (!ch.isEmpty()) {
+                    changes.put(e.getKey(), ch);
+                    mirror.merge(e.getKey(), ch);
+                }
+            }
+        }
+        return new Delta(List.of(), changes, List.of());
+    }
+
+    /**
+     * Notes the English text of a fully visible card's object and puts this viewer's language in its
+     * place. {@code props} is the outgoing object (whole) or the changed properties of one the mirror holds.
+     */
+    private void localise(String key, JsonObject props, Visibility lvl, boolean whole) {
+        String type = key.startsWith("cardState:") ? "cardState" : "card";
+        if (whole) {
+            english.remove(key);
+        }
+        if (lvl != Visibility.FULL) {
+            return;
+        }
+        Map<String, String> eng = null;
+        for (String f : TEXT_PROPS.get(type)) {
+            JsonElement v = props.get(f);
+            if (v == null) {
+                continue;
+            }
+            if (eng == null) {
+                eng = english.computeIfAbsent(key, k -> new HashMap<>());
+            }
+            if (v.isJsonPrimitive()) {
+                eng.put(f, v.getAsString());
+            } else {
+                eng.remove(f);
+            }
+        }
+        if (eng == null) {
+            return;
+        }
+        StateMirror.Obj held = whole ? null : mirror.get(key);
+        JsonObject context = new JsonObject();
+        if (held != null) {
+            held.props().entrySet().forEach(e -> context.add(e.getKey(), e.getValue()));
+        }
+        props.entrySet().forEach(e -> context.add(e.getKey(), e.getValue()));
+        for (String f : TEXT_PROPS.get(type)) {
+            String en = eng.get(f);
+            if (en != null && props.has(f) && props.get(f).isJsonPrimitive()) {
+                props.addProperty(f, shown(f, en, context));
+            }
+        }
+    }
+
+    /** What this viewer is shown for one text property: the translation, else the English. */
+    private String shown(String prop, String en, JsonObject context) {
+        String locale = CardText.locale(lang);
+        JsonElement on = context.get(TrackableProperty.OracleName.name());
+        if (locale == null || on == null || !on.isJsonPrimitive()) {
+            return en;
+        }
+        String oracleName = on.getAsString();
+        JsonElement fv = context.get(TrackableProperty.FunctionalVariant.name());
+        String variant = fv != null && fv.isJsonPrimitive() ? fv.getAsString() : null;
+        String out = null;
+        if (TrackableProperty.Name.name().equals(prop)) {
+            out = en.equals(oracleName) ? CardText.name(locale, oracleName, variant) : null; // a flavour name stays
+        } else if (TrackableProperty.Type.name().equals(prop)) {
+            out = CardText.type(locale, oracleName, variant, en);
+        } else if (TrackableProperty.OracleText.name().equals(prop)) {
+            out = CardText.oracle(locale, oracleName, variant, en);
+        }
+        return out == null || out.isEmpty() ? en : out;
     }
 
     /** How a property names cards for this viewer. */

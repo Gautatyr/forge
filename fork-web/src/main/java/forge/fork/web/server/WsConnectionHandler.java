@@ -19,7 +19,7 @@ import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 /**
  * One WebSocket client after the handshake. Holds its current {@link ChannelSink} subscription and
  * replaces it with a fresh one (greeting + snapshot from the mirror) when the queue overflowed and
- * the channel is writable again, or when the client sends {@code {"t":"requestResync"}}. Any other
+ * the channel is writable again, or when the client sends {@code {"t":"requestResync"}}; {@code {"t":"setLanguage"}} sets its seat's card-text language. Any other
  * JSON object from a seat's client (a prompt reply, a player action) goes to
  * {@link StreamHub#clientMessage}; a spectator's are dropped. All methods run on the channel's event loop.
  */
@@ -70,6 +70,11 @@ final class WsConnectionHandler extends SimpleChannelInboundHandler<WebSocketFra
         }
         if ("requestResync".equals(typeOf(msg))) {
             resubscribe("client request");
+        } else if ("setLanguage".equals(typeOf(msg))) {
+            JsonElement lang = msg.get("lang");
+            if (seat != GameStream.SPECTATOR) {
+                hub.setLanguage(seat, lang != null && lang.isJsonPrimitive() ? lang.getAsString() : "en");
+            }
         } else if (seat != GameStream.SPECTATOR) {
             hub.clientMessage(seat, msg, current);
         }

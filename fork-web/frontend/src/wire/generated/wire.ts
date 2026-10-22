@@ -1908,4 +1908,10 @@ export interface RequestResyncMessage {
   t: 'requestResync';
 }
 
-export type ClientMessage = ReplyMessage | ActionMessage | RequestResyncMessage;
+/** Sets the language of this seat's card names, type lines and oracle text; anything but 'fr' is English. Sent after the greeting and on change; spectators stay English. */
+export interface SetLanguageMessage {
+  t: 'setLanguage';
+  lang: 'en' | 'fr';
+}
+
+export type ClientMessage = ReplyMessage | ActionMessage | RequestResyncMessage | SetLanguageMessage;

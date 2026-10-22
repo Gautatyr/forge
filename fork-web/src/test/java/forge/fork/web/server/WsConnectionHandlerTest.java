@@ -203,6 +203,23 @@ public class WsConnectionHandlerTest {
     }
 
     @Test
+    public void setLanguageGoesToTheSeatNotTheMessageStream() {
+        connectSeatOne();
+        ch.writeInbound(new TextWebSocketFrame("{\"t\":\"setLanguage\",\"lang\":\"fr\"}"));
+        ch.writeInbound(new TextWebSocketFrame("{\"t\":\"setLanguage\",\"lang\":42}"));
+        ch.writeInbound(new TextWebSocketFrame("{\"t\":\"setLanguage\"}"));
+        assertEquals(hub.languages, List.of("1:fr", "1:42", "1:en"));
+        assertEquals(hub.messages, List.of(), "not a seat action");
+    }
+
+    @Test
+    public void spectatorCannotSetLanguage() {
+        written();
+        ch.writeInbound(new TextWebSocketFrame("{\"t\":\"setLanguage\",\"lang\":\"fr\"}"));
+        assertEquals(hub.languages, List.of());
+    }
+
+    @Test
     public void unknownOrMalformedClientMessagesAreIgnored() {
         written();
         ch.writeInbound(new TextWebSocketFrame("{\"t\":\"somethingElse\"}"));
