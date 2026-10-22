@@ -1908,7 +1908,7 @@ export interface RequestResyncMessage {
   t: 'requestResync';
 }
 
-/** Sets the language of this seat's card names, type lines and oracle text; anything but 'fr' is English. Sent after the greeting and on change; spectators stay English. */
+/** Sets the language of this seat's card translations: fully visible cards then carry LocalName, LocalType and LocalOracleText (display only; Name, Type and OracleText stay English); anything but 'fr' is English and carries none. Sent after the greeting and on change; spectators stay English. */
 export interface SetLanguageMessage {
   t: 'setLanguage';
   lang: 'en' | 'fr';

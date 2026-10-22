@@ -13,6 +13,7 @@ import java.util.function.Function;
 import java.util.function.IntUnaryOperator;
 
 import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 
 import forge.game.card.CardView;
@@ -82,16 +83,17 @@ public final class ViewerStream {
     private int nextAlias = ALIAS_BASE;
     private long seq;
 
-    /** Card text properties by object type: the ones shown in the viewer's language. */
-    private static final Map<String, List<String>> TEXT_PROPS = Map.of(
-            "card", List.of(TrackableProperty.Name.name()),
-            "cardState", List.of(TrackableProperty.Name.name(), TrackableProperty.Type.name(),
-                    TrackableProperty.OracleText.name()));
+    /** Source property -> the property carrying its translation, by object type. The source (English) stays as is: the client's logic keys on it. */
+    private static final Map<String, Map<String, String>> LOCAL_PROPS = Map.of(
+            "card", Map.of(TrackableProperty.Name.name(), "LocalName"),
+            "cardState", Map.of(TrackableProperty.Name.name(), "LocalName",
+                    TrackableProperty.Type.name(), "LocalType",
+                    TrackableProperty.OracleText.name(), "LocalOracleText"));
 
-    /** The viewer's language, {@code en} or {@code fr}; names, type lines and oracle text of fully visible cards follow it. */
+    /** The viewer's language, {@code en} or {@code fr}; fully visible cards carry {@code Local*} translations in it. */
     private String lang = "en";
-    /** The English value of each translated property of each object in the mirror, by object key. */
-    private final Map<String, Map<String, String>> english = new HashMap<>();
+    /** Keys of the card and card-state objects in the mirror that were sent in full (the only ones ever translated). */
+    private final Set<String> full = new HashSet<>();
 
     public ViewerStream(Viewer viewer) {
         this.viewer = viewer;
@@ -289,7 +291,7 @@ public final class ViewerStream {
             }
         }
         List<String> removed = new ArrayList<>();
-        english.keySet().removeIf(k -> mirror.get(k) == null);
+        full.removeIf(k -> mirror.get(k) == null);
         for (String k : mirror.prune()) {
             changes.remove(k);
             if (news.remove(k) == null || heldBefore.contains(k)) {
@@ -367,29 +369,23 @@ public final class ViewerStream {
 
     /**
      * Switches the language of the card text. Returns what changed in the mirror, for the client to
-     * merge; reads only the mirror (the English originals it keeps), never the live game.
+     * merge; reads only the mirror, never the live game.
      */
     public Delta setLanguage(String newLang) {
         String l = CardText.locale(newLang) == null ? "en" : newLang;
         Map<String, JsonObject> changes = new LinkedHashMap<>();
         if (!l.equals(lang)) {
             lang = l;
-            for (Map.Entry<String, Map<String, String>> e : english.entrySet()) {
-                StateMirror.Obj o = mirror.get(e.getKey());
+            for (String key : full) {
+                StateMirror.Obj o = mirror.get(key);
                 if (o == null) {
                     continue;
                 }
                 JsonObject ch = new JsonObject();
-                for (Map.Entry<String, String> f : e.getValue().entrySet()) {
-                    String want = shown(f.getKey(), f.getValue(), o.props());
-                    JsonElement cur = o.props().get(f.getKey());
-                    if (cur == null || !cur.isJsonPrimitive() || !want.equals(cur.getAsString())) {
-                        ch.addProperty(f.getKey(), want);
-                    }
-                }
+                addLocal(key, o.props(), o.props(), ch);
                 if (!ch.isEmpty()) {
-                    changes.put(e.getKey(), ch);
-                    mirror.merge(e.getKey(), ch);
+                    changes.put(key, ch);
+                    mirror.merge(key, ch);
                 }
             }
         }
@@ -397,55 +393,49 @@ public final class ViewerStream {
     }
 
     /**
-     * Notes the English text of a fully visible card's object and puts this viewer's language in its
-     * place. {@code props} is the outgoing object (whole) or the changed properties of one the mirror holds.
+     * Adds the {@code Local*} translations of a fully visible card object to its outgoing {@code props}
+     * (the whole object, or the changed properties of one the mirror holds); English objects get none.
      */
     private void localise(String key, JsonObject props, Visibility lvl, boolean whole) {
-        String type = key.startsWith("cardState:") ? "cardState" : "card";
         if (whole) {
-            english.remove(key);
+            full.remove(key);
         }
         if (lvl != Visibility.FULL) {
             return;
         }
-        Map<String, String> eng = null;
-        for (String f : TEXT_PROPS.get(type)) {
-            JsonElement v = props.get(f);
-            if (v == null) {
-                continue;
-            }
-            if (eng == null) {
-                eng = english.computeIfAbsent(key, k -> new HashMap<>());
-            }
-            if (v.isJsonPrimitive()) {
-                eng.put(f, v.getAsString());
-            } else {
-                eng.remove(f);
-            }
-        }
-        if (eng == null) {
-            return;
-        }
-        StateMirror.Obj held = whole ? null : mirror.get(key);
+        full.add(key);
+        JsonObject held = whole ? null : mirror.get(key) == null ? null : mirror.get(key).props();
         JsonObject context = new JsonObject();
         if (held != null) {
-            held.props().entrySet().forEach(e -> context.add(e.getKey(), e.getValue()));
+            held.entrySet().forEach(e -> context.add(e.getKey(), e.getValue()));
         }
         props.entrySet().forEach(e -> context.add(e.getKey(), e.getValue()));
-        for (String f : TEXT_PROPS.get(type)) {
-            String en = eng.get(f);
-            if (en != null && props.has(f) && props.get(f).isJsonPrimitive()) {
-                props.addProperty(f, shown(f, en, context));
+        addLocal(key, context, held, props);
+    }
+
+    /** Puts into {@code out} each translation that differs from {@code held} (null when the object is new). */
+    private void addLocal(String key, JsonObject context, JsonObject held, JsonObject out) {
+        String type = key.startsWith("cardState:") ? "cardState" : "card";
+        for (Map.Entry<String, String> f : LOCAL_PROPS.get(type).entrySet()) {
+            JsonElement en = context.get(f.getKey());
+            String local = en != null && en.isJsonPrimitive() ? translate(f.getKey(), en.getAsString(), context) : null;
+            JsonElement cur = held == null ? null : held.get(f.getValue());
+            if (local != null) {
+                if (cur == null || !cur.isJsonPrimitive() || !local.equals(cur.getAsString())) {
+                    out.addProperty(f.getValue(), local);
+                }
+            } else if (cur != null) {
+                out.add(f.getValue(), JsonNull.INSTANCE);
             }
         }
     }
 
-    /** What this viewer is shown for one text property: the translation, else the English. */
-    private String shown(String prop, String en, JsonObject context) {
+    /** The viewer's translation of one text property, or null (English language, no translation, or a changed text). */
+    private String translate(String prop, String en, JsonObject context) {
         String locale = CardText.locale(lang);
         JsonElement on = context.get(TrackableProperty.OracleName.name());
         if (locale == null || on == null || !on.isJsonPrimitive()) {
-            return en;
+            return null;
         }
         String oracleName = on.getAsString();
         JsonElement fv = context.get(TrackableProperty.FunctionalVariant.name());
@@ -458,7 +448,7 @@ public final class ViewerStream {
         } else if (TrackableProperty.OracleText.name().equals(prop)) {
             out = CardText.oracle(locale, oracleName, variant, en);
         }
-        return out == null || out.isEmpty() ? en : out;
+        return out == null || out.isEmpty() || out.equals(en) ? null : out;
     }
 
     /** How a property names cards for this viewer. */

@@ -35,6 +35,14 @@ public final class CardText {
         return "fr".equals(lang) ? "fr-FR" : null;
     }
 
+    /**
+     * Reads the translation table of every supported language now, so later lookups (a mid-game switch on a
+     * Netty event loop, under the stream lock) only hit memory: the French file is ~9 MB. Call off the event loop.
+     */
+    public static void warm() {
+        table(locale("fr"));
+    }
+
     private static synchronized Map<String, Entry> table(String locale) {
         return TABLES.computeIfAbsent(locale, CardText::read);
     }

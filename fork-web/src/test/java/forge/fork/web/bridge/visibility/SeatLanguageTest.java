@@ -81,22 +81,30 @@ public class SeatLanguageTest {
     }
 
     @Test
-    public void frenchSeatSeesFrenchTextAndOthersEnglish() {
+    public void frenchSeatGetsTranslationsAlongsideEnglish() {
         int id = bolt.getId();
-        assertEquals(prop(fr, "card:" + id, "Name"), "Foudre");
-        assertEquals(state(fr, id, "Name"), "Foudre");
-        assertEquals(state(fr, id, "OracleName"), "Lightning Bolt", "the oracle name stays the key");
-        assertEquals(state(fr, id, "Type"), "Éphémère");
-        assertTrue(state(fr, id, "OracleText").startsWith("La Foudre inflige 3 blessures"), state(fr, id, "OracleText"));
+        assertEquals(prop(fr, "card:" + id, "LocalName"), "Foudre");
+        assertEquals(state(fr, id, "LocalName"), "Foudre");
+        assertEquals(state(fr, id, "Name"), "Lightning Bolt", "the English fields stay: the client's logic keys on them");
+        assertEquals(prop(fr, "card:" + id, "Name"), "Lightning Bolt");
+        assertEquals(state(fr, id, "OracleName"), "Lightning Bolt");
+        assertEquals(state(fr, id, "Type"), "Instant");
+        assertEquals(state(fr, id, "LocalType"), "Éphémère");
+        assertTrue(state(fr, id, "OracleText").startsWith("Lightning Bolt deals 3"), state(fr, id, "OracleText"));
+        assertTrue(state(fr, id, "LocalOracleText").startsWith("La Foudre inflige 3 blessures"), state(fr, id, "LocalOracleText"));
 
-        // a public card: French for the French seat, English for the other seat and the spectator
+        // a public card: French for the French seat, no Local* for the other seat and the spectator
         int e = elves.getId();
-        assertEquals(state(fr, e, "Name"), "Elfes de Llanowar");
-        assertTrue(state(fr, e, "Type").startsWith("Créature"), state(fr, e, "Type"));
-        assertTrue(state(fr, e, "OracleText").contains("Ajoutez {G}"), state(fr, e, "OracleText"));
+        assertEquals(state(fr, e, "LocalName"), "Elfes de Llanowar");
+        assertTrue(state(fr, e, "Type").startsWith("Creature"), state(fr, e, "Type"));
+        assertTrue(state(fr, e, "LocalType").startsWith("Créature"), state(fr, e, "LocalType"));
+        assertTrue(state(fr, e, "OracleText").contains("Add {G}"), state(fr, e, "OracleText"));
+        assertTrue(state(fr, e, "LocalOracleText").contains("Ajoutez {G}"), state(fr, e, "LocalOracleText"));
         for (ClientModel c : List.of(en, spectator)) {
             assertEquals(state(c, e, "Name"), "Llanowar Elves");
-            assertEquals(prop(c, "card:" + e, "Name"), "Llanowar Elves");
+            assertNull(state(c, e, "LocalName"));
+            assertNull(prop(c, "card:" + e, "LocalName"));
+            assertNull(state(c, e, "LocalOracleText"));
             assertTrue(state(c, e, "OracleText").contains("Add {G}"), state(c, e, "OracleText"));
         }
         assertConsistent();
@@ -105,7 +113,7 @@ public class SeatLanguageTest {
     @Test
     public void nothingFrenchReachesEnglishViewersOrHiddenCards() {
         for (ClientModel c : List.of(en, spectator)) {
-            for (String word : List.of("Foudre", "Elfes de Llanowar", "Éphémère", "Grizzlis", "Créature")) {
+            for (String word : List.of("Foudre", "Elfes de Llanowar", "Éphémère", "Grizzlis", "Créature", "Local")) {
                 assertFalse(c.allText().contains(word), "English viewer got " + word);
             }
         }
@@ -122,18 +130,20 @@ public class SeatLanguageTest {
         int id = bolt.getId();
         int mark = fr.mark();
         stream.setSeatLanguage(0, "en");
+        assertNull(state(fr, id, "LocalName"));
+        assertNull(prop(fr, "card:" + id, "LocalName"));
+        assertNull(state(fr, id, "LocalType"));
+        assertNull(state(fr, id, "LocalOracleText"));
         assertEquals(state(fr, id, "Name"), "Lightning Bolt");
-        assertEquals(prop(fr, "card:" + id, "Name"), "Lightning Bolt");
-        assertEquals(state(fr, id, "Type"), "Instant");
-        assertTrue(state(fr, id, "OracleText").startsWith("Lightning Bolt deals 3 damage"), state(fr, id, "OracleText"));
-        assertEquals(state(fr, elves.getId(), "Name"), "Llanowar Elves");
+        assertNull(state(fr, elves.getId(), "LocalName"));
         assertFalse(fr.textSince(mark).contains("Grizzly"), "switch must not name the face-down card");
         assertEquals(fr.errors, List.of());
         assertConsistent();
 
         stream.setSeatLanguage(0, "fr");
-        assertEquals(state(fr, id, "Name"), "Foudre");
-        assertEquals(state(fr, elves.getId(), "Name"), "Elfes de Llanowar");
+        assertEquals(state(fr, id, "LocalName"), "Foudre");
+        assertEquals(state(fr, id, "Name"), "Lightning Bolt");
+        assertEquals(state(fr, elves.getId(), "LocalName"), "Elfes de Llanowar");
         // other viewers are not sent anything by the switch
         int enMark = en.mark();
         stream.setSeatLanguage(0, "en");
@@ -145,19 +155,19 @@ public class SeatLanguageTest {
     public void cardsThatArriveAfterTheSwitchFollowTheLanguage() {
         Card drawn = TestEngine.add("Grizzly Bears", p0, ZoneType.Hand);
         stream.publish(List.of(), false);
-        assertEquals(state(fr, drawn.getId(), "Name"), "Grizzlis");
+        assertEquals(state(fr, drawn.getId(), "LocalName"), "Grizzlis");
         stream.setSeatLanguage(0, "en");
         Card later = TestEngine.add("Llanowar Elves", p0, ZoneType.Hand);
         stream.publish(List.of(), false);
-        assertEquals(state(fr, later.getId(), "Name"), "Llanowar Elves");
-        assertEquals(state(fr, drawn.getId(), "Name"), "Grizzly Bears");
+        assertNull(state(fr, later.getId(), "LocalName"));
+        assertNull(state(fr, drawn.getId(), "LocalName"));
         assertConsistent();
     }
 
     @Test
     public void unknownLanguageAndSpectatorStayEnglish() {
         stream.setSeatLanguage(0, "klingon");
-        assertEquals(state(fr, bolt.getId(), "Name"), "Lightning Bolt");
+        assertNull(state(fr, bolt.getId(), "LocalName"));
         stream.setSeatLanguage(-1, "fr");
         assertEquals(state(spectator, elves.getId(), "Name"), "Llanowar Elves");
         assertConsistent();
@@ -167,7 +177,21 @@ public class SeatLanguageTest {
     public void languageSurvivesTheNextGame() {
         stream.startGame(game.getView());
         stream.publish(List.of(), false);
-        assertEquals(state(fr, elves.getId(), "Name"), "Elfes de Llanowar");
+        assertEquals(state(fr, elves.getId(), "LocalName"), "Elfes de Llanowar");
+    }
+
+    @Test
+    public void aMidGameChangeOfAFullCardUpdatesItsTranslation() {
+        int e = elves.getId();
+        assertEquals(state(fr, e, "LocalType").startsWith("Créature"), true);
+        // an effect changes the type line: the printed translation no longer applies, the stale one is removed
+        elves.addChangedCardTypes(forge.card.CardType.parse("Artifact", false), null, false, java.util.EnumSet.noneOf(forge.card.RemoveType.class),
+                game.getNextTimestamp(), 0, true, false);
+        stream.publish(List.of(), false);
+        assertTrue(state(fr, e, "Type").startsWith("Artifact Creature"), state(fr, e, "Type"));
+        assertNull(state(fr, e, "LocalType"));
+        assertEquals(state(fr, e, "LocalName"), "Elfes de Llanowar");
+        assertConsistent();
     }
 
     @Test

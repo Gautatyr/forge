@@ -131,6 +131,7 @@ public final class GameStream {
 
     /** Binds a new game. Called from the spectator GUI's openView, before the game thread starts. */
     public void startGame(GameView gv) {
+        forge.fork.web.bridge.visibility.CardText.warm(); // off the event loop, outside the lock
         synchronized (lock) {
             gameView = gv;
             dsm = new DeltaSyncManager();
