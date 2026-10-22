@@ -342,6 +342,18 @@
   pointer-events: none;
 }
 
+/* A chosen group: the ring alone told it from the rest of the split group (playtest 1 #16): the count says it too. */
+.countSelected {
+  border-color: var(--c-selected);
+  color: var(--c-selected);
+}
+
+.countSelected svg {
+  width: 0.8em;
+  height: 0.8em;
+  margin-right: 0.15em;
+}
+
 .countLeft {
   /* Keyword icons hold the right edge: the group count moves to the left. */
   left: 4%;

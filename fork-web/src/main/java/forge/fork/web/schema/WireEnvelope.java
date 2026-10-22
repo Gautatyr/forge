@@ -67,9 +67,10 @@ public final class WireEnvelope {
                     + "  /** distribute (combat): damage that is lethal to this choice. */\n  lethal?: number;\n}"),
             new Decl("What a selection input asks (forge.fork.web.seat.InputInfo, issue #81).",
                     "export interface InputInfo {\n"
-                    + "  /** target: targets of a spell or ability; pick: cards or players chosen for a cost or an effect (discard, sacrifice…). */\n"
-                    + "  kind: 'target' | 'pick';\n"
+                    + "  /** target: targets of a spell or ability; pick: cards or players chosen for a cost or an effect (discard, sacrifice…); pay: paying a mana cost. */\n"
+                    + "  kind: 'target' | 'pick' | 'pay';\n"
                     + "  /** target: what the targets are for. */\n  ability?: 'spell' | 'activated' | 'triggered';\n"
+                    + "  /** pay: the activated ability paid for (\"Equip {2}\"); absent for a spell. */\n  payFor?: string;\n"
                     + "  /** pick: an \"unless\" cost; Cancel declines it and this happens (the engine's text worded for you: \"You sacrifice Drekavac\"). */\n  decline?: string;\n}"));
 
     /** Server to a human seat, on the seat's stream after hello and snapshot ({@code forge.fork.web.seat.SeatSession}). */

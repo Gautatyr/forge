@@ -227,6 +227,47 @@ public class InputInfoTest {
         assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
     }
 
+    /** Issue #29 (playtest 2 #5): the payment of an activated ability says which one ("Equip {2}"); a spell's payment does not. */
+    @Test
+    public void aPaymentNamesTheAbilityItPaysFor() throws Exception {
+        start();
+        add("Plains", me, ZoneType.Battlefield);
+        add("Plains", me, ZoneType.Battlefield);
+        add("Mountain", me, ZoneType.Battlefield);
+        Card collar = add("Basilisk Collar", me, ZoneType.Battlefield);
+        Card bears = add("Grizzly Bears", me, ZoneType.Battlefield);
+        Card bolt = add("Lightning Bolt", me, ZoneType.Hand);
+        main1();
+        boolean[] activated = {false};
+        boolean[] cast = {false};
+        List<String> seen = play(() -> cast[0] && game.getStack().isEmpty() && game.getCardState(collar).getEquipping() != null
+                        || game.getPhaseHandler().getPhase() != PhaseType.MAIN1,
+                in -> {
+                    if (in instanceof InputPassPriority && game.getStack().isEmpty()) {
+                        if (!activated[0]) {
+                            activated[0] = true;
+                            return () -> select(collar);
+                        }
+                        if (game.getCardState(collar).getEquipping() != null && !cast[0]) {
+                            cast[0] = true;
+                            return () -> select(bolt);
+                        }
+                        return null;
+                    }
+                    if (in instanceof InputSelectTargets) {
+                        return cast[0] ? () -> action("selectPlayer", "\"player\":" + ai.getId()) : () -> select(bears);
+                    }
+                    return null;
+                });
+        List<JsonObject> equip = infos("Pay Mana Cost").stream().filter(o -> o.has("payFor")).toList();
+        assertFalse(equip.isEmpty(), "the equip payment carries its ability; seen " + seen);
+        assertEquals(equip.get(0).get("kind").getAsString(), "pay", equip.get(0).toString());
+        assertEquals(equip.get(0).get("payFor").getAsString(), "Equip {2}", equip.get(0).toString());
+        List<JsonObject> all = infos("Pay Mana Cost");
+        assertTrue(all.stream().anyMatch(o -> o.has("kind") && !o.has("payFor")), "the Bolt's payment names no ability: " + all);
+        assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
+    }
+
     @Test
     public void aSpellsTargetsAndATriggersTargets() throws Exception {
         start();
@@ -251,12 +292,12 @@ public class InputInfoTest {
                     }
                     return null;
                 });
-        JsonObject spell = infos("Lightning Bolt").stream().filter(o -> o.has("kind")).findFirst().orElse(null);
+        JsonObject spell = infos("Lightning Bolt").stream().filter(o -> o.has("kind") && "target".equals(o.get("kind").getAsString())).findFirst().orElse(null);
         assertNotNull(spell, "the Bolt's targeting message carries its input; seen " + seen);
         assertEquals(spell.get("kind").getAsString(), "target", spell.toString());
         assertEquals(spell.get("ability").getAsString(), "spell", spell.toString());
         assertTrue(game.getCardState(ogre).isInZone(ZoneType.Graveyard), "the Kavu's trigger killed the Ogre; seen " + seen);
-        JsonObject trigger = infos("Flametongue Kavu").stream().filter(o -> o.has("kind")).findFirst().orElse(null);
+        JsonObject trigger = infos("Flametongue Kavu").stream().filter(o -> o.has("kind") && "target".equals(o.get("kind").getAsString())).findFirst().orElse(null);
         assertNotNull(trigger, "the Kavu trigger's targeting message carries its input; seen " + seen);
         assertEquals(trigger.get("ability").getAsString(), "triggered", trigger.toString());
         assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());

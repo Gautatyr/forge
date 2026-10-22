@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { nameLabel } from '../model/selectors';
 import type { Attack, MulliganState, PlayerView } from '../model/types';
 import { playerTargetSpot, spotlightItem } from '../state/cardStatus';
 import { mulliganTag, turnPlayerId } from '../state/gameStart';
@@ -9,6 +10,7 @@ import { useInPlacePick } from './tray/useInPlacePick';
 import type { ViewableZone } from '../state/ui';
 import { commanderChips, COMMANDER_LETHAL } from './commanderChips';
 import { commandZoneChips } from './commandZone';
+import { StatusChips } from './StatusChips';
 import { Icon, SeatGlyph, type IconName } from './Icon';
 import { useLifeChange } from './lifeMarker';
 import { ManaSymbol, manaName } from './ManaSymbol';
@@ -162,7 +164,7 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
           <span className={styles.glyph}>
             <SeatGlyph seat={p.seat} />
           </span>
-          <span className={styles.name}>{p.isYou ? `${p.name} (you)` : p.name}</span>
+          <span className={styles.name}>{nameLabel(p)}</span>
           {onExpand ? (
             <button
               type="button"
@@ -281,6 +283,7 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
               {x.tax > 0 ? <span className={styles.zoneCount}>+{x.tax}</span> : null}
             </button>
           ))}
+          <StatusChips player={p} />
           {zoneChip('hand', 'hand', 'Hand', p.isYou ? p.hand.length : p.handCount)}
           {zoneChip('library', 'library', 'Library', p.libraryCount)}
           {zoneChip('graveyard', 'grave', 'Graveyard', p.graveyard.length)}

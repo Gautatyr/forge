@@ -9,9 +9,10 @@
 import type { Intent } from '../model/intents';
 import type { GameView, StepId, TargetRef } from '../model/types';
 import type { PhaseType } from '../wire/generated/wire';
-import { COLOUR_MASK, type ActionMessage, type ClientFrame } from './protocol';
-import { freeMulliganKeep, inputPromptKind, promptViewId, replyValue, targetKey, targetOfKey } from './prompts';
+import { COLOUR_MASK, type ActionMessage, type ClientFrame, type PromptMessage } from './protocol';
+import { cancelValue, freeMulliganKeep, inputPromptKind, promptViewId, replyValue, targetKey, targetOfKey } from './prompts';
 import type { LiveSession } from './session';
+import { numberList, pickedNumber, rangeOfNumberPrompt } from './trayWords';
 
 const num = (id: string) => Number(id);
 type Method = ActionMessage['method'];
@@ -71,6 +72,11 @@ export function intentToFrames(intent: Intent, s: LiveSession, view: GameView): 
       if (d.kind === 'declareBlockers') {
         // InputBlock has no cancel: clicking attacker then blocker removes each block.
         return d.draft.flatMap((b) => [selectCard(b.attackerId), selectCard(b.blockerId)]);
+      }
+      // A prompt the engine lets you back out of (a number asked with "none" allowed): its empty answer.
+      if (d.kind === 'choice' && s.prompt && promptViewId(s.prompt.id) === d.prompt.id) {
+        const none = cancelValue(s.prompt);
+        return none === undefined ? [] : [{ t: 'reply', id: s.prompt.id, value: none }];
       }
       // Paying, targeting: Cancel. Attacking: the cancel button is "Call Back" once attackers are declared.
       return [action('selectButtonCancel')];
@@ -150,9 +156,25 @@ function answerFrames(promptId: string, answer: Extract<Intent, { type: 'answer'
       const p = s.prompt;
       if (!p || promptViewId(p.id) !== promptId) return [];
       const value = replyValue(p, answer);
-      return value === undefined ? [] : [{ t: 'reply', id: p.id, value }];
+      if (value === undefined) return [];
+      rememberNumber(s, p, answer);
+      return [{ t: 'reply', id: p.id, value }];
     }
   }
+}
+
+/**
+ * What a number answer needs later: the X announced for a card (the payment shows it), and a number past a list's
+ * "Other…" entry (the engine then asks for it in a second prompt: autoAnswer types it).
+ */
+function rememberNumber(s: LiveSession, p: PromptMessage, answer: Extract<Intent, { type: 'answer' }>['answer']) {
+  if (p.shape !== 'choose' || p.method !== 'getChoices' || answer.shape !== 'input') return;
+  const n = Number(answer.value);
+  if (!Number.isInteger(n)) return;
+  const x = /^Choose X for (.+)$/.exec((p.message ?? '').trim());
+  if (x) s.announcedX = { card: x[1]!, value: n };
+  const nums = numberList(p.choices, p.min, p.max);
+  s.pendingNumber = nums && nums.other !== undefined && pickedNumber(nums, n) === nums.other ? { value: n, after: p.id } : undefined;
 }
 
 /**
@@ -161,6 +183,15 @@ function answerFrames(promptId: string, answer: Extract<Intent, { type: 'answer'
  * input is shown, so the caller answers it once.
  */
 export function autoAnswer(s: LiveSession): { key: string; frames: ClientFrame[] } | undefined {
+  const typed = s.pendingNumber;
+  const open = s.prompt;
+  if (typed && open && open.shape === 'text' && open.numeric && open.id > typed.after) {
+    // The "Other…" follow-up ("Enter a number between 0 and 14:"): the number you typed, once, when it is in range.
+    const r = rangeOfNumberPrompt(open.message);
+    if (r && typed.value >= (r.min ?? -Infinity) && typed.value <= (r.max ?? Infinity)) {
+      return { key: `number|${open.id}`, frames: [{ t: 'reply', id: open.id, value: String(typed.value) }] };
+    }
+  }
   const input = s.input;
   const you = s.viewer && 'player' in s.viewer ? s.viewer.player : undefined;
   if (you === undefined || input.ownerId !== you || !input.ok.enabled) return undefined;

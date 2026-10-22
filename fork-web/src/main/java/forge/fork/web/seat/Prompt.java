@@ -23,6 +23,7 @@ import forge.game.player.PlayerView;
 import forge.gamemodes.net.ProtocolMethod;
 import forge.gui.interfaces.IGuiGame;
 import forge.item.PaperCard;
+import forge.util.Localizer;
 import forge.util.FSerializableFunction;
 import forge.fork.web.bridge.SeatRefs;
 
@@ -361,6 +362,16 @@ abstract class Prompt {
             this.remainingMax = remainingMax < 0 ? all.size() : Math.max(this.remainingMin, Math.min(remainingMax, all.size()));
             this.card = card;
             this.remember = remember;
+        }
+
+        /**
+         * Nobody can tell the order: the cards go to exile ({@code PlayerControllerHuman.orderMoveToZoneList}'s
+         * {@code lblChooseOrderCardsPutIntoExile}; exile has no order in the rules) and every card is to be placed. The
+         * title is the engine's own localised string, so this holds in any language, and no other prompt matches it.
+         */
+        boolean orderIsMoot() {
+            return remainingMax == 0 && title != null
+                    && title.equals(Localizer.getInstance().getMessage("lblChooseOrderCardsPutIntoExile"));
         }
 
         @Override

@@ -1,10 +1,10 @@
 import { useEffect, useRef, type CSSProperties, type KeyboardEvent } from 'react';
-import { player } from '../../model/selectors';
+import { isCreature, player } from '../../model/selectors';
 import type { DistributePrompt, DistributeRecipient } from '../../model/types';
 import { useMatch } from '../../state/MatchContext';
 import { Card } from '../Card';
 import { SeatGlyph } from '../Icon';
-import { canStep, distributeConfirm, everyBlockerLethal, leftToAssign, rowTabTarget, startAmounts, stepAmount } from './numberLogic';
+import { canStep, distributeConfirm, everyBlockerLethal, leftToAssign, rowNote, rowTabTarget, startAmounts, stepAmount } from './numberLogic';
 import type { BodyProps } from './TrayBody';
 import styles from './NumberShapes.module.css';
 
@@ -13,6 +13,7 @@ import styles from './NumberShapes.module.css';
  * recipient with a stepper. Tab moves between rows, ↑/↓ change by 1, Shift+↑/↓ by 5.
  */
 export function Distribute({ prompt, draft, setDraft }: BodyProps<DistributePrompt>) {
+  const { game } = useMatch();
   const amounts = draft.amounts ?? startAmounts(prompt);
   const left = leftToAssign(prompt, amounts);
   const lethal = everyBlockerLethal(prompt, amounts);
@@ -52,7 +53,7 @@ export function Distribute({ prompt, draft, setDraft }: BodyProps<DistributeProm
               key={r.id}
               r={r}
               amount={amounts[r.id] ?? 0}
-              note={rowNote(prompt, r, gated)}
+              note={rowNote(prompt, r, gated, !!r.cardId && !!game.cards[r.cardId] && isCreature(game.cards[r.cardId]!))}
               trample={trample}
               disabled={gated}
               canDown={canStep(prompt, amounts, r.id, -1)}
@@ -65,13 +66,6 @@ export function Distribute({ prompt, draft, setDraft }: BodyProps<DistributeProm
       </ul>
     </div>
   );
-}
-
-/** "Lethal 2", "Lethal 1 · deathtouch", "At least 1", or why the trample row waits. */
-function rowNote(p: DistributePrompt, r: DistributeRecipient, gated: boolean): string {
-  if (gated) return 'Assign lethal damage to every blocker first';
-  if (r.lethal !== undefined) return `Lethal ${r.lethal}${p.combat?.deathtouch ? ' · deathtouch' : ''}`;
-  return r.min ? `At least ${r.min}` : '';
 }
 
 interface RowProps {

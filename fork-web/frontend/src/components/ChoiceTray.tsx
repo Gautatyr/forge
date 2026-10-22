@@ -10,6 +10,7 @@ import { TrayBody } from './tray/TrayBody';
 import {
   counterText,
   FILTER_FROM,
+  groupOptions,
   inPlaceRefs,
   initialDraft,
   isAbilityMenu,
@@ -98,10 +99,14 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
     return () => cancelAnimationFrame(frame);
   });
   const filterable = prompt.shape === 'chooseN' && prompt.options.length > FILTER_FROM;
-  const visible =
+  const matching =
     prompt.shape === 'chooseN' && mode === 'tray'
       ? visibleOptions(prompt.options, filterable ? query : '', (id) => game.cards[id]?.front.typeLine)
       : [];
+  // Identical cards (17 Swamps of a library search) are one tile with a count; digit keys name the tiles.
+  const groups = groupOptions(matching, (id) => game.cards[id]?.name);
+  const visible = groups.map((g) => g.option);
+  const groupMembers = new Map(groups.map((g) => [g.option.id, g.members]));
 
   // Store the starting draft so the main button (primaryAction) answers the
   // engine's default too, e.g. a yes/no whose default is "no".
@@ -115,7 +120,7 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
     if (e.ctrlKey || e.metaKey || ui.inspectId || ui.overlay) return;
     const el = e.target as HTMLElement | null;
     const inInput = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT');
-    const a = keyAction(prompt, draft, visible, { key: e.key, alt: e.altKey, inInput });
+    const a = keyAction(prompt, draft, visible, { key: e.key, alt: e.altKey, inInput }, groupMembers);
     if (!a || (a.kind === 'peek' && mode !== 'tray' && mode !== 'peek')) return;
     e.preventDefault();
     e.stopPropagation();
@@ -210,7 +215,7 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
       ) : null}
 
       <div className={styles.body}>
-        <TrayBody prompt={prompt} draft={draft} setDraft={setDraft} visible={visible} send={send} />
+        <TrayBody prompt={prompt} draft={draft} setDraft={setDraft} visible={visible} groups={groups} send={send} />
       </div>
 
       {footer}

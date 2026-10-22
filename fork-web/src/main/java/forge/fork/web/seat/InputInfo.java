@@ -15,6 +15,7 @@ import forge.game.spellability.SpellAbility;
 import forge.game.trigger.WrappedAbility;
 import forge.gamemodes.match.input.Input;
 import forge.gamemodes.match.input.InputBase;
+import forge.gamemodes.match.input.InputPayMana;
 import forge.gamemodes.match.input.InputSelectManyBase;
 import forge.gamemodes.match.input.InputSelectStackItems;
 import forge.gamemodes.match.input.InputSelectTargets;
@@ -25,9 +26,10 @@ import forge.gamemodes.match.input.InputSelectTargets;
  * {@link InputSelectTargets} and {@link InputSelectStackItems}, {@code pick} for every {@link InputSelectManyBase}.
  * {@code ability} (targets): the spell, activated or triggered ability the targets are for. {@code decline} (picks): the
  * input pays an "unless" cost and Cancel lets this happen: the engine's words ({@code PlaySpellAbility.getOrStringFromCost})
- * worded for the seat ({@link #declineWords}).
+ * worded for the seat ({@link #declineWords}). {@code kind} {@code pay} ({@link InputPayMana}): {@code payFor} is the
+ * activated ability being paid for ("Equip {2}", {@link #payAbility}); absent for a spell.
  *
- * <p>The inputs keep their spell ability in a non-public field {@code sa}, read by reflection; when it is renamed upstream
+ * <p>The inputs keep their spell ability in a non-public field ({@code sa}; {@code saPaidFor} for a payment), read by reflection; when it is renamed upstream
  * the info keeps its {@code kind} only ({@code InputInfoTest} fails).
  */
 final class InputInfo {
@@ -39,7 +41,8 @@ final class InputInfo {
     /** Null for an input that is not a selection. */
     static JsonObject of(Input in) {
         String kind = in instanceof InputSelectTargets || in instanceof InputSelectStackItems ? "target"
-                : in instanceof InputSelectManyBase<?> ? "pick" : null;
+                : in instanceof InputSelectManyBase<?> ? "pick"
+                : in instanceof InputPayMana ? "pay" : null;
         if (kind == null) {
             return null;
         }
@@ -49,7 +52,12 @@ final class InputInfo {
         if (sa == null) {
             return o;
         }
-        if ("target".equals(kind)) {
+        if ("pay".equals(kind)) {
+            String ability = payAbility(sa);
+            if (ability != null) {
+                o.addProperty("payFor", ability);
+            }
+        } else if ("target".equals(kind)) {
             String ability = ability(sa.getRootAbility());
             if (ability != null) {
                 o.addProperty("ability", ability);
@@ -66,14 +74,15 @@ final class InputInfo {
     static SpellAbility spellAbility(Input in) {
         Class<?> owner = in instanceof InputSelectTargets ? InputSelectTargets.class
                 : in instanceof InputSelectStackItems ? InputSelectStackItems.class
-                : in instanceof InputSelectManyBase<?> ? InputSelectManyBase.class : null;
+                : in instanceof InputSelectManyBase<?> ? InputSelectManyBase.class
+                : in instanceof InputPayMana ? InputPayMana.class : null;
         if (owner == null) {
             return null;
         }
         try {
             Field f = FIELDS.computeIfAbsent(owner, c -> {
                 try {
-                    Field x = c.getDeclaredField("sa");
+                    Field x = c.getDeclaredField(c == InputPayMana.class ? "saPaidFor" : "sa");
                     x.setAccessible(true);
                     return x;
                 } catch (ReflectiveOperationException e) {
@@ -84,6 +93,32 @@ final class InputInfo {
         } catch (ReflectiveOperationException | RuntimeException e) {
             return null;
         }
+    }
+
+    private static final Pattern REMINDER = Pattern.compile("\\s*\\([^()]*\\)\\s*$");
+    private static final int PAY_ABILITY_MAX = 60;
+
+    /**
+     * What an activated ability being paid for is called on the payment: its description without the reminder text
+     * ("Equip {2} (Attach to target creature you control…)" → "Equip {2}"), and without its cost when it has one
+     * ("{1}, {T}: Draw a card." → "Draw a card"; the cost is what the payment shows). Null for a spell and a triggered
+     * ability, which the payment names by their card.
+     */
+    static String payAbility(SpellAbility sa) {
+        SpellAbility root = sa.getRootAbility();
+        if (root.isSpell() || !root.isActivatedAbility()) {
+            return null;
+        }
+        String d = REMINDER.matcher(root.toString().replaceAll("\\s+", " ").trim()).replaceAll("");
+        int colon = d.indexOf(": ");
+        if (colon >= 0) {
+            d = d.substring(colon + 2);
+        }
+        d = d.replaceAll("[.\\s]+$", "");
+        if (d.length() > PAY_ABILITY_MAX) {
+            d = d.substring(0, PAY_ABILITY_MAX - 1).trim() + "…";
+        }
+        return d.isEmpty() ? null : d;
     }
 
     private static String ability(SpellAbility root) {

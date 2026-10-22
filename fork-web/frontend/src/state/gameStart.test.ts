@@ -19,6 +19,17 @@ describe('London mulligan prompt (design pass 4 §2.4)', () => {
     expect(p.instruction).toBe('Keep these cards, or shuffle and draw 7 new ones.');
   });
 
+  it('after a mulligan the hand is already bottomed: the next one draws 7 and says how many go back (pass 2 #3)', () => {
+    const p = mulliganPrompt({ handSize: 6, toBottom: 0, freeNext: false, draw: 7, nextBottom: 2 });
+    expect(p.title).toBe('Opening hand · 6 cards');
+    expect(p.instruction).toBe('Keep these cards, or shuffle and draw 7 new ones, then put 2 on the bottom.');
+    expect(p.yesLabel).toBe('Keep 6');
+    expect(mulliganPrompt({ handSize: 6, toBottom: 0, freeNext: false, draw: 7, nextBottom: 1 }).instruction).toContain('then put 1 on the bottom.');
+    expect(mulliganPrompt({ handSize: 7, toBottom: 0, freeNext: true, draw: 7, nextBottom: 0 }).instruction).toBe(
+      'Keep these cards, or shuffle and draw 7 new ones. Your first mulligan is free.',
+    );
+  });
+
   it('keep says how many cards go to the bottom after a mulligan that costs one', () => {
     expect(mulliganPrompt({ handSize: 7, toBottom: 1, freeNext: false }).yesLabel).toBe('Keep · put 1 on the bottom');
     expect(mulliganPrompt({ handSize: 7, toBottom: 2, freeNext: false }).yesLabel).toBe('Keep · put 2 on the bottom');
