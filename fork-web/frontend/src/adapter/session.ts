@@ -6,6 +6,7 @@
  */
 import type { AttackOptionsMessage, BlockOptionsMessage, HelloMessage, InputInfo, LogEntry as WireLogEntry, SnapshotMessage, WireObject } from '../wire/generated/wire';
 import { hasDrift, schemaDrift, type SchemaDrift } from '../wire/schemaDrift';
+import { engineNotice } from './engineText';
 import { asRef, type PromptMessage, type SeatRef, type ServerFrame } from './protocol';
 
 export const LOG_LIMIT = 400;
@@ -409,7 +410,8 @@ export class LiveSession {
         return;
       case 'message':
       case 'showErrorDialog': {
-        const text = [a[1], a[0]].filter((x) => typeof x === 'string' && x).join(': ');
+        // message(text, title): the engine's default title "Forge" is no title.
+        const text = engineNotice(typeof a[0] === 'string' ? a[0] : '', typeof a[1] === 'string' ? a[1] : undefined);
         if (text) this.notice(text);
         return;
       }

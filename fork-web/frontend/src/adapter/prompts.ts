@@ -8,6 +8,7 @@ import type { PromptAnswer } from '../model/intents';
 import type { CardId, CardView, ChoiceOption, ChoicePrompt, DistributeRecipient, GameView, TargetRef } from '../model/types';
 import { bottomPrompt, mulliganPrompt, tossTitle, type MulliganFacts, type TossChooser } from '../state/gameStart';
 import type { PromptChoice, PromptMessage } from './protocol';
+import { engineText, unlessChoice, unlessEffect } from './engineText';
 import { colourOptions, isSurveil, numberList, pickedNumber, rangeOfNumberPrompt, surveilWords } from './trayWords';
 import { londonLeft, type InputState } from './session';
 
@@ -36,7 +37,7 @@ export function inputPromptKind(id: string): InputPromptKind | undefined {
 const NAME_LIST_MIN = 13;
 
 function option(c: PromptChoice, cards: Record<string, CardView>, players?: readonly string[]): ChoiceOption {
-  const o: ChoiceOption = { id: String(c.i), label: c.label };
+  const o: ChoiceOption = { id: String(c.i), label: engineText(c.label) || c.label };
   const ref = c.ref;
   if (ref?.type === 'card' && cards[String(ref.id)]) o.cardId = String(ref.id);
   if (ref?.type === 'player' && (!players || players.includes(String(ref.id)))) o.playerId = String(ref.id);
@@ -52,10 +53,10 @@ const LONG_LINE = 80;
  * long "Card name: rule text" line (the card names the tray). An engine title is kept as the title.
  */
 export function promptWords(message: string | null | undefined, title: string | undefined, fallback: string) {
-  const lines = (message ?? '').split('\n').map((l) => l.trim()).filter(Boolean);
-  const head = title?.trim();
+  const lines = engineText(message ?? '').split('\n').filter(Boolean);
+  const head = engineText(title ?? '');
   if (head) return { title: head, instruction: lines.join('\n') === head ? '' : lines.join('\n') };
-  if (lines.length > 1) return { title: lines[0]!.replace(/\s*\(\d+\)$/, ''), instruction: lines.slice(1).join('\n') };
+  if (lines.length > 1) return { title: lines[0]!, instruction: lines.slice(1).join('\n') };
   const line = lines[0] ?? '';
   const colon = line.indexOf(': ');
   if (line.length > LONG_LINE && colon > 0 && colon < 60) return { title: line.slice(0, colon), instruction: line.slice(colon + 2) };
@@ -78,8 +79,14 @@ export function promptToChoice(p: PromptMessage, cards: Record<string, CardView>
   const sourceCardId = cardOf('card' in p ? p.card : undefined, cards);
   switch (p.shape) {
     case 'choose': {
-      const w = words(p, p.method === 'getAbilityToPlay' ? 'Choose an ability' : 'Choose');
-      const options = p.choices.filter((c) => !c.disabled).map((c) => opt(c));
+      let w = words(p, p.method === 'getAbilityToPlay' ? 'Choose an ability' : 'Choose');
+      let options = p.choices.filter((c) => !c.disabled).map((c) => opt(c));
+      // "You lose 3 life unless you sacrifice…" / "…unless you discard…" (Torment of Hailfire): the costs to pick from.
+      const unless = p.method === 'getAbilityToPlay' ? undefined : unlessEffect(options.map((o) => o.label));
+      if (unless) {
+        options = options.map((o) => ({ ...o, label: unlessChoice(o.label) ?? o.label }));
+        if (w.title === 'Choose' && !w.instruction) w = { title: `Pay a cost, or ${unless}`, instruction: '' };
+      }
       const base = { id, ...w, sourceCardId, confirmLabel: p.max === 0 ? 'OK' : 'Confirm' };
       if (p.method === 'getAbilityToPlay') {
         return { ...base, shape: 'chooseN', options, min: 0, max: 1, abilityMenu: true };
@@ -171,6 +178,8 @@ export function promptToChoice(p: PromptMessage, cards: Record<string, CardView>
           ? {
               attackerId: sourceCardId,
               deathtouch: p.choices.some((c) => c.ref?.type === 'card' && c.lethal === 1),
+              // an infect attacker: a player's lethal is the poison still to take (Prompt.damageToKill), not their life
+              infect: (cards[sourceCardId]?.keywords ?? []).some((k) => k.name.toLowerCase() === 'infect'),
               ...(defender ? { trampleId: String(defender.i) } : {}),
             }
           : undefined;

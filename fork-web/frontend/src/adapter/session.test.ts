@@ -225,6 +225,9 @@ describe('LiveSession input state (bridge seat protocol)', () => {
     s.apply({ t: 'call', method: 'showErrorDialog', args: ['Not enough mana', 'Error'] });
     s.apply({ t: 'actionRejected', method: 'selectCard', reason: 'unknown card' });
     expect(s.notices.map((n) => n.text)).toEqual(['Error: Not enough mana', 'selectCard: unknown card']);
+    // the engine's default title "Forge" is no title, and its card ids are not for the player (Block UX note 4)
+    s.apply({ t: 'call', method: 'message', args: ["Llanowar Elves (12) can't block", 'Forge'] });
+    expect(s.notices.at(-1)?.text).toBe("Llanowar Elves can't block");
     expect(s.notices[1]!.id).toBeGreaterThan(s.notices[0]!.id);
   });
 });
