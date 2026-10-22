@@ -9,7 +9,7 @@ import { CombatPanel } from './CombatPanel';
 import { HoverPreview } from './HoverPreview';
 import { Icon, SeatGlyph } from './Icon';
 import { LogText } from './LogText';
-import { PREVIEW_BESIDE_ATTR } from './previewSpot';
+import { PREVIEW_BESIDE_ATTR, previewSpot } from './previewSpot';
 import { recentRows } from './recentRows';
 import { zoneCardIds, zoneTitle } from './zoneBrowser';
 import styles from './Rail.module.css';
@@ -26,10 +26,12 @@ import { t, tDynamic, type MsgKey } from '../i18n';
  * for a card hovered in the rail itself, left of it (previewSpot.ts).
  */
 export function Rail() {
+  const { ui } = useMatch();
+  const previewing = !!ui.hover && !ui.inspectId && previewSpot(ui.hover, ui.logOpen) === 'rail';
   return (
     <aside className={styles.rail} {...{ [PREVIEW_BESIDE_ATTR]: '' }}>
       <div className={styles.upper}>
-        <div className={styles.regions}>
+        <div className={previewing ? `${styles.regions} ${styles.previewing}` : styles.regions}>
           <StackPanel />
           <CombatPanel />
           <ZoneViewer />

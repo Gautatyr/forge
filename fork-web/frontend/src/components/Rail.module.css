@@ -357,16 +357,20 @@
 }
 
 /* Short rail column (about 768 px screens and below): what a player decides from, the stack and combat, keeps its
-   height; Recent yields first (it shrinks to nothing and the regions scroll to it; the drawer has the whole log). The hover preview is
-   made smaller in HoverPreview.module.css under the same query. */
+   height. While the hover preview shows, Recent is hidden entirely (never a cut-off header strip; the drawer has
+   the whole log). The preview is sized in HoverPreview.module.css under the same query. */
 @container (max-height: 640px) {
   .stack {
     /* Nearly two items (the next one peeks, the body scrolls). */
     min-height: 15rem;
     max-height: 65%;
   }
-  .recent {
-    min-height: 0;
-    flex-shrink: 1;
+  /* While the preview shows: about 1.5 stack items (the body scrolls) so the combat starts above the fold. */
+  .previewing .stack {
+    min-height: 8rem;
+    max-height: 45%;
+  }
+  .previewing .recent {
+    display: none;
   }
 }
