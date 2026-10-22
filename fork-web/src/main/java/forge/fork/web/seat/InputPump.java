@@ -284,6 +284,13 @@ final class InputPump {
         }
     }
 
+    /** Deferred actions not run yet (tests). */
+    int deferredCount() {
+        synchronized (lock) {
+            return deferred.size();
+        }
+    }
+
     /** Waits until the EDT has run what was queued on it before this call. Never on the EDT. */
     private void edtBarrier(String when) {
         if (FThreads.isGuiThread()) {

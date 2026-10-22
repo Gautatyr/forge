@@ -25,6 +25,7 @@ import forge.game.card.Card;
 import forge.game.card.CardView;
 import forge.game.event.GameEventGameFinished;
 import forge.game.event.GameEventPlayerPriority;
+import forge.game.phase.PhaseHandler;
 import forge.game.phase.PhaseType;
 import forge.game.player.Player;
 import forge.game.player.PlayerView;
@@ -152,16 +153,47 @@ final class SeatSession implements IRemote {
         Game game = gv == null ? null : gv.getGame();
         if (game != null && game != safePointsOf) {
             safePointsOf = game;
-            game.subscribeToEvents(new SafePoints());
+            game.subscribeToEvents(new SafePoints(game));
         }
     }
 
-    /** The game's events this seat's deferred actions wait for (game thread). */
+    /** Game thread: runs this seat's deferred actions at safe points; restarts the priority round once a player left. */
     public final class SafePoints {
+        private final Game game;
+        /** Players out of the game when the priority round was last restarted. */
+        private int outAtRestart;
+
+        SafePoints(Game game) {
+            this.game = game;
+        }
+
         /** A player gets priority: state-based actions are done and nothing resolves, the seat's actions may run. */
         @Subscribe
         public void priority(GameEventPlayerPriority e) {
             pump.runDeferred();
+            restartRoundIfAPlayerLeft();
+        }
+
+        /**
+         * Game thread: once a player left a game that goes on, the priority round restarts with the player who now has
+         * priority. {@code PhaseHandler} ends a round (resolves the stack or ends the step) only when priority comes back
+         * to the player it started with ({@code pFirstPriority}), and passes priority only among the players still in
+         * the game: a round that started with the player who left never ended (issue #61: a concede at another
+         * player's priority, or at the seat's priority after it cast a spell on another player's turn). The engine
+         * handles only the active player leaving at its own priority. Restarting asks the players who already passed in
+         * that round once more.
+         */
+        private void restartRoundIfAPlayerLeft() {
+            if (!ThreadUtil.isGameThread() || game.isGameOver()) {
+                return;
+            }
+            int out = game.getRegisteredPlayers().size() - game.getPlayers().size();
+            PhaseHandler ph = game.getPhaseHandler();
+            Player p = ph.getPriorityPlayer();
+            if (out > outAtRestart && p != null && !p.hasLost()) {
+                outAtRestart = out;
+                ph.setPriority(p);
+            }
         }
 
         @Subscribe

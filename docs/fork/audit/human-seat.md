@@ -160,6 +160,12 @@ the refresh share the Swing EDT and the input is locked while the ability runs. 
   (multiplayer) takes it at the first priority, because the engine still asks a player out of the game for its mulligan.
 - A seat out of a game that goes on (it conceded at one of its inputs) holds no one up: `WebGuiGame.stopIfOut` stops its
   waiting input unanswered (priority passes; attackers, blockers and payments end with what the seat recorded).
+- A player leaving a game that goes on restarts the priority round with the player who has priority next
+  (`SeatSession.SafePoints`, at `GameEventPlayerPriority`): `PhaseHandler` ends a round only when priority comes back to
+  the player it started with (`pFirstPriority`), so a round started by the player who left never ended (a concede at an
+  AI's priority after the seat passed or cast on its own turn, or at the seat's priority after it cast on an AI's turn).
+  The engine covers only the active player leaving at its own priority. Players who already passed in that round are
+  asked once more. `HumanSeatConcedeTest.concedeWhileAnAiHoldsPriority…`, `…AfterItCastASpellOnAnAiTurn…`.
 - Not covered: EDT work an action queues can start before that action returns; an input's first display (queued by
   `InputProxy` when the game thread sets the input) can start before the game thread reaches the wait; a game action sent
   while a prompt of the seat is open (`SeatSession.call`, not an input) waits for it to be answered or time out. The sweep

@@ -19,6 +19,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import com.google.common.eventbus.Subscribe;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -29,6 +30,7 @@ import forge.game.GameRules;
 import forge.game.GameStage;
 import forge.game.GameType;
 import forge.game.card.Card;
+import forge.game.event.GameEventPlayerPriority;
 import forge.game.Match;
 import forge.game.phase.PhaseHandler;
 import forge.game.phase.PhaseType;
@@ -38,6 +40,7 @@ import forge.game.player.RegisteredPlayer;
 import forge.game.zone.ZoneType;
 import forge.gamemodes.match.input.Input;
 import forge.gamemodes.match.input.InputAttack;
+import forge.gamemodes.match.input.InputPayMana;
 import forge.gamemodes.match.input.InputPassPriority;
 import forge.gamemodes.match.input.InputSelectEntitiesFromList;
 import forge.gui.control.GameEventForwarder;
@@ -52,6 +55,8 @@ import forge.fork.web.bridge.visibility.TestEngine;
  * Issue #61: the seat's concede, sent while the game runs, takes effect on the game thread at a safe point: during
  * setup (the engine's first question to the seat, or the first priority in a multiplayer game), during an AI turn of a
  * 4-player game (the next priority), at the seat's own priority. Each test asserts what the engine recorded.
+ * A player who leaves while the priority round started with it does not hold the others up (the engine ends a round
+ * only when priority comes back to the player it started with).
  */
 public class HumanSeatConcedeTest {
 
@@ -319,6 +324,85 @@ public class HumanSeatConcedeTest {
         assertFalse(game.isGameOver(), "three players go on");
         assertFalse(game.getPlayers().contains(me), "the seat is out");
         assertTrue(game.getPhaseHandler().getTurn() > turn + 1, "the others' turns were played");
+        assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
+    }
+
+    /** On the game thread, at the first priority of {@code who}: runs {@code r} once. */
+    public static final class AtPriority {
+        private final Player who;
+        private final Runnable r;
+        private boolean done;
+
+        AtPriority(Player who, Runnable r) {
+            this.who = who;
+            this.r = r;
+        }
+
+        @Subscribe
+        public void priority(GameEventPlayerPriority e) {
+            if (!done && e.priority() == who.getView()) {
+                done = true;
+                r.run();
+            }
+        }
+    }
+
+    /** Sends the concede from the seat and waits until the seat queued it for the game thread. */
+    private void concedeQueued() {
+        concede();
+        long end = System.currentTimeMillis() + 10_000;
+        while (gui.session().pump().deferredCount() == 0 && System.currentTimeMillis() < end) {
+            Thread.onSpinWait();
+        }
+        assertEquals(gui.session().pump().deferredCount(), 1, "the concede waits for a safe point");
+    }
+
+    @Test(timeOut = 120_000)
+    public void concedeWhileAnAiHoldsPriorityInARoundTheSeatStartedInAFourPlayerGameAndTheOthersPlayOn() throws Exception {
+        start(4, 0);
+        inPlay(me); // the seat's main phase: the round starts with it
+        Player ai1 = game.getPlayers().get(1);
+        int turn = game.getPhaseHandler().getTurn();
+        // the seat has passed; the concede runs at an AI's priority, in the round that started with the seat
+        game.subscribeToEvents(new AtPriority(ai1, this::concedeQueued));
+        Future<?> f = loop(() -> game.getPhaseHandler().getTurn() > turn + 1);
+        waitFor(() -> pch.getInputQueue().getInput() instanceof InputPassPriority && gui.session().pump().waiting(), 30_000,
+                "the seat's priority");
+        action("selectButtonOk", null); // pass
+        f.get(60, TimeUnit.SECONDS);
+        assertConceded(me);
+        assertFalse(game.isGameOver(), "three players go on");
+        assertFalse(game.getPlayers().contains(me), "the seat is out");
+        assertTrue(game.getPhaseHandler().getTurn() > turn + 1, "the others' turns were played: phase "
+                + game.getPhaseHandler().getPhase() + ", priority " + game.getPhaseHandler().getPriorityPlayer());
+        assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
+    }
+
+    @Test(timeOut = 120_000)
+    public void concedeAtTheSeatsPriorityAfterItCastASpellOnAnAiTurnInAFourPlayerGameAndTheOthersPlayOn() throws Exception {
+        start(4, 0);
+        Player ai1 = game.getPlayers().get(1);
+        inPlay(ai1);
+        TestEngine.add("Swamp", me, ZoneType.Battlefield);
+        Card ritual = TestEngine.add("Dark Ritual", me, ZoneType.Hand);
+        int turn = game.getPhaseHandler().getTurn();
+        Future<?> f = loop(() -> game.getPhaseHandler().getTurn() > turn + 1);
+        waitFor(() -> pch.getInputQueue().getInput() instanceof InputPassPriority && gui.session().pump().waiting(), 30_000,
+                "the seat's priority on the AI's turn");
+        action("selectCard", "\"card\":" + ritual.getId());
+        waitFor(() -> pch.getInputQueue().getInput() instanceof InputPayMana && gui.session().pump().waiting(), 30_000,
+                "the payment");
+        action("selectButtonOk", null); // auto-pay: the Swamp
+        // the seat holds priority again with its spell on the stack: the round now starts with it
+        waitFor(() -> pch.getInputQueue().getInput() instanceof InputPassPriority && gui.session().pump().waiting()
+                && !game.getStack().isEmpty(), 30_000, "the seat's priority over its spell");
+        concede();
+        f.get(60, TimeUnit.SECONDS);
+        assertConceded(me);
+        assertFalse(game.isGameOver(), "three players go on");
+        assertFalse(game.getPlayers().contains(me), "the seat is out");
+        assertTrue(game.getPhaseHandler().getTurn() > turn + 1, "the others' turns were played: phase "
+                + game.getPhaseHandler().getPhase() + ", priority " + game.getPhaseHandler().getPriorityPlayer());
         assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
     }
 }
