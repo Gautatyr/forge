@@ -191,7 +191,8 @@ public class PlayAi extends SpellAbilityAi {
                     if ("ManaCost".equals(sa.getParam("PlayCost"))) {
                         abCost = new Cost(c.getManaCost(), false);
                     } else {
-                        abCost = new Cost(sa.getParam("PlayCost"), false);
+                        // fork #91: as PlayEffect, so the AI weighs the real cost (was "SVar not defined" -> 0)
+                        abCost = new Cost(sa.getParam("PlayCost").replace("ConvertedManaCost", Integer.toString(c.getCMC())), false);
                     }
 
                     spell = (Spell) spell.copyWithManaCostReplaced(spell.getActivatingPlayer(), abCost);
