@@ -4,7 +4,7 @@
  * spends mana, so life is paid by hand.
  */
 import { describe, expect, it } from 'vitest';
-import type { WireObject } from '../wire/generated/wire';
+import type { CallMessage, WireObject } from '../wire/generated/wire';
 import { DEFAULT_STOPS } from '../state/prefs';
 import { primaryAction, promptText } from '../state/primaryAction';
 import { INITIAL_UI } from '../state/ui';
@@ -38,8 +38,8 @@ function session(): LiveSession {
 }
 
 /** forge.gamemodes.match.Selection as the bridge sends it (setSelection). */
-const selection = (cards: object[], chosen: object[] = []) => ({
-  t: 'call' as const,
+const selection = (cards: object[], chosen: object[] = []): CallMessage => ({
+  t: 'call',
   method: 'setSelection',
   args: [{ kind: 'Selection', cards, min: 0, max: cards.length, targets: [], chosen }],
 });
