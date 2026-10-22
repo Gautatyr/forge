@@ -518,6 +518,79 @@ public class HumanSeatTriggersTest {
         assertNoSilentDefault();
     }
 
+    /** Issue #91: Anrakyr's trigger casts from the graveyard too; the seat pays exactly the mana value (Darksteel Plate, 3). */
+    @Test
+    public void anrakyrAttackLetsTheSeatCastAnArtifactFromTheGraveyardForLife() throws Exception {
+        start();
+        Card anrakyr = add("Anrakyr the Traveller", me, ZoneType.Battlefield);
+        Card plate = add("Darksteel Plate", me, ZoneType.Graveyard);
+        List<String> seen = attackWith(anrakyr, () -> game.getCardState(plate).isInZone(ZoneType.Battlefield)
+                        || game.getPhaseHandler().getPhase().isAfter(PhaseType.COMBAT_DECLARE_BLOCKERS),
+                null,
+                p -> "confirm".equals(p.get("shape").getAsString()) ? JsonParser.parseString("true") : pick(p, "Darksteel Plate"));
+        assertTrue(game.getCardState(plate).isInZone(ZoneType.Battlefield), "Darksteel Plate cast from the graveyard; seen " + seen);
+        assertEquals(me.getLife(), 17, "paid life equal to its mana value; seen " + seen);
+        assertNotNull(stackText("Anrakyr"), "the seat saw the trigger on the stack: " + seat.stackItems());
+        assertNoSilentDefault();
+    }
+
+    /** Issue #91: Bolas's Citadel (MayPlayAltManaCost PayLife<ConvertedManaCost>): the seat casts its top card for 3 life. */
+    @Test
+    public void bolassCitadelLetsTheSeatCastItsTopCardForLife() throws Exception {
+        start();
+        add("Bolas's Citadel", me, ZoneType.Battlefield);
+        Card plate = add("Darksteel Plate", me, ZoneType.Library);
+        me.getZone(ZoneType.Library).remove(plate);
+        me.getZone(ZoneType.Library).add(plate, 0);
+        game.getAction().checkStaticAbilities();
+        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, me);
+        game.getPhaseHandler().onStackResolved();
+        boolean[] cast = {false};
+        List<String> seen = play(() -> game.getCardState(plate).isInZone(ZoneType.Battlefield) && game.getStack().isEmpty()
+                        || game.getPhaseHandler().getPhase() != PhaseType.MAIN1,
+                in -> {
+                    if (in instanceof InputPassPriority && !cast[0] && game.getStack().isEmpty()) {
+                        cast[0] = true;
+                        return () -> select(plate);
+                    }
+                    return null;
+                },
+                p -> "confirm".equals(p.get("shape").getAsString()) ? JsonParser.parseString("true") : pick(p, null));
+        assertTrue(game.getCardState(plate).isInZone(ZoneType.Battlefield), "cast from the top of the library; seen " + seen);
+        assertEquals(me.getLife(), 17, "paid life equal to its mana value; seen " + seen);
+        assertNoSilentDefault();
+    }
+
+    /** Playtest-1 item 18 with the owner's deck's Reanimate: Praetorian enters from a graveyard, its trigger draws 2, loses 2. */
+    @Test
+    public void triarchPraetorianReanimatedByTheSeatDrawsTwoAndLosesTwo() throws Exception {
+        start();
+        add("Swamp", me, ZoneType.Battlefield);
+        Card reanimate = add("Reanimate", me, ZoneType.Hand);
+        Card praetorian = add("Triarch Praetorian", me, ZoneType.Graveyard);
+        int hand = me.getCardsIn(ZoneType.Hand).size();
+        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, me);
+        game.getPhaseHandler().onStackResolved();
+        boolean[] cast = {false};
+        List<String> seen = play(() -> cast[0] && game.getStack().isEmpty() && me.getLife() <= 16 || game.getPhaseHandler().getPhase() != PhaseType.MAIN1,
+                in -> {
+                    if (in instanceof InputPassPriority && !cast[0] && game.getStack().isEmpty()) {
+                        cast[0] = true;
+                        return () -> select(reanimate);
+                    }
+                    if (in instanceof forge.gamemodes.match.input.InputSelectTargets) {
+                        return () -> select(praetorian);
+                    }
+                    return null;
+                },
+                p -> pick(p, "Triarch Praetorian"));
+        assertTrue(game.getCardState(praetorian).isInZone(ZoneType.Battlefield), "reanimated; seen " + seen);
+        assertEquals(me.getCardsIn(ZoneType.Hand).size(), hand - 1 + 2, "Reanimate left the hand, drew two; seen " + seen);
+        assertEquals(me.getLife(), 16, "Reanimate's 2 (mana value) and the trigger's 2");
+        assertNotNull(stackText("Triarch Praetorian"), "the seat saw the trigger on the stack: " + seat.stackItems());
+        assertNoSilentDefault();
+    }
+
     // --- issue #63: a trigger whose target restriction depends on the triggering object ---
 
     /** The first choice whose text names {@code name}, else the first legal answer (as the sweep's seat). */
