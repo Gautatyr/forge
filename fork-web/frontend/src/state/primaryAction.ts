@@ -171,7 +171,7 @@ export function pickVerb(instruction: string): string {
 }
 
 /**
- * Cards or players picked for a cost or an effect (issue #81): "Discard (1)", "Sacrifice (1)", "Choose 1 more", in
+ * Cards or players picked for a cost or an effect (issue #81): "Discard (1)", "Sacrifice 1 more", "Choose 1 more", in
  * the tray's confirm words, never "Cast"; an optional pick says how many it allows.
  */
 function pickAction(game: GameView, d: Extract<GameView['decision'], { kind: 'chooseTargets' }>): PrimaryAction {
@@ -179,7 +179,7 @@ function pickAction(game: GameView, d: Extract<GameView['decision'], { kind: 'ch
   const range = d.min === d.max ? '' : d.min === 0 ? `up to ${d.max}` : `${d.min} to ${d.max}`;
   const withRange = (s: string) => [s, range].filter(Boolean).join(' · ');
   const verb = pickVerb(d.instruction);
-  if (n < d.min) return { label: `Choose ${d.min - n} more`, detail: withRange(d.instruction), enabled: false, tone: 'priority' };
+  if (n < d.min) return { label: `${verb} ${d.min - n} more`, detail: withRange(d.instruction), enabled: false, tone: 'priority' };
   return {
     label: n === 0 ? `${verb} none` : `${verb} (${n})`,
     detail: withRange(n === 0 ? d.instruction : d.chosen.map((t) => targetName(game, t)).join(', ')),

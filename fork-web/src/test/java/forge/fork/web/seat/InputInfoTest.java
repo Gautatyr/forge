@@ -288,7 +288,8 @@ public class InputInfoTest {
         assertFalse(discard.isEmpty(), "the discard message was sent; seen " + seen);
         JsonObject info = discard.get(0);
         assertEquals(info.get("kind").getAsString(), "pick", info.toString());
-        assertTrue(info.has("decline") && info.get("decline").getAsString().contains("Drekavac"), "Cancel sacrifices Drekavac: " + info);
+        // The engine's "Sacrifices Drekavac (<id>)", worded for the seat (named "You") with no card id.
+        assertEquals(info.has("decline") ? info.get("decline").getAsString() : null, "You sacrifice Drekavac", info.toString());
         assertTrue(game.getCardState(drekavac).isInZone(ZoneType.Graveyard), "declined: Drekavac was sacrificed; seen " + seen);
         assertTrue(game.getCardState(bolt).isInZone(ZoneType.Hand), "nothing was discarded; seen " + seen);
         assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());

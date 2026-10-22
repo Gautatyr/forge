@@ -70,7 +70,7 @@ public final class WireEnvelope {
                     + "  /** target: targets of a spell or ability; pick: cards or players chosen for a cost or an effect (discard, sacrifice…). */\n"
                     + "  kind: 'target' | 'pick';\n"
                     + "  /** target: what the targets are for. */\n  ability?: 'spell' | 'activated' | 'triggered';\n"
-                    + "  /** pick: an \"unless\" cost; Cancel declines it and this happens (the engine's text). */\n  decline?: string;\n}"));
+                    + "  /** pick: an \"unless\" cost; Cancel declines it and this happens (the engine's text worded for you: \"You sacrifice Drekavac\"). */\n  decline?: string;\n}"));
 
     /** Server to a human seat, on the seat's stream after hello and snapshot ({@code forge.fork.web.seat.SeatSession}). */
     public static final List<Message> SEAT_MESSAGES = List.of(

@@ -1714,7 +1714,7 @@ export interface InputInfo {
   kind: 'target' | 'pick';
   /** target: what the targets are for. */
   ability?: 'spell' | 'activated' | 'triggered';
-  /** pick: an "unless" cost; Cancel declines it and this happens (the engine's text). */
+  /** pick: an "unless" cost; Cancel declines it and this happens (the engine's text worded for you: "You sacrifice Drekavac"). */
   decline?: string;
 }
 

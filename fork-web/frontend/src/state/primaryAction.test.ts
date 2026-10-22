@@ -248,6 +248,54 @@ describe('block forecast counts what the engine says attacks you (issue #79)', (
     });
     expect(primaryAction(g, INITIAL_UI, DEFAULT_STOPS).detail).toBe('You take 2 damage · You get 1 poison counter');
   });
+
+  it('adds toxic poison counters to combat damage dealt to you, once per strike', () => {
+    const toxic = (n: number) => ({ name: 'Toxic', label: `Toxic ${n}` });
+    const g = game(
+      [
+        card('8', 'Bilious Skulldweller', { power: 1, toughness: 1, keywords: [toxic(1)] }),
+        card('9', 'Venerated Rotpriest', { power: 1, toughness: 2, keywords: [{ name: 'Double Strike', label: 'Double Strike' }, toxic(2)] }),
+        card('10', 'Blocked Rat', { power: 2, toughness: 2, keywords: [toxic(3)] }),
+        mine('1', 'Wall', { power: 0, toughness: 4 }),
+      ],
+      blocks([{ blockerId: '1', attackerId: '10' }], ['8', '9', '10']),
+      {
+        combat: {
+          attacks: [
+            { attackerId: '8', defenderId: 'you' },
+            { attackerId: '9', defenderId: 'you' },
+            { attackerId: '10', defenderId: 'you' },
+          ],
+          blocks: [],
+        },
+      },
+    );
+    // 1 + 2 damage; poison 1 (Skulldweller) + 2 × 2 (Rotpriest strikes twice); the blocked Rat deals you nothing.
+    expect(primaryAction(g, INITIAL_UI, DEFAULT_STOPS).detail).toBe('You take 3 damage · You get 5 poison counters');
+  });
+
+  it('gives a poison range for toxic on a blocked trampler', () => {
+    const g = game(
+      [card('7', 'Wurm', { power: 6, toughness: 6, keywords: [{ name: 'Trample', label: 'Trample' }, { name: 'Toxic', label: 'Toxic 2' }] }), mine('1', 'Wall', { power: 0, toughness: 4 })],
+      blocks([{ blockerId: '1', attackerId: '7' }], ['7']),
+      { combat: { attacks: [{ attackerId: '7', defenderId: 'you' }], blocks: [] } },
+    );
+    expect(primaryAction(g, INITIAL_UI, DEFAULT_STOPS).detail).toBe('You take up to 2 damage · You get up to 2 poison counters');
+  });
+
+  it('says nothing about you when every attack is on your planeswalker', () => {
+    const chandra = mine('35', 'Chandra, Torch of Defiance', { power: undefined, toughness: undefined });
+    const g = game([chandra, card('71', 'Thorn Lieutenant', { power: 2, toughness: 3 }), card('72', 'Bear', { power: 2, toughness: 2 })], blocks(), {
+      combat: {
+        attacks: [
+          { attackerId: '71', defenderId: 'you', defenderCardId: '35' },
+          { attackerId: '72', defenderId: 'you', defenderCardId: '35' },
+        ],
+        blocks: [],
+      },
+    });
+    expect(primaryAction(g, INITIAL_UI, DEFAULT_STOPS).detail).toBe('Chandra, Torch of Defiance takes 4 damage');
+  });
 });
 
 describe('attack forecast (issue #79)', () => {
@@ -298,7 +346,7 @@ describe('card picks are worded from what the engine asks (issue #81)', () => {
   it('a sacrifice cost reads as a sacrifice; too few picked asks for more', () => {
     const d = pick({ instruction: 'Select creature to sacrifice (1 left)', min: 1, max: 1 });
     const a = primaryAction(at(d), INITIAL_UI, DEFAULT_STOPS);
-    expect(a.label).toBe('Choose 1 more');
+    expect(a.label).toBe('Sacrifice 1 more');
     expect(a.enabled).toBe(false);
     expect(a.detail).toBe('Select creature to sacrifice (1 left)');
     const ready = primaryAction(at({ ...d, chosen: [{ kind: 'card', id: '20' }] } as Decision), INITIAL_UI, DEFAULT_STOPS);
@@ -331,9 +379,11 @@ describe('card picks are worded from what the engine asks (issue #81)', () => {
   });
 
   it('a Cancel that declines an unless cost says what happens instead', () => {
-    const d = pick({ instruction: 'Select nonland permanent to sacrifice (1 left)', min: 1, max: 1, decline: 'You loses 3 life.', cancellable: true });
+    // The bridge's words for Torment of Hailfire (engine: " You loses 3 life.") and Drekavac ("Sacrifices Drekavac (23)").
+    const d = pick({ instruction: 'Select nonland permanent to sacrifice (1 left)', min: 1, max: 1, decline: 'You lose 3 life', cancellable: true });
     expect(canCancel(at(d), INITIAL_UI)).toBe(true);
-    expect(cancelLabel(at(d))).toBe('Decline: You loses 3 life');
+    expect(cancelLabel(at(d))).toBe('Decline: You lose 3 life');
+    expect(cancelLabel(at(pick({ min: 1, max: 1, decline: 'You sacrifice Drekavac', cancellable: true })))).toBe('Decline: You sacrifice Drekavac');
     expect(cancelLabel(at(pick({ cancellable: true })))).toBe('Cancel');
   });
 

@@ -7,6 +7,10 @@ import type { Block, CardId, CardView, GameView } from '../model/types';
 
 const has = (c: CardView, keyword: string) => c.keywords.some((k) => k.name.toLowerCase() === keyword);
 
+/** Poison counters per combat damage hit to a player: the sum of its Toxic N. */
+const toxic = (c: CardView) =>
+  c.keywords.filter((k) => k.name.toLowerCase() === 'toxic').reduce((s, k) => s + (Number(/\d+/.exec(k.label)?.[0]) || 0), 0);
+
 /** Combat damage the creature deals if nothing stops it: its power, twice with double strike. */
 export function strikeDamage(c: CardView | undefined): number {
   if (!c) return 0;
@@ -29,11 +33,11 @@ const add = (a: Range, b: Range): Range => ({ min: a.min + b.min, max: a.max + b
 const ZERO: Range = { min: 0, max: 0 };
 
 export interface Incoming {
-  /** Attacks on you or on your planeswalkers and battles. */
-  attacks: number;
+  /** Attacks on you (the player, not your planeswalkers and battles). */
+  onYou: number;
   /** Combat damage to you. */
   you: Range;
-  /** Poison counters you get (infect). */
+  /** Poison counters you get (infect, toxic). */
   poison: Range;
   /** Damage to each of your planeswalkers and battles attacked, in attack order. */
   cards: { cardId: CardId; damage: Range }[];
@@ -44,12 +48,11 @@ export interface Incoming {
  * nothing, or with trample from 0 up to the excess over its blockers' lethal damage (the attacker divides it).
  */
 export function incoming(game: GameView, blocks: Block[]): Incoming {
-  const out: Incoming = { attacks: 0, you: ZERO, poison: ZERO, cards: [] };
+  const out: Incoming = { onYou: 0, you: ZERO, poison: ZERO, cards: [] };
   for (const a of game.combat?.attacks ?? []) {
     if (a.defenderId !== game.youId) continue;
     const attacker = game.cards[a.attackerId];
     if (!attacker) continue;
-    out.attacks += 1;
     const blockers = blocks.filter((b) => b.attackerId === a.attackerId).map((b) => game.cards[b.blockerId]);
     const total = strikeDamage(attacker);
     const dealt: Range = !blockers.length
@@ -61,8 +64,14 @@ export function incoming(game: GameView, blocks: Block[]): Incoming {
       const prev = out.cards.find((x) => x.cardId === a.defenderCardId);
       if (prev) prev.damage = add(prev.damage, dealt);
       else out.cards.push({ cardId: a.defenderCardId, damage: dealt });
-    } else if (has(attacker, 'infect')) out.poison = add(out.poison, dealt);
+      continue;
+    }
+    out.onYou += 1;
+    if (has(attacker, 'infect')) out.poison = add(out.poison, dealt);
     else out.you = add(out.you, dealt);
+    // Toxic: N poison counters each time it deals you combat damage (twice with double strike).
+    const t = toxic(attacker) * (has(attacker, 'double strike') ? 2 : 1);
+    if (t) out.poison = add(out.poison, { min: dealt.min > 0 ? t : 0, max: dealt.max > 0 ? t : 0 });
   }
   return out;
 }
@@ -74,7 +83,7 @@ export function incomingText(game: GameView, f: Incoming): string {
   const parts: string[] = [];
   const onCards = f.cards.length > 0;
   const poison = f.poison.max > 0;
-  const onYou = f.attacks > f.cards.length;
+  const onYou = f.onYou > 0;
   if (!(onCards || poison) || (onYou && (f.you.max > 0 || !poison))) parts.push(`You take ${amount(f.you)} damage`);
   if (poison) parts.push(`You get ${amount(f.poison)} poison counter${f.poison.max === 1 ? '' : 's'}`);
   for (const c of f.cards) parts.push(`${game.cards[c.cardId]?.name ?? 'Your permanent'} takes ${amount(c.damage)} damage`);
