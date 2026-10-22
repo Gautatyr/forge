@@ -236,7 +236,7 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
             {s.needsBlockers && onBoard ? (
               <span className={`${styles.combatStrip} ${styles.stripNeeds}`} title={`Needs ${s.needsBlockers} blockers, or none`} data-arrow-occluder {...avoid}>
                 <Icon name="shield" />
-                <span>Needs {s.needsBlockers} blockers</span>
+                <span>Needs {s.needsBlockers}</span>
               </span>
             ) : null}
 

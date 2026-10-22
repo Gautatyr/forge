@@ -247,10 +247,10 @@
 .stripBlock {
   background: var(--c-block);
 }
-/* Below the attack strip: an attacker that needs more blockers than it has (menace). */
+/* Above the attack strip (clear of the P/T badge): an attacker that needs more blockers than it has (menace). */
 .stripNeeds {
   background: var(--c-block);
-  top: calc(58% + 1.7em);
+  top: calc(58% - 1.7em);
 }
 
 .counters {
