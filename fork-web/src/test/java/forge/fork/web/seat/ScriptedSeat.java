@@ -285,6 +285,19 @@ final class ScriptedSeat implements ClientSink {
                 return m.get("default");
             case "order": {
                 String method = m.get("method").getAsString();
+                if ("manipulateCardList".equals(method) && m.has("piles")) {
+                    // scry: the first card to the bottom (if it may go there), the rest on top
+                    JsonArray top = new JsonArray();
+                    JsonArray bottom = new JsonArray();
+                    boolean toTop = m.get("toTop").getAsBoolean();
+                    for (int i = 0; i < n; i++) {
+                        (!toTop || (i == 0 && m.get("toBottom").getAsBoolean()) ? bottom : top).add(i);
+                    }
+                    JsonObject o = new JsonObject();
+                    o.add("top", top);
+                    o.add("bottom", bottom);
+                    return o;
+                }
                 if ("manipulateCardList".equals(method)) {
                     List<Integer> order = new ArrayList<>();
                     int first = -1;

@@ -110,6 +110,36 @@ describe('prompt → choice tray', () => {
     ]);
   });
 
+  it('maps a scry (manipulateCardList piles) to the top and bottom of the library and replies both piles', () => {
+    const scried: PromptChoice[] = [
+      { i: 0, label: 'Llanowar Elves', ref: { type: 'card', id: 12 } },
+      { i: 1, label: 'Swamp', ref: { type: 'card', id: 13 } },
+    ];
+    const m: PromptMessage = {
+      ...base,
+      method: 'manipulateCardList',
+      shape: 'order',
+      message: 'Move cards to top or bottom of library',
+      choices: scried,
+      piles: true,
+      toTop: true,
+      toBottom: true,
+      toAnywhere: false,
+    };
+    const p = promptToChoice(m, cards);
+    expect(p).toMatchObject({ shape: 'order', title: 'Move cards to top or bottom of library' });
+    expect(p.shape === 'order' && p.lists.map((l) => [l.id, l.label, l.items.map((i) => i.id)])).toEqual([
+      ['top', 'Top of library', ['0', '1']],
+      ['bottom', 'Bottom of library', []],
+    ]);
+    const answer = { shape: 'order' as const, lists: [{ id: 'top', itemIds: ['1'] }, { id: 'bottom', itemIds: ['0'] }] };
+    expect(replyValue(m, answer)).toEqual({ top: [1], bottom: [0] });
+    // bottom only (no engine caller today): one list, every card in it
+    const bottomOnly = promptToChoice({ ...m, toTop: false }, cards);
+    expect(bottomOnly.shape === 'order' && bottomOnly.lists.map((l) => [l.id, l.items.map((i) => i.id)])).toEqual([['bottom', ['0', '1']]]);
+    expect(replyValue({ ...m, toTop: false }, { shape: 'order', lists: [{ id: 'bottom', itemIds: ['1', '0'] }] })).toEqual({ top: [], bottom: [1, 0] });
+  });
+
   it('answers manipulateCardList with the full permutation and sideboard with the main deck', () => {
     const m: PromptMessage = { ...base, method: 'manipulateCardList', shape: 'order', message: 'Top of library', choices, permutation: true };
     const p = promptToChoice(m, cards);
