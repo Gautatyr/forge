@@ -375,6 +375,31 @@ public class SeatSessionTest {
         }
     }
 
+    /** Issue #29 (playtest 1 #13): the order of cards put into exile is nobody's business; no prompt, the list as given. */
+    @Test
+    public void theOrderOfCardsPutIntoExileIsNotAsked() throws Exception {
+        start();
+        SilentDefaults.reset();
+        SilentDefaults.setStrict(true);
+        String exile = forge.util.Localizer.getInstance().getMessage("lblChooseOrderCardsPutIntoExile");
+        List<String> got = get(onGameThread(() -> gui.order(exile, "Put first", List.of("a", "b", "c"), null)));
+        assertEquals(got, List.of("a", "b", "c"));
+        assertTrue(client.msgs.stream().noneMatch(m -> "prompt".equals(m.get("t").getAsString())), "nothing was sent to the seat");
+        assertEquals(SilentDefaults.count(), 0, "a deliberate automation, not a silent default");
+    }
+
+    /** Any other order still asks: the graveyard, the library and the battlefield can matter. */
+    @Test
+    public void otherOrdersAreStillAsked() throws Exception {
+        start();
+        String grave = forge.util.Localizer.getInstance().getMessage("lblChooseOrderCardsPutIntoGraveyard");
+        Future<List<String>> f = onGameThread(() -> gui.order(grave, "Closest to bottom", List.of("a", "b"), null));
+        JsonObject prompt = client.next("prompt");
+        assertEquals(prompt.get("shape").getAsString(), "order");
+        reply(prompt, json("{\"order\":[1,0],\"remember\":false}"));
+        assertEquals(get(f), List.of("b", "a"));
+    }
+
     @Test
     public void aClosedSeatsDefaultsAreReported() throws Exception {
         start();

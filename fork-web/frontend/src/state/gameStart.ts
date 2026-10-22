@@ -47,6 +47,10 @@ export interface MulliganFacts {
   toBottom: number;
   /** The engine says the next mulligan is free. */
   freeNext: boolean;
+  /** Cards the next mulligan draws; the hand size when absent. */
+  draw?: number;
+  /** Cards the next mulligan puts on the bottom (London: you draw `draw`, then bottom these). */
+  nextBottom?: number;
 }
 
 export const MULLIGAN_PROMPT_ID = 'mulligan';
@@ -59,7 +63,7 @@ export function mulliganPrompt(f: MulliganFacts, id = MULLIGAN_PROMPT_ID): YesNo
     id,
     shape: 'yesNo',
     title: `Opening hand · ${f.handSize} cards`,
-    instruction: `Keep these cards, or shuffle and draw ${f.handSize} new ones.${f.freeNext ? ' Your first mulligan is free.' : ''}`,
+    instruction: `Keep these cards, or shuffle and draw ${f.draw ?? f.handSize} new ones${f.nextBottom ? `, then put ${f.nextBottom} on the bottom` : ''}.${f.freeNext ? ' Your first mulligan is free.' : ''}`,
     confirmLabel: keep,
     yesLabel: keep,
     noLabel: 'Mulligan',

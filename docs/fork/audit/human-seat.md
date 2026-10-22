@@ -37,6 +37,11 @@ on stdout, never reported):
   `…LastOpponentButOne…`, `…TwoPlayerGameStillSeesTheEndOfGameReveal`; the sweep's seat concedes in every 4th 4-player
   game and fails on a prompt sent after it left.
 
+- the order of cards put into exile (`order` whose title is the engine's `lblChooseOrderCardsPutIntoExile` and that
+  leaves no card out; `Prompt.Order.orderIsMoot`, `SeatSession.sendAndWait`): answered with the engine default (the
+  list as given), never sent. Exile has no order in the rules (Living Death asked for one; issue #29 playtest 1 #13).
+  Graveyard, library and battlefield orders are still asked: they can matter.
+
 ## IGuiGame methods
 Class = the class that answers the call for a `WebGuiGame` (`SeatCoverageTest.EXPECTED`).
 
