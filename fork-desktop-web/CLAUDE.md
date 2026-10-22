@@ -22,6 +22,9 @@ Depends on `forge-gui-desktop` and `fork-web`; nothing depends on it. Package `f
   if Forge's window is not focused.
 - `MatchScreenPref`: `<user dir>/preferences/fork-web.preferences`, key `useNewMatchScreen` (default true).
 - `LobbyRun`: headless check of the same path (`LocalLobby` → Start), isolated profile.
+- Packaging (`make package`, `scripts/package.sh`, decision 2026-10-22): the packaged app sets `-Dforge.assets.dir=$APPDIR/`
+  (`GuiDesktopWeb.getAssetsDir`; `LobbyRun` honours it too) and `--web-root $APPDIR/web`. jpackage's Linux runtime has no
+  `bin/java`: check a package by running `LobbyRun` with system `java` and `-cp 'Forge/lib/app/lib/*'`.
 
 ## Gates and running
 - `make web-desktop-test` (this module's tests only); `make check` picks it up.

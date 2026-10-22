@@ -1,0 +1,35 @@
+# Fork-owned, manual: builds the jpackage app (scripts/package.sh) on each OS and uploads it.
+name: fork-package
+on:
+  workflow_dispatch:
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          package_json_file: fork-web/frontend/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: make package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: forge-fork-${{ matrix.os }}
+          path: |
+            target/package/installer/*
+          if-no-files-found: error

@@ -1,6 +1,6 @@
 # Fork-owned entry points (upstream Card-Forge has no Makefile).
 # Gates log to target/gate-logs/<name>.log and print a summary plus the real exit code.
-.PHONY: help check web-java-test web-desktop-test web-front-check desktop-test web-sweep web-dev web-server play
+.PHONY: help check packageweb-java-test web-desktop-test web-front-check desktop-test web-sweep web-dev web-server play
 
 GATE := scripts/gate.sh
 
@@ -39,3 +39,6 @@ play: ## Build the frontend and the launcher, then start Forge: lobby matches op
 	@$(GATE) web-front-build bash -c 'cd fork-web/frontend && pnpm install --frozen-lockfile && pnpm build'
 	@$(GATE) play-build mvn -B -pl fork-desktop-web -am compile dependency:build-classpath -Dmdep.outputFile=target/cp.txt
 	@fork-desktop-web/run.sh $(ARGS)
+
+package: ## Self-contained app for this OS via jpackage (bundled Java, res/, frontend) -> target/package/ (ARGS="--no-installer")
+	@$(GATE) package scripts/package.sh $(ARGS)

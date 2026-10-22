@@ -36,6 +36,22 @@ public final class GuiDesktopWeb extends GuiDesktop {
         return p;
     }
 
+    /** System property: the packaged app's install folder (holds {@code res/}); unset when run from the repo. */
+    static final String ASSETS_PROPERTY = "forge.assets.dir";
+
+    @Override
+    public String getAssetsDir() {
+        return assetsDir(System.getProperty(ASSETS_PROPERTY), super.getAssetsDir());
+    }
+
+    /** The packaged app passes its folder; the value must end with a separator ({@code ForgeConstants} appends {@code res/}). */
+    static String assetsDir(String configured, String fallback) {
+        if (configured == null || configured.isBlank()) {
+            return fallback;
+        }
+        return configured.endsWith("/") || configured.endsWith("\\") ? configured : configured + java.io.File.separator;
+    }
+
     @Override
     public HostedMatch hostMatch() {
         final HostedMatch match = new WebHostedMatch(host, () -> pref().enabled());
