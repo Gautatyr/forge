@@ -1,0 +1,324 @@
+package forge.fork.web.seat;
+
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNotEquals;
+import static org.testng.Assert.assertNotNull;
+import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.fail;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
+
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeClass;
+import org.testng.annotations.Test;
+
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+import forge.ai.LobbyPlayerAi;
+import forge.deck.Deck;
+import forge.game.Game;
+import forge.game.GameRules;
+import forge.game.GameStage;
+import forge.game.GameType;
+import forge.game.card.Card;
+import forge.game.Match;
+import forge.game.phase.PhaseHandler;
+import forge.game.phase.PhaseType;
+import forge.game.player.GameLossReason;
+import forge.game.player.Player;
+import forge.game.player.RegisteredPlayer;
+import forge.game.zone.ZoneType;
+import forge.gamemodes.match.input.Input;
+import forge.gamemodes.match.input.InputAttack;
+import forge.gamemodes.match.input.InputPassPriority;
+import forge.gamemodes.match.input.InputSelectEntitiesFromList;
+import forge.gui.control.GameEventForwarder;
+import forge.player.LobbyPlayerHuman;
+import forge.player.PlayerControllerHuman;
+import forge.trackable.TrackableCollection;
+import forge.fork.web.bridge.GameStream;
+import forge.fork.web.bridge.GameStream.HiddenPolicy;
+import forge.fork.web.bridge.visibility.TestEngine;
+
+/**
+ * Issue #61: the seat's concede, sent while the game runs, takes effect on the game thread at a safe point: during
+ * setup (the engine's first question to the seat, or the first priority in a multiplayer game), during an AI turn of a
+ * 4-player game (the next priority), at the seat's own priority. Each test asserts what the engine recorded.
+ */
+public class HumanSeatConcedeTest {
+
+    private ExecutorService gameThread;
+    private Thread driver;
+    private Game game;
+    private Player me;
+    private PlayerControllerHuman pch;
+    private GameStream stream;
+    private WebGuiGame gui;
+    private HumanSeatTriggersTest.Seat seat;
+
+    @BeforeClass
+    public void boot() {
+        TestEngine.boot();
+    }
+
+    @AfterMethod(alwaysRun = true)
+    public void stop() throws InterruptedException {
+        if (driver != null) {
+            driver.interrupt();
+            driver.join(5000);
+            driver = null;
+        }
+        if (gameThread != null) {
+            gameThread.shutdownNow();
+        }
+        SilentDefaults.setStrict(null);
+    }
+
+    /** Seat 0 is a {@code PlayerControllerHuman} on a {@link WebGuiGame}, as {@code HostedMatch} wires it; AI opponents. */
+    private void start(int players, int deckLands) {
+        SilentDefaults.reset();
+        SilentDefaults.setStrict(true);
+        gameThread = Executors.newSingleThreadExecutor(r -> new Thread(r, "Game-61"));
+        List<RegisteredPlayer> rps = new ArrayList<>();
+        rps.add(new RegisteredPlayer(lands(deckLands)).setPlayer(new LobbyPlayerHuman("You")));
+        for (int i = 1; i < players; i++) {
+            rps.add(new RegisteredPlayer(lands(deckLands)).setPlayer(new LobbyPlayerAi("ai" + i, null)));
+        }
+        GameRules rules = new GameRules(GameType.Constructed);
+        rules.setGamesPerMatch(1);
+        game = new Match(rules, rps, "Test").createGame();
+        me = game.getPlayers().get(0);
+        pch = (PlayerControllerHuman) me.getController();
+
+        stream = new GameStream(HiddenPolicy.REDACT, null);
+        WebSeats seats = new WebSeats(stream, new WebSeats.Timeouts(20_000, 20_000));
+        gui = seats.newSeat(0);
+        pch.setGui(gui);
+        gui.setGameView(null);
+        gui.setGameView(game.getView());
+        gui.setOriginalGameController(me.getView(), pch);
+        GameEventForwarder fwd = new GameEventForwarder(gui);
+        gui.setForwarder(fwd);
+        game.subscribeToEvents(fwd);
+        pch.getInputQueue().addObserver(fwd);
+        gui.openView(new TrackableCollection<>(me.getView()));
+        for (Player p : game.getPlayers()) {
+            p.updateOpponentsForView();
+        }
+        seat = new HumanSeatTriggersTest.Seat();
+        stream.addClient(seat, 0);
+    }
+
+    private static Deck lands(int n) {
+        Deck d = new Deck("lands");
+        if (n > 0) {
+            d.getMain().add("Plains", n);
+        }
+        return d;
+    }
+
+    /** A game already in play: {@code turn}'s main phase, ten Plains in each library. */
+    private void inPlay(Player turn) {
+        game.setAge(GameStage.Play);
+        for (Player p : game.getPlayers()) {
+            for (int i = 0; i < 10; i++) {
+                TestEngine.add("Plains", p, ZoneType.Library);
+            }
+        }
+        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, turn);
+        game.getPhaseHandler().onStackResolved();
+    }
+
+    private void action(String method, String extra) {
+        JsonObject a = JsonParser.parseString("{\"t\":\"action\",\"method\":\"" + method + "\"" + (extra == null ? "" : "," + extra) + "}").getAsJsonObject();
+        stream.clientMessage(0, a, seat);
+    }
+
+    private void concede() {
+        action("concede", null);
+    }
+
+    /** Runs the engine's main loop on the game thread until {@code done} (or the game ends). */
+    private Future<?> loop(BooleanSupplier done) {
+        final PhaseHandler ph = game.getPhaseHandler();
+        return gameThread.submit(() -> {
+            for (int i = 0; i < 2000 && !done.getAsBoolean() && !game.isGameOver(); i++) {
+                ph.mainLoopStep();
+            }
+        });
+    }
+
+    private static void waitFor(BooleanSupplier c, long ms, String what) throws InterruptedException {
+        long end = System.currentTimeMillis() + ms;
+        while (!c.getAsBoolean()) {
+            if (System.currentTimeMillis() > end) {
+                fail(what + ": not within " + ms + " ms");
+            }
+            Thread.sleep(10);
+        }
+    }
+
+    private void assertConceded(Player p) {
+        assertNotNull(p.getOutcome(), p + " has an outcome");
+        assertEquals(p.getOutcome().lossState, GameLossReason.Conceded, p + " conceded");
+    }
+
+    /** Answers the seat's setup questions as a player would: an AI starts, keep the hand. */
+    private void answerSetup() {
+        driver = new Thread(() -> {
+            Input acted = null;
+            long actedAt = 0;
+            try {
+                while (!Thread.currentThread().isInterrupted() && !game.isGameOver()) {
+                    Thread.sleep(20);
+                    Input in = pch.getInputQueue().getInput();
+                    if (in == null || !gui.session().pump().waiting() || in == acted && System.currentTimeMillis() - actedAt < 1000) {
+                        continue;
+                    }
+                    if (in instanceof InputSelectEntitiesFromList<?> && in != acted) {
+                        action("selectPlayer", "\"player\":" + game.getPlayers().get(1).getId());
+                    } else {
+                        action("selectButtonOk", null);
+                    }
+                    acted = in;
+                    actedAt = System.currentTimeMillis();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }, "seat-61");
+        driver.setDaemon(true);
+        driver.start();
+    }
+
+    @Test(timeOut = 120_000)
+    public void concedeDuringSetupEndsATwoPlayerGameAtTheSeatsFirstQuestion() throws Exception {
+        start(2, 20);
+        Player ai = game.getPlayers().get(1);
+        concede(); // the game thread is about to set up the zones (Match.prepareAllZones)
+        Thread.sleep(300);
+        assertFalse(me.hasLost(), "nothing changes the game off the game thread");
+        Future<?> f = gameThread.submit(() -> game.getMatch().startGame(game));
+        f.get(60, TimeUnit.SECONDS); // no exception (it was IndexOutOfBounds in prepareAllZones)
+        assertTrue(game.isGameOver());
+        assertConceded(me);
+        assertTrue(game.getOutcome().isWinner(ai.getLobbyPlayer()), "the AI won");
+        assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
+    }
+
+    @Test(timeOut = 120_000)
+    public void concedeDuringSetupOfAFourPlayerGameTakesEffectAtTheFirstPriorityAndTheOthersPlayOn() throws Exception {
+        start(4, 10);
+        List<Player> ais = new ArrayList<>(game.getPlayers().subList(1, 4));
+        concede();
+        Thread.sleep(300);
+        assertFalse(me.hasLost(), "nothing changes the game off the game thread");
+        answerSetup(); // the setup questions go on: the engine cannot leave out a player it asks during the mulligans
+        Future<?> f = gameThread.submit(() -> game.getMatch().startGame(game));
+        waitFor(me::hasLost, 60_000, "the concede took effect");
+        assertConceded(me);
+        assertEquals(game.getAge(), GameStage.Play, "at the first priority, after the mulligans");
+        f.get(90, TimeUnit.SECONDS); // the three AIs play until their 10-card libraries run out
+        assertTrue(game.isGameOver());
+        assertConceded(me);
+        int decked = 0;
+        for (Player ai : ais) {
+            if (ai.getOutcome() != null && ai.getOutcome().lossState == GameLossReason.Milled) {
+                decked++;
+            }
+        }
+        assertTrue(decked >= 2, "the others played on until all but one ran out of cards: " + game.getOutcome());
+        assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
+    }
+
+    @Test(timeOut = 120_000)
+    public void concedeDuringAnAiTurnOfAFourPlayerGameWaitsForTheGameThreadAndTheOthersPlayOn() throws Exception {
+        start(4, 0);
+        Player ai1 = game.getPlayers().get(1);
+        inPlay(ai1);
+        int turn = game.getPhaseHandler().getTurn();
+        concede(); // the AI's turn, no input of the seat waits
+        Thread.sleep(300);
+        assertFalse(me.hasLost(), "nothing changes the game off the game thread");
+        Future<?> f = loop(() -> game.getPhaseHandler().getTurn() > turn + 1);
+        f.get(60, TimeUnit.SECONDS);
+        assertConceded(me);
+        assertFalse(game.isGameOver(), "three players go on");
+        assertEquals(game.getPlayers().size(), 3);
+        assertFalse(game.getPlayers().contains(me), "the seat is out");
+        assertTrue(game.getPhaseHandler().getTurn() > turn + 1, "two more turns were played");
+        assertNotEquals(game.getPhaseHandler().getPlayerTurn(), me);
+        assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
+    }
+
+    @Test(timeOut = 120_000)
+    public void concedeAtTheSeatsOwnPriorityInAFourPlayerGamePassesAndTheOthersPlayOn() throws Exception {
+        start(4, 0);
+        inPlay(me);
+        int turn = game.getPhaseHandler().getTurn();
+        Future<?> f = loop(() -> game.getPhaseHandler().getTurn() > turn + 1);
+        waitFor(() -> pch.getInputQueue().getInput() instanceof InputPassPriority && gui.session().pump().waiting(), 30_000,
+                "the seat's priority");
+        concede(); // as the page sends it from a prompt other than priority: no OK after it
+        f.get(60, TimeUnit.SECONDS); // the seat answers nothing more
+        assertConceded(me);
+        assertFalse(game.isGameOver(), "three players go on");
+        assertFalse(game.getPlayers().contains(me), "the seat is out");
+        assertTrue(game.getPhaseHandler().getTurn() > turn + 1, "the others' turns were played");
+        assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
+    }
+
+    @Test(timeOut = 120_000)
+    public void concedeDuringAnAiTurnOfATwoPlayerGameEndsItOnTheGameThread() throws Exception {
+        start(2, 0);
+        Player ai = game.getPlayers().get(1);
+        inPlay(ai);
+        concede(); // the AI's turn, no input of the seat waits
+        Thread.sleep(300);
+        assertFalse(me.hasLost(), "nothing changes the game off the game thread");
+        loop(() -> false).get(60, TimeUnit.SECONDS); // no exception
+        assertTrue(game.isGameOver());
+        assertConceded(me);
+        assertTrue(game.getOutcome().isWinner(ai.getLobbyPlayer()), "the AI won");
+        assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
+    }
+
+    @Test(timeOut = 120_000)
+    public void concedeAtTheSeatsAttackDeclarationInAFourPlayerGameStopsItAndTheOthersPlayOn() throws Exception {
+        start(4, 0);
+        inPlay(me);
+        Card bears = TestEngine.add("Grizzly Bears", me, ZoneType.Battlefield);
+        bears.setSickness(false);
+        int turn = game.getPhaseHandler().getTurn();
+        Future<?> f = loop(() -> game.getPhaseHandler().getTurn() > turn + 1);
+        Input passed = null;
+        long end = System.currentTimeMillis() + 30_000;
+        while (!(pch.getInputQueue().getInput() instanceof InputAttack && gui.session().pump().waiting())) {
+            if (System.currentTimeMillis() > end) {
+                fail("the seat's attack declaration never came; input " + pch.getInputQueue().getInput() + ", phase "
+                        + game.getPhaseHandler().getPhase());
+            }
+            Input in = pch.getInputQueue().getInput();
+            if (in instanceof InputPassPriority && in != passed && gui.session().pump().waiting()) {
+                action("selectButtonOk", null); // pass priority: on to combat
+                passed = in;
+            }
+            Thread.sleep(10);
+        }
+        concede(); // the page sends no OK after it here: the seat is out, its input must not hold the others up
+        f.get(60, TimeUnit.SECONDS);
+        assertConceded(me);
+        assertFalse(game.isGameOver(), "three players go on");
+        assertFalse(game.getPlayers().contains(me), "the seat is out");
+        assertTrue(game.getPhaseHandler().getTurn() > turn + 1, "the others' turns were played");
+        assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
+    }
+}

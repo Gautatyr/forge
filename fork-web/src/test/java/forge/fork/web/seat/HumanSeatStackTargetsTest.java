@@ -40,7 +40,6 @@ import forge.gamemodes.match.input.Input;
 import forge.gamemodes.match.input.InputPassPriority;
 import forge.gamemodes.match.input.InputPayMana;
 import forge.gamemodes.match.input.InputSelectStackItems;
-import forge.gui.GuiBase;
 import forge.gui.control.GameEventForwarder;
 import forge.player.LobbyPlayerHuman;
 import forge.player.PlayerControllerHuman;
@@ -178,9 +177,8 @@ public class HumanSeatStackTargetsTest {
                 acted = in;
             }
             promptsAtAct = seat.count("showPromptMessage");
-            // Let the EDT finish first: InputPayMana.updateMessage swaps the player's controller for an AI one there
-            // (runAsAi), and the game thread reading the swapped controller lets the AI decide (issue #60).
-            GuiBase.getInterface().invokeInEdtAndWait(() -> { });
+            // No EDT drain here (issue #60): InputPayMana.updateMessage swaps the player's controller for an AI one on
+            // the EDT (runAsAi); InputPump runs the EDT's input work while the game thread waits, never alongside it.
             Runnable r = onInput.apply(in);
             (r == null ? (Runnable) this::ok : r).run();
             synced = false;

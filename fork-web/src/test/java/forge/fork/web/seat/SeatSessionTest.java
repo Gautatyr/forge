@@ -38,7 +38,10 @@ import forge.game.card.CardCopyService;
 import forge.game.card.CardView;
 import forge.game.event.GameEvent;
 import forge.game.event.GameEventCombatChanged;
+import forge.game.event.GameEventGameFinished;
+import forge.game.event.GameEventPlayerPriority;
 import forge.game.event.GameEventShuffle;
+import forge.game.phase.PhaseType;
 import forge.game.player.Player;
 import forge.game.zone.ZoneType;
 import forge.gui.interfaces.IGuiGame;
@@ -891,17 +894,97 @@ public class SeatSessionTest {
         get(waiting);
     }
 
+    /** The engine's safe point while no input of the seat waits: a player gets priority (issue #61). */
+    private void priorityOnTheGameThread() throws Exception {
+        get(onGameThread(() -> {
+            game.fireEvent(new GameEventPlayerPriority(p1.getView(), PhaseType.MAIN1, p1.getView()));
+            return null;
+        }));
+    }
+
     @Test
-    public void inputActionsWithNoInputWaitingAreNotRunOthersAre() throws Exception {
+    public void withNoInputWaitingInputActionsAreDroppedAndGameActionsWaitForTheGameThread() throws Exception {
         start();
+        Card mine = TestEngine.add("Grizzly Bears", p0, ZoneType.Hand);
+        stream.publish(List.of(), false);
         action("{\"t\":\"action\",\"method\":\"selectButtonOk\"}");
-        action("{\"t\":\"action\",\"method\":\"concede\"}");
-        assertEquals(controllerCalls.poll(5, TimeUnit.SECONDS), "concede", "OK found no input; concede needs none");
-        assertEquals(callThreads.poll(), "web-seat-0");
-        assertNull(controllerCalls.poll(200, TimeUnit.MILLISECONDS));
+        // (sendYieldUpdate needs a PlayerControllerHuman: HumanSeatConcedeTest)
+        for (String m : List.of("concede", "drawOfferAction\",\"action\":\"OFFER")) {
+            action("{\"t\":\"action\",\"method\":\"" + m + "\"}");
+        }
+        action("{\"t\":\"action\",\"method\":\"reorderHand\",\"card\":" + mine.getId() + ",\"index\":0}");
+        action("{\"t\":\"action\",\"method\":\"getActivateDescription\",\"card\":" + mine.getId() + "}");
+        assertNull(controllerCalls.poll(300, TimeUnit.MILLISECONDS), "nothing runs while the game thread is busy elsewhere");
+        priorityOnTheGameThread();
+        assertEquals(new ArrayList<>(controllerCalls), List.of("concede", "drawOfferAction OFFER",
+                "reorderHand card" + mine.getId() + " 0", "getActivateDescription card" + mine.getId()), "OK found no input");
+        assertEquals(new ArrayList<>(callThreads), List.of("Game-test", "Game-test", "Game-test", "Game-test"));
+        assertEquals(client.next("activateDescription").get("card").getAsInt(), mine.getId());
         for (JsonObject m : client.msgs) {
             assertFalse(m.get("t").getAsString().endsWith("ejected"), "not an error: " + m);
         }
+    }
+
+    @Test
+    public void aGameActionSentWhileTheGameRunsRunsAtTheSeatsNextInput() throws Exception {
+        start();
+        action("{\"t\":\"action\",\"method\":\"concede\"}");
+        assertNull(controllerCalls.poll(300, TimeUnit.MILLISECONDS));
+        CountDownLatch done = new CountDownLatch(1);
+        Future<Void> waiting = waitForInput(done);
+        assertEquals(controllerCalls.poll(5, TimeUnit.SECONDS), "concede");
+        assertEquals(callThreads.poll(), "Game-test");
+        done.countDown();
+        get(waiting);
+    }
+
+    @Test
+    public void gameActionsKeepTheirOrderWithInputActions() throws Exception {
+        start();
+        CountDownLatch done = new CountDownLatch(1);
+        Future<Void> waiting = waitForInput(done);
+        // the page's concede at priority: concede, then pass
+        action("{\"t\":\"action\",\"method\":\"concede\"}");
+        action("{\"t\":\"action\",\"method\":\"selectButtonOk\"}");
+        assertEquals(controllerCalls.poll(5, TimeUnit.SECONDS), "concede");
+        assertEquals(controllerCalls.poll(5, TimeUnit.SECONDS), "selectButtonOk");
+        assertEquals(new ArrayList<>(callThreads), List.of("Game-test", "Game-test"));
+        done.countDown();
+        get(waiting);
+    }
+
+    @Test
+    public void gameActionsLeftWhenTheGameEndsAreRejected() throws Exception {
+        start();
+        action("{\"t\":\"action\",\"method\":\"concede\"}");
+        assertNull(controllerCalls.poll(300, TimeUnit.MILLISECONDS));
+        get(onGameThread(() -> {
+            game.fireEvent(new GameEventGameFinished());
+            return null;
+        }));
+        assertEquals(client.next("actionRejected").get("reason").getAsString(), "game over");
+        priorityOnTheGameThread();
+        assertNull(controllerCalls.poll(300, TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    public void aGameActionSentAsTheGameEndsIsNotAppliedToTheMatchsNextGame() throws Exception {
+        start();
+        get(onGameThread(() -> {
+            game.fireEvent(new GameEventGameFinished());
+            return null;
+        }));
+        action("{\"t\":\"action\",\"method\":\"concede\"}"); // sent before the seat saw the end
+        assertNull(controllerCalls.poll(300, TimeUnit.MILLISECONDS));
+        game = TestEngine.newGame(2); // the match's next game
+        p0 = game.getPlayers().get(0);
+        p1 = game.getPlayers().get(1);
+        gui.setGameView(null); // as HostedMatch does for each game
+        gui.setGameView(game.getView());
+        gui.openView(new TrackableCollection<>(p0.getView()));
+        priorityOnTheGameThread();
+        assertEquals(client.next("actionRejected").get("reason").getAsString(), "game over");
+        assertNull(controllerCalls.poll(300, TimeUnit.MILLISECONDS), "the next game is not conceded");
     }
 
     @Test
@@ -965,6 +1048,38 @@ public class SeatSessionTest {
         action("{\"t\":\"action\",\"method\":\"selectButtonOk\"}");
         get(waiting);
         assertEquals(order, List.of("input display queued before", "action", "refresh the action queued", "game goes on"));
+    }
+
+    /**
+     * Issue #60: an input that ends on the EDT (its display stops it, e.g. {@code InputPayMana.showMessage} once paid)
+     * lets the game go on only once that EDT work is over: {@code InputPayMana.updateMessage} swaps the player's
+     * controller for an AI one there ({@code runAsAi}), and the game thread must not read it meanwhile.
+     */
+    @Test
+    public void anInputEndedOnTheEdtLetsTheGameGoOnOnlyOnceTheEdtWorkIsOver() throws Exception {
+        start();
+        List<String> order = new CopyOnWriteArrayList<>();
+        CountDownLatch done = new CountDownLatch(1);
+        Future<Void> waiting = waitForInput(done);
+        CountDownLatch inEdt = new CountDownLatch(1);
+        FThreads.invokeInEdtLater(() -> {
+            done.countDown();
+            inEdt.countDown();
+            sleep(300);
+            order.add("EDT work after the input ended"); // runAsAi swaps the controller back
+        });
+        assertTrue(inEdt.await(5, TimeUnit.SECONDS));
+        get(onGameThreadAfter(waiting, () -> order.add("game goes on")));
+        assertEquals(order, List.of("EDT work after the input ended", "game goes on"));
+    }
+
+    /** Runs {@code then} on the game thread once {@code first} (queued there before it) is over. */
+    private Future<Void> onGameThreadAfter(Future<Void> first, Runnable then) {
+        return onGameThread(() -> {
+            assertTrue(first.isDone());
+            then.run();
+            return null;
+        });
     }
 
     @Test

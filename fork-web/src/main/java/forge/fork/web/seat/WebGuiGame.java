@@ -12,6 +12,7 @@ import forge.game.spellability.SpellAbilityView;
 import forge.gamemodes.match.input.Input;
 import forge.gamemodes.match.input.InputBlock;
 import forge.gamemodes.match.input.InputSelectEntitiesFromList;
+import forge.gamemodes.match.input.InputSynchronized;
 import forge.gamemodes.net.ProtocolGuiGame;
 import forge.interfaces.IGameController;
 import forge.localinstance.properties.ForgePreferences.FPref;
@@ -31,6 +32,8 @@ public final class WebGuiGame extends ProtocolGuiGame {
 
     private final SeatSession session;
     private volatile PlayerControllerHuman human;
+    /** The input {@link #stopIfOut} stopped last (game thread only). */
+    private Input stopped;
 
     WebGuiGame(SeatSession session) {
         super(session);
@@ -81,7 +84,25 @@ public final class WebGuiGame extends ProtocolGuiGame {
     /** The game thread waits for this seat's input here and runs the seat's actions meanwhile ({@link InputPump}). */
     @Override
     public void awaitInput(final CountDownLatch done) throws InterruptedException {
-        session.pump().await(done);
+        session.pump().await(done, this::stopIfOut);
+    }
+
+    /**
+     * Game thread: a seat out of a game that goes on (it conceded at one of its inputs) holds the others up no longer:
+     * the input it was asked is stopped unanswered. {@code InputPassPriority} then passes (as upstream's AFK timeout
+     * stops it); any other input ends with what the seat recorded so far (no attackers or blockers, an unpaid cost
+     * cancels its spell).
+     */
+    private Runnable stopIfOut() {
+        PlayerControllerHuman pch = human;
+        if (pch == null || !pch.getPlayer().hasLost() || pch.getGame().isGameOver()) {
+            return null;
+        }
+        if (!(pch.getInputQueue().getInput() instanceof InputSynchronized in) || in == stopped) {
+            return null;
+        }
+        stopped = in;
+        return in::stop;
     }
 
     /**

@@ -50,6 +50,7 @@ class HumanSeat extends Stream {
       case 'actionRejected': if (this.stats.actionRejected.length < 20) this.stats.actionRejected.push(m); return true;
       case 'rejected': this.fail(`rejected: ${JSON.stringify(m)}`); return true;
       case 'activateDescription': return true;
+      case 'blockOptions': return true; // sent with each InputBlock; this seat answers it from its selectables and buttons
       default: return false;
     }
   }

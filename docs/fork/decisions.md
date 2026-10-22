@@ -170,3 +170,8 @@ Newest last. Each entry: the decision, why, and what it implies.
 - **Why:** upstream is building its own `forge-gui-web` module (package `forge.web`, artifactId `forge-gui-web`); the old names would give add/add conflicts on sync.
 - Unchanged: runtime flags `-Dforge.web.strictPrompts`, `forge.web.sweep.*`, and the prefs file `preferences/fork-web.preferences`. Older entries keep the old names.
 - Fork code goes under `forge.fork.*`; never reuse upstream's `forge.web` or a `forge-gui-*` module name.
+
+## 2026-10-22 — Human seat: game actions at safe points, out seats, EDT end of wait (issues #60, #61)
+- `concede`, `reorderHand`, `drawOfferAction`, `sendYieldUpdate`, `getActivateDescription` run on the game thread at its next safe point (the seat's next input wait, or a player's priority), never on the seat's thread while the game runs; left over at game end, or sent as it ended, they are rejected, never applied to the next game. In a game that goes on without the seat, a concede sent during setup waits for the first priority (the engine still asks it for its mulligan).
+- A seat out of a game that goes on has its waiting input stopped unanswered (priority passes; attackers, blockers, payments end with what it recorded).
+- A seat's input wait ends only once the EDT has run what was queued before it ended (`InputPayMana.updateMessage` swaps the controller for an AI one there). Fork code only, no upstream file changed; details: `docs/fork/audit/human-seat.md`, "Threading".

@@ -1,6 +1,7 @@
 package forge.fork.web.seat;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -12,14 +13,18 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import com.google.common.eventbus.Subscribe;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import forge.game.Game;
+import forge.game.GameStage;
 import forge.game.GameView;
 import forge.game.card.Card;
 import forge.game.card.CardView;
+import forge.game.event.GameEventGameFinished;
+import forge.game.event.GameEventPlayerPriority;
 import forge.game.phase.PhaseType;
 import forge.game.player.Player;
 import forge.game.player.PlayerView;
@@ -52,8 +57,9 @@ import forge.fork.web.bridge.SeatRefs;
  *
  * <p>Client to server: {@code {"t":"reply","id","value"}} (handled on the transport thread: decode
  * and complete, never blocks) and {@code {"t":"action","method",…}}, the 16 player actions, taken in
- * order by this seat's own thread and run on the game thread waiting for the seat's input
- * ({@link InputPump}; they may wait on a prompt, e.g. selecting a card with several abilities). Card ids are the
+ * order by this seat's own thread and run on the game thread waiting for the seat's input, or for
+ * {@link #GAME_ACTIONS} at its next safe point ({@link InputPump}; they may wait on a prompt, e.g. selecting a card
+ * with several abilities). Card ids are the
  * seat's wire ids, resolved through the seat's stream to engine ids and then to the engine's current card
  * ({@code Game.findById}), never through the tracker.
  */
@@ -70,6 +76,14 @@ final class SeatSession implements IRemote {
     static final Set<String> INPUT_ACTIONS = Set.of("selectButtonOk", "selectButtonCancel", "selectCard", "selectPlayer",
             "selectStackItem", "selectAbility", "useMana", "alphaStrike", "undoLastAction");
 
+    /**
+     * Actions that need no input but read or change the game: they run on the game thread at its next safe point
+     * ({@link InputPump#defer}), never alongside it (issue #61). Others ({@code nextGameDecision} once the game is over,
+     * {@code requestResync}) touch no game state.
+     */
+    static final Set<String> GAME_ACTIONS = Set.of("concede", "reorderHand", "drawOfferAction", "sendYieldUpdate",
+            "getActivateDescription");
+
     private final int seat;
     private final WebSeats match;
     private final PendingPrompts prompts = new PendingPrompts();
@@ -78,6 +92,8 @@ final class SeatSession implements IRemote {
     private final InputPump pump;
     private volatile IGameController controller;
     private volatile GameView gameView;
+    /** The game whose safe points this seat listens to. */
+    private Game safePointsOf;
     /** Set by {@link #close}; guarded by {@link #out} for sends, so nothing reaches the seat once it is set. */
     private volatile boolean closed;
     private final Object out = new Object();
@@ -113,6 +129,7 @@ final class SeatSession implements IRemote {
         }
         actions.shutdown();
         prompts.closeAll(PendingPrompts.Close.CANCELLED);
+        pump.dropDeferred();
     }
 
     boolean isClosed() {
@@ -131,6 +148,25 @@ final class SeatSession implements IRemote {
         sticky.clear();
         if (!closed) {
             match.bindGame(this, gv);
+        }
+        Game game = gv == null ? null : gv.getGame();
+        if (game != null && game != safePointsOf) {
+            safePointsOf = game;
+            game.subscribeToEvents(new SafePoints());
+        }
+    }
+
+    /** The game's events this seat's deferred actions wait for (game thread). */
+    public final class SafePoints {
+        /** A player gets priority: state-based actions are done and nothing resolves, the seat's actions may run. */
+        @Subscribe
+        public void priority(GameEventPlayerPriority e) {
+            pump.runDeferred();
+        }
+
+        @Subscribe
+        public void finished(GameEventGameFinished e) {
+            pump.dropDeferred();
         }
     }
 
@@ -384,8 +420,9 @@ final class SeatSession implements IRemote {
     }
 
     /**
-     * Seat's action thread: runs one action on the game thread waiting for the seat's input. With none, an input action
-     * is not run and any other runs here (concede, yield settings, hand order, while the game thread is busy).
+     * Seat's action thread: runs one action on the game thread waiting for the seat's input; with none, an input action
+     * is not run. A {@link #GAME_ACTIONS game action} waits for the game thread's next safe point instead. Any other
+     * runs here when no input waits.
      */
     private void dispatch(JsonObject msg, ClientSink from) {
         String method = str(msg, "method");
@@ -400,6 +437,19 @@ final class SeatSession implements IRemote {
                 from.send(rejected("actionRejected", msg, "failed: " + e.getClass().getSimpleName()));
             }
         };
+        if (GAME_ACTIONS.contains(method)) {
+            // for the game it was sent in: one that ended first leaves it rejected, never applied to the match's next game
+            Game sentIn = currentGame();
+            Runnable reject = () -> from.send(rejected("actionRejected", msg, closed ? "seat closed" : "game over"));
+            pump.defer(() -> {
+                if (sentIn != null && sentIn != currentGame()) {
+                    reject.run();
+                } else {
+                    run.run();
+                }
+            }, "concede".equals(method) ? this::mayConcede : () -> true, reject);
+            return;
+        }
         try {
             if (pump.offer(run, this::inputSet, () -> closed)) {
                 return;
@@ -413,6 +463,32 @@ final class SeatSession implements IRemote {
         } else {
             run.run();
         }
+    }
+
+    /** The game this seat is bound to now (any thread). */
+    private Game currentGame() {
+        GameView gv = gameView;
+        return gv == null ? null : gv.getGame();
+    }
+
+    /**
+     * Game thread: a concede may run now, unless the game is still being set up and goes on without the seat. The
+     * engine ends a game conceded during its setup questions ("play or draw", mulligans), but keeps asking a player out
+     * of a multiplayer game for its mulligan; there the concede waits for the first priority.
+     */
+    private boolean mayConcede() {
+        Game game = currentGame();
+        if (game == null || game.getAge() == GameStage.Play || game.isGameOver()
+                || !(controller instanceof PlayerControllerHuman pch)) {
+            return true;
+        }
+        Set<Integer> teams = new HashSet<>();
+        for (Player p : game.getPlayers()) {
+            if (p != pch.getPlayer()) {
+                teams.add(p.getTeam());
+            }
+        }
+        return teams.size() <= 1;
     }
 
     /** The game thread set an input of this seat (it may not wait for it yet). */
@@ -440,6 +516,9 @@ final class SeatSession implements IRemote {
                 c.selectButtonCancel();
                 return null;
             case "concede":
+                if (game.isGameOver()) {
+                    return "game over"; // the outcome is recorded
+                }
                 c.concede();
                 return null;
             case "alphaStrike":

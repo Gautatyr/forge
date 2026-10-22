@@ -1,12 +1,17 @@
 package forge.fork.web.seat;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 import forge.gui.FThreads;
 import forge.gui.GuiBase;
+import forge.util.ThreadUtil;
 
 /**
  * Runs one human seat's actions on the game thread that waits for the seat's input ({@code IGuiGame.awaitInput}, the
@@ -20,8 +25,17 @@ import forge.gui.GuiBase;
  * has run what the action queued: EDT work reads the game while the game thread waits here. {@link #whileIdle} lets
  * other threads read the game at those times only.
  *
- * <p>Threads: {@link #await} on the game thread (nested when an action opens another input); {@link #offer} on the
- * seat's action thread, one action at a time; {@link #whileIdle} on any thread.
+ * <p>A wait ends once the EDT has run what was queued before it ended, wherever the input ended: the EDT's input work
+ * ({@code InputPayMana.updateMessage} swaps the player's controller for an AI one there) never overlaps the game thread
+ * going on (issue #60).
+ *
+ * <p>Actions that need no input ({@link #defer}: concede, hand order, yield settings…) run on the game thread too, at its
+ * next safe point: while it waits here, or at a player's priority ({@link #runDeferred}), whichever comes first (issue
+ * #61; before, they ran on the seat's thread while the game ran).
+ *
+ * <p>Threads: {@link #await} and {@link #runDeferred} on the game thread ({@code await} nested when an action opens
+ * another input); {@link #offer} on the seat's action thread, one action at a time; {@link #defer},
+ * {@link #dropDeferred} and {@link #whileIdle} on any thread.
  */
 final class InputPump {
 
@@ -45,9 +59,13 @@ final class InputPump {
         }
     }
 
+    /** An action for the game thread's next safe point where {@code ready} holds; {@code drop} if it never runs. */
+    private record Deferred(Runnable action, BooleanSupplier ready, Runnable drop) { }
+
     private final String label;
     private final Object lock = new Object();
     private final ArrayDeque<Job> jobs = new ArrayDeque<>();
+    private final ArrayDeque<Deferred> deferred = new ArrayDeque<>();
     /** Waits of the game thread in progress (nested: an action opened another input). */
     private int depth;
     /** The game thread waits here and runs nothing. */
@@ -63,9 +81,11 @@ final class InputPump {
 
     /**
      * Game thread: waits for an input of the seat to be done ({@code done} opens), running the seat's actions here
-     * meanwhile. Actions still queued when it ends are handed back ({@link #offer} returns false).
+     * meanwhile, deferred ones first (they were sent first). Actions still queued when it ends are handed back
+     * ({@link #offer} returns false). {@code auto} is asked on the game thread before each wait for an action: an
+     * action it returns runs as the seat's (a seat out of the game stops its input).
      */
-    void await(CountDownLatch done) throws InterruptedException {
+    void await(CountDownLatch done, Supplier<Runnable> auto) throws InterruptedException {
         boolean wasIdle;
         synchronized (lock) {
             if (depth == 0) {
@@ -79,9 +99,11 @@ final class InputPump {
         }
         try {
             while (done.getCount() > 0) {
+                Runnable a = auto.get();
                 Job j;
                 synchronized (lock) {
-                    j = jobs.poll();
+                    Deferred d = a == null ? nextReady() : null;
+                    j = a != null ? new Job(a) : d != null ? new Job(d.action) : jobs.poll();
                     if (j == null) {
                         lock.wait(POLL_MS);
                         continue;
@@ -89,6 +111,10 @@ final class InputPump {
                 }
                 runJob(j);
             }
+            // The input may have ended on the EDT (its display stopped it) with work left there, e.g. the rest of
+            // InputPayMana.updateMessage, which swaps the player's controller for an AI one (runAsAi): the game goes
+            // on once it is over (issue #60).
+            edtBarrier("after the input ended");
         } finally {
             synchronized (lock) {
                 depth--;
@@ -164,6 +190,70 @@ final class InputPump {
                 lock.wait(100); // the action may wait on a prompt: bounded by the seat's prompt timeout
             }
         }
+    }
+
+    /**
+     * Any thread: runs {@code action} on the game thread at its next safe point where {@code ready} holds (checked
+     * there): while it waits for this seat's input, or at a player's priority ({@link #runDeferred}); in order with the
+     * seat's other actions. {@code drop} runs instead if the game ends first ({@link #dropDeferred}).
+     */
+    void defer(Runnable action, BooleanSupplier ready, Runnable drop) {
+        synchronized (lock) {
+            deferred.add(new Deferred(action, ready, drop));
+            lock.notifyAll();
+        }
+    }
+
+    /**
+     * Game thread, at a safe point outside this seat's input waits (a player gets priority: state-based actions done,
+     * nothing resolving): runs the deferred actions that are ready, then lets the EDT run what they queued.
+     */
+    void runDeferred() {
+        if (!ThreadUtil.isGameThread()) {
+            return;
+        }
+        boolean ran = false;
+        while (true) {
+            Deferred d;
+            synchronized (lock) {
+                if (depth > 0) {
+                    return; // inside a wait of this seat: its loop runs them
+                }
+                d = nextReady();
+            }
+            if (d == null) {
+                break;
+            }
+            ran = true;
+            d.action.run();
+        }
+        if (ran) {
+            edtBarrier("after a deferred action");
+        }
+    }
+
+    /** The game ended or the seat closed: deferred actions will not run; each one's {@code drop} runs instead. */
+    void dropDeferred() {
+        List<Deferred> l;
+        synchronized (lock) {
+            l = new ArrayList<>(deferred);
+            deferred.clear();
+        }
+        for (Deferred d : l) {
+            d.drop.run();
+        }
+    }
+
+    /** Under {@link #lock}: removes and returns the first deferred action that is ready, if any. */
+    private Deferred nextReady() {
+        for (Iterator<Deferred> it = deferred.iterator(); it.hasNext();) {
+            Deferred d = it.next();
+            if (d.ready.getAsBoolean()) {
+                it.remove();
+                return d;
+            }
+        }
+        return null;
     }
 
     /**
