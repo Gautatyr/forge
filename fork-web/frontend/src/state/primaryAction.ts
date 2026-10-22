@@ -4,6 +4,7 @@ import { player, targetName } from '../model/selectors';
 import type { ChoicePrompt, GameView, StepId } from '../model/types';
 import { distributeConfirm, inputConfirm, inputStart, startAmounts } from '../components/tray/numberLogic';
 import { trayConfirm, trayDraft } from '../components/tray/trayLogic';
+import { incoming, incomingText, strikeDamage } from './combatForecast';
 import { watching } from './gameEnd';
 import type { StopPrefs } from './prefs';
 import { nextStopLabel } from './stops';
@@ -88,9 +89,11 @@ export function primaryAction(game: GameView, ui: UiState, stops: StopPrefs): Pr
     }
     case 'chooseTargets': {
       const name = game.cards[d.sourceCardId]?.name ?? 'spell';
+      if (d.purpose === 'pick') return pickAction(game, d);
       const ready = d.chosen.length >= d.min;
+      const label = d.ability === 'activated' ? `Activate ${name}` : d.ability === 'triggered' ? 'Confirm targets' : `Cast ${name}`;
       return {
-        label: ready ? `Cast ${name}` : 'Choose a target',
+        label: ready ? label : 'Choose a target',
         detail: ready ? `Target: ${d.chosen.map((t) => targetName(game, t)).join(', ')}` : d.instruction,
         enabled: ready,
         tone: 'priority',
@@ -99,18 +102,18 @@ export function primaryAction(game: GameView, ui: UiState, stops: StopPrefs): Pr
     }
     case 'declareAttackers': {
       const n = d.draft.length;
-      const power = d.draft.reduce((s, a) => s + (game.cards[a.attackerId]?.power ?? 0), 0);
+      const damage = d.draft.reduce((s, a) => s + strikeDamage(game.cards[a.attackerId]), 0);
       return n === 0
         ? { label: 'Skip attack', detail: 'No creatures attack this turn', enabled: true, tone: 'neutral', intent: { type: 'primary' } }
-        : { label: `Attack with ${n}`, detail: `${power} power in total`, enabled: true, tone: 'attack', intent: { type: 'primary' } };
+        : { label: `Attack with ${n}`, detail: `${damage} damage if unblocked`, enabled: true, tone: 'attack', intent: { type: 'primary' } };
     }
     case 'declareBlockers': {
       const n = d.draft.length;
-      const unblocked = d.attackers.filter((a) => !d.draft.some((b) => b.attackerId === a));
-      const dmg = unblocked.reduce((s, a) => s + (game.cards[a]?.power ?? 0), 0);
+      // Every attack on you, also the ones you have no blocker for (issue #79).
+      const forecast = incoming(game, [...(game.combat?.blocks ?? []), ...d.draft]);
       return {
         label: n === 0 ? 'No blocks' : `Block with ${n}`,
-        detail: `You take ${dmg} damage from unblocked attackers`,
+        detail: incomingText(game, forecast),
         enabled: true,
         tone: n === 0 ? 'neutral' : 'block',
         intent: { type: 'primary' },
@@ -140,11 +143,49 @@ export function primaryAction(game: GameView, ui: UiState, stops: StopPrefs): Pr
   }
 }
 
+/** Verbs of the engine's pick messages ("Select creature to sacrifice", "Discard 2 card(s)"), as the button says them. */
+const PICK_VERBS = ['discard', 'sacrifice', 'exile', 'return', 'reveal', 'tap', 'untap', 'put'];
+
+/** The first verb of the engine's message the screen knows, else "Choose". */
+export function pickVerb(instruction: string): string {
+  let best: { at: number; verb: string } | undefined;
+  for (const verb of PICK_VERBS) {
+    const at = instruction.search(new RegExp(`\\b${verb}\\b`, 'i'));
+    if (at >= 0 && (!best || at < best.at)) best = { at, verb };
+  }
+  return best ? best.verb.charAt(0).toUpperCase() + best.verb.slice(1) : 'Choose';
+}
+
+/**
+ * Cards or players picked for a cost or an effect (issue #81): "Discard (1)", "Sacrifice (1)", "Choose 1 more", in
+ * the tray's confirm words, never "Cast"; an optional pick says how many it allows.
+ */
+function pickAction(game: GameView, d: Extract<GameView['decision'], { kind: 'chooseTargets' }>): PrimaryAction {
+  const n = d.chosen.length;
+  const range = d.min === d.max ? '' : d.min === 0 ? `up to ${d.max}` : `${d.min} to ${d.max}`;
+  const withRange = (s: string) => [s, range].filter(Boolean).join(' · ');
+  const verb = pickVerb(d.instruction);
+  if (n < d.min) return { label: `Choose ${d.min - n} more`, detail: withRange(d.instruction), enabled: false, tone: 'priority' };
+  return {
+    label: n === 0 ? `${verb} none` : `${verb} (${n})`,
+    detail: withRange(n === 0 ? d.instruction : d.chosen.map((t) => targetName(game, t)).join(', ')),
+    enabled: true,
+    tone: 'priority',
+    intent: { type: 'primary' },
+  };
+}
+
+/** The Cancel button's words: what declining does when it is a game choice (an "unless" cost, issue #81). */
+export function cancelLabel(game: GameView): string {
+  const d = game.decision;
+  return d.kind === 'chooseTargets' && d.decline ? `Decline: ${d.decline.replace(/\.$/, '')}` : 'Cancel';
+}
+
 /** Cancel (button and Esc): a half-cast spell or ability, a choice the engine lets you back out of, a combat draft. */
 export function canCancel(game: GameView, ui: UiState): boolean {
   const d = game.decision;
   return (
-    d.kind === 'chooseTargets' ||
+    (d.kind === 'chooseTargets' && (d.purpose !== 'pick' || d.cancellable !== false)) ||
     d.kind === 'payMana' ||
     (d.kind === 'choice' && d.cancellable === true) ||
     ((d.kind === 'declareAttackers' || d.kind === 'declareBlockers') && d.draft.length > 0) ||
@@ -187,8 +228,11 @@ export function promptText(game: GameView): string {
       const whose = yours ? 'Your' : `${player(game, game.turn.activePlayerId).name}'s`;
       return `${whose} turn · ${stepPhrase(game.turn.step)}.`;
     }
-    case 'chooseTargets':
-      return `${d.instruction} for ${game.cards[d.sourceCardId]?.name ?? 'this spell'}.`;
+    case 'chooseTargets': {
+      const name = game.cards[d.sourceCardId]?.name;
+      if (d.purpose === 'pick') return `${name ? `${name}: ` : ''}${d.instruction.replace(/\.$/, '')}.`;
+      return `${d.instruction} for ${name ?? 'this spell'}.`;
+    }
     case 'payMana':
       return 'Click your lands or creatures that add mana.';
     case 'declareAttackers':

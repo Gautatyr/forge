@@ -158,6 +158,13 @@
   margin-left: auto;
 }
 
+/* Cancel's words: a declined cost names what happens instead, cut with an ellipsis (full text on hover). */
+.cancelText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Undo always first, To my turn / Stop passing always second: fixed columns. */
 .persistent {
   flex: none;

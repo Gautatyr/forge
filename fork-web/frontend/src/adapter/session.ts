@@ -4,7 +4,7 @@
  * human seat"). `apply` returns 'resync' when the stream broke (seq gap); the caller then asks for a
  * snapshot and the session drops deltas until it comes.
  */
-import type { AttackOptionsMessage, BlockOptionsMessage, HelloMessage, LogEntry as WireLogEntry, SnapshotMessage, WireObject } from '../wire/generated/wire';
+import type { AttackOptionsMessage, BlockOptionsMessage, HelloMessage, InputInfo, LogEntry as WireLogEntry, SnapshotMessage, WireObject } from '../wire/generated/wire';
 import { hasDrift, schemaDrift, type SchemaDrift } from '../wire/schemaDrift';
 import { asRef, type PromptMessage, type SeatRef, type ServerFrame } from './protocol';
 
@@ -37,6 +37,8 @@ export interface InputState {
   targets: SeatRef[];
   /** Chosen so far (setSelection chosen). */
   highlighted: SeatRef[];
+  /** What a selection input asks, sent with its message (issue #81): targets or a pick. */
+  info?: InputInfo;
   /**
    * InputLondonMulligan: the cards it asks for, counted at its first message (left + chosen). Later
    * messages can't tell: its end (done: resetCardHighlights, then stop) reads "Return 0", nothing chosen.
@@ -274,7 +276,7 @@ export class LiveSession {
         return 'ok';
       }
       case 'call':
-        this.applyCall(frame.method, frame.args);
+        this.applyCall(frame.method, frame.args, frame.input);
         return 'ok';
       case 'prompt':
         // A reconnect greeting re-sends open prompts: replace, never duplicate.
@@ -313,7 +315,7 @@ export class LiveSession {
     }
   }
 
-  private applyCall(method: string, args: unknown[]) {
+  private applyCall(method: string, args: unknown[], info?: InputInfo) {
     const a = args;
     switch (method) {
       case 'showPromptMessage': {
@@ -335,6 +337,7 @@ export class LiveSession {
           cardId: card !== undefined && card >= 0 ? card : undefined,
           namesCard: card !== undefined,
           london: left === undefined ? undefined : (this.input.london ?? left + chosen),
+          info,
         };
         return;
       }

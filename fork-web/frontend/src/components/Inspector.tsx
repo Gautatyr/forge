@@ -18,7 +18,7 @@ export function Inspector() {
   const face = currentFace(c);
   const faces: { face: CardFace; label: string; inPlay: boolean }[] = [
     { face: c.front, label: c.back ? 'Front face' : 'Card', inPlay: !c.transformed },
-    ...(c.back ? [{ face: c.back, label: 'Back face', inPlay: !!c.transformed }] : []),
+    ...(c.back ? [{ face: c.back, label: c.faceDown?.seen ? 'Face down' : 'Back face', inPlay: !!c.transformed }] : []),
   ];
   const owner = player(game, c.ownerId);
   const controller = player(game, c.controllerId);

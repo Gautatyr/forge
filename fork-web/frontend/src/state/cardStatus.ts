@@ -84,11 +84,14 @@ export function cardStatus(game: GameView, ui: UiState, id: CardId): CardStatus 
   if (d.kind === 'chooseTargets') {
     const legal = d.legal.some((t) => t.kind === 'card' && t.id === id);
     const chosen = d.chosen.some((t) => t.kind === 'card' && t.id === id);
+    // A pick for a cost or an effect (a discard, a sacrifice) is no target: the plain actionable ring, as an in-place
+    // choice (issue #81); the card being cast or activated reads as chosen only while you pick its targets.
+    const pick = d.purpose === 'pick';
+    const source = !pick && id === d.sourceCardId;
     s.actionable = legal;
-    s.actionKind = legal ? 'target' : undefined;
-    // The card being cast reads as chosen too.
-    s.selected = chosen || id === d.sourceCardId;
-    s.dimmed = !legal && id !== d.sourceCardId && c.zone === 'battlefield';
+    s.actionKind = legal && !pick ? 'target' : undefined;
+    s.selected = chosen || source;
+    s.dimmed = !legal && !source && c.zone === 'battlefield';
   }
 
   // Combat: committed attacks/blocks and the draft being built.
