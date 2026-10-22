@@ -37,6 +37,8 @@ import forge.game.player.RegisteredPlayer;
 import forge.game.zone.ZoneType;
 import forge.gamemodes.match.input.Input;
 import forge.gamemodes.match.input.InputPassPriority;
+import forge.gamemodes.match.input.InputSelectCardsFromList;
+import forge.gamemodes.match.input.InputSelectTargets;
 import forge.gamemodes.match.input.InputPayMana;
 import forge.gamemodes.match.input.InputSelectStackItems;
 import forge.gui.GuiBase;
@@ -319,6 +321,66 @@ public class HumanSeatStackTargetsTest {
         assertFalse(autoPaid[0], "the pool click paid the cost, not Auto: " + seen);
         assertTrue(me.getManaPool().isEmpty(), "the floating {B} was spent");
         assertTrue(game.getCardState(rats).isInZone(ZoneType.Battlefield), "Typhoid Rats resolved; seen " + seen);
+        assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
+    }
+
+    /**
+     * Upstream's {@code InputBase.showSelection} adds the spell's kept target marks to every later input's {@code chosen}
+     * while its cost is paid. The seat must not read them as the cost input's own picks: the page would show the target
+     * as already sacrificed and "unpick" it with a {@code selectCard} the engine takes as the sacrifice.
+     */
+    @Test
+    public void aCostInputAfterTargetingSendsOnlyItsOwnPicksAsChosen() throws Exception {
+        start();
+        Card devotion = add("Fanatical Devotion", me, ZoneType.Battlefield);
+        Card bears = add("Grizzly Bears", me, ZoneType.Battlefield);
+        Card elves = add("Llanowar Elves", me, ZoneType.Battlefield);
+        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, me);
+        game.getPhaseHandler().onStackResolved();
+        boolean[] activated = {false};
+        boolean[] sacrificed = {false};
+        List<String> seen = play(() -> activated[0] && game.getStack().isEmpty() || game.getPhaseHandler().getPhase() != PhaseType.MAIN1,
+                in -> {
+                    if (in instanceof InputPassPriority && !activated[0]) {
+                        activated[0] = true;
+                        return () -> select(devotion); // "Sacrifice a creature: Regenerate target creature."
+                    }
+                    if (in instanceof InputSelectTargets) {
+                        return () -> select(bears);
+                    }
+                    if (in instanceof InputSelectCardsFromList && !sacrificed[0]) {
+                        sacrificed[0] = true;
+                        return () -> select(elves);
+                    }
+                    return null;
+                });
+        assertTrue(seen.contains("InputSelectTargets") && seen.contains("InputSelectCardsFromList"), "targeted, then paid the sacrifice: " + seen);
+        // the setSelection calls the sacrifice input sent (they follow its message)
+        List<JsonObject> costSelections = new ArrayList<>();
+        String message = "";
+        for (String f : seat.all().split("\n")) {
+            JsonObject m = JsonParser.parseString(f).getAsJsonObject();
+            if (!"call".equals(m.get("t").getAsString())) {
+                continue;
+            }
+            String method = m.get("method").getAsString();
+            if ("showPromptMessage".equals(method)) {
+                message = m.getAsJsonArray("args").get(1).getAsString();
+            } else if ("setSelection".equals(method) && message.contains("to sacrifice")) {
+                costSelections.add(m.getAsJsonArray("args").get(0).getAsJsonObject());
+            }
+        }
+        JsonObject first = costSelections.stream().filter(s -> s.get("max").getAsInt() > 0).findFirst().orElse(null);
+        assertTrue(first != null, "the sacrifice input offered its cards: " + costSelections);
+        assertTrue(first.getAsJsonArray("chosen").isEmpty(), "nothing picked yet for the sacrifice: " + first);
+        for (JsonObject s : costSelections) {
+            for (JsonElement c : s.getAsJsonArray("chosen")) {
+                assertFalse(c.getAsJsonObject().get("id").getAsInt() == bears.getId(), "the target is not a sacrifice pick: " + s);
+            }
+        }
+        assertTrue(game.getCardState(elves).isInZone(ZoneType.Graveyard), "the Elves were sacrificed; seen " + seen);
+        assertTrue(game.getCardState(bears).isInZone(ZoneType.Battlefield), "the Bears stayed; seen " + seen);
+        assertEquals(game.getCardState(bears).getShieldCount(), 1, "the Bears got the regeneration shield; seen " + seen);
         assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
     }
 }

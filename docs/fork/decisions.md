@@ -173,6 +173,7 @@ Newest last. Each entry: the decision, why, and what it implies.
 
 ## 2026-10-21 — Upstream sync: the prompt's selection is one call (issue #56)
 - Upstream replaced `IGuiGame.setSelectables` / `clearSelectables` / `setSelectableTargets` / `setHighlighted` with `setSelection(Selection)` (cards with min/max, players and stack items, chosen; each prompt sends it when shown, after each pick and when it stops; `ProtocolGuiGame` skips one equal to the last). The bridge forwards it as one sticky call; the page keeps the last one across `awaitNextInput`. Fork-side workaround for player picks removed: upstream's `InputSelectEntitiesFromList` now names its players.
+- Upstream's `InputBase.showSelection` appends the spell's kept target marks (`PlayerControllerHuman.getKeptMarks`) to every input's `chosen` while its cost is paid. The bridge removes them before sending (`SeatSession.withoutKeptMarks`): the page reads `chosen` as the input's own picks, and a kept target that is also a cost choice would be shown picked and "unpicked" into the cost. The page does not show kept marks (as before the sync).
 - Upstream's `InputSelectTargets` now also takes targets that may be on the stack (`canPickStackTargets`) and offers a targetable spell as its card and its stack entry; the page shows the stack entry only.
 - Macro calls moved to a `MACRO` protocol mode (client to the controller's macro system); the wire generator treats it as client. The web seat offers no macros.
 

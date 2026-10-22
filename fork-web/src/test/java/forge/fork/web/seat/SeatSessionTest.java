@@ -721,6 +721,27 @@ public class SeatSessionTest {
         assertEquals(get(f), List.of("b"));
     }
 
+    @Test
+    public void reconnectingClientGetsTheLastSelectionAgain() throws Exception {
+        start();
+        Card bears = TestEngine.add("Grizzly Bears", p0, ZoneType.Battlefield);
+        stream.publish(List.of(), false);
+        gui.showPromptMessage(p0.getView(), "Select target creature or player", null);
+        gui.setSelection(new Selection(List.of(bears.getView()), 1, 1, List.of(p1.getView()), List.of()));
+        stream.removeClient(client);
+
+        Client again = new Client();
+        stream.addClient(again, 0);
+        JsonObject call = again.next("call");
+        while (!"setSelection".equals(call.get("method").getAsString())) {
+            call = again.next("call");
+        }
+        JsonObject sel = call.getAsJsonArray("args").get(0).getAsJsonObject();
+        assertEquals(sel.getAsJsonArray("cards").get(0).getAsJsonObject().get("id").getAsInt(), bears.getId());
+        assertEquals(sel.getAsJsonArray("targets").get(0).getAsJsonObject().get("id").getAsInt(), p1.getId());
+        assertEquals(sel.get("max").getAsInt(), 1);
+    }
+
     // --- must-fix: reveals reach the seat before the prompt ---
 
     @Test

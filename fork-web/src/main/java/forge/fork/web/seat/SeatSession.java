@@ -26,6 +26,7 @@ import forge.game.player.PlayerView;
 import forge.game.spellability.SpellAbility;
 import forge.game.spellability.StackItemView;
 import forge.gamemodes.match.NextGameDecision;
+import forge.gamemodes.match.Selection;
 import forge.gamemodes.match.DrawOfferMessage;
 import forge.gamemodes.match.YieldUpdate;
 import forge.gamemodes.net.IRemote;
@@ -36,6 +37,7 @@ import forge.gamemodes.net.event.NetEvent;
 import forge.interfaces.IGameController;
 import forge.player.PlayerControllerHuman;
 import forge.trackable.TrackableCollection;
+import forge.trackable.TrackableObject;
 import forge.util.ThreadUtil;
 import forge.fork.web.bridge.ClientSink;
 import forge.fork.web.bridge.SeatRefs;
@@ -202,18 +204,46 @@ final class SeatSession implements IRemote {
             return;
         }
         flush(); // the call may name objects changed since the last batch
-        String key = stickyKey(method, args);
+        Object[] sent = method == ProtocolMethod.setSelection && args.length == 1 && args[0] instanceof Selection sel
+                ? new Object[] {withoutKeptMarks(sel)} : args;
+        String key = stickyKey(method, sent);
         toSeat(refs -> {
             JsonObject j = new JsonObject();
             j.addProperty("t", "call");
             j.addProperty("method", method.name());
             JsonArray a = new JsonArray();
-            for (Object o : args) {
+            for (Object o : sent) {
                 a.add(WireArgs.encodeCallArg(o, refs));
             }
             j.add("args", a);
             return j;
         }, text -> updateSticky(method, key, text));
+    }
+
+    /**
+     * The selection without the spell's kept target marks ({@code PlayerControllerHuman.getKeptMarks}): upstream appends
+     * them to every input's {@code chosen} while the spell's cost is paid ({@code InputBase.showSelection},
+     * {@code InputSyncronizedBase.stop}), and the page reads {@code chosen} as the input's own picks (#56 review).
+     * They are appended last, so the last occurrence of each is removed: a pick that is also a target stays.
+     * Read on the calling thread, as upstream reads them there to build the selection; {@code toArray} cannot throw
+     * a {@code ConcurrentModificationException}.
+     */
+    private Selection withoutKeptMarks(Selection sel) {
+        if (!(controller instanceof PlayerControllerHuman pch) || sel.chosen().isEmpty()) {
+            return sel;
+        }
+        Object[] kept = pch.getKeptMarks().toArray();
+        if (kept.length == 0) {
+            return sel;
+        }
+        List<TrackableObject> own = new ArrayList<>(sel.chosen());
+        for (int i = kept.length - 1; i >= 0; i--) {
+            int at = own.lastIndexOf(kept[i]);
+            if (at >= 0) {
+                own.remove(at);
+            }
+        }
+        return own.size() == sel.chosen().size() ? sel : new Selection(sel.cards(), sel.min(), sel.max(), sel.targets(), own);
     }
 
     /** The blocks the engine allows now, while this seat declares blockers; sticky until the input ends. */

@@ -201,3 +201,55 @@ describe('floating mana while paying', () => {
     expect(intentToFrames({ type: 'spendPool', colour: 'C' }, s, g)).toEqual([act('useMana', { color: 32 })]);
   });
 });
+
+/**
+ * A targeted ability with a sacrifice cost (Fanatical Devotion, 30: "Sacrifice a creature: Regenerate target creature"),
+ * as the bridge sends it: the ability's kept target marks are left out of the cost input's `chosen`
+ * (SeatSession.withoutKeptMarks), even when the target (Grizzly Bears, 20) is also a creature to sacrifice.
+ */
+describe('a cost paid after targeting', () => {
+  function devotion(): LiveSession {
+    const objects: WireObject[] = [
+      { type: 'game', id: 1, props: { Players: [0, 1], Turn: 4, Phase: 'MAIN1', PlayerTurn: 0, GameType: 'Constructed' } },
+      { type: 'player', id: 0, props: { Name: 'Hugo', Life: 20, Battlefield: [30, 20, 21] } },
+      { type: 'player', id: 1, props: { Name: 'AI', IsAI: true, Life: 20 } },
+      ...cardObjs(30, 0, 'Battlefield', 'Fanatical Devotion', 'Enchantment'),
+      ...cardObjs(20, 0, 'Battlefield', 'Grizzly Bears', 'Creature - Bear'),
+      ...cardObjs(21, 0, 'Battlefield', 'Llanowar Elves', 'Creature - Elf Druid'),
+    ];
+    const s = new LiveSession();
+    s.apply({ t: 'snapshot', game: 1, seq: 0, label: 't', viewer: { seat: 0, player: 0 }, objects, log: [] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'End Turn', true, true, true] });
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Priority: Hugo', null] });
+    s.clicked(30);
+    // InputSelectTargets; the pick of the Bears ends it (InputSyncronizedBase.stop, then the kept marks: both sent empty)
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Fanatical Devotion - Regenerate target creature.\n\nSelect target creature', card(30)] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, true, true] });
+    s.apply(selection({ cards: [card(20), card(21)], min: 1, max: 1 }));
+    s.apply(selection({}));
+    s.apply({ t: 'call', method: 'awaitNextInput', args: [] });
+    // the sacrifice (HumanCostDecision: InputSelectCardsFromList)
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Select a Creature to sacrifice (1 left)', card(30)] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, true, true] });
+    s.apply(selection({ cards: [card(20), card(21)], min: 1, max: 1 }));
+    return s;
+  }
+
+  it('offers both creatures with nothing chosen, min not above max', () => {
+    expect(toGameView(devotion()).decision).toMatchObject({
+      kind: 'chooseTargets',
+      legal: [
+        { kind: 'card', id: '20' },
+        { kind: 'card', id: '21' },
+      ],
+      chosen: [],
+      min: 1,
+      max: 1,
+    });
+  });
+
+  it('sends only the clicked creature as the sacrifice', () => {
+    const s = devotion();
+    expect(intentToFrames({ type: 'toggleTarget', target: { kind: 'card', id: '21' } }, s, toGameView(s))).toEqual([act('selectCard', { card: 21 })]);
+  });
+});

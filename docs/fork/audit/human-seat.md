@@ -61,6 +61,7 @@ for a web seat.
 ProtocolGuiGame: `showPromptMessage(PlayerView,String,CardView)`, `updateButtons(…6 args)`, `setSelection` (a
 `Selection` record: cards to pick with min/max, players and stack items, chosen so far; each prompt sends one when shown,
 after each pick and when it stops; ProtocolGuiGame skips one equal to the last; sticky for a reconnecting client;
+`chosen` is sent without the spell's kept target marks, which upstream appends to every input while the cost is paid (`SeatSession.withoutKeptMarks`);
 `InputSelectEntitiesFromList` names its players there, e.g. who starts the game), `setWeaklySelectable`, `clearWeaklySelectable`, `showRevealedCards`, `hideRevealedCards`, `showManaPool`,
 `hideManaPool`, `setCard`, `setPanelSelection`, `awaitNextInput`, `updateAutoPassPrompt`, `message(String,String)`,
 `showErrorDialog(String,String)`, `flashIncorrectAction`, `alertUser`, `showCombat` (WebGuiGame: also sends `blockOptions` during `InputBlock`), `updateDrawOffer`,
