@@ -5,7 +5,9 @@
   padding: var(--sp-2) var(--sp-3) var(--sp-3);
   border-radius: var(--r-lg);
   background: var(--c-panel);
-  flex: 0 1 auto;
+  /* Sized to its attackers and never squeezed by the other regions (Recent, the stack and the zone yield; the
+     rail's regions scroll as the last resort): the list scrolls only past the cap. */
+  flex: 0 0 auto;
   max-height: 45%;
   /* A fixed floor, as the rail's other regions (playtest 1). */
   min-height: 11rem;
@@ -18,8 +20,9 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* A visible track and thumb, so a list cut by the cap shows that it scrolls. */
   scrollbar-width: thin;
-  scrollbar-color: var(--c-line-strong) transparent;
+  scrollbar-color: var(--c-text-3) var(--c-line);
 }
 
 .attack {

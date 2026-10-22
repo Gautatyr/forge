@@ -1,11 +1,12 @@
 /* Players leaving and the end of the game (design pass 4 §2.6). */
 
-/* "■ Theo is out: …" at the top of the board. */
+/* "■ Theo is out: …" on the seam between the opponents and your board, so it never covers an opponent's header
+   row (--your-share: the height of your board, as for .overYourBoard). */
 .toasts {
   position: absolute;
-  top: var(--sp-3);
+  top: calc(100% - var(--your-share));
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   z-index: var(--z-tray);
   display: flex;
   flex-direction: column;

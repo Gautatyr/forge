@@ -16,6 +16,12 @@
   overflow: hidden;
 }
 
+/* An ordering prompt is a short column of rows: it needs less width than a card picker, so more of your board
+   stays visible either side of it. */
+.narrow {
+  width: min(40rem, calc(100% - 2rem));
+}
+
 .peek {
   flex-direction: row;
   align-items: center;

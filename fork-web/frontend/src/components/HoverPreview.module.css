@@ -9,6 +9,8 @@
    it is open (previewSpot.ts). */
 .preview {
   --pv-notes: 5rem;
+  /* The image's width, shared with the notes block above it. */
+  --pv-w: min(100%, calc((100cqh - 2 * var(--sp-2) - var(--pv-notes)) * var(--card-ratio)));
   position: absolute;
   inset: var(--sp-2);
   z-index: var(--z-preview);
@@ -36,17 +38,25 @@
 
 .img {
   order: 1;
-  width: min(100%, calc((100cqh - 2 * var(--sp-2) - var(--pv-notes)) * var(--card-ratio)));
+  width: var(--pv-w);
   aspect-ratio: 0.716;
   border-radius: var(--r-card);
   box-shadow: var(--shadow-float);
 }
 
+/* One opaque block as wide as the image, so the text behind it (Recent's last lines) is cut cleanly at its edge
+   instead of showing between loose chips. */
 .info {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: var(--sp-1);
+  box-sizing: border-box;
+  width: var(--pv-w);
+  padding: var(--sp-1);
+  border-radius: var(--r-md);
+  background: var(--c-bg);
+  border: 1px solid var(--c-line-strong);
 }
 
 .note {
