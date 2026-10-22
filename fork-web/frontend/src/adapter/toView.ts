@@ -31,7 +31,7 @@ import type {
 import type { CardProps, CardStateProps, PhaseType, PlayerProps, ZoneType } from '../wire/generated/wire';
 import { engineLog, engineText, targetInstruction } from './engineText';
 import { parseImageKey, scryfallLookup, type ImageLookup } from './images';
-import { freeMulliganKeep, promptToChoice, promptWords, inputToChoice, SELECT_PROMPT_PREFIX, targetKey, tossChooser } from './prompts';
+import { cancelValue, freeMulliganKeep, promptToChoice, promptWords, inputToChoice, SELECT_PROMPT_PREFIX, targetKey, tossChooser } from './prompts';
 import { tossTitle } from '../state/gameStart';
 import { commanderTax, defendingPlayerOf } from '../model/selectors';
 import type { LiveSession } from './session';
@@ -325,7 +325,13 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
   };
   if (s.finished) return waiting('Game over');
   const prompt = s.prompt;
-  if (prompt) return { kind: 'choice', prompt: promptToChoice(prompt, view.cards, view.players.map((p) => p.id)) };
+  if (prompt) {
+    return {
+      kind: 'choice',
+      prompt: promptToChoice(prompt, view.cards, view.players.map((p) => p.id)),
+      ...(cancelValue(prompt) !== undefined ? { cancellable: true } : {}),
+    };
+  }
 
   const input = s.input;
   const mine =
@@ -353,12 +359,16 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
     // Commander tax (CostAdjustment): 2 per earlier cast, for your commander cast from the command zone (issue #67).
     const fromCommand = sourceCardId !== '' && sourceCardId === sid(s.lastCard ?? -1) && s.lastCardFrom === 'Command';
     const tax = fromCommand && youView.commanders.includes(sourceCardId) ? commanderTax(youView, sourceCardId) : 0;
+    // The X you announced for this card (the engine's cost already reads it as generic mana).
+    const announcedX = s.announcedX && s.announcedX.card === view.cards[sourceCardId]?.name ? s.announcedX.value : undefined;
     const sources = weakly
       .filter((id) => view.cards[sid(id)]?.zone === 'battlefield' && !view.cards[sid(id)]?.tapped)
       .map((id) => manaSource(s, id));
     return {
       kind: 'payMana',
       sourceCardId,
+      ...(s.payment?.ability ? { ability: s.payment.ability } : {}),
+      ...(announcedX !== undefined ? { x: announcedX } : {}),
       cost,
       remaining,
       tax,

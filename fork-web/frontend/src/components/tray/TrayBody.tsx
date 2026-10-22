@@ -5,7 +5,7 @@ import { ChooseN } from './ChooseN';
 import { NumberShapes } from './NumberShapes';
 import { Order } from './Order';
 import { Reveal } from './Reveal';
-import { isReveal } from './trayLogic';
+import { isReveal, type OptionGroup } from './trayLogic';
 import { YesNo } from './YesNo';
 
 export interface BodyProps<P extends ChoicePrompt = ChoicePrompt> {
@@ -14,6 +14,8 @@ export interface BodyProps<P extends ChoicePrompt = ChoicePrompt> {
   setDraft: (d: ChoiceDraft) => void;
   /** Choose N: options in display order (filtered and sorted). */
   visible: ChoiceOption[];
+  /** Choose N: `visible` with identical cards grouped (one entry per option when nothing is identical). */
+  groups: OptionGroup[];
   send: (intent: Intent) => void;
 }
 

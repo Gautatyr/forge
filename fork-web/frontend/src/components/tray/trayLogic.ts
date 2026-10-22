@@ -37,6 +37,60 @@ export function toggleOption(p: ChooseNPrompt, d: ChoiceDraft, id: string): Choi
   return { ...d, selected: [...d.selected, id] };
 }
 
+/** Identical cards offered together (17 Swamps of a library search): the first one stands for all, `members` are every option id. */
+export interface OptionGroup {
+  option: ChoiceOption;
+  members: string[];
+}
+
+/**
+ * Card options grouped by card name, in the order of their first member. Only when every option is a card with a known
+ * name (a tray of card tiles); any other list stays one option per entry.
+ */
+export function groupOptions(options: ChoiceOption[], nameOf: (cardId: CardId) => string | undefined): OptionGroup[] {
+  const single = options.map((option): OptionGroup => ({ option, members: [option.id] }));
+  if (options.length === 0 || !options.every((o) => o.cardId && nameOf(o.cardId))) return single;
+  const out: OptionGroup[] = [];
+  const byName = new Map<string, OptionGroup>();
+  for (const option of options) {
+    const name = nameOf(option.cardId!)!;
+    const g = byName.get(name);
+    if (g) g.members.push(option.id);
+    else {
+      const n = { option, members: [option.id] };
+      byName.set(name, n);
+      out.push(n);
+    }
+  }
+  return out;
+}
+
+/** How many of a group's cards are chosen. */
+export const chosenIn = (d: ChoiceDraft, members: string[]): number => members.filter((id) => d.selected.includes(id)).length;
+
+/** One fewer chosen in the group: the last chosen one goes. */
+export function dropFromGroup(d: ChoiceDraft, members: string[]): ChoiceDraft {
+  const last = members.filter((id) => d.selected.includes(id)).at(-1);
+  return last === undefined ? d : { ...d, selected: d.selected.filter((x) => x !== last) };
+}
+
+/**
+ * A click (or key) on a group: one more of its cards chosen. When no more can be (all of them, or the prompt's maximum is
+ * reached) it takes one away, so a click always does something; a prompt that wants one card toggles the group.
+ */
+export function stepGroup(p: ChooseNPrompt, d: ChoiceDraft, members: string[]): ChoiceDraft {
+  if (p.max === 1 && chosenIn(d, members) > 0) return dropFromGroup(d, members);
+  const free = members.find((id) => !d.selected.includes(id));
+  if (free !== undefined) {
+    const next = toggleOption(p, d, free);
+    if (next !== d) return next;
+  }
+  return dropFromGroup(d, members);
+}
+
+/** What a two-list move button says: "To graveyard". */
+export const moveLabel = (list: { label: string; moveTo?: string }): string => `To ${list.moveTo ?? list.label.toLowerCase()}`;
+
 export function counterText(p: ChooseNPrompt, n: number): string {
   if (p.quiet) return '';
   if (p.progress) return `${n} of ${p.max} chosen`;
@@ -164,7 +218,14 @@ export interface KeyInput {
  * What a key does while a prompt is open; undefined leaves it to the screen's
  * own shortcuts. `visible` is the options in the order the tray shows them.
  */
-export function keyAction(p: ChoicePrompt, d: ChoiceDraft, visible: ChoiceOption[], e: KeyInput): KeyAction | undefined {
+export function keyAction(
+  p: ChoicePrompt,
+  d: ChoiceDraft,
+  visible: ChoiceOption[],
+  e: KeyInput,
+  /** Option id of a group's first card → every option id of the group (identical cards shown as one tile). */
+  groups?: ReadonlyMap<string, string[]>,
+): KeyAction | undefined {
   if (e.inInput || e.alt) return undefined;
   const k = e.key.toLowerCase();
   const digit = /^[1-9]$/.test(k) ? Number(k) - 1 : -1;
@@ -187,7 +248,8 @@ export function keyAction(p: ChoicePrompt, d: ChoiceDraft, visible: ChoiceOption
   if (k === 'v') return { kind: 'peek' };
   if (p.shape === 'chooseN' && !isReveal(p)) {
     const o = visible[digit];
-    if (o) return { kind: 'draft', draft: toggleOption(p, d, o.id) };
+    const members = o ? groups?.get(o.id) : undefined;
+    if (o) return { kind: 'draft', draft: members && members.length > 1 ? stepGroup(p, d, members) : toggleOption(p, d, o.id) };
   }
   return undefined;
 }

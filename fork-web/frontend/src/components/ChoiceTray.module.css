@@ -127,6 +127,18 @@
   color: var(--c-selected);
 }
 
+.groupRow {
+  display: flex;
+  align-items: stretch;
+  gap: var(--sp-1);
+}
+
+.minus {
+  min-width: 0;
+  padding: var(--sp-1) var(--sp-3);
+  font-weight: var(--fw-bold);
+}
+
 .optionLabel {
   font-weight: var(--fw-bold);
 }

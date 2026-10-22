@@ -6,9 +6,10 @@
  */
 import type { PromptAnswer } from '../model/intents';
 import type { CardId, CardView, ChoiceOption, ChoicePrompt, DistributeRecipient, GameView, TargetRef } from '../model/types';
-import { bottomPrompt, mulliganPrompt, tossTitle, type TossChooser } from '../state/gameStart';
+import { bottomPrompt, mulliganPrompt, tossTitle, type MulliganFacts, type TossChooser } from '../state/gameStart';
 import type { PromptChoice, PromptMessage } from './protocol';
 import { engineText, unlessChoice, unlessEffect } from './engineText';
+import { colourOptions, isSurveil, numberList, pickedNumber, rangeOfNumberPrompt, surveilWords } from './trayWords';
 import { londonLeft, type InputState } from './session';
 
 /** View-model id of a wire prompt. */
@@ -95,7 +96,12 @@ export function promptToChoice(p: PromptMessage, cards: Record<string, CardView>
         const n = options.map((o) => Number(o.label));
         return { ...base, shape: 'input', kind: 'number', min: Math.min(...n), max: Math.max(...n), defaultValue: options[0]!.label };
       }
-      return { ...base, shape: 'chooseN', options, min: p.min, max: p.max };
+      // getInteger's list (oneOrNone, X): the number field too; the engine's "Other…" entry is the field's open end.
+      const nums = p.method === 'getChoices' ? numberList(p.choices, p.min, p.max) : undefined;
+      if (nums) {
+        return { ...base, shape: 'input', kind: 'number', min: nums.min, ...(nums.other === undefined ? { max: nums.last } : {}), defaultValue: String(nums.min) };
+      }
+      return { ...base, shape: 'chooseN', options: colourOptions(options) ?? options, min: p.min, max: p.max };
     }
     case 'confirm': {
       const w = words(p, 'Confirm');
@@ -135,6 +141,18 @@ export function promptToChoice(p: PromptMessage, cards: Record<string, CardView>
       }
       const inDest = p.choices.filter((c) => c.inDest).map((c) => opt(c));
       const out = p.choices.filter((c) => !c.inDest).map((c) => opt(c));
+      if (p.method === 'order' && isSurveil(p.message)) {
+        const sv = surveilWords(p.choices.length);
+        return {
+          ...base,
+          title: sv.title,
+          instruction: sv.instruction,
+          lists: [
+            { id: 'source', ...sv.source, items: out },
+            { id: 'dest', ...sv.dest, items: inDest },
+          ],
+        };
+      }
       if (p.method === 'order' && (p.remainingMax ?? 0) === 0) {
         return { ...base, lists: [{ id: 'dest', label: p.destLabel || 'Order', hint: 'First to last', items: [...inDest, ...out] }] };
       }
@@ -194,10 +212,12 @@ export function promptToChoice(p: PromptMessage, cards: Record<string, CardView>
       if (opts.length > 0) {
         return { ...base, shape: 'chooseN', min: 1, max: 1, options: opts.map((label, i) => ({ id: String(i), label })) };
       }
+      const range = p.numeric ? rangeOfNumberPrompt(p.message) : undefined;
       return {
         ...base,
         shape: 'input',
         kind: p.numeric ? 'number' : 'text',
+        ...(range ?? {}),
         ...(p.initial != null ? { defaultValue: p.initial } : {}),
       };
     }
@@ -210,6 +230,11 @@ export function replyValue(p: PromptMessage, a: PromptAnswer): unknown {
     case 'choose':
       if (a.shape === 'chooseN') return a.optionIds.map(Number).filter((n) => Number.isInteger(n));
       if (a.shape === 'input') {
+        const nums = p.method === 'getChoices' ? numberList(p.choices, p.min, p.max) : undefined;
+        if (nums) {
+          const j = pickedNumber(nums, Number(a.value));
+          return j === undefined ? undefined : [j];
+        }
         const i = p.choices.find((c) => c.label.trim() === a.value.trim())?.i;
         return i === undefined ? undefined : [i];
       }
@@ -237,6 +262,14 @@ export function replyValue(p: PromptMessage, a: PromptAnswer): unknown {
 }
 
 /**
+ * The engine lets you back out of a prompt that asks a number with "none" allowed (`getInteger`: an empty answer is its
+ * null; for an X it cancels the spell). Its reply: nothing chosen. Undefined for any other prompt.
+ */
+export function cancelValue(p: PromptMessage): unknown {
+  return p.shape === 'choose' && p.method === 'getChoices' && numberList(p.choices, p.min, p.max) ? [] : undefined;
+}
+
+/**
  * Who chooses the starting player, from PlayerControllerHuman.chooseStartingPlayer's message
  * (lblYouHaveWonTheCoinToss / lblYouLostTheLastGame, English): undefined for any other message.
  */
@@ -245,6 +278,26 @@ export function tossChooser(message: string): TossChooser | undefined {
   if (/, you have won the coin toss\.$/.test(first)) return 'wonToss';
   if (/, you lost the last game\.$/.test(first)) return 'lostLastGame';
   return undefined;
+}
+
+/** Cards a London mulligan draws (the maximum hand size). */
+const OPENING_HAND = 7;
+
+/**
+ * What the keep / mulligan question shows. The engine (LondonMulligan.mulliganDraw) draws 7 and asks which cards go to
+ * the bottom BEFORE asking keep or mulligan, so the hand shown has them gone already: 6 after one paid mulligan. The next
+ * mulligan draws 7 again and puts one more on the bottom than that (`7 - hand + 1`); the first one costs a card, except in
+ * a game of more than 2 players (MulliganService: free first mulligan), which draws 7 and puts none back.
+ */
+export function mulliganFacts(handSize: number, mulliganed: boolean, players: number): MulliganFacts {
+  const free = players > 2;
+  return {
+    handSize,
+    toBottom: 0,
+    freeNext: free && !mulliganed,
+    draw: OPENING_HAND,
+    nextBottom: mulliganed ? Math.max(0, OPENING_HAND - handSize) + 1 : free ? 0 : 1,
+  };
 }
 
 /** Opening hand: Keep / Mulligan buttons. */
@@ -272,7 +325,7 @@ export function inputToChoice(input: InputState, view: Pick<GameView, 'players' 
   const sourceCardId = input.cardId !== undefined && view.cards[String(input.cardId)] ? String(input.cardId) : undefined;
   if (isMulligan(input)) {
     const hand = you?.hand ?? [];
-    return mulliganPrompt({ handSize: hand.length, toBottom: 0, freeNext: false }, `${INPUT_PROMPT_PREFIX}mulligan:${hand.join(',')}`);
+    return mulliganPrompt(mulliganFacts(hand.length, you?.mulligan?.state === 'mulligan', view.players.length), `${INPUT_PROMPT_PREFIX}mulligan:${hand.join(',')}`);
   }
   const n = londonCount(input);
   // n = 0, a free mulligan: no prompt (freeMulliganKeep, answered by the screen).

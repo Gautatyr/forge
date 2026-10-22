@@ -253,6 +253,53 @@ const TRAY_SCENARIOS: Scenario[] = [
       options: colours.map(([s, name]) => ({ id: s, label: name, symbol: `{${s}}` })),
     };
   }),
+  trayScenario(
+    'tutor-groups',
+    '3g2 · Search a library of identical cards',
+    "Solemn Simulacrum: 14 Swamps and a few others. Identical cards are one tile with a count; a click chooses one more, the minus one fewer.",
+    (b) => {
+      const solemn = b.card('Cultivate', 'you', 'graveyard');
+      const keys: CardKey[] = [...Array.from({ length: 14 }, () => 'Swamp' as CardKey), 'Forest', 'Forest', 'Island'];
+      const lands = keys.map((k) => b.card(k, 'you', 'library'));
+      return {
+        id: 'tutor-groups',
+        shape: 'chooseN',
+        title: 'Choose up to 3 basic land cards',
+        instruction: 'Search your library for up to three basic land cards.',
+        sourceCardId: solemn,
+        confirmLabel: 'Put into your hand',
+        min: 0,
+        max: 3,
+        options: lands.map((id) => ({ id, label: b.g.cards[id]!.name, cardId: id })),
+      };
+    },
+  ),
+  trayScenario('surveil', '3a2 · Surveil 2', 'The cards that stay go back on top; click one to send it to the graveyard. The buttons name where it goes.', (b) => {
+    const rain = b.card('Cultivate', 'you', 'graveyard');
+    const top1 = b.card('Mesa Enchantress', 'you', 'library');
+    const top2 = b.card('Plains', 'you', 'library');
+    return {
+      id: 'surveil',
+      shape: 'order',
+      title: 'Surveil 2',
+      instruction: 'Click a card to move it to the graveyard. The cards that stay go back on top of your library.',
+      sourceCardId: rain,
+      confirmLabel: 'Confirm',
+      lists: [
+        {
+          id: 'source',
+          label: 'Keep on top',
+          hint: '',
+          moveTo: 'top',
+          items: [
+            { id: top1, label: 'Mesa Enchantress', cardId: top1 },
+            { id: top2, label: 'Plains', cardId: top2 },
+          ],
+        },
+        { id: 'dest', label: 'Graveyard', hint: '', moveTo: 'graveyard', items: [] },
+      ],
+    };
+  }),
   trayScenario('tutor', '3g · Choose from a long list (filter)', "Primeval Titan: 16 land cards, so the tray gets a filter box and scrolls.", (b) => {
     const titan = b.card('Primeval Titan', 'you', 'battlefield', { sick: true });
     const keys: CardKey[] = [

@@ -352,7 +352,14 @@ export interface YesNoPrompt extends PromptBase {
  */
 export interface OrderPrompt extends PromptBase {
   shape: 'order';
-  lists: { id: string; label: string; hint: string; items: ChoiceOption[] }[];
+  lists: {
+    id: string;
+    label: string;
+    hint: string;
+    items: ChoiceOption[];
+    /** Two lists: what the other list's move button says ("To graveyard"); the label in lower case when absent. */
+    moveTo?: string;
+  }[];
 }
 
 /** One row of a distribute prompt: a card (thumbnail) or a player (seat shape). */
