@@ -369,7 +369,7 @@ public abstract class InputPayMana extends InputSyncronizedBase {
     }
 
     protected void runAsAi(Runnable proc) {
-        player.runWithController(proc, new PlayerControllerAi(game, player, player.getOriginalLobbyPlayer()));
+        player.runWithController(proc, new PlayerControllerAi(game, player, player.getOriginalLobbyPlayer()).setAutoPayForHuman(true));
     }
 
     @Override
