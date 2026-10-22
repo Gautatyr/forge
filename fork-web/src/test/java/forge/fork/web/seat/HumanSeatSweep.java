@@ -58,7 +58,8 @@ import forge.fork.web.bridge.visibility.TestEngine;
  * forge.web.sweep.duel N         1v1 Constructed games, geneticaidecks for both seats (default 16)
  * forge.web.sweep.cmd2 N         1v1 Commander games (default 8)
  * forge.web.sweep.cmd4 N         4-player Commander games (default 12)
- * forge.web.sweep.concedeEvery K the seat concedes at turn 9 of every K-th 4-player game (the 4th, 8th...; default 4, 0: never)
+ * forge.web.sweep.concedeEvery K the seat concedes at turn 9 of every K-th 4-player game (the 4th, 8th...; default 4, 0: never);
+ *                                the others play on to the end or the turn cap
  * forge.web.sweep.ownerDecks DIR Commander decks played by the seat first, read only (default: none)
  * forge.web.sweep.seed S         deck choice (default 46)
  * forge.web.sweep.shard I/N      play only games I, I+N, I+2N... (default 0/1)
@@ -107,6 +108,8 @@ public class HumanSeatSweep {
         /** The turn the seat was to concede at (0: never), and the turn it did (0: it did not, e.g. it had lost). */
         int concedeAt;
         int concededAt;
+        /** In a game the seat conceded: each player's life or loss at the end. */
+        String endState;
         String seatDeck;
         String seatSource;
         List<String> opponents = new ArrayList<>();
@@ -298,6 +301,9 @@ public class HumanSeatSweep {
         GameStream stream = new GameStream(HiddenPolicy.REDACT, null);
         WebSeats seats = new WebSeats(stream, new WebSeats.Timeouts(120_000, 120_000));
         TriggerAudit audit = new TriggerAudit(commander ? 40 : 30);
+        if (p.concedeAt() > 0) {
+            audit.playOnWithoutTheSeat();
+        }
         List<RegisteredPlayer> players = new ArrayList<>();
         Map<RegisteredPlayer, IGuiGame> guis = new LinkedHashMap<>();
         RegisteredPlayer human = commander ? RegisteredPlayer.forCommander(p.seatDeck()) : new RegisteredPlayer(p.seatDeck());
@@ -387,6 +393,21 @@ public class HumanSeatSweep {
             r.actions.putAll(seat.actions);
             r.rejections.putAll(seat.rejections);
             r.concededAt = seat.concededAt();
+        }
+        forge.game.Game g = audit.game();
+        if (r.concededAt > 0 && g != null) {
+            // what the engine recorded: the seat's concede, and how the others stood at the end
+            forge.game.player.Player me = audit.me();
+            if (me.getOutcome() == null || me.getOutcome().lossState != forge.game.player.GameLossReason.Conceded) {
+                r.seatErrors.add("the seat conceded at turn " + r.concededAt + "; the engine recorded " + me.getOutcome());
+            }
+            StringBuilder sb = new StringBuilder();
+            for (forge.game.player.Player pl : g.getRegisteredPlayers()) {
+                sb.append(sb.length() == 0 ? "" : ", ").append(pl.getName()).append(' ')
+                        .append(pl.getOutcome() == null || pl.getOutcome().lossState == null ? "life " + pl.getLife()
+                                : String.valueOf(pl.getOutcome().lossState));
+            }
+            r.endState = sb.toString();
         }
         stream.removeClient(client);
         r.silent.addAll(SilentDefaults.recent());
@@ -595,7 +616,8 @@ public class HumanSeatSweep {
             other += r.otherThreadCrashes.size();
             capped += r.capped ? 1 : 0;
             if (r.concedeAt > 0) {
-                conceded.add("game " + r.index + ": " + (r.concededAt > 0 ? "turn " + r.concededAt + ", " + r.end + " at turn " + r.turns
+                conceded.add("game " + r.index + ": " + (r.concededAt > 0 ? "turn " + r.concededAt + ", " + r.end
+                        + (r.capped ? " (turn cap)" : "") + " at turn " + r.turns + " [" + r.endState + "]"
                         : "not conceded (" + r.end + " at turn " + r.turns + ")"));
             }
             passed += r.passed() ? 1 : 0;
