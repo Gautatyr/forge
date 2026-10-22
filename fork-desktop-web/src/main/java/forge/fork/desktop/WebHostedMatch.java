@@ -58,8 +58,12 @@ public class WebHostedMatch extends HostedMatch {
 
     private Map<RegisteredPlayer, IGuiGame> withWebSeat(GameRules rules, List<RegisteredPlayer> players, Map<RegisteredPlayer, IGuiGame> guis) {
         RegisteredPlayer human = rules == null || players == null ? null : webHuman(rules, players, guis, enabled.getAsBoolean());
-        if (human == null || guis.get(human) instanceof WebGuiGame) {
-            return guis; // not a web match, or a restart of one
+        if (human == null) {
+            return guis; // not a web match
+        }
+        if (guis.get(human) instanceof WebGuiGame) {
+            rules.setWarnAboutAICards(false);
+            return guis; // a restart of one
         }
         WebGuiGame seat;
         try {
@@ -68,6 +72,8 @@ public class WebHostedMatch extends HostedMatch {
             System.err.println("[web] cannot open the web match screen, playing in Swing: " + e);
             return guis;
         }
+        // no match-start "AI can't play these cards well" reveal (issue #68): it asks nothing and lists the AI decks' cards
+        rules.setWarnAboutAICards(false);
         Map<RegisteredPlayer, IGuiGame> web = new LinkedHashMap<>(guis);
         web.put(human, seat);
         setEndGameHook(this::quitWhenGameEnds);

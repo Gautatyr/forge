@@ -170,3 +170,7 @@ Newest last. Each entry: the decision, why, and what it implies.
 - **Why:** upstream is building its own `forge-gui-web` module (package `forge.web`, artifactId `forge-gui-web`); the old names would give add/add conflicts on sync.
 - Unchanged: runtime flags `-Dforge.web.strictPrompts`, `forge.web.sweep.*`, and the prefs file `preferences/fork-web.preferences`. Older entries keep the old names.
 - Fork code goes under `forge.fork.*`; never reuse upstream's `forge.web` or a `forge-gui-*` module name.
+
+## 2026-10-22 — No AI-cards warning in web matches; scry offers only the looked-at cards (issues #68, #69)
+- #68: web matches (`WebMain.matchRules`, `WebHostedMatch` once the web seat is in) set `GameRules.setWarnAboutAICards(false)`, as mobile Adventure does. `Match.startGame` otherwise reveals each AI deck's "AI can't play these cards well" list to every player: nothing to decide, and it lists opponents' cards. If the warning is wanted, it belongs in the lobby.
+- #69: `PlayerControllerHuman.arrangeForScry` with `UI_SELECT_FROM_CARD_DISPLAYS` (default on; shared with the Swing lobby in `make play`, so not flipped) passes the whole library to `manipulateCardList`. The seat's `manipulateCardList` prompt (unless `toAnywhere`) now lists only the movable cards and takes `{top, bottom}` piles; the bridge rebuilds the list `arrangeForMove` reads (bottom pile reversed, see `Prompt.Manipulate.arrange`). No upstream edit. Surveil already took the `many` + `order` path over the looked-at cards only (two prompts: graveyard pick, then order on top).

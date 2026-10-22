@@ -38,8 +38,8 @@ import forge.fork.web.bridge.SeatRefs;
  * <li>{@code choose}: array of choice indices, unique, size within [min, max]</li>
  * <li>{@code confirm}: boolean</li>
  * <li>{@code order}: {@code {"order":[indices into source then dest], "remember":bool}} (the new dest list);
- * {@code manipulateCardList}: the full permutation as an array (unmovable cards keep their relative order;
- * unless {@code toAnywhere}, movable cards end in the leading or trailing run); {@code sideboard}: indices of the new main deck</li>
+ * {@code manipulateCardList}: {@code {"top":[...],"bottom":[...]}} over the movable cards only, or with {@code toAnywhere}
+ * the full permutation as an array (see {@link Manipulate}); {@code sideboard}: indices of the new main deck</li>
  * <li>{@code distribute}: array of amounts, one per target, summing to {@code amount}; null to skip when allowed;
  * combat damage follows {@code lethalOrder} with each choice's {@code lethal}</li>
  * <li>{@code text}: string, or null to cancel</li>
@@ -416,22 +416,37 @@ abstract class Prompt {
         }
     }
 
+    /**
+     * Unless {@code toAnywhere}, the piles form: the seat gets only the movable cards (a scry's looked-at cards, never
+     * the rest of the library, which {@code PlayerControllerHuman.arrangeForScry} passes whole) and replies
+     * {@code {"top":[...],"bottom":[...]}}: each movable card in one pile, the top pile first-on-top, the bottom pile
+     * last-at-the-very-bottom. With {@code toAnywhere} (a place among the other cards) the reply is the full permutation.
+     */
     static final class Manipulate extends Prompt {
         final String title;
         final List<Object> cards;
         final Set<Object> movable;
+        /** The movable cards in list order: the piles form's choices. */
+        final List<Object> pileCards = new ArrayList<>();
         final boolean toTop;
         final boolean toBottom;
         final boolean toAnywhere;
+        final boolean piles;
 
         Manipulate(String title, List<Object> cards, List<Object> movable, boolean toTop, boolean toBottom, boolean toAnywhere) {
             super(ProtocolMethod.manipulateCardList);
             this.title = title;
             this.cards = cards;
             this.movable = new HashSet<>(movable);
+            for (Object c : cards) {
+                if (this.movable.contains(c)) {
+                    pileCards.add(c);
+                }
+            }
             this.toTop = toTop;
             this.toBottom = toBottom;
             this.toAnywhere = toAnywhere;
+            this.piles = !toAnywhere && (toTop || toBottom);
         }
 
         @Override
@@ -443,26 +458,85 @@ abstract class Prompt {
         void fill(JsonObject j, SeatRefs refs) {
             j.addProperty("message", title);
             JsonArray cs = new JsonArray();
-            for (int i = 0; i < cards.size(); i++) {
-                JsonObject c = WireArgs.choice(i, cards.get(i), null, refs);
-                c.addProperty("movable", movable.contains(cards.get(i)));
-                cs.add(c);
+            if (piles) {
+                for (int i = 0; i < pileCards.size(); i++) {
+                    cs.add(WireArgs.choice(i, pileCards.get(i), null, refs));
+                }
+                j.addProperty("piles", true);
+            } else {
+                for (int i = 0; i < cards.size(); i++) {
+                    JsonObject c = WireArgs.choice(i, cards.get(i), null, refs);
+                    c.addProperty("movable", movable.contains(cards.get(i)));
+                    cs.add(c);
+                }
+                j.addProperty("permutation", true);
             }
             j.add("choices", cs);
-            j.addProperty("permutation", true);
             j.addProperty("toTop", toTop);
             j.addProperty("toBottom", toBottom);
             j.addProperty("toAnywhere", toAnywhere);
         }
 
-        /**
-         * Cards that may not move keep their relative order (a scry gets the whole library and moves the
-         * top cards: the rest shift). Unless {@code toAnywhere}, every movable card ends in the leading
-         * run of movable cards (if {@code toTop}) or the trailing one (if {@code toBottom}), as
-         * {@code PlayerControllerHuman.arrangeForMove} reads the result.
-         */
         @Override
         Object decode(JsonElement v) throws BadReply {
+            return piles ? decodePiles(v) : decodePermutation(v);
+        }
+
+        private Object decodePiles(JsonElement v) throws BadReply {
+            if (v == null || !v.isJsonObject()) {
+                throw new BadReply("expected {top, bottom}");
+            }
+            List<Integer> top = indices(v.getAsJsonObject().get("top"), pileCards.size());
+            List<Integer> bottom = indices(v.getAsJsonObject().get("bottom"), pileCards.size());
+            Set<Integer> all = new HashSet<>(top);
+            all.addAll(bottom);
+            if (all.size() != top.size() + bottom.size()) {
+                throw new BadReply("a card is in both piles");
+            }
+            if (all.size() != pileCards.size()) {
+                throw new BadReply("each card goes to the top or the bottom");
+            }
+            if (!toTop && !top.isEmpty()) {
+                throw new BadReply("no card may go to the top");
+            }
+            if (!toBottom && !bottom.isEmpty()) {
+                throw new BadReply("no card may go to the bottom");
+            }
+            List<Object> t = new ArrayList<>();
+            top.forEach(i -> t.add(pileCards.get(i)));
+            List<Object> b = new ArrayList<>();
+            bottom.forEach(i -> b.add(pileCards.get(i)));
+            return arrange(t, b);
+        }
+
+        /**
+         * The list to return for these piles. With no other card, the list is the library as it will be. Otherwise
+         * {@code PlayerControllerHuman.arrangeForMove} reads the trailing run of movable cards from the end and
+         * {@code GameAction.scry} puts each under the previous one, so the bottom pile goes in reversed.
+         */
+        private List<Object> arrange(List<Object> top, List<Object> bottom) {
+            List<Object> out = new ArrayList<>(top);
+            if (pileCards.size() == cards.size()) {
+                out.addAll(bottom);
+                return out;
+            }
+            for (Object c : cards) {
+                if (!movable.contains(c)) {
+                    out.add(c);
+                }
+            }
+            for (int i = bottom.size() - 1; i >= 0; i--) {
+                out.add(bottom.get(i));
+            }
+            return out;
+        }
+
+        /**
+         * Cards that may not move keep their relative order. Unless {@code toAnywhere}, every movable card ends in the
+         * leading run of movable cards (if {@code toTop}) or the trailing one (if {@code toBottom}), as
+         * {@code PlayerControllerHuman.arrangeForMove} reads the result.
+         */
+        private Object decodePermutation(JsonElement v) throws BadReply {
             List<Integer> idx = indices(v, cards.size());
             if (idx.size() != cards.size()) {
                 throw new BadReply("expected a permutation of all " + cards.size() + " cards");
@@ -502,7 +576,10 @@ abstract class Prompt {
 
         @Override
         Object fallback() {
-            return new ArrayList<>(cards);
+            if (!piles) {
+                return new ArrayList<>(cards);
+            }
+            return toTop ? arrange(pileCards, List.of()) : arrange(List.of(), pileCards);
         }
     }
 
