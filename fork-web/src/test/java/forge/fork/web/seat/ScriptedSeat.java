@@ -32,8 +32,9 @@ import forge.fork.web.bridge.GameStream;
  * messages. Answers every prompt with a legal option; in its main phases with an empty stack it selects each card it
  * may play (the seat's actionable highlights, plus the command zone) once per turn; attacks with everything every other
  * turn; blocks up to two attackers each combat with the engine's blockOptions and checks the engine recorded them; picks
- * the cards, players and stack items an input offers; otherwise presses OK, or Cancel when stuck. Reads the engine only
- * for whose turn, phase, stack and combat it is. Not thread-safe beyond: transport threads call {@link #send}, one
+ * the cards, players and stack items an input offers; otherwise presses OK, or Cancel when stuck; optionally concedes at
+ * a turn, then answers nothing more (a prompt that reaches it once it left the game is an error, issue #78). Reads the
+ * engine only for whose turn, phase, stack and combat it is. Not thread-safe beyond: transport threads call {@link #send}, one
  * driver thread plays.
  */
 final class ScriptedSeat implements ClientSink {
@@ -78,6 +79,8 @@ final class ScriptedSeat implements ClientSink {
     private String autoMessage = "";
     private int autoTries;
     private final List<String> recent = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private int concedeAt;
+    private volatile int concededAt;
 
     final Map<String, Integer> prompts = new TreeMap<>();
     final Map<String, Integer> actions = new TreeMap<>();
@@ -106,6 +109,16 @@ final class ScriptedSeat implements ClientSink {
         return lastMessageAt;
     }
 
+    /** Concede at the first decision on {@code turn} or later (0: never). Before {@link #start}. */
+    void concedeAt(int turn) {
+        concedeAt = turn;
+    }
+
+    /** The turn it conceded at, 0 if it did not. */
+    int concededAt() {
+        return concededAt;
+    }
+
     /** The seat's current input as it saw it, and its last messages (diagnostics for a stalled game). */
     String state() {
         try {
@@ -127,6 +140,10 @@ final class ScriptedSeat implements ClientSink {
             lastMessageAt = System.currentTimeMillis();
             inbox.add(TICK);
             return; // state: read from the engine
+        }
+        // the stream sends on the thread that asks (the game thread for a prompt): the engine state is the sender's
+        if (json.startsWith("{\"t\":\"prompt\"") && me.hasLost() && !game.isGameOver() && !game.getPlayers().contains(me)) {
+            errors.add("prompt sent to the seat after it left the game: " + json.substring(0, Math.min(200, json.length())));
         }
         inbox.add(JsonParser.parseString(json).getAsJsonObject());
     }
@@ -404,7 +421,12 @@ final class ScriptedSeat implements ClientSink {
     }
 
     private void decide(boolean force) {
-        if (game.isGameOver() || (!ok && !cancel && selectables == null && targets.isEmpty())) {
+        if (game.isGameOver() || me.hasLost() || (!ok && !cancel && selectables == null && targets.isEmpty())) {
+            return; // a player out of the game has nothing to answer
+        }
+        if (concedeAt > 0 && concededAt == 0 && game.getPhaseHandler().getTurn() >= concedeAt) {
+            concededAt = game.getPhaseHandler().getTurn();
+            act("concede", null, 0);
             return;
         }
         if (actedEpoch == epoch && !force) {
