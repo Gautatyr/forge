@@ -1665,6 +1665,17 @@ public class AiController {
         return chosenSa;
     }
 
+    // fork #92: logged once per card and exception class (per JVM): the same check may throw at every priority
+    private static final Set<String> LOGGED_CANDIDATE_FAILURES = ConcurrentHashMap.newKeySet();
+
+    private static void logCandidateFailure(final SpellAbility sa, final RuntimeException e) {
+        final String card = sa.getHostCard() == null ? "?" : sa.getHostCard().getName();
+        if (LOGGED_CANDIDATE_FAILURES.add(card + "|" + e.getClass().getName())) {
+            System.err.println("AI check of " + card + " threw; skipping that candidate (logged once):");
+            e.printStackTrace();
+        }
+    }
+
     private SpellAbility chooseSpellAbilityToPlayFromList(final List<SpellAbility> all, boolean skipCounter) {
         if (all == null || all.isEmpty())
             return null;
@@ -1752,6 +1763,15 @@ public class AiController {
                     final AiPlayDecision opinion;
                     try {
                         opinion = useLivingEnd && AiPlayDecision.WillPlay.equals(aiPlayDecision) ? aiPlayDecision : canPlayAndPayFor(sa);
+                    } catch (AITimeoutTracker.Expired e) {
+                        throw e;
+                    } catch (RuntimeException e) {
+                        // fork #92: one candidate's failing AI check skips that candidate only, not the whole priority pass
+                        logCandidateFailure(sa, e);
+                        // canPlaySa's debug extras would otherwise stick to later, unrelated Sentry events
+                        Sentry.removeExtra("Card");
+                        Sentry.removeExtra("SA");
+                        continue;
                     } finally {
                         // reset LastStateBattlefield - also when the deadline fired inside canPlayAndPayFor
                         sa.clearLastState();

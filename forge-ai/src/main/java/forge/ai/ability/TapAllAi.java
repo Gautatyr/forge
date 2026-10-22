@@ -97,9 +97,13 @@ public class TapAllAi extends SpellAbilityAi {
             if (target == null && mandatory) {
                 target = ai;
             }
+            if (target == null) { // fork #92: no targetable opponent (e.g. Leyline of Sanctity)
+                return new AiAbilityDecision(0, AiPlayDecision.TargetingFailed);
+            }
             sa.resetTargets();
             sa.getTargets().add(target);
-            validTappables = target.getCardsIn(ZoneType.Battlefield);
+            // fork #92: keep the ValidCards + untapped filter (was target.getCardsIn(Battlefield): lands counted)
+            validTappables = CardLists.filterControlledBy(validTappables, target);
         }
 
         if (mandatory) {
@@ -107,8 +111,9 @@ public class TapAllAi extends SpellAbilityAi {
         }
 
         if (validTappables.size() > 0) {
-            final int human = CardLists.count(validTappables, CardPredicates.isControlledByAnyOf(ai.getYourTeam()));
-            final int compy = CardLists.count(validTappables, CardPredicates.isControlledByAnyOf(ai.getOpponents()));
+            // fork #92: was swapped (wanted to tap the AI's own team), as in checkApiLogic human = opponents
+            final int human = CardLists.count(validTappables, CardPredicates.isControlledByAnyOf(ai.getOpponents()));
+            final int compy = CardLists.count(validTappables, CardPredicates.isControlledByAnyOf(ai.getYourTeam()));
             if (human > compy) {
                 return new AiAbilityDecision(100, AiPlayDecision.WillPlay);
             }
