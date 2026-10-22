@@ -30,8 +30,9 @@ import type {
   OutReason,
 } from '../model/types';
 import type { CardProps, CardStateProps, PhaseType, PlayerProps, StackItemProps, ZoneType } from '../wire/generated/wire';
+import { engineLog, engineText, targetInstruction } from './engineText';
 import { parseImageKey, scryfallLookup, type ImageLookup } from './images';
-import { freeMulliganKeep, promptToChoice, promptWords, inputToChoice, SELECT_PROMPT_PREFIX, targetKey, tossChooser } from './prompts';
+import { cancelValue, freeMulliganKeep, promptToChoice, promptWords, inputToChoice, SELECT_PROMPT_PREFIX, targetKey, tossChooser } from './prompts';
 import { tossTitle } from '../state/gameStart';
 import { commanderTax, defendingPlayerOf } from '../model/selectors';
 import { revealWords } from './revealWords';
@@ -249,8 +250,8 @@ export function mapCard(s: LiveSession, id: number, images: ImageLookup = scryfa
   };
 }
 
-/** Log text with "Name (id)" turned into {card:id} tokens for cards this viewer can see. */
-export function logText(text: string, cards: Record<string, CardView>): string {
+/** Log text with "Name (id)" turned into {card:id} tokens for cards this viewer can see, the rest as player words (engineText). */
+export function logText(text: string, cards: Record<string, CardView>, seatName?: string): string {
   let out = '';
   let last = 0;
   for (const m of text.matchAll(/ \((\d+)\)/g)) {
@@ -260,7 +261,7 @@ export function logText(text: string, cards: Record<string, CardView>): string {
     out += name ? `${before.slice(0, before.length - name.length)}{card:${c!.id}}` : before + m[0];
     last = m.index + m[0].length;
   }
-  return out + text.slice(last);
+  return engineLog(out + text.slice(last), seatName);
 }
 
 /** "Pay Mana Cost: {2}{G}" (InputPayMana). */
@@ -373,7 +374,13 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
   };
   if (s.finished) return waiting('Game over');
   const prompt = s.prompt;
-  if (prompt) return { kind: 'choice', prompt: promptToChoice(prompt, view.cards, view.players.map((p) => p.id)) };
+  if (prompt) {
+    return {
+      kind: 'choice',
+      prompt: promptToChoice(prompt, view.cards, view.players.map((p) => p.id)),
+      ...(cancelValue(prompt) !== undefined ? { cancellable: true } : {}),
+    };
+  }
 
   const input = s.input;
   const mine =
@@ -401,12 +408,16 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
     // Commander tax (CostAdjustment): 2 per earlier cast, for your commander cast from the command zone (issue #67).
     const fromCommand = sourceCardId !== '' && sourceCardId === sid(s.lastCard ?? -1) && s.lastCardFrom === 'Command';
     const tax = fromCommand && youView.commanders.includes(sourceCardId) ? commanderTax(youView, sourceCardId) : 0;
+    // The X you announced for this card (the engine's cost already reads it as generic mana).
+    const announcedX = s.announcedX && s.announcedX.card === view.cards[sourceCardId]?.name ? s.announcedX.value : undefined;
     const sources = weakly
       .filter((id) => view.cards[sid(id)]?.zone === 'battlefield' && !view.cards[sid(id)]?.tapped)
       .map((id) => manaSource(s, id));
     return {
       kind: 'payMana',
       sourceCardId,
+      ...(s.payment?.ability ? { ability: s.payment.ability } : {}),
+      ...(announcedX !== undefined ? { x: announcedX } : {}),
       cost,
       remaining,
       tax,
@@ -536,7 +547,7 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
       };
     }
     // "Bolt (12) - Deal 3 damage…\n\nSelect any target": the last line is the instruction.
-    const instruction = input.message.trim().split('\n').filter((l) => l.trim()).at(-1)?.trim() || 'Choose';
+    const instruction = targetInstruction(input.message);
     const max = input.selectable?.max ?? Math.max(1, chosen.length + 1);
     const info = input.info;
     if (info?.kind === 'pick') {
@@ -703,7 +714,7 @@ export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup,
         sourceCardId: sid(si.SourceCard ?? -1),
         controllerId: controller !== undefined ? sid(controller) : (source?.controllerId ?? sid(activeId)),
         kind: si.Ability ? ((si.SourceTrigger ?? -1) >= 0 ? 'trigger' : 'ability') : 'spell',
-        text: si.Description ?? '',
+        text: engineText(si.Description ?? ''),
         targets,
       },
     ];
@@ -741,6 +752,7 @@ export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup,
     if (other.length) youView.otherZoneCasts = other.map((cardId) => ({ cardId, via: castVia(cards[cardId]!) }));
   }
 
+  const youName = youView?.name;
   const base: Omit<GameView, 'decision'> = {
     id: `live-${s.game}`,
     format: commander ? 'commander' : 'constructed',
@@ -762,7 +774,7 @@ export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup,
     autoYieldTo: [],
     passingUntilYourTurn: local.passingUntilYourTurn,
     // Step changes are the strip's job, not the log's.
-    log: s.log.filter((e) => e.type !== 'PHASE').map((e): LogEntry => ({ id: `w${e.id}`, turn: e.turn, text: logText(e.msg, cards) })),
+    log: s.log.filter((e) => e.type !== 'PHASE').map((e): LogEntry => ({ id: `w${e.id}`, turn: e.turn, text: logText(e.msg, cards, youName) })),
   };
   const decision = decisionFor(s, base);
   const view: GameView = { ...base, decision };

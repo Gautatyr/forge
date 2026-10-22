@@ -41,6 +41,11 @@ export function you(game: GameView): PlayerView {
   return player(game, game.youId);
 }
 
+/** A player's name for lists and plates: your own gets "(you)" unless the engine already calls the seat "You". */
+export function nameLabel(p: Pick<PlayerView, 'name' | 'isYou'>): string {
+  return p.isYou && p.name.trim().toLowerCase() !== 'you' ? `${p.name} (you)` : p.name;
+}
+
 export function opponents(game: GameView): PlayerView[] {
   return game.players.filter((p) => !p.isYou);
 }

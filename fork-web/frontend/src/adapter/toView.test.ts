@@ -648,8 +648,23 @@ describe('helpers', () => {
   it('turns "Name (id)" in the log into card tokens for visible cards only', () => {
     const g = toGameView(session());
     expect(logText('Hugo cast Grizzly Bears (10) targeting Dragon (20); Secret (99) moved.', g.cards)).toBe(
-      'Hugo cast {card:10} targeting {card:20}; Secret (99) moved.',
+      'Hugo cast {card:10} targeting {card:20}; Secret moved.',
     );
+  });
+
+  it('words the seat as "you" in the log (pass 1 #9) and drops ids of cards it cannot show (pass 1 #1)', () => {
+    const g = toGameView(session());
+    expect(logText('You has kept a hand of 7 cards.', g.cards, 'You')).toBe('You have kept a hand of 7 cards.');
+    expect(logText("Return Wurmcoil Engine (248) to its owner's hand", g.cards)).toBe("Return Wurmcoil Engine to its owner's hand");
+  });
+
+  it('turns every log entry of the stream into player words', () => {
+    const s = session();
+    s.apply({
+      t: 'delta', game: 1, seq: 1, ts: 0, new: [], changed: [], removed: [], events: [],
+      log: [{ type: 'MULLIGAN', msg: 'Hugo has kept a hand of 7 cards' }] as never,
+    });
+    expect(toGameView(s).log.at(-1)?.text).toBe('You have kept a hand of 7 cards');
   });
 });
 
@@ -900,6 +915,22 @@ describe('selections off the board (library searches, choosing a player)', () =>
     s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, false, true] });
     const d = toGameView(s).decision;
     expect(d).toMatchObject({ kind: 'choice', prompt: { shape: 'chooseN', title: 'Select a creature you control', instruction: '' } });
+  });
+
+  it('shows a multi-target step with its instruction and the count (pass 1 #6)', () => {
+    const s = session();
+    s.apply(selection({ cards: [card(10), card(20)], min: 0, max: 4 }));
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Teferi, Temporal Archmage (12) - Select target permanent\n(4 more can be targeted)', card(10)] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', true, true, true] });
+    expect(toGameView(s).decision).toMatchObject({ kind: 'chooseTargets', instruction: 'Teferi, Temporal Archmage - Select target permanent (4 more can be targeted)' });
+  });
+
+  it('words a raw engine filter and drops the engine id in a target step (pass 1 #1, #3)', () => {
+    const s = session();
+    s.apply(selection({ cards: [card(10), card(20)], min: 1, max: 1 }));
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Scrap Trawler (63) - Select target Artifact.cmcLTX+YouCtrl', card(10)] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, true, false] });
+    expect(toGameView(s).decision).toMatchObject({ kind: 'chooseTargets', instruction: 'Scrap Trawler - Select target artifact with lesser mana value you control' });
   });
 
   it('keeps board targeting for a spell whose targets are on the board', () => {

@@ -3,7 +3,7 @@
  * combat damage assignment, number (X) and name a card. The bodies stay thin
  * around these; the tray's confirm and the main button both use them.
  */
-import type { CardNameOption, DistributePrompt, InputPrompt } from '../../model/types';
+import type { CardNameOption, DistributePrompt, DistributeRecipient, InputPrompt } from '../../model/types';
 import type { Confirm } from './trayLogic';
 
 export type Amounts = Record<string, number>;
@@ -12,6 +12,14 @@ export type Amounts = Record<string, number>;
 
 const minOf = (p: DistributePrompt, id: string) => p.recipients.find((r) => r.id === id)?.min ?? 0;
 const trampleId = (p: DistributePrompt) => p.combat?.trampleId;
+
+/** "Lethal 2", "Lethal 1 · deathtouch" (a creature), "Life 18" (a player: deathtouch doesn't apply; "Lethal 10 · poison" for an infect attacker), "At least 1", or why the trample row waits. */
+export function rowNote(p: DistributePrompt, r: DistributeRecipient, gated: boolean, creature: boolean): string {
+  if (gated) return 'Assign lethal damage to every blocker first';
+  if (r.lethal !== undefined && r.playerId) return p.combat?.infect ? `Lethal ${r.lethal} · poison` : `Life ${r.lethal}`;
+  if (r.lethal !== undefined) return `Lethal ${r.lethal}${p.combat?.deathtouch && creature ? ' · deathtouch' : ''}`;
+  return r.min ? `At least ${r.min}` : '';
+}
 
 /** Combat: the blockers (every recipient but the trample one). */
 export const blockerRows = (p: DistributePrompt) => p.recipients.filter((r) => r.id !== trampleId(p));

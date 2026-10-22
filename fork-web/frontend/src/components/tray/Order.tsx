@@ -3,7 +3,7 @@ import type { OrderPrompt } from '../../model/types';
 import { useMatch } from '../../state/MatchContext';
 import { Card } from '../Card';
 import type { BodyProps } from './TrayBody';
-import { moveBetween, moveItem, revealScrollTop } from './trayLogic';
+import { moveBetween, moveItem, moveLabel, revealScrollTop } from './trayLogic';
 import styles from '../ChoiceTray.module.css';
 
 /** One list: a column, first item at the top. Two lists: the scry layout, click moves a card across. */
@@ -119,7 +119,7 @@ function TwoLists({ prompt, draft, setDraft }: BodyProps<OrderPrompt>) {
                         ◀
                       </button>
                       <button type="button" className={styles.moveBtn} onClick={() => move(id)}>
-                        To {other.label.split(' ')[0]?.toLowerCase()}
+                        {moveLabel(other)}
                       </button>
                       <button
                         type="button"

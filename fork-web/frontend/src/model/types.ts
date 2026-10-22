@@ -385,7 +385,14 @@ export interface YesNoPrompt extends PromptBase {
  */
 export interface OrderPrompt extends PromptBase {
   shape: 'order';
-  lists: { id: string; label: string; hint: string; items: ChoiceOption[] }[];
+  lists: {
+    id: string;
+    label: string;
+    hint: string;
+    items: ChoiceOption[];
+    /** Two lists: what the other list's move button says ("To graveyard"); the label in lower case when absent. */
+    moveTo?: string;
+  }[];
 }
 
 /** One row of a distribute prompt: a card (thumbnail) or a player (seat shape). */
@@ -408,6 +415,8 @@ export interface DistributePrompt extends PromptBase {
     attackerId: CardId;
     /** The attacker has deathtouch: 1 damage is lethal ("Lethal 1 · deathtouch"). */
     deathtouch: boolean;
+    /** The attacker has infect: a player's `lethal` is the poison counters they still need, not their life. */
+    infect?: boolean;
     /**
      * Trample: id of the recipient (player or planeswalker) the excess goes to. It may
      * get damage only once every blocker has lethal damage. Absent without trample.

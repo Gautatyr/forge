@@ -351,6 +351,8 @@ public class HumanSeatScryTest {
         // one to the graveyard, one kept: no order to ask
         List<JsonObject> p = surveil(whisperer, List.of("Grizzly Bears"), List.of());
         assertEquals(p.size(), 1, "graveyard pick only: " + p);
+        // the page words this prompt by its message (frontend adapter/trayWords.ts, isSurveil): the engine's text, order shape
+        assertEquals(p.get(0).get("message").getAsString(), "Select cards to be put into the graveyard");
         assertEquals(labels(p.get(0)), List.of("Grizzly Bears", "Llanowar Elves"), "only the two cards looked at, top first");
         assertEquals(names(ZoneType.Graveyard), List.of("Grizzly Bears"));
         assertEquals(names(ZoneType.Library).get(0), "Llanowar Elves");
@@ -369,6 +371,59 @@ public class HumanSeatScryTest {
         assertEquals(names(ZoneType.Library).size(), lib.size() - 3);
         assertTrue(names(ZoneType.Graveyard).containsAll(List.of("Grizzly Bears", "Giant Growth", "Llanowar Elves")), names(ZoneType.Graveyard).toString());
         assertEquals(me.getLife(), 14, "paid 2 life per surveil");
+        assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
+    }
+
+    /**
+     * Issue #29 (playtest 2 #5): an X above 9 is asked as the list "0 … 9, Other…" (AbstractGuiGame.getInteger), then
+     * "Other…" as a numeric text prompt with its range. The page answers both from its number field
+     * (frontend adapter/trayWords.ts, numberList and rangeOfNumberPrompt), so this is the shape it relies on.
+     */
+    @Test
+    public void anXAboveNineIsAListWithOtherThenANumberPrompt() throws Exception {
+        start();
+        for (int i = 0; i < 12; i++) {
+            add("Mountain", me, ZoneType.Battlefield);
+        }
+        Card blaze = add("Blaze", me, ZoneType.Hand);
+        List<JsonObject> prompts = new ArrayList<>();
+        boolean[] cast = {false};
+        List<String> seen = play(() -> game.getCardState(blaze).isInZone(ZoneType.Graveyard) && game.getStack().isEmpty(),
+                in -> {
+                    if (in instanceof InputPassPriority && !cast[0]) {
+                        cast[0] = true;
+                        return () -> select(blaze);
+                    }
+                    if (in instanceof forge.gamemodes.match.input.InputSelectTargets) {
+                        return () -> action("selectPlayer", "\"player\":" + game.getPlayers().get(1).getId());
+                    }
+                    return null;
+                },
+                m -> {
+                    prompts.add(m);
+                    if ("getChoices".equals(m.get("method").getAsString())) {
+                        return new JsonParser().parse("[10]"); // "Other..."
+                    }
+                    if ("showInputDialog".equals(m.get("method").getAsString())) {
+                        return new com.google.gson.JsonPrimitive("11");
+                    }
+                    return null;
+                });
+        assertEquals(prompts.size(), 2, "the list, then the number; seen " + seen + " " + prompts);
+        JsonObject list = prompts.get(0);
+        assertEquals(list.get("message").getAsString(), "Choose X for Blaze");
+        assertEquals(list.get("min").getAsInt(), 0, "oneOrNone: nothing chosen cancels");
+        assertEquals(list.get("max").getAsInt(), 1);
+        List<String> l = new ArrayList<>();
+        for (JsonElement c : list.getAsJsonArray("choices")) {
+            l.add(c.getAsJsonObject().get("label").getAsString());
+        }
+        assertEquals(l, List.of("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "Other..."));
+        JsonObject number = prompts.get(1);
+        assertTrue(number.get("numeric").getAsBoolean(), number.toString());
+        // an X has no maximum (getInteger is asked up to Integer.MAX_VALUE): the follow-up names only its minimum
+        assertEquals(number.get("message").getAsString(), "Enter a number greater than or equal to 0:");
+        assertEquals(game.getPlayers().get(1).getLife(), 20 - 11, "X was 11; seen " + seen);
         assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
     }
 }

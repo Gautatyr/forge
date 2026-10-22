@@ -263,6 +263,10 @@ final class SeatSession implements IRemote {
             SilentDefaults.report(where(), "no prompt shape for " + e.getMethod() + ": answered null (ProtocolGuiGame's default)");
             return null;
         }
+        if (p instanceof Prompt.Order o && o.orderIsMoot()) {
+            // A deliberate automation (audit: docs/fork/audit/human-seat.md): the order of cards put into exile matters to no one.
+            return o.fallback();
+        }
         return ask(p);
     }
 

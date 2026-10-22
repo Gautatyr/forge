@@ -1710,10 +1710,12 @@ export interface PromptChoice {
 
 /** What a selection input asks (forge.fork.web.seat.InputInfo, issue #81). */
 export interface InputInfo {
-  /** target: targets of a spell or ability; pick: cards or players chosen for a cost or an effect (discard, sacrifice…). */
-  kind: 'target' | 'pick';
+  /** target: targets of a spell or ability; pick: cards or players chosen for a cost or an effect (discard, sacrifice…); pay: paying a mana cost. */
+  kind: 'target' | 'pick' | 'pay';
   /** target: what the targets are for. */
   ability?: 'spell' | 'activated' | 'triggered';
+  /** pay: the activated ability paid for ("Equip {2}"); absent for a spell. */
+  payFor?: string;
   /** pick: an "unless" cost; Cancel declines it and this happens (the engine's text worded for you: "You sacrifice Drekavac"). */
   decline?: string;
 }

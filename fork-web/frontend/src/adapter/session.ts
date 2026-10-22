@@ -6,6 +6,7 @@
  */
 import type { AttackOptionsMessage, BlockOptionsMessage, HelloMessage, InputInfo, LogEntry as WireLogEntry, SnapshotMessage, WireObject } from '../wire/generated/wire';
 import { hasDrift, schemaDrift, type SchemaDrift } from '../wire/schemaDrift';
+import { engineNotice } from './engineText';
 import { asRef, type PromptMessage, type SeatRef, type ServerFrame } from './protocol';
 
 export const LOG_LIMIT = 400;
@@ -133,8 +134,12 @@ export class LiveSession {
   /** Game over (final delta or finishGame). */
   finished = false;
   /** The payment being made: its full cost, as the first "Pay Mana Cost" message of the input showed it. */
-  payment?: { cardId?: number; cost: string; seq: number };
+  payment?: { cardId?: number; cost: string; seq: number; /** What activated ability it pays for ("Equip {2}"). */ ability?: string };
   private paymentSeq = 0;
+  /** The X you just announced for a card ("Choose X for <card>"): the next payment for that card shows it. */
+  announcedX?: { card: string; value: number };
+  /** A number past a list's "Other…" entry: typed into the engine's follow-up prompt for you (commands.ts autoAnswer). */
+  pendingNumber?: { value: number; after: number };
   /** Player → turn when they were first seen out, and the order they went out in. */
   lostAt = new Map<number, number>();
   lostOrder = new Map<number, number>();
@@ -321,8 +326,13 @@ export class LiveSession {
       case 'showPromptMessage': {
         const card = refId(a[2]);
         const pay = typeof a[1] === 'string' ? /Pay Mana Cost:\s*(\S+)/.exec(a[1]) : null;
-        if (!pay) this.payment = undefined;
-        else if (!this.payment || this.payment.cardId !== card) this.payment = { cardId: card, cost: pay[1]!, seq: ++this.paymentSeq };
+        if (!pay) {
+          // The payment is over (the spell is on the stack, or it was cancelled): its X is spent.
+          if (this.payment) this.announcedX = undefined;
+          this.payment = undefined;
+        } else if (!this.payment || this.payment.cardId !== card) this.payment = { cardId: card, cost: pay[1]!, seq: ++this.paymentSeq };
+        // What the payment is for (InputInfo kind 'pay'): sent with each of its messages.
+        if (pay && info?.kind === 'pay' && info.payFor) this.payment = { ...this.payment!, ability: info.payFor };
         const message = typeof a[1] === 'string' ? a[1] : '';
         // InputSelectTargets: "<host card> - …", the card printed "Name (id)"
         const spell = /^(.+?) \((\d+)\) - /.exec(message.split('\n')[0] ?? '');
@@ -400,7 +410,8 @@ export class LiveSession {
         return;
       case 'message':
       case 'showErrorDialog': {
-        const text = [a[1], a[0]].filter((x) => typeof x === 'string' && x).join(': ');
+        // message(text, title): the engine's default title "Forge" is no title.
+        const text = engineNotice(typeof a[0] === 'string' ? a[0] : '', typeof a[1] === 'string' ? a[1] : undefined);
         if (text) this.notice(text);
         return;
       }
