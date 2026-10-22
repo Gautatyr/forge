@@ -93,14 +93,39 @@ export interface CardView {
   /** Current P/T after all effects; undefined for non-creatures. */
   power?: number;
   toughness?: number;
-  /** Explains how current P/T differs from the printed one. */
-  ptModifiers: PtModifier[];
+  /**
+   * Explains how current P/T differs from the printed one. Absent when the source can't say (live: the engine view
+   * has the net P/T only, no printed P/T and no per-source modifiers): the inspector then shows the current P/T alone.
+   */
+  ptModifiers?: PtModifier[];
   /** Every keyword the card has now, printed and added by other cards, in engine order. */
   keywords: CardKeyword[];
   attachedTo?: CardId;
   attachments: CardId[];
+  /** Cards this card holds or is held by (imprint, exiled with…), only those this viewer can see. */
+  links?: CardLink[];
   /** A battle's protector: the player who defends it when it is attacked. */
   protectorId?: PlayerId;
+}
+
+/** Why one card names others: what the engine tracks between them (Forge's own card detail lists the same). */
+export type CardLinkKind =
+  /** Imprint (Mimic Vat, Chrome Mox): the cards this one imprinted. */
+  | 'imprinted'
+  /** Cards this one exiled and holds (an "exiled with" ability). */
+  | 'exiled'
+  /** Cards exiled only until this one leaves the battlefield. */
+  | 'untilLeaves'
+  /** On an exiled card: the card it was exiled with. */
+  | 'exiledWith'
+  | 'hauntedBy'
+  | 'haunting'
+  /** Cipher: cards encoded on this one. */
+  | 'encoded';
+
+export interface CardLink {
+  kind: CardLinkKind;
+  cardIds: CardId[];
 }
 
 export interface CommanderDamage {
@@ -127,7 +152,15 @@ export interface PlayerView {
   battlefield: CardId[];
   graveyard: CardId[];
   exile: CardId[];
+  /** Castable cards in the command zone: commanders, a companion. Engine effects are in `effects`. */
   command: CardId[];
+  /**
+   * Intangible objects in the command zone that are status, not cards to cast: the Monarch, emblems, engine effect
+   * cards ("Stomp's Effect", "On an Adventure"), dungeons, planes. Absent: none (mock).
+   */
+  effects?: CardId[];
+  /** Cards attached to this player, e.g. a Curse; they stay on their controller's battlefield too. Absent: none. */
+  attachments?: CardId[];
   commanders: CardId[];
   /** Times each commander was cast from the command zone (tax = 2× this). */
   commanderCasts: Record<CardId, number>;

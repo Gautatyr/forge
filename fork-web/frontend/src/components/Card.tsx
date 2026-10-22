@@ -8,6 +8,7 @@ import { useOverlayKey } from '../state/overlayKey';
 import { Icon, type IconName } from './Icon';
 import { KeywordIcons, KW_AVOID_ATTR, type CardActions } from './KeywordIcons';
 import { previewBeside } from './previewSpot';
+import { linkNotes } from './cardLinks';
 import { iconKeywords } from './keywordCatalog';
 import { cardStatusWithChoice } from './tray/inPlace';
 import { useInPlacePick } from './tray/useInPlacePick';
@@ -51,7 +52,7 @@ interface Badge {
   label: string;
 }
 
-function badges(c: CardView, s: CardStatus): Badge[] {
+function badges(c: CardView, s: CardStatus, links: string[]): Badge[] {
   const out: Badge[] = [];
   if (s.selected) out.push({ icon: 'check', cls: styles.bSelected!, label: 'Selected' });
   if (s.actionable && s.actionKind === 'target' && !s.selected)
@@ -70,6 +71,8 @@ function badges(c: CardView, s: CardStatus): Badge[] {
     out.push({ icon: 'target', cls: styles.bTargeted!, label: `Targeted by ${s.targetedBy.join(', ')}` });
   if (c.faceDown?.seen)
     out.push({ icon: 'eye', cls: styles.bNeutral!, label: `${c.faceDown.foretold ? 'Foretold' : 'Face down'}: only you can look at it` });
+  // Imprint, exiled with…: the held card is in the hover preview and the inspector, this marks that there is one.
+  if (links.length) out.push({ icon: 'exile', cls: styles.bNeutral!, label: links.join('. ') });
   if (c.isCommander) out.push({ icon: 'crown', cls: styles.bNeutral!, label: 'Commander' });
   if (c.summoningSick && isCreature(c) && c.zone === 'battlefield')
     out.push({ icon: 'sick', cls: styles.bNeutral!, label: 'Summoning sick' });
@@ -103,6 +106,7 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
   const onBoard = context === 'board';
   const showOverlays = context !== 'thumb';
   const ring = showOverlays ? ringClass(s) : undefined;
+  const links = onBoard ? linkNotes(game, c) : [];
   const dir = ptDirection(c);
   // Attackers stay upright during combat so they remain readable (Arena does the same).
   const showTapped = c.tapped && onBoard && !s.attacking;
@@ -151,6 +155,7 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
     c.power !== undefined ? `${c.power}/${c.toughness}` : '',
     s.actionKind === 'mana' ? 'can pay: click to tap for mana' : '',
     onBoard ? c.keywords.map((k) => k.label).join(', ') : '',
+    links.join(', '),
     ariaExtra ?? '',
   ]
     .filter(Boolean)
@@ -215,7 +220,7 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
         {showOverlays ? (
           <>
             <span className={styles.badges}>
-              {badges(c, s).map((b) => (
+              {badges(c, s, links).map((b) => (
                 <span key={b.label} className={`${styles.badge} ${b.cls}`} title={b.label} {...avoid}>
                   <Icon name={b.icon} />
                 </span>

@@ -446,7 +446,17 @@ describe('payment and reveals', () => {
 
   it('shows a one-line reveal message once', () => {
     const s = session();
-    s.apply({ t: 'call', method: 'showRevealedCards', args: [[card(20)]] });
+    // The AI's whole hand is the one card shown (a partial reveal gets its own title, boardInfo.test.ts).
+    s.apply(
+      delta1({
+        new: [
+          { type: 'card', id: 25, props: { Owner: 1, Controller: 1, Zone: 'Hand', CurrentState: 'Original' } },
+          { type: 'cardState', id: 25, state: 'Original', props: { Name: 'Port Town', Type: 'Land' } },
+        ],
+        changed: [{ type: 'player', id: 1, props: { Hand: [25] } }],
+      }),
+    );
+    s.apply({ t: 'call', method: 'showRevealedCards', args: [[card(25)]] });
     buttons(s, 'OK', '', "Looking at cards in AI's hand");
     s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', '', true, false, true] });
     expect(toGameView(s).decision).toMatchObject({ kind: 'choice', prompt: { title: "Looking at cards in AI's hand", instruction: '' } });
