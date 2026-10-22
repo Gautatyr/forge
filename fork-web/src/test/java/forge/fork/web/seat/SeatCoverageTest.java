@@ -133,7 +133,7 @@ public class SeatCoverageTest {
             setOriginalGameController(PlayerView,IGameController) = WebGuiGame
             setPanelSelection(CardView) = ProtocolGuiGame
             setPlayerAvatar(LobbyPlayer,IHasIcon) = ProtocolGuiGame
-            setSelection(Selection) = ProtocolGuiGame
+            setSelection(Selection) = WebGuiGame
             setSpectator(IGameController) = AbstractGuiGame
             setWeaklySelectable(Iterable) = ProtocolGuiGame
             showCoinFlip(boolean,String,boolean) = IGuiGame

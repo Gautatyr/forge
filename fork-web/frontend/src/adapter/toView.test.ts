@@ -425,6 +425,7 @@ describe('payment and reveals', () => {
       canUndoTap: false,
       autoTaps: ['40'],
       autoCanPay: true,
+      lifePays: false,
     });
     s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Grizzly Bears\n\nPay Mana Cost: {1}', card(-1)] });
     expect(toGameView(s).decision).toMatchObject({ cost: '{1}{G}', remaining: '{1}' });

@@ -61,11 +61,22 @@ public class PlayerControllerAi extends PlayerController {
     private final AiController brains;
 
     private boolean pilotsNonAggroDeck = false;
+    /** Pays a human's mana cost (Auto, InputPayMana): taps and spends mana only, never another cost (sacrifice, life…). */
+    private boolean autoPayForHuman = false;
 
     public PlayerControllerAi(Game game, Player p, LobbyPlayer lp) {
         super(game, p, lp);
 
         brains = new AiController(p, game);
+    }
+
+    public boolean isAutoPayForHuman() {
+        return autoPayForHuman;
+    }
+
+    public PlayerControllerAi setAutoPayForHuman(boolean value) {
+        autoPayForHuman = value;
+        return this;
     }
 
     public boolean pilotsNonAggroDeck() {
@@ -1484,6 +1495,12 @@ public class PlayerControllerAi extends PlayerController {
         final PhaseHandler ph = ai.getGame().getPhaseHandler();
         // Filter out mana sources that will interfere with payManaCost()
         CardCollection untapped = CardLists.filter(untappedCards, c -> c.getManaAbilities().isEmpty());
+
+        // A human player's cost estimated under this controller (playable highlights, AvailableActions): the human
+        // chooses, so any of these may pay; the AI's tactics below don't apply.
+        if (!ai.isAI()) {
+            return ComputerUtilMana.getConvokeOrImproviseFromList(manaCost, untapped, artifacts, creatures);
+        }
 
         // Filter out creatures if AI hasn't attacked yet
         if (ph.isPlayerTurn(ai) && ph.getPhase().isBefore(PhaseType.COMBAT_DECLARE_ATTACKERS)) {

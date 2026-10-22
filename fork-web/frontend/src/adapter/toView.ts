@@ -216,6 +216,15 @@ export function logText(text: string, cards: Record<string, CardView>): string {
 
 /** "Pay Mana Cost: {2}{G}" (InputPayMana). */
 export const PAY_COST = /Pay Mana Cost:\s*(\S+)/;
+/** InputPayManaOfCostPayment with Phyrexian mana (or "pay life instead of {B}"): a click on your player pays 2 life. */
+const LIFE_PAYS = /Click on your life total to pay life/;
+/** InputSelectCardsForConvokeOrImprovise: "Choose artifact to tap for Improvise.\nRemaining mana cost is {5}{B}{B}". */
+const TAP_TO_PAY = /Choose (artifact or creature|creature|artifact) to tap for (\w+)\.\s*Remaining mana cost is (\S+?)\.?(?=\s|$)/;
+const TAP_TO_PAY_KIND: Record<string, string> = {
+  artifact: 'artifacts',
+  creature: 'creatures',
+  'artifact or creature': 'artifacts or creatures',
+};
 const ATTACK_CANCEL = new Set(['Alpha Strike', 'Call Back']);
 
 /** Pool keys are MagicColor bytes ("1" white … "16" green, "0" colourless). */
@@ -358,6 +367,7 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
         .filter(([id, n]) => n >= 2 && view.cards[sid(id)] && !view.cards[sid(id)]!.tapped)
         .map(([id]) => sid(id)),
       autoCanPay: input.ok.enabled && input.ok.label === 'Auto',
+      lifePays: LIFE_PAYS.test(input.message),
     };
   }
 
@@ -459,6 +469,21 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
           min: input.selectable?.min ?? (input.ok.enabled ? 0 : 1),
           max: Math.min(legal.length, input.selectable?.max ?? 1),
         },
+      };
+    }
+    // Convoke, improvise: the bridge names the permanents the input takes (issue #70); each click taps one for the cost.
+    const tap = TAP_TO_PAY.exec(input.message);
+    if (tap) {
+      const left = tap[3] === '0' ? 'nothing' : tap[3];
+      return {
+        kind: 'chooseTargets',
+        sourceCardId: castCard(),
+        instruction: `Tap ${TAP_TO_PAY_KIND[tap[1]!]} to pay for ${tap[2]} — ${left} left`,
+        legal,
+        chosen,
+        min: 0,
+        max: legal.length,
+        tapToPay: true,
       };
     }
     // "Bolt (12) - Deal 3 damage…\n\nSelect any target": the last line is the instruction.

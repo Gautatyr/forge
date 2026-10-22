@@ -89,7 +89,8 @@ export function cardStatus(game: GameView, ui: UiState, id: CardId): CardStatus 
     const pick = d.purpose === 'pick';
     const source = !pick && id === d.sourceCardId;
     s.actionable = legal;
-    s.actionKind = legal && !pick ? 'target' : undefined;
+    // Convoke and improvise taps are no targets either.
+    s.actionKind = legal && !pick && !d.tapToPay ? 'target' : undefined;
     s.selected = chosen || source;
     s.dimmed = !legal && !source && c.zone === 'battlefield';
   }

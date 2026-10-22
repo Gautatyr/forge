@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyIntent, type MockGame } from '../mock/engine';
+import { parseCost } from '../model/mana';
 import { SCENARIOS, scenarioById } from '../mock/scenarios';
 import type { GameView } from '../model/types';
 import { cardClick } from './cardClick';
@@ -115,7 +116,16 @@ describe('while paying', () => {
   it('says so when untapped sources fall short', () => {
     const g = pay();
     if (g.decision.kind !== 'payMana') throw new Error('not paying');
-    const short: GameView = { ...g, decision: { ...g.decision, autoCanPay: false } };
+    const noPool = { ...g, players: g.players.map((p) => ({ ...p, manaPool: {} })) };
+    const short: GameView = { ...noPool, decision: { ...g.decision, autoCanPay: false, sources: g.decision.sources.slice(0, 1) } };
     expect(primaryAction(short, INITIAL_UI, DEFAULT_STOPS)).toMatchObject({ enabled: false, detail: 'Not enough untapped mana' });
+  });
+
+  it('says to pay by hand when auto-pay cannot but sources remain (a sacrifice or life would pay; issue #66)', () => {
+    const g = pay();
+    if (g.decision.kind !== 'payMana') throw new Error('not paying');
+    expect(g.decision.sources.length).toBeGreaterThanOrEqual(parseCost(g.decision.remaining).generic + parseCost(g.decision.remaining).coloured.length);
+    const noAuto: GameView = { ...g, decision: { ...g.decision, autoCanPay: false } };
+    expect(primaryAction(noAuto, INITIAL_UI, DEFAULT_STOPS)).toMatchObject({ enabled: false, detail: 'Auto-pay only taps and spends mana: pay by hand' });
   });
 });
