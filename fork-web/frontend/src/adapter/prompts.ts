@@ -107,6 +107,22 @@ export function promptToChoice(p: PromptMessage, cards: Record<string, CardView>
     case 'order': {
       const w = words(p, 'Put in order');
       const base = { id, ...w, sourceCardId, confirmLabel: 'Confirm', shape: 'order' as const };
+      if (p.piles) {
+        // scry: only the looked-at cards, each to the top or the bottom of the library (the scry layout)
+        const items = p.choices.map((c) => opt(c));
+        const lists = [];
+        if (p.toTop !== false) lists.push({ id: 'top', label: 'Top of library', hint: 'Leftmost is drawn first', items });
+        if (p.toBottom !== false) {
+          const one = lists.length === 0;
+          lists.push({
+            id: 'bottom',
+            label: 'Bottom of library',
+            hint: one ? 'Last goes to the very bottom' : 'Rightmost goes to the very bottom',
+            items: one ? items : [],
+          });
+        }
+        return { ...base, lists };
+      }
       if (p.permutation || p.method === 'manipulateCardList') {
         return { ...base, lists: [{ id: 'all', label: 'Order', hint: 'First is on top', items: p.choices.map((c) => opt(c)) }] };
       }
@@ -194,6 +210,7 @@ export function replyValue(p: PromptMessage, a: PromptAnswer): unknown {
     case 'order': {
       if (a.shape !== 'order') return undefined;
       const list = (id: string) => (a.lists.find((l) => l.id === id)?.itemIds ?? []).map(Number);
+      if (p.piles) return { top: list('top'), bottom: list('bottom') };
       if (p.permutation || p.method === 'manipulateCardList') return list('all');
       if (p.method === 'sideboard') return list('dest');
       return { order: list('dest'), remember: false };

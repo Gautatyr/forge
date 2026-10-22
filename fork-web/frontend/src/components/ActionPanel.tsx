@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { you } from '../model/selectors';
-import { currentDefender } from '../state/focus';
+import { currentAttackAim } from '../state/focus';
 import { watching } from '../state/gameEnd';
 import { useMatch } from '../state/MatchContext';
 import { canCancel, primaryAction, promptText } from '../state/primaryAction';
@@ -64,7 +64,7 @@ export function ActionPanel() {
           <button
             type="button"
             className={styles.secondary}
-            onClick={() => send({ type: 'attackWithAll', defenderId: currentDefender(game, ui, prefs.layout)! })}
+            onClick={() => send({ type: 'attackWithAll', ...currentAttackAim(game, ui, prefs.layout)! })}
           >
             <Icon name="sword" />
             Attack all ({d.candidates.length})

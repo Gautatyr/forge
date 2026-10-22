@@ -62,6 +62,10 @@ function badges(c: CardView, s: CardStatus): Badge[] {
     out.push({ icon: 'shield', cls: styles.bActionable!, label: 'Can block' });
   if (s.actionable && s.actionKind === 'attack' && !s.attacking)
     out.push({ icon: 'sword', cls: styles.bActionable!, label: 'Can attack' });
+  if (s.actionable && s.actionKind === 'defender' && !s.selected)
+    out.push({ icon: 'sword', cls: styles.bActionable!, label: 'Can be attacked: click it, then your attackers' });
+  if (s.attackedBy.length > 0)
+    out.push({ icon: 'sword', cls: styles.bAttack!, label: `Attacked by ${s.attackedBy.join(', ')}` });
   if (s.targetSpot)
     out.push({ icon: 'target', cls: styles.bTargeted!, label: `Targeted by ${s.targetedBy.join(', ')}` });
   if (c.isCommander) out.push({ icon: 'crown', cls: styles.bNeutral!, label: 'Commander' });

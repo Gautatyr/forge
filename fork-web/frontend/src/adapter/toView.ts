@@ -32,6 +32,7 @@ import type { CardProps, CardStateProps, PhaseType, PlayerProps, ZoneType } from
 import { parseImageKey, scryfallLookup, type ImageLookup } from './images';
 import { freeMulliganKeep, promptToChoice, promptWords, inputToChoice, SELECT_PROMPT_PREFIX, targetKey, tossChooser } from './prompts';
 import { tossTitle } from '../state/gameStart';
+import { commanderTax, defendingPlayerOf } from '../model/selectors';
 import type { LiveSession } from './session';
 
 const STEP_OF: Record<PhaseType, StepId> = {
@@ -167,6 +168,7 @@ export function mapCard(s: LiveSession, id: number, images: ImageLookup = scryfa
   const transformed = backState === cur && back !== undefined;
   const creature = /\bCreature\b/.test(typeLineOf(cur.props.Type));
   const attached = cp.EntityAttachedTo;
+  const protector = gamePlayer(s, cp.ProtectingPlayer);
   return {
     id: sid(id),
     name,
@@ -188,6 +190,7 @@ export function mapCard(s: LiveSession, id: number, images: ImageLookup = scryfa
     keywords: (cur.props.Keywords ?? []).map(parseKeyword),
     attachedTo: attached?.type === 'card' ? sid(attached.id) : undefined,
     attachments: (cp.AttachedCards ?? []).map(sid),
+    ...(protector !== undefined ? { protectorId: sid(protector) } : {}),
   };
 }
 
@@ -331,6 +334,9 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
     const remaining = pay[1] === '0' ? '' : pay[1]!;
     const sourceCardId = castCard();
     const cost = s.payment?.cost ?? remaining;
+    // Commander tax (CostAdjustment): 2 per earlier cast, for your commander cast from the command zone (issue #67).
+    const fromCommand = sourceCardId !== '' && sourceCardId === sid(s.lastCard ?? -1) && s.lastCardFrom === 'Command';
+    const tax = fromCommand && youView.commanders.includes(sourceCardId) ? commanderTax(youView, sourceCardId) : 0;
     const sources = weakly
       .filter((id) => view.cards[sid(id)]?.zone === 'battlefield' && !view.cards[sid(id)]?.tapped)
       .map((id) => manaSource(s, id));
@@ -339,7 +345,7 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
       sourceCardId,
       cost,
       remaining,
-      tax: 0,
+      tax,
       sources,
       canUndoTap: false,
       autoTaps: [...s.weakly.entries()]
@@ -375,10 +381,17 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
   if (view.turn.step === 'declareAttackers' && view.turn.activePlayerId === view.youId && ATTACK_CANCEL.has(input.cancel.label)) {
     // The engine's candidates (InputAttack's setWeaklySelectable: undeclared legal attackers) and the declared ones.
     const candidates = [...new Set([...weakly.map(sid), ...combat.attacks.map((a) => a.attackerId)])];
+    // What you may attack is the engine's (attackOptions: the combat's defenders, issue #65); before it arrives, your
+    // opponents still in the game.
+    const options = s.attackOptions;
+    const inGame = (id: string) => view.players.some((p) => p.id === id && !p.isYou && !p.hasLost);
     return {
       kind: 'declareAttackers',
       candidates: candidates.filter((id) => view.cards[id]?.zone === 'battlefield'),
-      defenders: view.players.filter((p) => !p.isYou && !p.hasLost).map((p) => p.id),
+      defenders: options
+        ? options.filter((d) => d.type === 'player').map((d) => sid(d.id)).filter(inGame)
+        : view.players.filter((p) => !p.isYou && !p.hasLost).map((p) => p.id),
+      defenderCards: (options ?? []).filter((d) => d.type === 'card').map((d) => sid(d.id)).filter((id) => view.cards[id]?.zone === 'battlefield'),
       draft: combat.attacks,
     };
   }
@@ -588,15 +601,15 @@ export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup,
   const combat: CombatState | undefined = gp.CombatView?.length
     ? {
         // Attackers, blockers and defenders the view can't draw (a merged mutate copy, id -1) are left out.
+        // A planeswalker or battle attacked is named with its defending player (defendingPlayerOf).
         attacks: gp.CombatView.flatMap((band) => {
-          const def =
-            band.defender.type === 'player'
-              ? gamePlayer(s, band.defender.id) !== undefined
-                ? sid(band.defender.id)
-                : undefined
-              : cards[sid(band.defender.id)]?.controllerId;
           const attackers = band.attackers.map(sid).filter((a) => cards[a]);
-          return def ? attackers.map((a) => ({ attackerId: a, defenderId: def })) : [];
+          if (band.defender.type === 'player') {
+            const def = gamePlayer(s, band.defender.id);
+            return def !== undefined ? attackers.map((a) => ({ attackerId: a, defenderId: sid(def) })) : [];
+          }
+          const card = cards[sid(band.defender.id)];
+          return card ? attackers.map((a) => ({ attackerId: a, defenderId: defendingPlayerOf(card), defenderCardId: card.id })) : [];
         }),
         // plannedBlockers: the blocks as they stand, also while they are declared (blockers fills only once declared).
         blocks: gp.CombatView.flatMap((band) => {

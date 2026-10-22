@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent } from 'react';
-import { currentDefender } from '../state/focus';
+import { currentAttackAim } from '../state/focus';
 import { gameEndView, watching } from '../state/gameEnd';
 import { useMatch } from '../state/MatchContext';
 import { primaryAction } from '../state/primaryAction';
@@ -79,8 +79,8 @@ export function MatchScreen() {
         return send(d.kind === 'payMana' ? { type: 'undoTap' } : { type: 'undo' });
       case 'a':
         if (d.kind === 'declareAttackers') {
-          const defenderId = currentDefender(game, ui, prefs.layout);
-          if (defenderId) send({ type: 'attackWithAll', defenderId });
+          const aim = currentAttackAim(game, ui, prefs.layout);
+          if (aim) send({ type: 'attackWithAll', ...aim });
         }
         return;
     }

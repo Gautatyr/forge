@@ -2,7 +2,7 @@
  * UI intents → client frames: replies to prompts and `{"t":"action","method",…}` player actions
  * (docs/fork/architecture/web-ui.md, "Bridge: human seat"). Board interaction follows Forge's
  * inputs: a card click is selectCard, a player click selectPlayer, a stack item selectStackItem, the
- * main button selectButtonOk, cancel selectButtonCancel (InputAttack: selectPlayer picks the defender,
+ * main button selectButtonOk, cancel selectButtonCancel (InputAttack: selectPlayer picks the defender, selectCard a planeswalker or battle defender,
  * a creature click toggles it; InputBlock: click the attacker, then the blocker (again: removes the block);
  * InputPayMana: a source click taps it, useMana spends floating mana, OK is "Auto").
  */
@@ -25,6 +25,10 @@ const selectPlayer = (id: string) => action('selectPlayer', { player: num(id) })
 /** A target click as the input takes it: a stack item is picked with selectStackItem (InputSelectStackItems). */
 const selectTarget = (t: TargetRef) =>
   t.kind === 'card' ? selectCard(t.id) : t.kind === 'player' ? selectPlayer(t.id) : action('selectStackItem', { stackItem: num(t.id) });
+
+/** InputAttack's defender: a player by selectPlayer, a planeswalker or battle by selectCard (issue #65). */
+const selectDefender = (d: { defenderId: string; defenderCardId?: string }) =>
+  d.defenderCardId !== undefined ? selectCard(d.defenderCardId) : selectPlayer(d.defenderId);
 
 /** Phases of a view-model step (combat damage covers first strike too). */
 export const PHASES_OF: Record<StepId, PhaseType[]> = {
@@ -69,9 +73,9 @@ export function intentToFrames(intent: Intent, s: LiveSession, view: GameView): 
       return [action('selectButtonCancel')];
     case 'toggleAttacker':
     case 'setAttackDefender':
-      return [selectPlayer(intent.defenderId), selectCard(intent.cardId)];
+      return [selectDefender(intent), selectCard(intent.cardId)];
     case 'attackWithAll':
-      return [selectPlayer(intent.defenderId), action('alphaStrike')];
+      return [selectDefender(intent), action('alphaStrike')];
     case 'assignBlock':
       return [selectCard(intent.attackerId), selectCard(intent.blockerId)];
     case 'removeBlock': {

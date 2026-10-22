@@ -4,7 +4,7 @@
  * human seat"). `apply` returns 'resync' when the stream broke (seq gap); the caller then asks for a
  * snapshot and the session drops deltas until it comes.
  */
-import type { BlockOptionsMessage, HelloMessage, LogEntry as WireLogEntry, SnapshotMessage, WireObject } from '../wire/generated/wire';
+import type { AttackOptionsMessage, BlockOptionsMessage, HelloMessage, LogEntry as WireLogEntry, SnapshotMessage, WireObject } from '../wire/generated/wire';
 import { hasDrift, schemaDrift, type SchemaDrift } from '../wire/schemaDrift';
 import { asRef, type PromptMessage, type SeatRef, type ServerFrame } from './protocol';
 
@@ -113,10 +113,14 @@ export class LiveSession {
   weakly = new Map<number, number>();
   /** blockOptions: while you declare blockers, the blocks the engine allows now (issue #48). */
   blockOptions?: BlockOptionsMessage['attackers'];
+  /** attackOptions: while you declare attackers, what the engine lets you attack (issue #65). */
+  attackOptions?: AttackOptionsMessage['defenders'];
   /** showRevealedCards: cards the engine shows you until the input ends (e.g. an opponent's hand). */
   revealed: number[] = [];
   /** Last card this client clicked (selectCard): names the spell being paid for when the engine's ref is unknown. */
   lastCard?: number;
+  /** That card's zone when clicked: a commander cast from the command zone pays its tax (issue #67). */
+  lastCardFrom?: string;
   /** That card's objects while it is in no zone (cast, being paid for). */
   limbo = new Map<string, WireObject>();
   /**
@@ -173,6 +177,7 @@ export class LiveSession {
   clicked(card: number) {
     if (!/^Priority:/.test(this.input.message) || card === this.lastCard) return;
     this.lastCard = card;
+    this.lastCardFrom = this.get('card', card)?.props.Zone;
     this.limbo = new Map();
     this.castNamed = undefined;
   }
@@ -217,8 +222,10 @@ export class LiveSession {
         this.revealed = [];
         this.weakly = new Map();
         this.blockOptions = undefined;
+        this.attackOptions = undefined;
         if (newGame) {
           this.lastCard = undefined;
+          this.lastCardFrom = undefined;
           this.limbo = new Map();
           this.castNamed = undefined;
           this.conceded = false;
@@ -283,6 +290,9 @@ export class LiveSession {
       case 'blockOptions':
         this.blockOptions = frame.attackers;
         return 'ok';
+      case 'attackOptions':
+        this.attackOptions = frame.defenders;
+        return 'ok';
       case 'rejected':
         this.notice(frame.reason);
         return 'ok';
@@ -335,6 +345,7 @@ export class LiveSession {
         // The input ended; the next one re-sends its prompt, buttons and selectables.
         this.input = { ...NO_INPUT, ownerId: this.input.ownerId };
         this.blockOptions = undefined;
+        this.attackOptions = undefined;
         return;
       case 'setSelectables':
         this.input = {
@@ -366,9 +377,10 @@ export class LiveSession {
         return;
       }
       case 'clearWeaklySelectable':
-        // Also InputBlock.onStop: its block options end with it.
+        // Also InputBlock.onStop and InputAttack.onStop: their options end with them.
         this.weakly = new Map();
         this.blockOptions = undefined;
+        this.attackOptions = undefined;
         return;
       case 'showRevealedCards':
         this.revealed = toRefs(a[0], 'card').flatMap((r) => (r.type === 'card' ? [r.id] : []));
