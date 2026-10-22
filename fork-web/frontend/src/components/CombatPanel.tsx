@@ -1,5 +1,6 @@
 import { defendingPlayerOf, player } from '../model/selectors';
 import type { Attack, CardView } from '../model/types';
+import { strikeDamage } from '../state/combatForecast';
 import { currentAttackAim, pickDefender } from '../state/focus';
 import { useMatch } from '../state/MatchContext';
 import { Icon, SeatGlyph } from './Icon';
@@ -146,7 +147,7 @@ export function CombatPanel() {
               ))}
               {def.isYou && blockers.length === 0 && d.kind === 'declareBlockers' ? (
                 <span className={styles.unblocked}>
-                  Unblocked: {att?.power ?? 0} damage to {target}
+                  Unblocked: {strikeDamage(att)} damage to {target}
                 </span>
               ) : null}
             </li>

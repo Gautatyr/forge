@@ -162,11 +162,16 @@ export function mapCard(s: LiveSession, id: number, images: ImageLookup = scryfa
   const frontState = original ?? cur;
   const backState = current !== 'Original' && original ? cur : alt;
   const faceDown = current === 'FaceDown';
-  const name = faceDown ? cur.props.Name || 'Face-down card' : cp.Name || cur.props.Name || '?';
+  // A face-down card you may look at (your foretold card, your morph): the bridge sends you its real face too, and
+  // it names the card for you (issue #80). Others get the face-down face only.
+  const seen = faceDown && original !== undefined && original !== cur;
+  const downName = cur.props.Name || 'Face-down card';
+  const name = seen ? original.props.Name || cp.Name || '?' : faceDown ? downName : cp.Name || cur.props.Name || '?';
   const front = face(frontState.props, name, false, images);
-  const back = backState && backState !== frontState ? face(backState.props, name, true, images) : undefined;
+  const back = backState && backState !== frontState ? face(backState.props, faceDown ? downName : name, true, images) : undefined;
   const transformed = backState === cur && back !== undefined;
-  const creature = /\bCreature\b/.test(typeLineOf(cur.props.Type));
+  // A face-down card is a 2/2 creature only on the battlefield (a foretold card in exile is no 2/2).
+  const creature = /\bCreature\b/.test(typeLineOf(cur.props.Type)) && (!faceDown || zone === 'battlefield');
   const attached = cp.EntityAttachedTo;
   const protector = gamePlayer(s, cp.ProtectingPlayer);
   return {
@@ -175,6 +180,7 @@ export function mapCard(s: LiveSession, id: number, images: ImageLookup = scryfa
     front,
     back,
     transformed,
+    ...(faceDown ? { faceDown: { seen, ...(cp.Foretold === true ? { foretold: true } : {}) } } : {}),
     ownerId: sid(owner),
     controllerId: sid(controller),
     zone,
@@ -480,15 +486,35 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
         tapToPay: true,
       };
     }
+    // "Bolt (12) - Deal 3 damage…\n\nSelect any target": the last line is the instruction.
+    const instruction = input.message.trim().split('\n').filter((l) => l.trim()).at(-1)?.trim() || 'Choose';
+    const max = input.selectable?.max ?? Math.max(1, chosen.length + 1);
+    const info = input.info;
+    if (info?.kind === 'pick') {
+      // A cost or an effect's pick (issue #81): the input's own min, its Cancel only when the engine allows it.
+      return {
+        kind: 'chooseTargets',
+        sourceCardId: castCard(),
+        instruction,
+        legal,
+        chosen,
+        min: input.selectable?.min ?? (input.ok.enabled ? chosen.length : chosen.length + 1),
+        max,
+        purpose: 'pick',
+        cancellable,
+        ...(info.decline && cancellable ? { decline: info.decline } : {}),
+      };
+    }
     return {
       kind: 'chooseTargets',
       sourceCardId: castCard(),
-      // "Bolt (12) - Deal 3 damage…\n\nSelect any target": the last line is the instruction.
-      instruction: input.message.trim().split('\n').filter((l) => l.trim()).at(-1)?.trim() || 'Choose',
+      instruction,
       legal,
       chosen,
       min: input.ok.enabled ? chosen.length : Math.max(chosen.length + 1, input.selectable?.min ?? 1),
-      max: input.selectable?.max ?? Math.max(1, chosen.length + 1),
+      max,
+      ...(info ? { purpose: 'target' as const } : {}),
+      ...(info?.ability ? { ability: info.ability } : {}),
     };
   }
   const buttons = early ?? inputToChoice(input, view);
@@ -698,6 +724,8 @@ export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup,
 }
 
 function castVia(c: CardView): OtherZoneCastVia {
+  // A foretold card is face down: its keywords are the face-down face's (none).
+  if (c.faceDown?.foretold) return 'foretell';
   const k = c.keywords.map((x) => x.name.toLowerCase());
   if (k.includes('flashback')) return 'flashback';
   if (k.includes('escape')) return 'escape';

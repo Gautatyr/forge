@@ -1,4 +1,4 @@
-import { currentFace } from '../model/selectors';
+import { currentFace, shownFace } from '../model/selectors';
 import { cardStatus } from '../state/cardStatus';
 import { useMatch } from '../state/MatchContext';
 import { CardArt } from './CardArt';
@@ -13,10 +13,11 @@ export function HoverPreview() {
   const c = game.cards[ui.hover.cardId];
   if (!c) return null;
   const face = currentFace(c);
-  const img = face.image ?? c.front.image;
+  const img = shownFace(c).image ?? c.front.image;
   const s = cardStatus(game, ui, c.id);
   const spot = previewSpot(ui.hover, ui.logOpen);
   const notes: string[] = [];
+  if (c.faceDown?.seen) notes.push(`${c.faceDown.foretold ? 'Foretold' : 'Face down'}: only you can look at it`);
   if (c.zone === 'battlefield' && c.tapped) notes.push('Tapped');
   if (c.zone === 'battlefield' && c.power !== undefined && c.ptModifiers.length)
     notes.push(`Now ${c.power}/${c.toughness} (printed ${face.power}/${face.toughness})`);

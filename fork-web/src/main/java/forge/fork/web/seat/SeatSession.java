@@ -36,6 +36,7 @@ import forge.gamemodes.match.NextGameDecision;
 import forge.gamemodes.match.Selection;
 import forge.gamemodes.match.DrawOfferMessage;
 import forge.gamemodes.match.YieldUpdate;
+import forge.gamemodes.match.input.Input;
 import forge.gamemodes.net.IRemote;
 import forge.gamemodes.net.ProtocolMethod;
 import forge.gamemodes.net.event.GuiGameEvent;
@@ -276,6 +277,7 @@ final class SeatSession implements IRemote {
         Object[] sent = method == ProtocolMethod.setSelection && args.length == 1 && args[0] instanceof Selection sel
                 ? new Object[] {withoutKeptMarks(sel)} : args;
         String key = stickyKey(method, sent);
+        JsonObject input = method == ProtocolMethod.showPromptMessage ? inputInfo(sent) : null;
         toSeat(refs -> {
             JsonObject j = new JsonObject();
             j.addProperty("t", "call");
@@ -285,8 +287,29 @@ final class SeatSession implements IRemote {
                 a.add(WireArgs.encodeCallArg(o, refs));
             }
             j.add("args", a);
+            if (input != null) {
+                j.add("input", input);
+            }
             return j;
         }, text -> updateSticky(method, key, text));
+    }
+
+    /**
+     * {@code showPromptMessage}: what the input showing it asks ({@link InputInfo}, issue #81). The input is the one on top
+     * of the queue of the controller whose player the message is for: the seat's own, or a player it controls.
+     */
+    private JsonObject inputInfo(Object[] args) {
+        if (!(controller instanceof PlayerControllerHuman pch)) {
+            return null;
+        }
+        PlayerView owner = args.length > 0 && args[0] instanceof PlayerView pv ? pv : null;
+        for (PlayerControllerHuman c : controllersOnThisGui(pch)) {
+            Input in = c.getInputQueue().getInput();
+            if (in != null && (owner == null || in.getOwner() != null && in.getOwner().getId() == owner.getId())) {
+                return InputInfo.of(in);
+            }
+        }
+        return null;
     }
 
     /**

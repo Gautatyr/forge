@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type FocusEvent, type MouseEvent } from 'react';
-import { currentFace, isCreature } from '../model/selectors';
+import { currentFace, isCreature, shownFace } from '../model/selectors';
 import type { CardView } from '../model/types';
 import { useCardClick } from '../state/cardClick';
 import type { CardStatus } from '../state/cardStatus';
@@ -68,6 +68,8 @@ function badges(c: CardView, s: CardStatus): Badge[] {
     out.push({ icon: 'sword', cls: styles.bAttack!, label: `Attacked by ${s.attackedBy.join(', ')}` });
   if (s.targetSpot)
     out.push({ icon: 'target', cls: styles.bTargeted!, label: `Targeted by ${s.targetedBy.join(', ')}` });
+  if (c.faceDown?.seen)
+    out.push({ icon: 'eye', cls: styles.bNeutral!, label: `${c.faceDown.foretold ? 'Foretold' : 'Face down'}: only you can look at it` });
   if (c.isCommander) out.push({ icon: 'crown', cls: styles.bNeutral!, label: 'Commander' });
   if (c.summoningSick && isCreature(c) && c.zone === 'battlefield')
     out.push({ icon: 'sick', cls: styles.bNeutral!, label: 'Summoning sick' });
@@ -92,7 +94,8 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
   const [failures, setFailures] = useState<{ src: string; count: number }>();
   const pickInPlace = useInPlacePick();
   const s = cardStatusWithChoice(game, ui, c.id);
-  const face = currentFace(c);
+  // Drawn: your face-down card's real face (issue #80); its characteristics stay those of the face in play.
+  const face = shownFace(c);
   // Live: the bridge's image first; when it has none, its fallback (Scryfall) at once.
   const [fellBack, setFellBack] = useState<string>();
   const own = face.image ?? c.front.image;
@@ -140,6 +143,7 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
 
   const label = [
     face.name,
+    c.faceDown?.seen ? (c.faceDown.foretold ? 'foretold, face down' : 'face down') : '',
     count > 1 ? `${count} of them` : '',
     c.tapped ? 'tapped' : '',
     c.power !== undefined ? `${c.power}/${c.toughness}` : '',

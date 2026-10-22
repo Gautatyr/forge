@@ -39,6 +39,8 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
   const active = turnOf === p.id;
   const priority = turnOf !== undefined && game.turn.priorityPlayerId === p.id;
   const legalTarget = d.kind === 'chooseTargets' && d.legal.some((t) => t.kind === 'player' && t.id === p.id);
+  // A player picked for an effect, not targeted (issue #81).
+  const picking = d.kind === 'chooseTargets' && d.purpose === 'pick';
   const chosenTarget = d.kind === 'chooseTargets' && d.chosen.some((t) => t.kind === 'player' && t.id === p.id);
   const defenderPick = d.kind === 'declareAttackers' && d.defenders.includes(p.id);
   const aim = currentAttackAim(game, ui, prefs.layout);
@@ -127,7 +129,7 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
           ? choice
             ? `Choose ${p.name}`
             : legalTarget
-              ? `Target ${p.name}`
+              ? `${picking ? 'Choose' : 'Target'} ${p.name}`
               : `Attack ${p.name} with the next creatures you choose`
           : undefined
       }
@@ -222,7 +224,7 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
               <span className={styles.tagText}>Chosen</span>
             </span>
           ) : null}
-          {legalTarget && !chosenTarget ? (
+          {legalTarget && !chosenTarget && !picking ? (
             <span className={`${styles.tag} ${styles.tagTarget}`} title="Target">
               <Icon name="target" />
               <span className={styles.tagText}>Target</span>

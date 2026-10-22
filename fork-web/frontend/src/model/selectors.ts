@@ -4,6 +4,11 @@ export function currentFace(c: CardView): CardFace {
   return c.transformed && c.back ? c.back : c.front;
 }
 
+/** The face drawn for the card: its real face when it is face down and you may look at it (issue #80), else the face in play. */
+export function shownFace(c: CardView): CardFace {
+  return c.faceDown?.seen ? c.front : currentFace(c);
+}
+
 export function typeLine(c: CardView): string {
   return currentFace(c).typeLine;
 }

@@ -67,7 +67,63 @@ describe('toGameView', () => {
       { name: 'Trample', label: 'Trample', reminder: 'This creature can deal excess combat damage.' },
       { name: 'Ward', label: 'Ward {2}' },
     ]);
-    expect(g.cards['30']).toMatchObject({ name: 'Face-down card', tapped: true, power: 2 });
+    expect(g.cards['30']).toMatchObject({ name: 'Face-down card', tapped: true, power: 2, faceDown: { seen: false } });
+  });
+
+  it('names your face-down card you may look at with its real face, the face-down face in play (issue #80)', () => {
+    const s = session();
+    // As the bridge sends a foretold card to its owner (Visibility FULL): both states.
+    s.apply({
+      t: 'delta',
+      game: 1,
+      seq: 1,
+      ts: 0,
+      new: [
+        { type: 'card', id: 40, props: { Owner: 0, Controller: 0, Zone: 'Exile', CurrentState: 'FaceDown', Foretold: true, Facedown: true } },
+        { type: 'cardState', id: 40, state: 'FaceDown', props: { ImageKey: 't:foretell', Type: 'Creature', Power: 2, Toughness: 2 } },
+        { type: 'cardState', id: 40, state: 'Original', props: { Name: 'Saw It Coming', Type: 'Instant', ManaCost: '{1}{U}{U}', ImageKey: 'c:Saw It Coming|KHM|1', Keywords: ['Foretell {1}{U}'] } },
+      ],
+      changed: [{ type: 'player', id: 0, props: { Exile: [40] } }],
+      removed: [],
+      log: [],
+      events: [],
+    });
+    s.apply({ t: 'call', method: 'setWeaklySelectable', args: [[card(40)]] });
+    buttons(s, 'OK', 'End Turn', 'Priority: Hugo');
+    const g = toGameView(s);
+    expect(g.cards['40']).toMatchObject({
+      name: 'Saw It Coming',
+      front: { name: 'Saw It Coming', typeLine: 'Instant' },
+      back: { name: 'Face-down card' },
+      transformed: true,
+      faceDown: { seen: true, foretold: true },
+    });
+    // the face-down 2/2 is a creature only on the battlefield
+    expect(g.cards['40']!.power).toBeUndefined();
+    expect(g.cards['30']!.power).toBe(2);
+    expect(g.players[0]!.otherZoneCasts).toEqual([{ cardId: '40', via: 'foretell' }]);
+  });
+
+  it('keeps an opponent’s foretold card nameless: only its face-down face reaches you', () => {
+    const s = session();
+    s.apply({
+      t: 'delta',
+      game: 1,
+      seq: 1,
+      ts: 0,
+      new: [
+        { type: 'card', id: 41, props: { Owner: 1, Controller: 1, Zone: 'Exile', CurrentState: 'FaceDown', Foretold: true } },
+        { type: 'cardState', id: 41, state: 'FaceDown', props: { ImageKey: 't:foretell' } },
+      ],
+      changed: [{ type: 'player', id: 1, props: { Exile: [41] } }],
+      removed: [],
+      log: [],
+      events: [],
+    });
+    const c = toGameView(s).cards['41'];
+    expect(c).toMatchObject({ name: 'Face-down card', front: { name: 'Face-down card' }, faceDown: { seen: false, foretold: true } });
+    expect(c!.transformed).toBe(false);
+    expect(c!.back).toBeUndefined();
   });
 
   it('waits for the priority holder when no input is shown to you', () => {
@@ -155,6 +211,46 @@ describe('toGameView', () => {
       min: 1,
       max: 1,
     });
+  });
+
+  it('words a pick for a cost or an effect as a pick, with the input’s own range and Cancel (issue #81)', () => {
+    const s = session();
+    s.apply(selection({ cards: [card(10)], min: 0, max: 2 }));
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Dragon (20)\n - Discard\nDiscard 2 card(s)', card(20)], input: { kind: 'pick' } });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', true, false, true] });
+    expect(toGameView(s).decision).toEqual({
+      kind: 'chooseTargets',
+      sourceCardId: '20',
+      instruction: 'Discard 2 card(s)',
+      legal: [{ kind: 'card', id: '10' }],
+      chosen: [],
+      min: 0,
+      max: 2,
+      purpose: 'pick',
+      cancellable: false,
+    });
+  });
+
+  it('keeps what declining an unless cost does only when the engine lets you cancel', () => {
+    const s = session();
+    s.apply(selection({ cards: [card(10)], min: 1, max: 1 }));
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Select creature to sacrifice (1 left)', card(20)], input: { kind: 'pick', decline: 'Hugo loses 3 life.' } });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, true, true] });
+    expect(toGameView(s).decision).toMatchObject({ purpose: 'pick', cancellable: true, decline: 'Hugo loses 3 life.', min: 1 });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, false, true] });
+    const d = toGameView(s).decision;
+    expect(d).toMatchObject({ purpose: 'pick', cancellable: false });
+    expect(d.kind === 'chooseTargets' && d.decline).toBeFalsy();
+  });
+
+  it('marks targets with what they are for, and forgets it when the input ends', () => {
+    const s = session();
+    s.apply(selection({ cards: [card(20)], min: 1, max: 1 }));
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Bears (10) - Select target creature', card(10)], input: { kind: 'target', ability: 'activated' } });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, true, false] });
+    expect(toGameView(s).decision).toMatchObject({ kind: 'chooseTargets', purpose: 'target', ability: 'activated' });
+    s.apply({ t: 'call', method: 'awaitNextInput', args: [] });
+    expect(s.input.info).toBeUndefined();
   });
 
   it('turns other two-button inputs into a yes/no tray, and prompts into the matching shape', () => {

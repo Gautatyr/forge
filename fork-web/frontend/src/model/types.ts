@@ -74,6 +74,11 @@ export interface CardView {
   back?: CardFace;
   /** True when the back face is the one in play. */
   transformed?: boolean;
+  /**
+   * Face down (foretold, morph, manifest, exiled face down). `seen`: you may look at it (issue #80): `name` and
+   * `front` are its real face, `back` the face-down one in play (`transformed`). Otherwise `front` is the face-down face.
+   */
+  faceDown?: { seen: boolean; foretold?: boolean };
   ownerId: PlayerId;
   controllerId: PlayerId;
   zone: Zone;
@@ -413,16 +418,27 @@ export type Decision =
   | { kind: 'priority'; playable: CardId[]; manaSources?: ManaSource[] }
   /** Someone else is deciding. */
   | { kind: 'waiting'; forPlayerId: PlayerId; what: string }
-  /** Casting or activating: pick targets among the legal ones (ringed while this is open). */
+  /**
+   * Pick on the board among the legal ones (ringed while this is open): targets of a spell or ability, or
+   * (`purpose: 'pick'`) cards or players for a cost or an effect: a discard, a sacrifice… (issue #81).
+   */
   | {
       kind: 'chooseTargets';
       sourceCardId: CardId;
-      /** e.g. "Choose target creature". */
+      /** e.g. "Choose target creature", "Discard 2 card(s)": the engine's words. */
       instruction: string;
       legal: TargetRef[];
       chosen: TargetRef[];
       min: number;
       max: number;
+      /** What the engine's input asks; absent: targets (mock, replays). */
+      purpose?: 'target' | 'pick';
+      /** Targets: what they are for (the engine's). */
+      ability?: 'spell' | 'activated' | 'triggered';
+      /** Pick: Cancel declines an "unless" cost, and this happens (the engine's text). */
+      decline?: string;
+      /** Pick: whether the engine lets you cancel it. Targets can always be cancelled. */
+      cancellable?: boolean;
       /** Picking permanents that pay part of the cost by tapping (convoke, improvise): the chosen ones are not targets. */
       tapToPay?: boolean;
     }

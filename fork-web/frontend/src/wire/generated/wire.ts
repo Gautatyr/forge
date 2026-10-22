@@ -1708,11 +1708,23 @@ export interface PromptChoice {
   lethal?: number;
 }
 
+/** What a selection input asks (forge.fork.web.seat.InputInfo, issue #81). */
+export interface InputInfo {
+  /** target: targets of a spell or ability; pick: cards or players chosen for a cost or an effect (discard, sacrifice…). */
+  kind: 'target' | 'pick';
+  /** target: what the targets are for. */
+  ability?: 'spell' | 'activated' | 'triggered';
+  /** pick: an "unless" cost; Cancel declines it and this happens (the engine's text worded for you: "You sacrifice Drekavac"). */
+  decline?: string;
+}
+
 /** A no-reply IGuiGame method: args positional, refs as SeatRef or SpellAbilityRef, enums by name. */
 export interface CallMessage {
   t: 'call';
   method: ServerMethod;
   args: unknown[];
+  /** showPromptMessage of a selection input: what it asks. */
+  input?: InputInfo;
 }
 
 /** Choose between min and max choices; reply their indices (max 0: a reveal, reply []). */

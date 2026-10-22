@@ -3,7 +3,7 @@ import { you } from '../model/selectors';
 import { currentAttackAim } from '../state/focus';
 import { watching } from '../state/gameEnd';
 import { useMatch } from '../state/MatchContext';
-import { canCancel, primaryAction, promptText } from '../state/primaryAction';
+import { canCancel, cancelLabel, primaryAction, promptText } from '../state/primaryAction';
 import { Icon } from './Icon';
 import { FloatingMana, PaymentCost } from './Payment';
 import styles from './ActionPanel.module.css';
@@ -27,6 +27,8 @@ export function ActionPanel() {
   // Out of the game or game over: the block reads "Watching" / "Game over" and offers nothing (§2.6).
   const ended = game.result !== undefined || watching(game);
   const cancel = canCancel(game, ui);
+  // A Cancel that is a game choice says what it does ("Decline: You lose 3 life", issue #81).
+  const cancelText = cancelLabel(game);
 
   useEffect(() => {
     if (!note) return;
@@ -81,13 +83,14 @@ export function ActionPanel() {
           <button
             type="button"
             className={styles.small}
+            title={cancelText}
             onClick={() => {
               send({ type: 'cancel' });
               setUi({ pendingAttacker: undefined, pendingBlocker: undefined, manaChoice: undefined });
             }}
           >
             <Icon name="close" />
-            Cancel <kbd>Esc</kbd>
+            <span className={styles.cancelText}>{cancelText}</span> <kbd>Esc</kbd>
           </button>
         ) : null}
       </div>
