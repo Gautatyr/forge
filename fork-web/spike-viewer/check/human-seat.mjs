@@ -22,7 +22,7 @@ class HumanSeat extends Stream {
     this.buttons = null; this.message = ''; this.selectables = null; this.targets = []; this.picked = new Set(); this.weakly = [];
     this.prompts = new Map(); this.epoch = 0; this.actedEpoch = -1; this.lastMessageAt = Date.now();
     this.tried = new Set(); this.attacked = new Set(); this.sameState = 0; this.lastState = '';
-    this.stats = { prompts: {}, shapes: {}, calls: {}, actions: {}, closed: {}, replyRejected: 0, actionRejected: [], callCardRefs: 0, promptCardRefs: 0, hiddenPromptRefs: 0, revealedCopies: 0, danglingRefs: 0 };
+    this.stats = { prompts: {}, shapes: {}, calls: {}, actions: {}, closed: {}, replyRejected: 0, actionRejected: [], blockOptions: 0, callCardRefs: 0, promptCardRefs: 0, hiddenPromptRefs: 0, revealedCopies: 0, danglingRefs: 0 };
     this.timer = null; this.gameEnded = false; this.lastLog = [];
   }
 
@@ -50,7 +50,8 @@ class HumanSeat extends Stream {
       case 'actionRejected': if (this.stats.actionRejected.length < 20) this.stats.actionRejected.push(m); return true;
       case 'rejected': this.fail(`rejected: ${JSON.stringify(m)}`); return true;
       case 'activateDescription': return true;
-      case 'blockOptions': return true; // sent with each InputBlock; this seat answers it from its selectables and buttons
+      // sent with each InputBlock; this seat answers it from its selectables and buttons
+      case 'blockOptions': this.stats.blockOptions++; return true;
       default: return false;
     }
   }
