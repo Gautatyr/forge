@@ -43,22 +43,25 @@ public final class LocalizedImages implements ImageSource {
     private final Path cacheDir;
     private final Executor edt;
     private final Executor io;
+    private final Executor download;
     private final long timeoutMs;
     private final Set<String> noFrench = ConcurrentHashMap.newKeySet();
     private final Map<String, CompletableFuture<Image>> pending = new ConcurrentHashMap<>();
 
     /**
      * @param urlOf  card view key to the Scryfall URL of its French printing, or null (called on {@code edt})
-     * @param io     runs file reads and the (blocking, rate-limited) downloads
+     * @param io     runs cached-file reads (shared with the English source: never block it)
+     * @param download runs the blocking, rate-limited downloads; its own pool so a cold French burst cannot starve English reads
      */
     public LocalizedImages(ImageSource english, Function<String, String> urlOf, Downloader downloader,
-                           Path cacheDir, Executor edt, Executor io, long timeoutMs) {
+                           Path cacheDir, Executor edt, Executor io, Executor download, long timeoutMs) {
         this.english = english;
         this.urlOf = urlOf;
         this.downloader = downloader;
         this.cacheDir = cacheDir;
         this.edt = edt;
         this.io = io;
+        this.download = download;
         this.timeoutMs = timeoutMs;
     }
 
@@ -114,13 +117,13 @@ public final class LocalizedImages implements ImageSource {
                     url = null;
                 }
                 if (url == null) {
-                    noFrench.add(key);
+                    // not remembered: keys come from clients, the set must not grow with made-up cards
                     out.complete(null);
                     return;
                 }
                 String u = url;
                 try {
-                    io.execute(() -> out.complete(fetch(key, u)));
+                    download.execute(() -> out.complete(fetch(key, u)));
                 } catch (RuntimeException e) {
                     out.complete(null);
                 }

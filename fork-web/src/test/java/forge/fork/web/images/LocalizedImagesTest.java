@@ -32,6 +32,7 @@ public class LocalizedImagesTest {
     private Path cache;
     private ExecutorService edt;
     private ExecutorService io;
+    private ExecutorService dl;
     private final List<String> englishAsked = new CopyOnWriteArrayList<>();
     private final List<String> urlsAsked = new CopyOnWriteArrayList<>();
     private volatile byte[] answer;
@@ -41,6 +42,7 @@ public class LocalizedImagesTest {
         cache = Files.createTempDirectory("forge-web-fr");
         edt = Executors.newSingleThreadExecutor();
         io = Executors.newFixedThreadPool(3);
+        dl = Executors.newFixedThreadPool(3);
         englishAsked.clear();
         urlsAsked.clear();
         answer = FR;
@@ -50,6 +52,7 @@ public class LocalizedImagesTest {
     public void tearDown() {
         edt.shutdownNow();
         io.shutdownNow();
+        dl.shutdownNow();
     }
 
     private LocalizedImages images() {
@@ -61,7 +64,7 @@ public class LocalizedImagesTest {
                 url -> {
                     urlsAsked.add(url);
                     return answer;
-                }, cache, edt, io, 5_000);
+                }, cache, edt, io, dl, 5_000);
     }
 
     private static Image get(CompletableFuture<Image> f) throws Exception {
@@ -143,12 +146,62 @@ public class LocalizedImagesTest {
             urlsAsked.add(url);
             gate.join();
             return FR;
-        }, cache, edt, io, 5_000);
+        }, cache, edt, io, dl, 5_000);
         CompletableFuture<Image> a = l.find(KEY, "fr");
         CompletableFuture<Image> b = l.find(KEY, "fr");
         gate.complete(true);
         assertEquals(get(a).bytes(), FR);
         assertEquals(get(b).bytes(), FR);
         assertEquals(urlsAsked.size(), 1);
+    }
+
+    @Test
+    public void blockedFrenchDownloadsDoNotDelayEnglishReads() throws Exception {
+        CompletableFuture<Boolean> gate = new CompletableFuture<>();
+        ExecutorService oneIo = Executors.newFixedThreadPool(1);
+        ExecutorService oneDl = Executors.newFixedThreadPool(1);
+        try {
+            ImageSource english = key -> CompletableFuture.supplyAsync(() -> new Image(EN, "image/jpeg"), oneIo);
+            LocalizedImages l = new LocalizedImages(english, k -> "https://scry.test/" + k, url -> {
+                gate.join();
+                return FR;
+            }, cache, edt, oneIo, oneDl, 60_000);
+            for (int i = 0; i < 5; i++) {
+                l.find("c:Cold" + i + "|M10|1", "fr");
+            }
+            Thread.sleep(300);
+            assertEquals(l.find(KEY, "en").get(2, TimeUnit.SECONDS).bytes(), EN, "English not queued behind French downloads");
+        } finally {
+            gate.complete(true);
+            oneIo.shutdownNow();
+            oneDl.shutdownNow();
+        }
+    }
+
+    @Test
+    public void frenchBackstopFallsBackToEnglish() throws Exception {
+        CompletableFuture<Boolean> gate = new CompletableFuture<>();
+        ImageSource english = key -> CompletableFuture.completedFuture(new Image(EN, "image/jpeg"));
+        LocalizedImages l = new LocalizedImages(english, k -> "https://scry.test/" + k, url -> {
+            gate.join();
+            return FR;
+        }, cache, edt, io, dl, 0);
+        try {
+            // French never answers within timeout + 5 s backstop: English does
+            assertEquals(l.find(KEY, "fr").get(12, TimeUnit.SECONDS).bytes(), EN);
+        } finally {
+            gate.complete(true);
+        }
+    }
+
+    @Test
+    public void unknownCardsAreNotRemembered() throws Exception {
+        LocalizedImages l = images();
+        for (int i = 0; i < 3; i++) {
+            get(l.find("c:Nowhere" + i + "|XXX|1", "fr"));
+        }
+        java.lang.reflect.Field f = LocalizedImages.class.getDeclaredField("noFrench");
+        f.setAccessible(true);
+        assertTrue(((java.util.Set<?>) f.get(l)).isEmpty());
     }
 }

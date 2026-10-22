@@ -37,10 +37,16 @@ public final class ForgeImages {
             t.setDaemon(true);
             return t;
         });
+        // French downloads block (rate limiter, HTTP): own pool, so English reads on io never wait behind them
+        ExecutorService downloads = Executors.newFixedThreadPool(2, r -> {
+            Thread t = new Thread(r, "web-images-fr");
+            t.setDaemon(true);
+            return t;
+        });
         CardImages english = new CardImages(ForgeImages::locate, fetcher::fetch,
                 () -> Paths.get(ForgeConstants.CACHE_DIR, "pics"), FThreads::invokeInEdtLater, io, DOWNLOAD_TIMEOUT_MS);
         return new LocalizedImages(english, ForgeImages::frenchUrl, new ScryfallDownloader(),
-                Paths.get(ForgeConstants.CACHE_DIR, "web-pics", "fr"), FThreads::invokeInEdtLater, io, DOWNLOAD_TIMEOUT_MS);
+                Paths.get(ForgeConstants.CACHE_DIR, "web-pics", "fr"), FThreads::invokeInEdtLater, io, downloads, DOWNLOAD_TIMEOUT_MS);
     }
 
     /**
