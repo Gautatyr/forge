@@ -510,24 +510,18 @@ abstract class Prompt {
         }
 
         /**
-         * The list to return for these piles. With no other card, the list is the library as it will be. Otherwise
-         * {@code PlayerControllerHuman.arrangeForMove} reads the trailing run of movable cards from the end and
-         * {@code GameAction.scry} puts each under the previous one, so the bottom pile goes in reversed.
+         * The list to return for these piles: the library as it will be. {@code PlayerControllerHuman.arrangeForMove}
+         * keeps the trailing run of movable cards in list order (upstream's bottom-order fix, 2026-10) and
+         * {@code GameAction.scry} puts each under the previous one, so the bottom pile goes in as chosen.
          */
         private List<Object> arrange(List<Object> top, List<Object> bottom) {
             List<Object> out = new ArrayList<>(top);
-            if (pileCards.size() == cards.size()) {
-                out.addAll(bottom);
-                return out;
-            }
             for (Object c : cards) {
                 if (!movable.contains(c)) {
                     out.add(c);
                 }
             }
-            for (int i = bottom.size() - 1; i >= 0; i--) {
-                out.add(bottom.get(i));
-            }
+            out.addAll(bottom);
             return out;
         }
 

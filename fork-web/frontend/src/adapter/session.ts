@@ -31,11 +31,11 @@ export interface InputState {
   namesCard: boolean;
   ok: Button;
   cancel: Button;
-  /** Cards the input accepts (setSelectables). */
+  /** Cards the input accepts, and how many (setSelection; absent when it picks none: max 0). */
   selectable?: { cards: number[]; min: number; max: number };
-  /** Players and stack items the input accepts (setSelectableTargets). */
+  /** Players and stack items the input accepts (setSelection targets). */
   targets: SeatRef[];
-  /** Chosen so far (setHighlighted). */
+  /** Chosen so far (setSelection chosen). */
   highlighted: SeatRef[];
   /**
    * InputLondonMulligan: the cards it asks for, counted at its first message (left + chosen). Later
@@ -84,8 +84,6 @@ function refId(v: unknown): number | undefined {
   if (typeof v === 'number') return v;
   return asRef(v)?.id;
 }
-
-const sameRef = (a: SeatRef, b: SeatRef) => a.type === b.type && a.id === b.id;
 
 /** "Turn 6 (AI 2 (Deck))" → 6. */
 function turnOf(e: WireLogEntry): number | undefined {
@@ -342,32 +340,35 @@ export class LiveSession {
         return;
       }
       case 'awaitNextInput':
-        // The input ended; the next one re-sends its prompt, buttons and selectables.
-        this.input = { ...NO_INPUT, ownerId: this.input.ownerId };
+        // The input ended; the next one re-sends its prompt and buttons. Its selection comes only when it differs from the
+        // last one (ProtocolGuiGame.setSelection), so the last one stays.
+        this.input = {
+          ...NO_INPUT,
+          ownerId: this.input.ownerId,
+          selectable: this.input.selectable,
+          targets: this.input.targets,
+          highlighted: this.input.highlighted,
+        };
         this.blockOptions = undefined;
         this.attackOptions = undefined;
         return;
-      case 'setSelectables':
+      case 'setSelection': {
+        // Replaces every mark: cards to pick (none to pick when max is 0), players and stack items, chosen so far.
+        const sel = (a[0] ?? {}) as { cards?: unknown; min?: unknown; max?: unknown; targets?: unknown; chosen?: unknown };
+        const max = typeof sel.max === 'number' ? sel.max : 0;
         this.input = {
           ...this.input,
-          selectable: {
-            cards: toRefs(a[0], 'card').filter((r) => r.type === 'card').map((r) => r.id),
-            min: typeof a[1] === 'number' ? a[1] : 0,
-            max: typeof a[2] === 'number' ? a[2] : 1,
-          },
+          selectable:
+            max > 0
+              ? {
+                  cards: toRefs(sel.cards, 'card').filter((r) => r.type === 'card').map((r) => r.id),
+                  min: typeof sel.min === 'number' ? sel.min : 0,
+                  max,
+                }
+              : undefined,
+          targets: toRefs(sel.targets, 'player'),
+          highlighted: toRefs(sel.chosen, 'card'),
         };
-        return;
-      case 'clearSelectables':
-        this.input = { ...this.input, selectable: undefined, targets: [], highlighted: [] };
-        return;
-      case 'setSelectableTargets':
-        this.input = { ...this.input, targets: toRefs(a[0], 'player') };
-        return;
-      case 'setHighlighted': {
-        const refs = toRefs(a[0], 'card');
-        const on = a[1] === true;
-        const rest = this.input.highlighted.filter((h) => !refs.some((r) => sameRef(r, h)));
-        this.input = { ...this.input, highlighted: on ? [...rest, ...refs] : rest };
         return;
       }
       case 'setWeaklySelectable': {

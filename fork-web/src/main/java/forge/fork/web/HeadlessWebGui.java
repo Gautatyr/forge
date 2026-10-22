@@ -64,6 +64,7 @@ public final class HeadlessWebGui implements IGuiBase {
     @Override public boolean isRunningOnDesktop() { return true; }
     @Override public boolean isLibgdxPort() { return false; }
     @Override public String getCurrentVersion() { return BuildInfo.getVersionString(); }
+    @Override public String getUserAgent() { return "Forge/" + getCurrentVersion() + " (fork-web)"; }
     @Override public String getAssetsDir() { return assetsDir; }
     @Override public ImageFetcher getImageFetcher() { return imageFetcher; }
 

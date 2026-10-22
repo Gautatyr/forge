@@ -1,18 +1,15 @@
 package forge.fork.web.seat;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
 import forge.game.card.CardView;
 import forge.game.event.GameEvent;
-import forge.game.player.Player;
 import forge.game.player.PlayerView;
 import forge.game.spellability.SpellAbilityView;
 import forge.gamemodes.match.input.Input;
 import forge.gamemodes.match.input.InputAttack;
 import forge.gamemodes.match.input.InputBlock;
-import forge.gamemodes.match.input.InputSelectEntitiesFromList;
 import forge.gamemodes.match.input.InputSynchronized;
 import forge.gamemodes.net.ProtocolGuiGame;
 import forge.interfaces.IGameController;
@@ -159,29 +156,8 @@ public final class WebGuiGame extends ProtocolGuiGame {
             pch.getInputQueue().addObserver((o, arg) -> {
                 if (ThreadUtil.isGameThread()) {
                     session.flush();
-                    selectablePlayers(pch.getInputQueue().getInput());
                 }
             });
-        }
-    }
-
-    /**
-     * {@code InputSelectEntitiesFromList} names only its cards ({@code setSelectables}); the desktop lets
-     * the player click any portrait. Name its players as selectable targets, cleared with the selectables
-     * when the input stops (e.g. choosing who starts the game).
-     */
-    private void selectablePlayers(final Input input) {
-        if (!(input instanceof InputSelectEntitiesFromList<?> in)) {
-            return;
-        }
-        List<PlayerView> players = new ArrayList<>();
-        for (Object e : in.getValidChoices()) {
-            if (e instanceof Player p) {
-                players.add(p.getView());
-            }
-        }
-        if (!players.isEmpty()) {
-            setSelectableTargets(players);
         }
     }
 }

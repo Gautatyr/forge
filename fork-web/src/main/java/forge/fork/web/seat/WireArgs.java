@@ -108,12 +108,22 @@ final class WireArgs {
     }
 
     /**
-     * An argument of a call (no answer): as {@link #encode}, but a list leaves out the cards the seat has no id for (-1:
-     * never told of it, e.g. a Treasure sacrificed since {@code InputPayMana} computed its auto-pay plan, which it
-     * recomputes only after a mana ability with a mana cost). Such an entry names nothing the seat can show or click.
+     * An argument of a call (no answer): as {@link #encode}, but a list, also one in a record (a {@code Selection}'s
+     * cards and chosen), leaves out the cards the seat has no id for (-1: never told of it, e.g. a Treasure sacrificed
+     * since {@code InputPayMana} computed its auto-pay plan, which it recomputes only after a mana ability with a mana
+     * cost). Such an entry names nothing the seat can show or click.
      */
     static JsonElement encodeCallArg(Object o, SeatRefs refs) {
-        JsonElement e = encode(o, refs);
+        return withoutUnknownCards(encode(o, refs));
+    }
+
+    private static JsonElement withoutUnknownCards(JsonElement e) {
+        if (e instanceof JsonObject r && r.has("kind")) {
+            for (Map.Entry<String, JsonElement> f : r.entrySet()) {
+                f.setValue(withoutUnknownCards(f.getValue()));
+            }
+            return r;
+        }
         if (!(e instanceof JsonArray a)) {
             return e;
         }

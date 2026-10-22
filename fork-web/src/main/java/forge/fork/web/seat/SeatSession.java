@@ -1,6 +1,7 @@
 package forge.fork.web.seat;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,7 @@ import forge.game.player.PlayerView;
 import forge.game.spellability.SpellAbility;
 import forge.game.spellability.StackItemView;
 import forge.gamemodes.match.NextGameDecision;
+import forge.gamemodes.match.Selection;
 import forge.gamemodes.match.DrawOfferMessage;
 import forge.gamemodes.match.YieldUpdate;
 import forge.gamemodes.net.IRemote;
@@ -42,6 +44,7 @@ import forge.gamemodes.net.event.NetEvent;
 import forge.interfaces.IGameController;
 import forge.player.PlayerControllerHuman;
 import forge.trackable.TrackableCollection;
+import forge.trackable.TrackableObject;
 import forge.util.ThreadUtil;
 import forge.fork.web.bridge.ClientSink;
 import forge.fork.web.bridge.SeatRefs;
@@ -54,7 +57,7 @@ import forge.fork.web.bridge.SeatRefs;
  * {@link ProtocolMethod} ({@code applyDelta} and {@code setGameView} are replaced by the state
  * stream), and {@code {"t":"prompt",…}} ({@link Prompt}) for the 13 that need an answer, closed by
  * {@code {"t":"promptClosed","id","reason"}}. A client that (re)connects gets, after its snapshot,
- * the seat's current input (prompt message, buttons, selectables…) and its open prompts.
+ * the seat's current input (prompt message, buttons, selection…) and its open prompts.
  *
  * <p>Client to server: {@code {"t":"reply","id","value"}} (handled on the transport thread: decode
  * and complete, never blocks) and {@code {"t":"action","method",…}}, the 16 player actions, taken in
@@ -68,7 +71,7 @@ final class SeatSession implements IRemote {
 
     /** Calls a reconnecting client needs to show the current input, in this order. */
     private static final List<String> STICKY_ORDER = List.of(
-            "openView", "showPromptMessage", "updateButtons", "selectables", "targets", "weakly", "blockOptions", "attackOptions", "revealed", "drawOffer", "finishGame");
+            "openView", "showPromptMessage", "updateButtons", "selection", "weakly", "blockOptions", "attackOptions", "revealed", "drawOffer", "finishGame");
 
     /**
      * Actions that answer the seat's current input. They run only on the game thread waiting for it; one that finds no
@@ -270,18 +273,59 @@ final class SeatSession implements IRemote {
             return;
         }
         flush(); // the call may name objects changed since the last batch
-        String key = stickyKey(method, args);
+        Object[] sent = method == ProtocolMethod.setSelection && args.length == 1 && args[0] instanceof Selection sel
+                ? new Object[] {withoutKeptMarks(sel)} : args;
+        String key = stickyKey(method, sent);
         toSeat(refs -> {
             JsonObject j = new JsonObject();
             j.addProperty("t", "call");
             j.addProperty("method", method.name());
             JsonArray a = new JsonArray();
-            for (Object o : args) {
+            for (Object o : sent) {
                 a.add(WireArgs.encodeCallArg(o, refs));
             }
             j.add("args", a);
             return j;
         }, text -> updateSticky(method, key, text));
+    }
+
+    /**
+     * The selection without the spell's kept target marks ({@code PlayerControllerHuman.getKeptMarks}): upstream appends
+     * them to every input's {@code chosen} while the spell's cost is paid ({@code InputBase.showSelection},
+     * {@code InputSyncronizedBase.stop}), and the page reads {@code chosen} as the input's own picks (#56 review).
+     * The marks are those of the controller that built the selection: the seat's own, or the one through which it
+     * controls another player ({@code LobbyPlayerHuman.createMindSlaveController}: same GUI, its own kept marks).
+     * Upstream appends them last, so the tail equal to one controller's marks is removed: a pick that is also a target
+     * stays. Read on the calling thread, which built the selection; {@code toArray} cannot throw a
+     * {@code ConcurrentModificationException}.
+     */
+    private Selection withoutKeptMarks(Selection sel) {
+        if (!(controller instanceof PlayerControllerHuman pch) || sel.chosen().isEmpty()) {
+            return sel;
+        }
+        List<TrackableObject> chosen = sel.chosen();
+        for (PlayerControllerHuman c : controllersOnThisGui(pch)) {
+            Object[] kept = c.getKeptMarks().toArray();
+            int from = chosen.size() - kept.length;
+            if (kept.length > 0 && from >= 0 && Arrays.equals(kept, chosen.subList(from, chosen.size()).toArray())) {
+                return new Selection(sel.cards(), sel.min(), sel.max(), sel.targets(), new ArrayList<>(chosen.subList(0, from)));
+            }
+        }
+        return sel;
+    }
+
+    /** The seat's controller, then the controllers of the players it controls (they share its GUI). */
+    private static List<PlayerControllerHuman> controllersOnThisGui(PlayerControllerHuman own) {
+        List<PlayerControllerHuman> all = new ArrayList<>();
+        all.add(own);
+        if (own.getGame() != null) {
+            for (Player p : own.getGame().getRegisteredPlayers()) {
+                if (p.getController() instanceof PlayerControllerHuman c && c != own && c.getGui() == own.getGui()) {
+                    all.add(c);
+                }
+            }
+        }
+        return all;
     }
 
     /** The blocks the engine allows now, while this seat declares blockers; sticky until the input ends. */
@@ -341,10 +385,8 @@ final class SeatSession implements IRemote {
         switch (m) {
             case openView: case showPromptMessage: case updateButtons: case finishGame:
                 return m.name();
-            case setSelectables: case clearSelectables:
-                return "selectables";
-            case setSelectableTargets:
-                return "targets";
+            case setSelection:
+                return "selection";
             case setWeaklySelectable: case clearWeaklySelectable:
                 return "weakly";
             case showRevealedCards: case hideRevealedCards:
@@ -363,10 +405,6 @@ final class SeatSession implements IRemote {
             return;
         }
         switch (m) {
-            case clearSelectables:
-                sticky.remove("selectables");
-                sticky.remove("targets");
-                return;
             case clearWeaklySelectable:
                 // InputBlock.onStop, InputAttack.onStop: their options end with them
                 sticky.remove(key);

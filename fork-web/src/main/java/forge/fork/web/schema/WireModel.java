@@ -208,7 +208,7 @@ public final class WireModel {
             String mode = ((Enum<?>) f.get(m)).name();
             switch (mode) {
                 case "SERVER": return true;
-                case "CLIENT": return false;
+                case "CLIENT": case "MACRO": return false; // MACRO: a client call on its controller's macro system
                 default: throw new IllegalStateException("unknown ProtocolMethod mode " + mode);
             }
         } catch (ReflectiveOperationException e) {

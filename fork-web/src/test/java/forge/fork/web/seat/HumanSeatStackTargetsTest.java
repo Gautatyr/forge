@@ -2,7 +2,6 @@ package forge.fork.web.seat;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
-import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
@@ -38,6 +37,8 @@ import forge.game.player.RegisteredPlayer;
 import forge.game.zone.ZoneType;
 import forge.gamemodes.match.input.Input;
 import forge.gamemodes.match.input.InputPassPriority;
+import forge.gamemodes.match.input.InputSelectCardsFromList;
+import forge.gamemodes.match.input.InputSelectTargets;
 import forge.gamemodes.match.input.InputPayMana;
 import forge.gamemodes.match.input.InputSelectStackItems;
 import forge.gui.control.GameEventForwarder;
@@ -50,7 +51,7 @@ import forge.fork.web.bridge.visibility.TestEngine;
 
 /**
  * Issues #53 (part 2) and #45 (part 2): the web human seat targets a spell on the stack and spends floating mana, only
- * through the actions the page sends ({@code selectStackItem} with the id from {@code setSelectableTargets},
+ * through the actions the page sends ({@code selectStackItem} with the id from {@code setSelection},
  * {@code useMana} with the colour mask). Each test asserts what the engine recorded.
  */
 public class HumanSeatStackTargetsTest {
@@ -188,15 +189,31 @@ public class HumanSeatStackTargetsTest {
         return seen;
     }
 
-    /** The stack item ids of the last {@code setSelectableTargets} call the seat received. */
+    /**
+     * The stack item ids the last {@code setSelection} call offers (its targets). The input sends it after its message
+     * ({@code InputBase.showMessageInitial}), so it may still be on its way: waits up to 5 s for one offering any.
+     */
     private List<Integer> offeredStackItems() {
-        String call = seat.lastCall("setSelectableTargets");
-        assertNotNull(call, "the seat was offered targets");
+        long end = System.currentTimeMillis() + 5000;
         List<Integer> ids = new ArrayList<>();
-        for (JsonElement e : JsonParser.parseString(call).getAsJsonObject().getAsJsonArray("args").get(0).getAsJsonArray()) {
-            JsonObject r = e.getAsJsonObject();
-            if ("stackItem".equals(r.get("type").getAsString())) {
-                ids.add(r.get("id").getAsInt());
+        while (ids.isEmpty() && System.currentTimeMillis() < end) {
+            String call = seat.lastCall("setSelection");
+            if (call != null) {
+                JsonObject sel = JsonParser.parseString(call).getAsJsonObject().getAsJsonArray("args").get(0).getAsJsonObject();
+                for (JsonElement e : sel.getAsJsonArray("targets")) {
+                    JsonObject r = e.getAsJsonObject();
+                    if ("stackItem".equals(r.get("type").getAsString())) {
+                        ids.add(r.get("id").getAsInt());
+                    }
+                }
+            }
+            if (ids.isEmpty()) {
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
             }
         }
         return ids;
@@ -302,6 +319,84 @@ public class HumanSeatStackTargetsTest {
         assertFalse(autoPaid[0], "the pool click paid the cost, not Auto: " + seen);
         assertTrue(me.getManaPool().isEmpty(), "the floating {B} was spent");
         assertTrue(game.getCardState(rats).isInZone(ZoneType.Battlefield), "Typhoid Rats resolved; seen " + seen);
+        assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
+    }
+
+    /**
+     * Upstream's {@code InputBase.showSelection} adds the spell's kept target marks to every later input's {@code chosen}
+     * while its cost is paid. The seat must not read them as the cost input's own picks: the page would show the target
+     * as already sacrificed and "unpick" it with a {@code selectCard} the engine takes as the sacrifice.
+     */
+    @Test
+    public void aCostInputAfterTargetingSendsOnlyItsOwnPicksAsChosen() throws Exception {
+        start();
+        costAfterTargetingSendsOnlyItsOwnPicks(me);
+    }
+
+    /**
+     * The same on a turn of a player the seat controls (Mindslaver): its inputs come from a second
+     * {@code PlayerControllerHuman} ({@code LobbyPlayerHuman.createMindSlaveController}) with its own kept marks.
+     */
+    @Test
+    public void aCostInputAfterTargetingSendsOnlyItsOwnPicksAsChosenForAControlledPlayer() throws Exception {
+        start();
+        Player ai = game.getPlayers().get(1);
+        ai.addController(game.getNextTimestamp(), me);
+        assertTrue(ai.getController() instanceof PlayerControllerHuman c && c != pch && c.getGui() == pch.getGui(),
+                "the seat controls the AI through a second controller: " + ai.getController());
+        costAfterTargetingSendsOnlyItsOwnPicks(ai);
+    }
+
+    private void costAfterTargetingSendsOnlyItsOwnPicks(Player whose) throws Exception {
+        Card devotion = add("Fanatical Devotion", whose, ZoneType.Battlefield);
+        Card bears = add("Grizzly Bears", whose, ZoneType.Battlefield);
+        Card elves = add("Llanowar Elves", whose, ZoneType.Battlefield);
+        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, whose);
+        game.getPhaseHandler().onStackResolved();
+        boolean[] activated = {false};
+        boolean[] sacrificed = {false};
+        List<String> seen = play(() -> activated[0] && game.getStack().isEmpty() || game.getPhaseHandler().getPhase() != PhaseType.MAIN1,
+                in -> {
+                    if (in instanceof InputPassPriority && !activated[0]) {
+                        activated[0] = true;
+                        return () -> select(devotion); // "Sacrifice a creature: Regenerate target creature."
+                    }
+                    if (in instanceof InputSelectTargets) {
+                        return () -> select(bears);
+                    }
+                    if (in instanceof InputSelectCardsFromList && !sacrificed[0]) {
+                        sacrificed[0] = true;
+                        return () -> select(elves);
+                    }
+                    return null;
+                });
+        assertTrue(seen.contains("InputSelectTargets") && seen.contains("InputSelectCardsFromList"), "targeted, then paid the sacrifice: " + seen);
+        // the setSelection calls the sacrifice input sent (they follow its message)
+        List<JsonObject> costSelections = new ArrayList<>();
+        String message = "";
+        for (String f : seat.all().split("\n")) {
+            JsonObject m = JsonParser.parseString(f).getAsJsonObject();
+            if (!"call".equals(m.get("t").getAsString())) {
+                continue;
+            }
+            String method = m.get("method").getAsString();
+            if ("showPromptMessage".equals(method)) {
+                message = m.getAsJsonArray("args").get(1).getAsString();
+            } else if ("setSelection".equals(method) && message.contains("to sacrifice")) {
+                costSelections.add(m.getAsJsonArray("args").get(0).getAsJsonObject());
+            }
+        }
+        JsonObject first = costSelections.stream().filter(s -> s.get("max").getAsInt() > 0).findFirst().orElse(null);
+        assertTrue(first != null, "the sacrifice input offered its cards: " + costSelections);
+        assertTrue(first.getAsJsonArray("chosen").isEmpty(), "nothing picked yet for the sacrifice: " + first);
+        for (JsonObject s : costSelections) {
+            for (JsonElement c : s.getAsJsonArray("chosen")) {
+                assertFalse(c.getAsJsonObject().get("id").getAsInt() == bears.getId(), "the target is not a sacrifice pick: " + s);
+            }
+        }
+        assertTrue(game.getCardState(elves).isInZone(ZoneType.Graveyard), "the Elves were sacrificed; seen " + seen);
+        assertTrue(game.getCardState(bears).isInZone(ZoneType.Battlefield), "the Bears stayed; seen " + seen);
+        assertEquals(game.getCardState(bears).getShieldCount(), 1, "the Bears got the regeneration shield; seen " + seen);
         assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
     }
 }
