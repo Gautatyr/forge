@@ -11,6 +11,7 @@ import {
   counterText,
   FILTER_FROM,
   groupOptions,
+  inPlaceOptions,
   inPlaceRefs,
   initialDraft,
   isAbilityMenu,
@@ -182,7 +183,8 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
       : [];
   // Identical cards (17 Swamps of a library search) are one tile with a count; digit keys name the tiles.
   const groups = groupOptions(matching, (id) => game.cards[id]?.name);
-  const visible = groups.map((g) => g.option);
+  // Keys 1–9 name the options wherever they are shown: the tray's tiles, or in place the prompt's own order.
+  const visible = mode === 'inPlace' ? inPlaceOptions(game, prompt) : groups.map((g) => g.option);
   const groupMembers = new Map(groups.map((g) => [g.option.id, g.members]));
 
   // Store the starting draft so the main button (primaryAction) answers the

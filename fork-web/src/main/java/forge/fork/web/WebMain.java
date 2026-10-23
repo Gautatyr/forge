@@ -229,10 +229,16 @@ public final class WebMain {
         return deck;
     }
 
+    /** An AI seat's name: plain, never the deck's (it overflows the plate and names the opponent's archetype, issue #110). */
+    static String aiName(int number) {
+        return "AI " + number;
+    }
+
     private static CountDownLatch startGame(boolean commander, List<Slot> slots, int life, GameStream stream, WebSeats seats) {
         GameType type = commander ? GameType.Commander : GameType.Constructed;
         List<RegisteredPlayer> players = new ArrayList<>();
         Map<RegisteredPlayer, IGuiGame> guis = new LinkedHashMap<>();
+        int ai = 0;
         for (int s = 0; s < slots.size(); s++) {
             Slot sl = slots.get(s);
             RegisteredPlayer rp = commander ? RegisteredPlayer.forCommander(sl.deck()) : new RegisteredPlayer(sl.deck());
@@ -243,7 +249,7 @@ public final class WebMain {
                 rp.setPlayer(new LobbyPlayerHuman("You"));
                 guis.put(rp, seats.newSeat(s));
             } else {
-                rp.setPlayer(GamePlayerUtil.createAiPlayer("AI " + s + " (" + sl.deck().getName() + ")", s));
+                rp.setPlayer(GamePlayerUtil.createAiPlayer(aiName(++ai), s));
             }
             players.add(rp);
         }

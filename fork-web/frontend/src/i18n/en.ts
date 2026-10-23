@@ -197,7 +197,7 @@ export const en = {
   'sc.undo': 'Undo (while paying: untap the last land)',
   'sc.attackAll': 'Attack all (while declaring attackers)',
   'sc.autoPass': 'Auto-pass when I can’t act: on / off',
-  'sc.pick': 'Pick an option in the choice tray, a row of the ability menu, or the mana a dual land adds',
+  'sc.pick': 'Pick the Nth option of a choice (in the tray, in your hand or on the board), a row of the ability menu, or the mana a dual land adds',
   'sc.yesNo': 'Answer a yes / no question',
   'sc.mulligan': 'Mulligan (opening hand)',
   'sc.move': 'Move the focused item while ordering',
