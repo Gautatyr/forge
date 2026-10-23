@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.IntFunction;
 
 import forge.deck.Deck;
 import forge.deck.DeckgenUtil;
@@ -80,7 +81,7 @@ public final class WebMain {
     private WebMain() { }
 
     /** One player of the match, in seat order. */
-    private record Slot(int slot, Deck deck, boolean human) { }
+    record Slot(int slot, Deck deck, boolean human) { }
 
     public static void main(String[] args) throws Exception {
         Map<String, String> opt = parse(args);
@@ -234,10 +235,13 @@ public final class WebMain {
         return "AI " + number;
     }
 
-    private static CountDownLatch startGame(boolean commander, List<Slot> slots, int life, GameStream stream, WebSeats seats) {
-        GameType type = commander ? GameType.Commander : GameType.Constructed;
+    /**
+     * The match's players in slot order: a human seat is "You" with its GUI (added to {@code guis}), an AI seat is
+     * {@link #aiName} (never the deck's name, issue #110).
+     */
+    static List<RegisteredPlayer> registeredPlayers(boolean commander, List<Slot> slots, int life, IntFunction<IGuiGame> newSeat,
+            Map<RegisteredPlayer, IGuiGame> guis) {
         List<RegisteredPlayer> players = new ArrayList<>();
-        Map<RegisteredPlayer, IGuiGame> guis = new LinkedHashMap<>();
         int ai = 0;
         for (int s = 0; s < slots.size(); s++) {
             Slot sl = slots.get(s);
@@ -247,12 +251,19 @@ public final class WebMain {
             }
             if (sl.human()) {
                 rp.setPlayer(new LobbyPlayerHuman("You"));
-                guis.put(rp, seats.newSeat(s));
+                guis.put(rp, newSeat.apply(s));
             } else {
                 rp.setPlayer(GamePlayerUtil.createAiPlayer(aiName(++ai), s));
             }
             players.add(rp);
         }
+        return players;
+    }
+
+    private static CountDownLatch startGame(boolean commander, List<Slot> slots, int life, GameStream stream, WebSeats seats) {
+        GameType type = commander ? GameType.Commander : GameType.Constructed;
+        Map<RegisteredPlayer, IGuiGame> guis = new LinkedHashMap<>();
+        List<RegisteredPlayer> players = registeredPlayers(commander, slots, life, seats::newSeat, guis);
         GameRules rules = matchRules(type);
         HostedMatch match = GuiBase.getInterface().hostMatch();
         // no human seat: HostedMatch attaches getNewGuiGame() as a spectator, which binds the stream;

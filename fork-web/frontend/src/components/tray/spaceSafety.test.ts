@@ -3,7 +3,7 @@ import type { PromptMessage } from '../../adapter/protocol';
 import { inputToChoice, promptToChoice } from '../../adapter/prompts';
 import { NO_INPUT, type InputState } from '../../adapter/session';
 import type { ChooseNPrompt, YesNoPrompt } from '../../model/types';
-import { initialDraft, keyAction, toggleOption, trayConfirm } from './trayLogic';
+import { guardHint, guardHintFromFilter, initialDraft, keyAction, toggleOption, trayConfirm } from './trayLogic';
 
 /**
  * U8 (Space-default safety): Space never sends an answer that gives something up. Which answer does is engine data:
@@ -81,6 +81,17 @@ describe('choose N: choosing none of an optional pick declines it', () => {
     expect(keyAction(p, one, p.options, key(' '))).toEqual({ kind: 'answer', answer: { shape: 'chooseN', optionIds: ['0'] } });
     // N only chooses none: with a pick made it does nothing.
     expect(keyAction(p, one, p.options, key('n'))).toBeUndefined();
+  });
+
+  it('the filter box takes N as text: no key acts there, and the hint says to leave it first (Esc)', () => {
+    const p = search();
+    const d = initialDraft(p);
+    const typing = { key: 'n', alt: false, inInput: true };
+    expect(keyAction(p, d, p.options, typing)).toBeUndefined();
+    expect(keyAction(p, d, p.options, { ...typing, key: 'Escape' })).toBeUndefined();
+    const guard = trayConfirm(p, d).guard!;
+    expect(guardHint(guard)).toBe('Space won’t send this: press N');
+    expect(guardHintFromFilter(guard)).toBe('Space won’t send this: Esc leaves the filter, then press N');
   });
 
   it('a reveal (nothing to pick) and a mandatory pick keep Space', () => {

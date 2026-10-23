@@ -668,8 +668,9 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
     /**
      * A cost's pick of exactly {@code n} of {@code options} ({@code HumanCostDecision}: exile from a graveyard): the
      * input asks for n, so a client that shows the input's min and max cannot confirm fewer (fork issue 109); Cancel
-     * backs out of the cost when {@code cancellable}. Without the input (a dialog) the pick is as
-     * {@link #chooseCardsForZoneChange}: any number up to n when cancellable, which the caller then checks.
+     * backs out of the cost when {@code cancellable}. Without the input (a dialog, when the "select from card displays"
+     * preference is off) the pick is exactly n too, so the outcome does not depend on the preference; the dialog has
+     * no Cancel, as for any other fixed-count pick.
      */
     List<Card> chooseCardsForCost(final SpellAbility sa, final List<ZoneType> origin, final CardCollection options,
                                   final int n, final boolean cancellable, final String title) {
@@ -682,7 +683,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
             endTempShowCards();
             return new ArrayList<>(input.getSelected());
         }
-        return chooseCardsForZoneChange(ZoneType.Exile, origin, sa, options, cancellable ? 0 : n, n, null, title, null);
+        return chooseCardsForZoneChange(ZoneType.Exile, origin, sa, options, n, n, null, title, null);
     }
 
     @Override

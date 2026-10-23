@@ -67,16 +67,27 @@ describe('choosing in place', () => {
     expect(after.decision.kind).toBe('priority');
   });
 
-  it('keys 1–9 pick the Nth option in place, as in the tray (#110)', () => {
+  it('keys 1–9 act only where the order is on screen: the tray rows, and your hand in hand order (#112)', () => {
+    const key = (k: string) => ({ key: k, alt: false, inInput: false });
+    // On the board nothing shows the prompt's order to count from: the digits name nothing.
     const g = scenarioById('sacrifice').build();
     const p = promptOf(g) as Extract<ChoicePrompt, { shape: 'chooseN' }>;
-    const visible = inPlaceOptions(g, p);
-    expect(visible).toEqual(p.options);
-    const d = initialDraft(p);
-    const key = (k: string) => ({ key: k, alt: false, inInput: false });
-    expect(keyAction(p, d, visible, key('2'))).toEqual({ kind: 'draft', draft: toggleOption(p, d, p.options[1]!.id) });
-    expect(keyAction(p, d, visible, key(String(p.options.length + 1)))).toBeUndefined();
-    // the tray (search) is not in place: no options named by the in-place list
+    expect(inPlaceRefs(g, p)).toBeDefined();
+    const board = inPlaceOptions(g, p);
+    expect(board).toEqual([]);
+    expect(keyAction(p, initialDraft(p), board, key('1'))).toBeUndefined();
+    // In your hand: the Nth card of the hand, whatever the prompt's option order; a card that is no option is a hole.
+    const withHand = SCENARIOS.map((s) => s.build()).find((x) => player(x, 'you').hand.length >= 4)!;
+    const hand = player(withHand, 'you').hand;
+    const options = [hand[2]!, hand[0]!].map((id) => ({ id: `o${id}`, label: withHand.cards[id]!.name, cardId: id }));
+    const hp: Extract<ChoicePrompt, { shape: 'chooseN' }> = { ...p, id: 'discard', options, min: 1, max: 1 };
+    const visible = inPlaceOptions(withHand, hp);
+    expect(visible.map((o) => o?.cardId)).toEqual(hand.slice(0, 9).map((id, i) => (i === 0 || i === 2 ? id : undefined)));
+    const d = initialDraft(hp);
+    expect(keyAction(hp, d, visible, key('1'))).toEqual({ kind: 'draft', draft: toggleOption(hp, d, `o${hand[0]}`) });
+    expect(keyAction(hp, d, visible, key('2'))).toBeUndefined();
+    expect(keyAction(hp, d, visible, key('3'))).toEqual({ kind: 'draft', draft: toggleOption(hp, d, `o${hand[2]}`) });
+    // the tray (search) is not in place: the tray's own tiles are what the digits name (trayGroups.test.ts)
     const search = scenarioById('search').build();
     expect(inPlaceOptions(search, promptOf(search))).toEqual([]);
   });

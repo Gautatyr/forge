@@ -337,7 +337,7 @@ describe('card picks are worded from what the engine asks (issue #81)', () => {
     const none = primaryAction(at(pick({})), INITIAL_UI, DEFAULT_STOPS);
     expect(none.label).toBe('Discard none');
     // Choosing none declines the pick (U8): N sends it, never Space; the detail says so.
-    expect(none.detail).toBe('Gives something up: press N, not Space');
+    expect(none.detail).toBe('Space won’t send this: press N');
     expect(none.guard).toEqual({ key: 'n', label: 'N' });
     expect(none.enabled).toBe(true);
     const one = primaryAction(at(pick({ chosen: [{ kind: 'card', id: '20' }], instruction: 'Discard 1 card(s)' })), INITIAL_UI, DEFAULT_STOPS);
@@ -364,7 +364,7 @@ describe('card picks are worded from what the engine asks (issue #81)', () => {
     };
     const a = primaryAction(at({ kind: 'choice', prompt }), INITIAL_UI, DEFAULT_STOPS);
     expect(a.guard).toEqual({ key: 'y', label: 'Y' });
-    expect(a.detail).toBe('Gives something up: press Y, not Space');
+    expect(a.detail).toBe('Space won’t send this: press Y');
     const plain = primaryAction(at({ kind: 'choice', prompt: { ...prompt, giveUp: undefined } }), INITIAL_UI, DEFAULT_STOPS);
     expect(plain.guard).toBeUndefined();
     expect(plain.detail).toBe('Cancel Search?');
