@@ -685,6 +685,48 @@ describe('helpers', () => {
     expect(logText("Return Wurmcoil Engine (248) to its owner's hand", g.cards)).toBe("Return Wurmcoil Engine to its owner's hand");
   });
 
+  it('words log and stack text without tags or hidden ids; names only a face-down card you may look at (issue #127)', () => {
+    const s = session();
+    s.apply({
+      t: 'delta', game: 1, seq: 1, ts: 0, removed: [], events: [],
+      new: [
+        // your morph: both faces; the opponent's: the face-down face only
+        { type: 'card', id: 50, props: { Owner: 0, Controller: 0, Zone: 'Battlefield', CurrentState: 'FaceDown', HiddenId: 4 } },
+        { type: 'cardState', id: 50, state: 'FaceDown', props: { Type: 'Creature', Power: 2, Toughness: 2 } },
+        { type: 'cardState', id: 50, state: 'Original', props: { Name: 'Zoetic Cavern', Type: 'Land' } },
+        { type: 'card', id: 51, props: { Owner: 1, Controller: 1, Zone: 'Battlefield', CurrentState: 'FaceDown', HiddenId: 5 } },
+        { type: 'cardState', id: 51, state: 'FaceDown', props: { Type: 'Creature', Power: 2, Toughness: 2 } },
+        ...[7, 8].map((id): WireObject => ({
+          type: 'stackItem', id, props: { SourceCard: 10, ActivatingPlayer: 0, Ability: true, SourceTrigger: 1, Description: `Mimic Vat - When a creature dies. [Zone Changer: ${id === 7 ? 'Dragon (20)' : 'Face-down card (H5)'}]` },
+        })),
+        { type: 'stackItem', id: 9, props: { SourceCard: 10, ActivatingPlayer: 0, Ability: false, Description: 'Opt - You scries 1. You draw a card.' } },
+      ],
+      changed: [
+        { type: 'player', id: 0, props: { Name: 'You', Battlefield: [10, 30, 50] } },
+        { type: 'player', id: 1, props: { Battlefield: [20, 51] } },
+        { type: 'game', id: 1, props: { Stack: [9, 8, 7] } },
+      ],
+      log: [
+        { type: 'COMBAT', msg: 'Face-down card (H4) deals 2 damage to Dragon (20). [Zone Changer: Face-down card (H4)]' },
+        { type: 'COMBAT', msg: 'Face-down card (H5) deals 2 damage to Grizzly Bears (10).' },
+        { type: 'LAND', msg: 'You cast Fireball targeting [Dragon (20), Grizzly Bears (10)]' },
+      ] as never,
+    });
+    const g = toGameView(s);
+    expect(g.cards['50']).toMatchObject({ name: 'Zoetic Cavern', hiddenId: 4, faceDown: { seen: true } });
+    expect(g.log.slice(-3).map((e) => e.text)).toEqual([
+      '{card:50} deals 2 damage to {card:20}.',
+      'A face-down creature deals 2 damage to {card:10}.',
+      'You cast Fireball targeting {card:20}, {card:10}',
+    ]);
+    // the stack lists the top first in the engine and the bottom first here
+    expect(g.stack.map((i) => i.text)).toEqual([
+      'Mimic Vat - When a creature dies. (for Dragon)',
+      'Mimic Vat - When a creature dies. (for a face-down creature)',
+      'Opt - You scry 1. You draw a card.',
+    ]);
+  });
+
   it('turns every log entry of the stream into player words', () => {
     const s = session();
     s.apply({

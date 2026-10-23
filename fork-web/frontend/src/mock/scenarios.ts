@@ -1,3 +1,4 @@
+import { promptWords } from '../adapter/prompts';
 import { isCreature, isLand } from '../model/selectors';
 import type { ChoicePrompt, DistributeRecipient } from '../model/types';
 import { GameBuilder, ref } from './builder';
@@ -318,6 +319,26 @@ const TRAY_SCENARIOS: Scenario[] = [
       min: 0,
       max: 2,
       options: lands.map((id) => ({ id, label: b.g.cards[id]!.name, cardId: id })),
+    };
+  }),
+  trayScenario('long-title', '3g3 · A prompt whose title is a whole ability text', 'Necromancy-style target prompt in the live shape (through promptWords): the instruction leads, the tray stays inside the window.', (b, ids) => {
+    const elves = b.card('Llanowar Elves', 'you', 'graveyard');
+    const chieftain = b.card('Goblin Chieftain', 'mira', 'graveyard');
+    // What a live game shows: the engine's title line through promptWords (the card names the tray, "Select target ..." leads).
+    const words = promptWords(
+      'Select target creature card in a graveyard',
+      'Necromancy (3) - When Necromancy enters, if it\'s on the battlefield, it becomes an Aura with "enchant creature put onto the battlefield with Necromancy." Put target creature card from a graveyard onto the battlefield under your control and attach Necromancy to it. When Necromancy leaves the battlefield, that creature\'s controller sacrifices it. [Zone Changer: Necromancy (3)]',
+      'Choose',
+    );
+    return {
+      id: 'long-title',
+      shape: 'chooseN',
+      ...words,
+      sourceCardId: ids.knight,
+      confirmLabel: 'Choose',
+      min: 1,
+      max: 1,
+      options: [elves, chieftain].map((id) => ({ id, label: b.g.cards[id]!.name, cardId: id })),
     };
   }),
   trayScenario('optional', '3h · Yes / no: optional trigger', 'The source card is in the tray header; Y, N, Space.', (b) => {

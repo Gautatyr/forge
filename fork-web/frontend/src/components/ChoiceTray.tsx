@@ -8,6 +8,7 @@ import { Card } from './Card';
 import { Icon, SeatGlyph } from './Icon';
 import { AbilityMenu } from './tray/AbilityMenu';
 import { TrayBody } from './tray/TrayBody';
+import { useFitTiles } from './tray/tileFit';
 import {
   counterText,
   FILTER_FROM,
@@ -56,6 +57,7 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
   const yourShare = opponents(game).length === 1 ? 50 : 100 - prefs.opponentShare;
   const barRef = useRef<HTMLDivElement>(null);
   const trayRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   // The in-place bar sits at the bottom centre of your board; when that covers
   // an option, it takes the corner of your board that covers the fewest.
@@ -191,6 +193,8 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
   // Keys 1–9 name what the player can count on screen: the tray's tiles, or the cards of the hand in hand order.
   const visible = groups.map((g) => g.option);
   const digitOptions = mode === 'inPlace' ? inPlaceOptions(game, prompt) : visible;
+  // Card tiles shrink until the whole body is in view; the prompt's text above them may be long.
+  useFitTiles(bodyRef, [prompt, mode, visible.length]);
   const groupMembers = new Map(groups.map((g) => [g.option.id, g.members]));
 
   // Store the starting draft so the main button (primaryAction) answers the
@@ -313,7 +317,7 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
         </div>
       ) : null}
 
-      <div className={styles.body}>
+      <div ref={bodyRef} className={styles.body}>
         <TrayBody prompt={prompt} draft={draft} setDraft={setDraft} visible={visible} groups={groups} send={send} />
       </div>
 
