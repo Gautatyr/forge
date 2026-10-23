@@ -199,7 +199,7 @@ export const fr: Record<MsgKey, Msg> = {
   'sc.undo': 'Annuler (en payant : dégager le dernier terrain)',
   'sc.attackAll': 'Tout attaquer (pendant la déclaration des attaquants)',
   'sc.autoPass': 'Passer auto si je ne peux pas agir : activé / désactivé',
-  'sc.pick': 'Choisir une option du plateau de choix, une ligne du menu des capacités, ou le mana qu\'ajoute un terrain double',
+  'sc.pick': 'Choisir la N-ième option d\'un choix (dans le plateau de choix, dans votre main ou sur le plateau de jeu), une ligne du menu des capacités, ou le mana qu\'ajoute un terrain double',
   'sc.yesNo': 'Répondre à une question oui / non',
   'sc.mulligan': 'Mulligan (main de départ)',
   'sc.move': 'Déplacer l\'élément ciblé pendant le tri',

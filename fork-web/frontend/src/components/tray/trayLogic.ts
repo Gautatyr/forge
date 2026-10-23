@@ -198,6 +198,11 @@ export function inPlaceRefs(game: GameView, p: ChoicePrompt): InPlaceRefs | unde
   return refs;
 }
 
+/** The options keys 1–9 name when they are picked in place (in your hand or on the board): the prompt's order. */
+export function inPlaceOptions(game: GameView, p: ChoicePrompt): ChoiceOption[] {
+  return p.shape === 'chooseN' && inPlaceRefs(game, p) ? p.options : [];
+}
+
 /** The keys that answer a yes/no at once: Y / N unless the prompt names its own (the mulligan: M only). */
 export function yesNoKeys(p: YesNoPrompt): { yes?: string; no?: string } {
   return p.keys ?? { yes: 'Y', no: 'N' };
