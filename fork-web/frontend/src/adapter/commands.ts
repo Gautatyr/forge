@@ -114,13 +114,17 @@ export function intentToFrames(intent: Intent, s: LiveSession, view: GameView): 
     case 'concede':
       // The engine marks the loss; it is applied once the game moves on, so give up priority too.
       return d.kind === 'priority' ? [action('concede'), action('selectButtonOk')] : [action('concede')];
+    case 'toggleAutoYieldTo': {
+      // "Always yield to this": the engine yields to abilities by their text; the bridge reads it off the stack item.
+      const item = view.stack.find((it) => it.yieldKey === intent.key);
+      return item ? [action('sendYieldUpdate', { update: { kind: 'AutoYieldTo', stackItem: num(item.id), active: !view.autoYieldTo.includes(intent.key) } })] : [];
+    }
     case 'setAutoPass':
     case 'setAutoYield':
     case 'setAutoPay':
-    case 'toggleAutoYieldTo':
     case 'leaveMatch':
     case 'nextGame':
-      // Client-side (autoPay) or no wire form yet.
+      // Settings kept by the client: autoPay stays here; auto-pass and auto-yield go to the bridge from useLive (autoPassFrame).
       return [];
   }
 }
@@ -200,6 +204,10 @@ export function autoAnswer(s: LiveSession): { key: string; frames: ClientFrame[]
   if (freeMulliganKeep(input)) return { key: `free-keep|${s.game}`, frames: [action('selectButtonOk')] };
   return undefined;
 }
+
+/** "Auto-pass when I can't act" and "Auto-yield" for this seat; the bridge keeps them for the seat's later games. */
+export const autoPassFrame = (on: boolean): ClientFrame => ({ t: 'setAutoPass', on });
+export const autoYieldFrame = (on: boolean): ClientFrame => ({ t: 'setAutoYield', on });
 
 /** "Pass priority after casting" for this seat; the bridge keeps it for the seat's later games. */
 export const passAfterCastFrame = (on: boolean): ClientFrame => ({ t: 'setPassAfterCast', on });

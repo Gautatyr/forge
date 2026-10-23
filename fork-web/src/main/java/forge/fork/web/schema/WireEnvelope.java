@@ -176,6 +176,11 @@ public final class WireEnvelope {
                             field("attackers", "{ card: number; blockers: number[]; ifFreed: number[]; min?: number }[]",
                                     "Attackers whose blocks the seat declares: creatures that may block each now (or already do), "
                                             + "creatures that could once taken off the attacker they block, fewest blockers when more than 1 (menace)."))),
+            new Message("yields", "YieldsMessage",
+                    "The abilities the seat auto-yields (\"Always yield to this\"), as the engine keys them (the ability's text, without the card's id), when they change; sticky, and a new game starts empty. Honoured only while setAutoYield is on.",
+                    List.of(
+                            field("t", "'yields'", null),
+                            field("autoYieldTo", "string[]", null))),
             new Message("attackOptions", "AttackOptionsMessage",
                     "While the seat declares attackers, after each change: what the engine lets it attack (cleared by clearWeaklySelectable).",
                     List.of(
@@ -206,7 +211,7 @@ public final class WireEnvelope {
                     new Field("index", "number", true, "reorderHand."),
                     new Field("decision", "NextGameDecision", true, null),
                     new Field("action", "DrawOfferMessageAction", true, null),
-                    new Field("update", "{ kind: string; [field: string]: unknown }", true, "sendYieldUpdate."))),
+                    new Field("update", "{ kind: string; [field: string]: unknown }", true, "sendYieldUpdate: SkipPhase, InvolvedStops, AutoYieldTo {stackItem, active}, SetMarker/ClearMarker, StackYield…"))),
             new Message("requestResync", "RequestResyncMessage", "Asks for a fresh snapshot, then the seat's greeting.", List.of(
                     field("t", "'requestResync'", null))),
             new Message("setLanguage", "SetLanguageMessage", "Sets the language of this seat's card translations: fully visible cards then carry LocalName, LocalType and LocalOracleText (display only; Name, Type and OracleText stay English); anything but 'fr' is English and carries none. Sent after the greeting and on change; spectators stay English.", List.of(
@@ -214,6 +219,12 @@ public final class WireEnvelope {
                     field("lang", "'en' | 'fr'", null))),
             new Message("setPassAfterCast", "SetPassAfterCastMessage", "Pass priority after casting (off by default): once the seat's own spell or activated ability goes on the stack, the seat passes the priority it gets back once, unless the cast was sent with hold. Kept for the seat's later games; sent after the greeting and on change.", List.of(
                     field("t", "'setPassAfterCast'", null),
+                    field("on", "boolean", null))),
+            new Message("setAutoPass", "SetAutoPassMessage", "Auto-pass when I can't act (off by default): the seat passes the priority it has no playable action for; blocks, attacks, targets and choices are never skipped. Kept for the seat's later games; sent after the greeting and on change.", List.of(
+                    field("t", "'setAutoPass'", null),
+                    field("on", "boolean", null))),
+            new Message("setAutoYield", "SetAutoYieldMessage", "Auto-yield (off by default): honour the abilities the seat chose with action sendYieldUpdate {kind:'AutoYieldTo'}. Kept for the seat's later games; sent after the greeting and on change.", List.of(
+                    field("t", "'setAutoYield'", null),
                     field("on", "boolean", null))));
 
     private WireEnvelope() { }
