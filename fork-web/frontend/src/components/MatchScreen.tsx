@@ -4,7 +4,7 @@ import { currentAttackAim } from '../state/focus';
 import { gameEndView, watching } from '../state/gameEnd';
 import { useMatch } from '../state/MatchContext';
 import { primaryAction } from '../state/primaryAction';
-import { handleSpace, promptKeysLive } from '../state/promptKeys';
+import { dropsFocusAfterClick, escapeStep, handleSpace, pickDigitTarget, promptKeysLive, takesKeys } from '../state/promptKeys';
 import { NONE_GUARD } from './tray/trayLogic';
 import { Arrows } from './Arrows';
 import { Board } from './Board';
@@ -34,9 +34,8 @@ export function MatchScreen() {
   const onKey = useEffectEvent((e: KeyboardEvent) => {
     const { game, ui, setUi, send } = match;
     const el = e.target as HTMLElement | null;
-    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) {
-      if (e.key !== 'Escape') return;
-    }
+    // A field takes its own keys (a switch only with keyboard focus: after a click Space still passes, issue #126).
+    if (takesKeys(el) && e.key !== 'Escape') return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     // A game-end dialog or panel owns the keyboard while open (GameEnd.tsx).
     if (gameEndView(game, ui) || ui.leftMatch) return;
@@ -47,7 +46,9 @@ export function MatchScreen() {
     const promptKeys = promptKeysLive(ui);
 
     if (key === ' ') {
-      handleSpace(e, ui, primaryAction(game, ui, prefs.stops), send);
+      handleSpace(e, ui, primaryAction(game, ui, prefs.stops), send, (text) =>
+        setUi((u) => ({ ...u, promptNote: { id: (u.promptNote?.id ?? 0) + 1, text } })),
+      );
       return;
     }
     if (promptKeys && key.toLowerCase() === NONE_GUARD.key && !e.shiftKey) {
@@ -64,14 +65,32 @@ export function MatchScreen() {
       return;
     }
     if (key === 'Escape') {
-      if (ui.inspectId) setUi({ inspectId: undefined });
-      else if (ui.overlay) setUi({ overlay: undefined });
-      else if (ui.logOpen) setUi({ logOpen: false });
-      else if (manaChoice) setUi({ manaChoice: undefined });
-      else if (ui.pendingBlocker || ui.pendingAttacker) setUi({ pendingBlocker: undefined, pendingAttacker: undefined });
-      else if (d.kind === 'chooseTargets' || d.kind === 'payMana' || (d.kind === 'choice' && d.cancellable)) send({ type: 'cancel' });
-      else if (ui.zoneView) setUi({ zoneView: undefined });
-      else if (ui.trayPeek) setUi({ trayPeek: false });
+      switch (escapeStep(d, ui, !!manaChoice)) {
+        case 'inspect':
+          setUi({ inspectId: undefined });
+          break;
+        case 'overlay':
+          setUi({ overlay: undefined });
+          break;
+        case 'log':
+          setUi({ logOpen: false });
+          break;
+        case 'mana':
+          setUi({ manaChoice: undefined });
+          break;
+        case 'pending':
+          setUi({ pendingBlocker: undefined, pendingAttacker: undefined });
+          break;
+        case 'cancel':
+          send({ type: 'cancel' });
+          break;
+        case 'zone':
+          setUi({ zoneView: undefined });
+          break;
+        case 'peek':
+          setUi({ trayPeek: false });
+          break;
+      }
       return;
     }
     if (key === '?') return setUi((u) => ({ ...u, overlay: u.overlay === 'shortcuts' ? undefined : 'shortcuts' }));
@@ -98,6 +117,11 @@ export function MatchScreen() {
         }
         return;
     }
+    // A card pick from your hand (discard, imprint): the Nth card of the hand (#121, issue #131).
+    if (promptKeys) {
+      const target = pickDigitTarget(game, key);
+      if (target) return send({ type: 'toggleTarget', target });
+    }
     // A dual land's mana chooser: live only while paying or holding priority, so never alongside the tray.
     if (promptKeys && /^[1-9]$/.test(key) && manaChoice) {
       const colour = manaChoice.colours[Number(key) - 1];
@@ -114,6 +138,16 @@ export function MatchScreen() {
     const h = (e: KeyboardEvent) => onKey(e);
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
+  }, []);
+
+  // A switch clicked with the pointer keeps focus, and Space would flip it back instead of passing (issue #126).
+  useEffect(() => {
+    const h = () => {
+      const el = document.activeElement;
+      if (el instanceof HTMLElement && dropsFocusAfterClick(el)) el.blur();
+    };
+    document.addEventListener('click', h);
+    return () => document.removeEventListener('click', h);
   }, []);
 
   if (match.ui.leftMatch) return <LeftMatch />;

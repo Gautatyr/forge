@@ -24,18 +24,23 @@ import forge.fork.web.server.ImageSource;
  * goes wrong (no French printing, rate limit, timeout, bad file) falls back to {@code english}.
  * Only {@code c:} card keys are localized: face-down, token and other keys are always answered by
  * {@code english}, so the language never changes which key a viewer may obtain. A printing Scryfall
- * answered 404 for is remembered until restart; transient failures are not.
+ * answered 404 for, or has only a placeholder picture of, is remembered until restart; transient failures
+ * are not. Files cached before placeholders were detected cannot be told from real scans: the cache folder
+ * is emptied once ({@link #CHECKED_MARKER}).
  */
 public final class LocalizedImages implements ImageSource {
 
     /** One download. */
     public interface Downloader {
-        /** Image bytes, {@link #MISSING} (Scryfall has no such printing) or {@link #FAILED} (try again later). Blocking. */
+        /** Image bytes, {@link #MISSING} (Scryfall has no such printing, or only its "Localized Image Not Available" placeholder) or {@link #FAILED} (try again later). Blocking. */
         byte[] download(String url);
 
         byte[] MISSING = new byte[0];
         byte[] FAILED = new byte[0];
     }
+
+    /** Present in the cache folder once it holds only files the downloader vetted against placeholders. */
+    static final String CHECKED_MARKER = ".placeholders-checked";
 
     private final ImageSource english;
     private final Function<String, String> urlOf;
@@ -63,6 +68,28 @@ public final class LocalizedImages implements ImageSource {
         this.io = io;
         this.download = download;
         this.timeoutMs = timeoutMs;
+        dropUnvettedCache();
+    }
+
+    /** One-off: French files cached by an earlier version may be placeholder banners; drop them, they re-download vetted. */
+    private void dropUnvettedCache() {
+        try {
+            Path marker = cacheDir.resolve(CHECKED_MARKER);
+            if (Files.exists(marker)) {
+                return;
+            }
+            if (Files.isDirectory(cacheDir)) {
+                try (var files = Files.list(cacheDir)) {
+                    for (Path f : (Iterable<Path>) files.filter(p -> p.getFileName().toString().endsWith(".img"))::iterator) {
+                        Files.deleteIfExists(f);
+                    }
+                }
+            }
+            Files.createDirectories(cacheDir);
+            Files.write(marker, new byte[0]);
+        } catch (IOException | RuntimeException e) {
+            System.err.println("[web] french image cache cleanup failed: " + e);
+        }
     }
 
     @Override
