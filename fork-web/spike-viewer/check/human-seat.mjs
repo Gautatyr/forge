@@ -7,7 +7,12 @@
 // a card the seat may not see (alias or unseen id only, labelled without its name) and that no prompt
 // closes unanswered (timeout or disconnect).
 // Usage: node human-seat.mjs --token <seat token> [--seat 0] [--url ws://127.0.0.1:7655/ws] [--timeout 3600]
-// Prints a JSON report; exit 0 = the game reached its final delta with no error.
+//   [--stops page|involved] [--until-turn N]
+// --stops: send the page's default stops (state/prefs.ts DEFAULT_STOPS) as the page does, with "Stop only when I'm
+// involved" off (page) or on (involved); without it the bridge skips no step. The report's stats.oppPriority counts the
+// seat's priority passes on opponents' turns by step and stack; oppTurns, the opponents' turns seen. --until-turn N: stop
+// once turn N+1 begins (exit 0).
+// Prints a JSON report; exit 0 = the game reached its final delta (or --until-turn) with no error.
 import { Stream, ALIAS_BASE } from './stream.mjs';
 
 const args = Object.fromEntries(process.argv.slice(2).reduce((a, v, i, all) =>
@@ -15,6 +20,11 @@ const args = Object.fromEntries(process.argv.slice(2).reduce((a, v, i, all) =>
 const url = args.url ?? 'ws://127.0.0.1:7655/ws';
 const HIDDEN_LABELS = new Set(['Hidden card', 'Face-down card']);
 const PLACEHOLDER = new Set(['Zone', 'Owner', 'Controller']);
+// --stops: the page's PHASES_OF steps and DEFAULT_STOPS (fork-web/frontend/src/model/phases.ts, state/prefs.ts)
+const PRIORITY_PHASES = ['UPKEEP', 'DRAW', 'MAIN1', 'COMBAT_BEGIN', 'COMBAT_DECLARE_ATTACKERS', 'COMBAT_DECLARE_BLOCKERS',
+  'COMBAT_FIRST_STRIKE_DAMAGE', 'COMBAT_DAMAGE', 'COMBAT_END', 'MAIN2', 'END_OF_TURN'];
+const YOUR_STOPS = ['MAIN1', 'COMBAT_DECLARE_BLOCKERS', 'MAIN2'];
+const OPP_STOPS = ['COMBAT_BEGIN', 'COMBAT_DECLARE_ATTACKERS', 'COMBAT_DECLARE_BLOCKERS', 'END_OF_TURN'];
 
 class HumanSeat extends Stream {
   constructor(seat, opts) {
@@ -22,7 +32,8 @@ class HumanSeat extends Stream {
     this.buttons = null; this.message = ''; this.selectables = null; this.targets = []; this.picked = new Set(); this.weakly = [];
     this.prompts = new Map(); this.epoch = 0; this.actedEpoch = -1; this.lastMessageAt = Date.now();
     this.tried = new Set(); this.attacked = new Set(); this.sameState = 0; this.lastState = '';
-    this.stats = { prompts: {}, shapes: {}, calls: {}, actions: {}, closed: {}, replyRejected: 0, actionRejected: [], blockOptions: 0, callCardRefs: 0, promptCardRefs: 0, hiddenPromptRefs: 0, revealedCopies: 0, danglingRefs: 0 };
+    this.stats = { prompts: {}, shapes: {}, calls: {}, actions: {}, closed: {}, replyRejected: 0, actionRejected: [], blockOptions: 0, callCardRefs: 0, promptCardRefs: 0, hiddenPromptRefs: 0, revealedCopies: 0, danglingRefs: 0, oppPriority: {} };
+    this.turnPlayers = {}; this.combatLog = [];
     this.timer = null; this.gameEnded = false; this.lastLog = [];
   }
 
@@ -31,8 +42,29 @@ class HumanSeat extends Stream {
   onMessage(text) {
     this.lastMessageAt = Date.now();
     super.onMessage(text);
+    const g = this.gameObj()?.props;
+    if (args.stops && !this.stopsSent && this.viewer && g?.Players?.length) {
+      this.stopsSent = true;
+      const me = this.viewer.player;
+      const update = (u) => this.send({ t: 'action', method: 'sendYieldUpdate', update: u });
+      update({ kind: 'InvolvedStops', active: args.stops === 'involved' });
+      for (const p of g.Players) {
+        for (const phase of PRIORITY_PHASES) {
+          const stop = (p === me ? YOUR_STOPS : OPP_STOPS).includes(phase);
+          update({ kind: 'SkipPhase', turnPlayer: p, phase, skip: !stop });
+        }
+      }
+    }
+    if (g?.Turn && this.viewer) this.turnPlayers[g.Turn] = g.PlayerTurn; // the last one seen: deltas may change Turn first
+    if (args['until-turn'] && g?.Turn > Number(args['until-turn']) && !this.untilReached) {
+      this.untilReached = true;
+      this.ws.close();
+    }
     if (text.startsWith('{"t":"delta"') || text.startsWith('{"t":"snapshot"')) {
-      for (const e of JSON.parse(text).log ?? []) { this.lastLog.push(e.msg); if (this.lastLog.length > 8) this.lastLog.shift(); }
+      for (const e of JSON.parse(text).log ?? []) {
+        this.lastLog.push(e.msg); if (this.lastLog.length > 8) this.lastLog.shift();
+        if (args.stops && e.type === 'COMBAT') this.combatLog.push(`T${this.gameObj()?.props?.Turn}: ${e.msg}`);
+      }
     }
     this.schedule();
   }
@@ -227,8 +259,12 @@ class HumanSeat extends Stream {
       const next = order.find((id) => !this.picked.has(`p${id}`));
       if (next !== undefined) { this.picked.add(`p${next}`); this.act('selectPlayer', { player: next }); return; }
     }
-    if (this.buttons.ok) this.act('selectButtonOk');
-    else if (this.buttons.cancel) this.act('selectButtonCancel');
+    if (this.buttons.ok) {
+      if (!myTurn && /^Priority:/.test(this.message)) {
+        this.bump(this.stats.oppPriority, `${g.Phase}:${stackEmpty ? 'empty' : 'stack'}`);
+      }
+      this.act('selectButtonOk');
+    } else if (this.buttons.cancel) this.act('selectButtonCancel');
   }
 
   async play() {
@@ -245,14 +281,15 @@ const seat = new HumanSeat(Number(args.seat ?? 0), { url, token: args.token, tim
 const t0 = Date.now();
 const end = await seat.play();
 seat.ws.close();
-if (end !== 'final') seat.fail(`ended by ${end} before the final delta`);
-if (seat.prompts.size) seat.fail(`${seat.prompts.size} prompt(s) still open at the end`);
+if (end !== 'final' && !seat.untilReached) seat.fail(`ended by ${end} before the final delta`);
+if (seat.prompts.size && !seat.untilReached) seat.fail(`${seat.prompts.size} prompt(s) still open at the end`);
 const g = seat.gameObj()?.props ?? {};
 const players = (g.Players ?? []).map((id) => seat.objects.get(`player:${id}`)?.props ?? {});
 console.log(JSON.stringify({
   seconds: (Date.now() - t0) / 1000, end, viewer: seat.viewer, deltas: seat.deltas, turn: g.Turn,
   players: players.map((p) => ({ name: p.Name, life: p.Life ?? 0, lost: !!p.HasLost })),
-  stats: seat.stats, placeholderChecks: seat.placeholdersSeen, cardRefChecks: seat.cardRefChecks,
+  stats: seat.stats, oppTurns: Object.values(seat.turnPlayers).filter((p) => p !== seat.viewer?.player).length,
+  ...(args.stops ? { combatLog: seat.combatLog } : {}), placeholderChecks: seat.placeholdersSeen, cardRefChecks: seat.cardRefChecks,
   lastLog: seat.lastLog, errors: seat.errors,
 }, null, 1));
 process.exit(seat.errors.length ? 1 : 0);
