@@ -911,9 +911,13 @@ public class HumanSeatPaymentTest {
         assertEquals(islandsTapped, 1, "the {1} was paid with an Island; seen " + seen);
     }
 
-    /** Issue #133: a two-colour commander and a blue card in hand: Mimic Vat's {3} still leaves a Mountain and an Island. */
+    /**
+     * Issue #133 (audit probe): Curse {1}{R}, Counterspell {U}{U} and a {U}{U}{R}{R} commander wait. Two lands are left after
+     * Mimic Vat's {3} and the commander needs four, so it stops counting once the lands left cannot pay it; the Cavern and
+     * two lands pay, and what stays casts something (a Mountain for Curse, or both Islands for Counterspell).
+     */
     @Test
-    public void autoPayGenericKeepsBothColoursForATwoColourCommanderAndTheHand() throws Exception {
+    public void autoPayGenericLeavesSomethingCastableWithATwoColourCommander() throws Exception {
         start();
         Card mountain1 = add("Mountain", me, ZoneType.Battlefield);
         Card mountain2 = add("Mountain", me, ZoneType.Battlefield);
@@ -921,6 +925,7 @@ public class HumanSeatPaymentTest {
         Card island2 = add("Island", me, ZoneType.Battlefield);
         Card cavern = add("Zoetic Cavern", me, ZoneType.Battlefield);
         Card vat = add("Mimic Vat", me, ZoneType.Hand);
+        add("Curse of the Pierced Heart", me, ZoneType.Hand); // {1}{R}
         add("Counterspell", me, ZoneType.Hand); // {U}{U}
         Card commander = add("Niv-Mizzet, Parun", me, ZoneType.Command); // {U}{U}{R}{R}
         commander.setCommander(true);
@@ -929,7 +934,7 @@ public class HumanSeatPaymentTest {
         assertTrue(cavern.isTapped(), "the Cavern paid; seen " + seen);
         int mountains = (mountain1.isTapped() ? 0 : 1) + (mountain2.isTapped() ? 0 : 1);
         int islands = (island1.isTapped() ? 0 : 1) + (island2.isTapped() ? 0 : 1);
-        assertTrue(mountains >= 1 && islands >= 1, "a Mountain and an Island stayed; seen " + seen);
+        assertTrue(mountains >= 1 || islands == 2, "Curse or Counterspell stayed castable; seen " + seen);
     }
 
     /** Scarcity, not just need: red is needed by one card and the Mountain is the only red source, blue has three; the Islands pay first. */
@@ -965,6 +970,50 @@ public class HumanSeatPaymentTest {
         assertFalse(elves.isTapped(), "the Elves stayed untapped; seen " + seen);
         assertEquals((mountain1.isTapped() ? 1 : 0) + (mountain2.isTapped() ? 1 : 0) + (island1.isTapped() ? 1 : 0) + (island2.isTapped() ? 1 : 0), 1,
                 "one land paid; seen " + seen);
+    }
+
+    /** A colourless need counts: Warping Wail {1}{C} waits, so the Wastes (the only colourless source) stays and a Mountain pays Sol Ring's {1}. */
+    @Test
+    public void autoPayKeepsTheOnlyColourlessSourceForAColourlessCost() throws Exception {
+        start();
+        Card wastes = add("Wastes", me, ZoneType.Battlefield);
+        Card mountain1 = add("Mountain", me, ZoneType.Battlefield);
+        Card mountain2 = add("Mountain", me, ZoneType.Battlefield);
+        Card sol = add("Sol Ring", me, ZoneType.Hand); // {1}
+        add("Warping Wail", me, ZoneType.Hand); // {1}{C}
+        List<String> seen = castWithAuto(sol);
+        assertCleanPlan(sol, seen, wastes);
+        assertTrue(mountain1.isTapped() != mountain2.isTapped(), "one Mountain paid; seen " + seen);
+    }
+
+    /** A card the sources left can never pay is not protected: Blistering Firecat {1}{R}{R}{R} needs three red sources and there are two; Counterspell's Islands stay. */
+    @Test
+    public void autoPayDoesNotProtectAColourTheHandCannotPayYet() throws Exception {
+        start();
+        Card mountain1 = add("Mountain", me, ZoneType.Battlefield);
+        Card mountain2 = add("Mountain", me, ZoneType.Battlefield);
+        Card island1 = add("Island", me, ZoneType.Battlefield);
+        Card island2 = add("Island", me, ZoneType.Battlefield);
+        Card cavern = add("Zoetic Cavern", me, ZoneType.Battlefield);
+        Card vat = add("Mimic Vat", me, ZoneType.Hand); // {3}
+        add("Counterspell", me, ZoneType.Hand); // {U}{U}
+        add("Blistering Firecat", me, ZoneType.Hand); // {1}{R}{R}{R}
+        List<String> seen = castWithAuto(vat);
+        assertCleanPlan(vat, seen, island1, island2);
+        assertTrue(mountain1.isTapped() && mountain2.isTapped() && cavern.isTapped(), "the Mountains and the Cavern paid; seen " + seen);
+    }
+
+    /** Deliberate order (decisions.md, #133): a castable card beats a mana creature; the Elves pay before the only Mountain when Shock waits. */
+    @Test
+    public void autoPayTapsTheManaCreatureBeforeTheLastSourceOfANeededColour() throws Exception {
+        start();
+        Card mountain = add("Mountain", me, ZoneType.Battlefield);
+        Card elves = add("Llanowar Elves", me, ZoneType.Battlefield);
+        Card sol = add("Sol Ring", me, ZoneType.Hand); // {1}
+        add("Shock", me, ZoneType.Hand); // {R}
+        List<String> seen = castWithAuto(sol);
+        assertCleanPlan(sol, seen, mountain);
+        assertTrue(elves.isTapped(), "the Elves paid; seen " + seen);
     }
 
     /** Both faces of a modal double-faced card count: Valki needs {B}, Tibalt (its back) {R}; with one Mountain and two Swamps a Swamp pays. */

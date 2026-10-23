@@ -1712,14 +1712,14 @@ public class ComputerUtilMana {
      * sources that hurt the payer go last, then sources that would leave mana floating (more units than the unpaid
      * shards can still take), then sources after which the rest of the cost cannot be paid without floating mana
      * though another pick could (Mountain first against {R/G}{R/G} with a Gruul Turf left). Then, against what the rest
-     * of the hand and the commanders still need ({@code needed}, pips of one card per colour): sources that are the
-     * last ones left for a colour a card needs go last; then the order of {@code sortManaAbilities} (creatures and
+     * of the hand and the commanders still need ({@code needs}, the colours of each card's cost, a card counting only
+     * while the sources left could cover them): sources that are the last ones left for a colour a card needs go last; then the order of {@code sortManaAbilities} (creatures and
      * cards with other abilities last); then sources whose scarcest needed colour has the most sources left go first.
      * Ties keep their order. Filter abilities (they need other mana) keep their place, front or back, as
      * {@code sortManaAbilities} put them.
      */
     private static List<SpellAbility> sortForHumanAutoPay(final Collection<SpellAbility> candidates, final List<ManaCostShard> unpaid,
-                                                          final Collection<SpellAbility> sources, final List<SpellAbility> paid, final int[] needed) {
+                                                          final Collection<SpellAbility> sources, final List<SpellAbility> paid, final List<int[]> needs) {
         final List<SpellAbility> plain = new ArrayList<>();
         final List<SpellAbility> filters = new ArrayList<>();
         for (SpellAbility m : candidates) {
@@ -1740,12 +1740,23 @@ public class ComputerUtilMana {
                 hostMasks.merge(m.getHostCard(), mask, (a, b) -> a | b);
             }
         }
-        final int[] left = new int[MagicColor.WUBRGC.length]; // sources still untapped per needed colour
+        final int[] left = new int[ManaAtom.MANATYPES.length]; // sources still untapped per colour (colourless last)
         for (final int mask : hostMasks.values()) {
             for (int i = 0; i < left.length; i++) {
-                if ((mask & MagicColor.WUBRGC[i]) != 0) {
+                if ((mask & ManaAtom.MANATYPES[i]) != 0) {
                     left[i]++;
                 }
+            }
+        }
+        // a card counts only while the sources left could cover its colours (red sources can never pay {R}{R}{R} on two)
+        final int[] needed = new int[left.length];
+        for (final int[] need : needs) {
+            boolean reachable = true;
+            for (int i = 0; i < left.length; i++) {
+                reachable &= need[i] <= left[i];
+            }
+            for (int i = 0; i < left.length && reachable; i++) {
+                needed[i] = Math.max(needed[i], need[i]);
             }
         }
         final Map<Card, Integer> scores = new HashMap<>();
@@ -1772,7 +1783,7 @@ public class ComputerUtilMana {
             boolean lastOne = false; // would leave fewer sources of a colour than one card needs
             int slack = Integer.MAX_VALUE; // sources of the scarcest needed colour this one makes, beyond what a card needs
             for (int i = 0; i < left.length; i++) {
-                if (needed[i] > 0 && (hostMask & MagicColor.WUBRGC[i]) != 0) {
+                if (needed[i] > 0 && (hostMask & ManaAtom.MANATYPES[i]) != 0) {
                     lastOne |= left[i] <= needed[i];
                     slack = Math.min(slack, left[i] - needed[i]);
                 }
@@ -1789,13 +1800,12 @@ public class ComputerUtilMana {
     }
 
     /**
-     * Per {@code MagicColor.WUBRGC} colour (colourless last), the most pips of it in one card's mana cost among the payer's
-     * hand, spell being paid excepted, and the commanders in the command zone: what it takes to cast the dearest of them.
-     * Every castable face counts (both halves of a split card, an adventure, the back of a modal double-faced card);
-     * hybrid, {2/C} and Phyrexian shards count each of their colours.
+     * The pips per {@code ManaAtom.MANATYPES} colour (colourless last) of every castable face of every other card in the
+     * payer's hand (spell being paid excepted) and of the commanders in the command zone: both halves of a split card,
+     * an adventure, the back of a modal double-faced card; hybrid, {2/C} and Phyrexian shards count each of their colours.
      */
-    private static int[] coloursStillNeeded(final Player payer, final SpellAbility paying) {
-        final int[] needed = new int[MagicColor.WUBRGC.length];
+    private static List<int[]> coloursStillNeeded(final Player payer, final SpellAbility paying) {
+        final List<int[]> needs = new ArrayList<>();
         for (final Card c : CardCollection.combine(payer.getCardsIn(ZoneType.Hand), payer.getCardsIn(ZoneType.Command))) {
             if (c.equals(paying.getHostCard()) || (c.isInZone(ZoneType.Command) && !c.isCommander())) {
                 continue;
@@ -1815,20 +1825,18 @@ public class ComputerUtilMana {
                 if (!c.hasState(face)) {
                     continue;
                 }
-                final int[] pips = new int[needed.length];
+                final int[] pips = new int[ManaAtom.MANATYPES.length];
                 for (final ManaCostShard shard : c.getState(face).getManaCost()) {
                     for (int i = 0; i < pips.length; i++) {
-                        if ((shard.getShard() & MagicColor.WUBRGC[i]) != 0) {
+                        if ((shard.getShard() & ManaAtom.MANATYPES[i]) != 0) {
                             pips[i]++;
                         }
                     }
                 }
-                for (int i = 0; i < pips.length; i++) {
-                    needed[i] = Math.max(needed[i], pips[i]);
-                }
+                needs.add(pips);
             }
         }
-        return needed;
+        return needs;
     }
 
     /** The mana {@code ma} makes, one mask per unit. */
