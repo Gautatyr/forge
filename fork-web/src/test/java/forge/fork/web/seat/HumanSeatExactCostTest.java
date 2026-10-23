@@ -45,6 +45,8 @@ import forge.gamemodes.match.input.InputPayMana;
 import forge.gamemodes.match.input.InputSelectManyBase;
 import forge.gamemodes.match.input.InputSelectTargets;
 import forge.gui.control.GameEventForwarder;
+import forge.localinstance.properties.ForgePreferences.FPref;
+import forge.model.FModel;
 import forge.player.LobbyPlayerHuman;
 import forge.player.PlayerControllerHuman;
 import forge.trackable.TrackableCollection;
@@ -78,6 +80,7 @@ public class HumanSeatExactCostTest {
             gameThread.shutdownNow();
         }
         SilentDefaults.setStrict(null);
+        FModel.getPreferences().setPref(FPref.UI_SELECT_FROM_CARD_DISPLAYS, true);
     }
 
     private void start() {
@@ -321,6 +324,46 @@ public class HumanSeatExactCostTest {
         for (Card c : others) {
             assertTrue(game.getCardState(c).isInZone(ZoneType.Exile), c.getName() + " was exiled; seen " + r.seen);
         }
+        assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
+    }
+
+    /**
+     * Same Escape pick with "select from card displays" OFF (the graveyard is then a dialog, not an input): the prompt
+     * still asks for exactly four, so the outcome does not depend on the preference.
+     */
+    @Test
+    public void escapeDialogPathAsksForExactlyFourToo() throws Exception {
+        start();
+        FModel.getPreferences().setPref(FPref.UI_SELECT_FROM_CARD_DISPLAYS, false);
+        for (int i = 0; i < 5; i++) {
+            add("Swamp", me, ZoneType.Battlefield);
+        }
+        Card strider = add("Woe Strider", me, ZoneType.Graveyard);
+        for (String n : List.of("Grizzly Bears", "Shock", "Giant Growth", "Counterspell", "Divination")) {
+            add(n, me, ZoneType.Graveyard);
+        }
+        mainPhase();
+        int[] bounds = {-1, -1};
+        List<String> seen = play(() -> game.getCardState(strider).isInZone(ZoneType.Battlefield) || game.getPhaseHandler().getPhase() != PhaseType.MAIN1, in -> {
+            if (in instanceof InputPassPriority) {
+                return game.getCardState(strider).isInZone(ZoneType.Graveyard) ? () -> select(strider) : null;
+            }
+            return null;
+        }, m -> {
+            if (!"chooseEntitiesForEffect".equals(m.get("method").getAsString())) {
+                return null;
+            }
+            bounds[0] = m.get("min").getAsInt();
+            bounds[1] = m.get("max").getAsInt();
+            JsonArray a = new JsonArray();
+            for (int i = 0; i < 4; i++) {
+                a.add(m.getAsJsonArray("choices").get(i).getAsJsonObject().get("i").getAsInt());
+            }
+            return a;
+        });
+        assertEquals(bounds[0], 4, "the dialog's min is what the engine requires; seen " + seen);
+        assertEquals(bounds[1], 4, "seen " + seen);
+        assertTrue(game.getCardState(strider).isInZone(ZoneType.Battlefield), "Woe Strider escaped; seen " + seen);
         assertEquals(SilentDefaults.count(), 0, "silent defaults: " + SilentDefaults.recent());
     }
 
