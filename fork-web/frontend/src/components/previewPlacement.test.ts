@@ -14,6 +14,14 @@ describe('hover preview over the board (small heights)', () => {
     expect(p.top).toBe(300 + 49 - 230); // centred on the card
   });
 
+  it('a card hovered in the rail (outside the area) gets the rail side at its own height, clear of it', () => {
+    const railCard = box(1100, 250, 80, 112); // right of the area
+    const p = placePreview({ area, size, hovered: railCard, keep: [] });
+    expect(p.left).toBe(area.left + area.width - size.width);
+    expect(p.top).toBe(250 + 56 - 230);
+    expect(hits(p, railCard)).toBe(false);
+  });
+
   it('stays inside the area', () => {
     const p = placePreview({ area, size, hovered: box(100, 650), keep: [] });
     expect(p.top).toBe(area.top + area.height - size.height);

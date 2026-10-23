@@ -42,9 +42,15 @@ describe('hover preview at small heights (owner ruling 2026-10-22)', () => {
     expect(previewSpot({}, false, 804 / 16)).toBe('rail');
   });
 
-  it('a card hovered in the rail keeps the PR #52 rule at any height', () => {
-    expect(previewSpot({ beside: true }, false, 30)).toBe('besideRail');
-    expect(previewSpot({ beside: true }, true, 30)).toBe('besideDrawer');
+  it('a card hovered in the rail or drawer previews over the board too: the floor size applies to it', () => {
+    expect(previewSpot({ beside: true }, false, 30)).toBe('overBoard');
+    expect(previewSpot({ beside: true }, true, 30)).toBe('overBoard');
+    expect(previewSpot({ beside: true }, false, 550 / 12.5)).toBe('overBoard');
+  });
+
+  it('a card hovered in the rail keeps the PR #52 beside spot on a tall column', () => {
+    expect(previewSpot({ beside: true }, false, IN_RAIL_MIN_COLUMN_REM)).toBe('besideRail');
+    expect(previewSpot({ beside: true }, true, 804 / 16)).toBe('besideDrawer');
   });
 
   it('an unmeasured column (0) keeps the rail spot', () => {

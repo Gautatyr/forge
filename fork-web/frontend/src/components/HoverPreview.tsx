@@ -29,11 +29,11 @@ const boxOf = (el: Element): Box => {
 };
 
 /**
- * Short rail column: the preview shows over the board, so the rail's panels keep their size (nothing reflows while
+ * Short rail column: the preview shows over the board (also for a card hovered in the rail or drawer), so the rail's panels keep their size (nothing reflows while
  * the pointer moves). It takes the readable size of the 1920 in-rail preview and sits where it covers neither the
  * hovered card nor a card or tray of the open prompt (previewPlacement.ts). Placed before paint, from the DOM.
  */
-function OverBoard({ cardId, keepIds, children }: { cardId: string; keepIds: string[]; children: ReactNode }) {
+function OverBoard({ cardId, beside, keepIds, children }: { cardId: string; beside: boolean; keepIds: string[]; children: ReactNode }) {
   const anchor = useRef<HTMLSpanElement>(null);
   const el = useRef<HTMLDivElement>(null);
   // Every render: the board reflows after paint, and the hovered card or the prompt may have changed.
@@ -50,7 +50,12 @@ function OverBoard({ cardId, keepIds, children }: { cardId: string; keepIds: str
     box.style.setProperty('--pv-w', `${overBoardWidth(rem, area.height)}px`);
     const cards = (id: string) => [...document.querySelectorAll<HTMLElement>(`[data-card-id="${CSS.escape(id)}"]`)];
     const hoveredEls = cards(cardId);
-    const hovered = hoveredEls.find((e) => e.matches(':hover') || e.contains(document.activeElement)) ?? hoveredEls[0];
+    // Hovered in the rail or drawer (a stack item, a zone card, a Recent link): that very element, which the area
+    // never contains, so the preview lands beside the panel at its height. Elsewhere: the card on the board.
+    const panel = beside ? [...document.querySelectorAll(`[${PREVIEW_BESIDE_ATTR}] *`)] : [];
+    const deepest = panel.filter((e) => e.matches(':hover')).pop() ?? panel.find((e) => e.matches(':focus-visible'));
+    const inPanel = deepest && (deepest.closest('[data-card-id], button') ?? deepest);
+    const hovered = inPanel ?? hoveredEls.find((e) => e.matches(':hover') || e.contains(document.activeElement)) ?? hoveredEls[0];
     const keep = [...keepIds.flatMap(cards), ...document.querySelectorAll('[data-dock]')].map(boxOf);
     // offset sizes ignore the `appear` animation's scale, still applied on first mount.
     const { offsetWidth: width, offsetHeight: height } = box;
@@ -118,7 +123,7 @@ export function HoverPreview({ columnRem }: { columnRem: number }) {
     // What the open prompt is about: the cards you picked or are targeting for (the source card of a spell).
     const keepIds = Object.keys(game.cards).filter((id) => cardStatus(game, ui, id).selected);
     return (
-      <OverBoard cardId={c.id} keepIds={keepIds}>
+      <OverBoard cardId={c.id} beside={!!ui.hover.beside} keepIds={keepIds}>
         {body}
       </OverBoard>
     );
