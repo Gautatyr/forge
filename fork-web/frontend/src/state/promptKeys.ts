@@ -73,7 +73,7 @@ export type EscapeStep = 'inspect' | 'overlay' | 'log' | 'mana' | 'pending' | 'z
  */
 export function escapeStep(
   d: GameView['decision'],
-  ui: Pick<UiState, 'inspectId' | 'overlay' | 'logOpen' | 'pendingBlocker' | 'pendingAttacker' | 'zoneView' | 'trayPeek'>,
+  ui: Partial<Pick<UiState, 'inspectId' | 'overlay' | 'logOpen' | 'pendingBlocker' | 'pendingAttacker' | 'zoneView' | 'trayPeek'>>,
   manaChoiceOpen: boolean,
 ): EscapeStep | undefined {
   if (ui.inspectId) return 'inspect';
