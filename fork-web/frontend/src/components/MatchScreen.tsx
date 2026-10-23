@@ -4,6 +4,7 @@ import { currentAttackAim } from '../state/focus';
 import { gameEndView, watching } from '../state/gameEnd';
 import { useMatch } from '../state/MatchContext';
 import { primaryAction } from '../state/primaryAction';
+import { NONE_GUARD } from './tray/trayLogic';
 import { Arrows } from './Arrows';
 import { Board } from './Board';
 import { ChoiceTray } from './ChoiceTray';
@@ -45,8 +46,17 @@ export function MatchScreen() {
     if (key === ' ') {
       e.preventDefault();
       const a = primaryAction(game, ui, prefs.stops);
-      if (a.enabled && a.intent) send(a.intent);
+      // Never an answer that gives something up (U8): its own key sends it.
+      if (a.enabled && a.intent && !a.guard) send(a.intent);
       return;
+    }
+    if (key.toLowerCase() === NONE_GUARD.key && !e.shiftKey) {
+      const a = primaryAction(game, ui, prefs.stops);
+      if (a.guard === NONE_GUARD && a.enabled && a.intent) {
+        e.preventDefault();
+        send(a.intent);
+        return;
+      }
     }
     if (key === 'Enter' && e.shiftKey) {
       e.preventDefault();
