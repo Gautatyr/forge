@@ -52,11 +52,9 @@ function OverBoard({ cardId, beside, keepIds, children }: { cardId: string; besi
     const hoveredEls = cards(cardId);
     // Hovered in the rail or drawer (a stack item, a zone card, a Recent link): that very element, which the area
     // never contains, so the preview lands beside the panel at its height. Elsewhere: the card on the board.
-    const inPanel = beside
-      ? ([...document.querySelectorAll(`[${PREVIEW_BESIDE_ATTR}] :hover`)].pop() ??
-        document.querySelector(`[${PREVIEW_BESIDE_ATTR}] :focus-visible`) ??
-        undefined)?.closest('[data-card-id], button')
-      : undefined;
+    const panel = beside ? [...document.querySelectorAll(`[${PREVIEW_BESIDE_ATTR}] *`)] : [];
+    const deepest = panel.filter((e) => e.matches(':hover')).pop() ?? panel.find((e) => e.matches(':focus-visible'));
+    const inPanel = deepest && (deepest.closest('[data-card-id], button') ?? deepest);
     const hovered = inPanel ?? hoveredEls.find((e) => e.matches(':hover') || e.contains(document.activeElement)) ?? hoveredEls[0];
     const keep = [...keepIds.flatMap(cards), ...document.querySelectorAll('[data-dock]')].map(boxOf);
     // offset sizes ignore the `appear` animation's scale, still applied on first mount.
