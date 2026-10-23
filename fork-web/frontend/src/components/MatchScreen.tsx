@@ -35,7 +35,9 @@ export function MatchScreen() {
     const { game, ui, setUi, send } = match;
     const el = e.target as HTMLElement | null;
     if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) {
-      if (e.key !== 'Escape') return;
+      // A switch or checkbox keeps focus after a click: only Space and Enter belong to it, the other keys still play (P).
+      const toggle = el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio');
+      if (e.key !== 'Escape' && !(toggle && e.key !== ' ' && e.key !== 'Enter')) return;
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     // A game-end dialog or panel owns the keyboard while open (GameEnd.tsx).
