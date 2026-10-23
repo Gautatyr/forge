@@ -52,7 +52,8 @@ function OverBoard({ cardId, keepIds, children }: { cardId: string; keepIds: str
     const hoveredEls = cards(cardId);
     const hovered = hoveredEls.find((e) => e.matches(':hover') || e.contains(document.activeElement)) ?? hoveredEls[0];
     const keep = [...keepIds.flatMap(cards), ...document.querySelectorAll('[data-dock]')].map(boxOf);
-    const { width, height } = box.getBoundingClientRect();
+    // offset sizes ignore the `appear` animation's scale, still applied on first mount.
+    const { offsetWidth: width, offsetHeight: height } = box;
     const at = placePreview({ area, size: { width, height }, hovered: hovered && boxOf(hovered), keep });
     box.style.left = `${at.left}px`;
     box.style.top = `${at.top}px`;
