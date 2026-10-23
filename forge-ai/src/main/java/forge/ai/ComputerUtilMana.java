@@ -178,8 +178,6 @@ public class ComputerUtilMana {
         final int freeMana = orderedCards.stream().mapToInt(c -> getAIPlayableMana(c).stream()
                 .filter(m -> getGenericCostToActivate(m) == 0).mapToInt(m -> m.amountOfManaGenerated(true)).max().orElse(0)).sum();
         final boolean filtersFirst = freeMana < cost.getConvertedManaCost();
-        final boolean autoPayForHuman = isAutoPayForHuman(sa.getActivatingPlayer());
-        final List<ManaCostShard> unpaidShards = autoPayForHuman ? cost.getUnpaidShards() : null;
 
         for (final ManaCostShard shard : sourcesForShards.keySet()) {
             final Collection<SpellAbility> abilities = sourcesForShards.get(shard);
@@ -233,18 +231,6 @@ public class ComputerUtilMana {
 
                 return ability1.compareTo(ability2);
             });
-
-            if (autoPayForHuman) {
-                // Auto for a human: sources that hurt the payer go last (unused mana is free, damage is not),
-                // then sources that would leave mana floating (more units than the cost can still take)
-                final Map<SpellAbility, Integer> hurts = new HashMap<>();
-                final Map<SpellAbility, Integer> wasted = new HashMap<>();
-                for (SpellAbility m : newAbilities) {
-                    hurts.put(m, hurtsPayer(m) ? 1 : 0);
-                    wasted.put(m, wastedMana(m, unpaidShards));
-                }
-                newAbilities.sort(Comparator.<SpellAbility>comparingInt(hurts::get).thenComparingInt(wasted::get)); // stable
-            }
 
             // stable partition: filter abilities to the back (or the front when they're needed)
             final List<SpellAbility> filters = new ArrayList<>();
@@ -730,6 +716,11 @@ public class ComputerUtilMana {
             }
 
             saList.removeAll(saExcludeList);
+
+            if (sourcesForShards != null && !saList.isEmpty() && isAutoPayForHuman(ai)) {
+                sourcesForShards.replaceValues(toPay, sortForHumanAutoPay(saList, cost.getUnpaidShards(), sourcesForShards.values(), paymentList));
+                saList = sourcesForShards.get(toPay);
+            }
 
             if (toPay == ManaCostShard.GENERIC && !hasConverge && !sa.hasParam("AIManaPref") && !sa.getHostCard().hasSVar("AIManaPref")) {
                 saList = requiredSourcesFirst(saList, cost, sa);
@@ -1715,14 +1706,65 @@ public class ComputerUtilMana {
         return defined.equals("You") || defined.equals("Player.You");
     }
 
-    /** Units of mana {@code ma} would make that no unpaid shard can still take (they would float and empty). */
-    private static int wastedMana(final SpellAbility ma, final List<ManaCostShard> unpaidShards) {
+    /**
+     * Auto for a human, re-done before every pick against what is still unpaid (unused mana is free, damage is not):
+     * sources that hurt the payer go last, then sources that would leave mana floating (more units than the unpaid
+     * shards can still take), then sources after which the rest of the cost cannot be paid without floating mana
+     * though another pick could (Mountain first against {R/G}{R/G} with a Gruul Turf left). Ties keep their order.
+     * Filter abilities (they need other mana) keep their place, front or back, as {@code sortManaAbilities} put them.
+     */
+    private static List<SpellAbility> sortForHumanAutoPay(final Collection<SpellAbility> candidates, final List<ManaCostShard> unpaid,
+                                                          final Collection<SpellAbility> sources, final List<SpellAbility> paid) {
+        final List<SpellAbility> plain = new ArrayList<>();
+        final List<SpellAbility> filters = new ArrayList<>();
+        for (SpellAbility m : candidates) {
+            (getGenericCostToActivate(m) > 0 ? filters : plain).add(m);
+        }
+        // units of every other source still available (one ability per card), to see whether the rest can be paid exactly
+        final boolean sized = unpaid.stream().noneMatch(shard -> shard.isOr2Generic() || shard.isOfKind(ManaAtom.IS_X));
+        final Set<Card> taken = paid.stream().map(SpellAbility::getHostCard).collect(Collectors.toSet());
+        final Map<Card, Integer> units = new HashMap<>();
+        for (SpellAbility m : sources) {
+            if (!taken.contains(m.getHostCard())) {
+                units.merge(m.getHostCard(), Math.max(0, m.amountOfManaGenerated(true)), Math::max);
+            }
+        }
+        final Map<SpellAbility, int[]> keys = new HashMap<>();
+        for (SpellAbility m : plain) {
+            final int made = producedMasks(m).size();
+            final int wasted = wastedMana(m, unpaid);
+            final int rest = unpaid.size() - (made - wasted);
+            boolean forced = false;
+            if (sized && wasted == 0 && rest > 0) {
+                final boolean[] reach = new boolean[rest + 1];
+                reach[0] = true;
+                for (Map.Entry<Card, Integer> e : units.entrySet()) {
+                    if (e.getKey().equals(m.getHostCard()) || e.getValue() <= 0) {
+                        continue;
+                    }
+                    for (int v = rest; v >= e.getValue(); v--) {
+                        reach[v] |= reach[v - e.getValue()];
+                    }
+                }
+                forced = !reach[rest];
+            }
+            keys.put(m, new int[] { hurtsPayer(m) ? 1 : 0, wasted, forced ? 1 : 0 });
+        }
+        plain.sort((a, b) -> Arrays.compare(keys.get(a), keys.get(b))); // stable
+        final boolean filtersFirst = !candidates.isEmpty() && getGenericCostToActivate(candidates.iterator().next()) > 0;
+        final List<SpellAbility> result = new ArrayList<>(filtersFirst ? filters : plain);
+        result.addAll(filtersFirst ? plain : filters);
+        return result;
+    }
+
+    /** The mana {@code ma} makes, one mask per unit. */
+    private static List<Byte> producedMasks(final SpellAbility ma) {
+        final List<Byte> masks = new ArrayList<>();
         final AbilityManaPart mp = ma.getManaPart();
         final int units = ma.amountOfManaGenerated(true);
         if (mp == null || units <= 0) {
-            return 0;
+            return masks;
         }
-        final List<Byte> masks = new ArrayList<>();
         if (mp.isAnyMana() || mp.isComboMana() || mp.isSpecialMana()) {
             for (int i = 0; i < units; i++) {
                 masks.add(ManaAtom.ALL_MANA_TYPES);
@@ -1735,23 +1777,54 @@ public class ComputerUtilMana {
                 }
             }
         }
-        final List<ManaCostShard> open = new ArrayList<>(unpaidShards);
-        int wasted = 0;
-        for (byte mask : masks) {
-            ManaCostShard taker = null;
-            for (ManaCostShard shard : open) {
-                if (shard.canBePaidWithManaOfColor(mask)) {
-                    taker = shard;
-                    break;
-                }
-            }
-            if (taker == null) {
-                wasted++;
-            } else {
-                open.remove(taker);
-            }
+        return masks;
+    }
+
+    /** Units of mana {@code ma} would make that no unpaid shard can still take (they would float and empty), under the best way to spend them. */
+    private static int wastedMana(final SpellAbility ma, final List<ManaCostShard> unpaidShards) {
+        final List<Byte> masks = producedMasks(ma);
+        final int[] need = new int[unpaidShards.size()];
+        for (int i = 0; i < need.length; i++) {
+            need[i] = unpaidShards.get(i).isOr2Generic() ? 2 : 1;
         }
-        return wasted;
+        return masks.size() - mostSpent(masks, 0, unpaidShards, need, new HashMap<>());
+    }
+
+    /**
+     * Most of {@code masks[from..]} that can be spent on shards with {@code need} left: a unit pays one shard, or one of
+     * the two generic of a {2/C} shard unless it is that colour (then the whole shard).
+     */
+    private static int mostSpent(final List<Byte> masks, final int from, final List<ManaCostShard> shards, final int[] need,
+                                 final Map<String, Integer> memo) {
+        if (from == masks.size()) {
+            return 0;
+        }
+        final String key = from + Arrays.toString(need);
+        final Integer known = memo.get(key);
+        if (known != null) {
+            return known;
+        }
+        final byte mask = masks.get(from);
+        int best = mostSpent(masks, from + 1, shards, need, memo); // the unit floats
+        for (int i = 0; i < need.length; i++) {
+            final ManaCostShard shard = shards.get(i);
+            if (need[i] <= 0 || !shard.canBePaidWithManaOfColor(mask)) {
+                continue;
+            }
+            boolean same = false; // equal shards in the same state are tried once
+            for (int j = 0; j < i && !same; j++) {
+                same = shards.get(j) == shard && need[j] == need[i];
+            }
+            if (same) {
+                continue;
+            }
+            final int before = need[i];
+            need[i] = shard.isOr2Generic() && shard.isColor(mask) ? 0 : before - 1;
+            best = Math.max(best, 1 + mostSpent(masks, from + 1, shards, need, memo));
+            need[i] = before;
+        }
+        memo.put(key, best);
+        return best;
     }
 
     private static boolean costsOnlyTapAndMana(final SpellAbility ma) {
