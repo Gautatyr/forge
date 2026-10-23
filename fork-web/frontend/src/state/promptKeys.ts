@@ -22,6 +22,12 @@ export function takesKeys(el: KeyTarget | null | undefined): boolean {
   return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT';
 }
 
+/** The focused field keeps this key: Escape never; a keyboard-focused switch only Space and Enter (P still plays, #125). */
+export function ownsKey(el: KeyTarget | null | undefined, key: string): boolean {
+  if (key === 'Escape' || !el || !takesKeys(el)) return false;
+  return !isToggle(el) || key === ' ' || key === 'Enter';
+}
+
 /** After a click, a switch that got focus from the pointer gives it up (a keyboard-focused one keeps it). */
 export function dropsFocusAfterClick(active: KeyTarget | null | undefined): boolean {
   return !!active && isToggle(active) && !takesKeys(active);

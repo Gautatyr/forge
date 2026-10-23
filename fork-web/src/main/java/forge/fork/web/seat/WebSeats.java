@@ -40,6 +40,9 @@ public final class WebSeats implements GameStream.SeatHooks {
     private volatile SeatSession publisher;
     /** Seats with "Pass priority after casting" on (U1b; off by default). Kept across the seat's games. */
     private final Set<Integer> passAfterCast = ConcurrentHashMap.newKeySet();
+    /** Seats with "Auto-pass when I can't act" on (APINA) and with "Auto-yield" on (issue #125; off by default, D4). Kept across the seat's games. */
+    private final Set<Integer> autoPass = ConcurrentHashMap.newKeySet();
+    private final Set<Integer> autoYield = ConcurrentHashMap.newKeySet();
     /** Hears the game's events (the launcher plays Forge's sounds from them); none by default. */
     private volatile Consumer<List<GameEvent>> eventSink;
 
@@ -121,14 +124,37 @@ public final class WebSeats implements GameStream.SeatHooks {
         return passAfterCast.contains(seat);
     }
 
+    /** Any thread: the seat's "Auto-pass when I can't act" setting. */
+    boolean autoPass(int seat) {
+        return autoPass.contains(seat);
+    }
+
+    /** Any thread: the seat's "Auto-yield" setting (honour the per-ability auto-yields it set). */
+    boolean autoYield(int seat) {
+        return autoYield.contains(seat);
+    }
+
+    private static void set(Set<Integer> seats, int seat, JsonObject msg) {
+        JsonElement on = msg.get("on");
+        if (on != null && on.isJsonPrimitive() && on.getAsJsonPrimitive().isBoolean() && on.getAsBoolean()) {
+            seats.add(seat);
+        } else {
+            seats.remove(seat);
+        }
+    }
+
     @Override
     public void receive(int seat, JsonObject msg, ClientSink from) {
-        if (msg.has("t") && msg.get("t").isJsonPrimitive() && "setPassAfterCast".equals(msg.get("t").getAsString())) {
-            JsonElement on = msg.get("on");
-            if (on != null && on.isJsonPrimitive() && on.getAsJsonPrimitive().isBoolean() && on.getAsBoolean()) {
-                passAfterCast.add(seat);
-            } else {
-                passAfterCast.remove(seat);
+        String type = msg.has("t") && msg.get("t").isJsonPrimitive() ? msg.get("t").getAsString() : "";
+        if ("setPassAfterCast".equals(type)) {
+            set(passAfterCast, seat, msg);
+            return;
+        }
+        if ("setAutoPass".equals(type) || "setAutoYield".equals(type)) {
+            set("setAutoPass".equals(type) ? autoPass : autoYield, seat, msg);
+            SeatSession s = sessions.get(seat);
+            if (s != null) {
+                s.yieldSettingsChanged();
             }
             return;
         }

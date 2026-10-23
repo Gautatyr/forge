@@ -5,6 +5,7 @@ import type { Intent } from '../model/intents';
 import type { CardId, GameView, PlayerId } from '../model/types';
 import { applyIntent, type MockGame } from '../mock/engine';
 import { ATTACK_INVALID, attackInvalidReason } from './attackLimit';
+import { switchesAutoYieldOn } from './autoYield';
 import { blockClick, refusedText } from './blockClick';
 import { currentAttackAim, focusForIntent, focusOnTurnChange, pickDefender } from './focus';
 import { buildScenario } from './seedGame';
@@ -30,6 +31,7 @@ interface MatchApi {
 }
 
 const Ctx = createContext<MatchApi | null>(null);
+const NO_YIELDS: string[] = [];
 
 interface History {
   scenarioId: string;
@@ -76,8 +78,9 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   const [source, setSource] = useState<SourceConfig>(() => sourceFromLocation(location));
   // Before any child renders: every `t()` of this pass reads the new language.
   setLanguage(prefs.language);
-  const live = useLive(source, prefs.stops, prefs.autoPay, prefs.language, prefs.passAfterCast);
+  const live = useLive(source, prefs.stops, prefs.autoPay, prefs.language, prefs.passAfterCast, prefs.autoPass, prefs.autoYield);
   const liveSend = live?.send;
+  const autoYieldTo = live?.game.autoYieldTo ?? NO_YIELDS;
 
   const setUi = useCallback((patch: Partial<UiState> | ((u: UiState) => UiState)) => {
     setUiState((u) => (typeof patch === 'function' ? patch(u) : { ...u, ...patch }));
@@ -93,6 +96,10 @@ export function MatchProvider({ children }: { children: ReactNode }) {
 
   const send = useCallback((intent: Intent) => {
     if (intent.type === 'setAutoPay') setPrefs({ autoPay: intent.on });
+    // Live, auto-pass and auto-yield are seat settings kept here (and by the bridge); the mock keeps them in its game.
+    if (liveSend && intent.type === 'setAutoPass') setPrefs({ autoPass: intent.on });
+    if (liveSend && intent.type === 'setAutoYield') setPrefs({ autoYield: intent.on });
+    if (liveSend && switchesAutoYieldOn(intent, prefs.autoYield, autoYieldTo)) setPrefs({ autoYield: true });
     if (liveSend) liveSend(intent);
     else dispatch({ type: 'intent', intent });
     if (['primary', 'cancel', 'undo', 'answer', 'play'].includes(intent.type)) {
@@ -102,7 +109,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     setUiState((u) => (u.promptNote?.sticky ? { ...u, promptNote: undefined } : u));
     const focus = focusForIntent(intent);
     if (focus) setUiState((u) => ({ ...u, focusOpponentId: focus }));
-  }, [liveSend, setPrefs]);
+  }, [liveSend, setPrefs, prefs.autoYield, autoYieldTo]);
 
   const loadScenario = useCallback((id: string) => {
     setSource({ kind: 'mock' });
