@@ -76,7 +76,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   const [source, setSource] = useState<SourceConfig>(() => sourceFromLocation(location));
   // Before any child renders: every `t()` of this pass reads the new language.
   setLanguage(prefs.language);
-  const live = useLive(source, prefs.stops, prefs.autoPay, prefs.language);
+  const live = useLive(source, prefs.stops, prefs.autoPay, prefs.language, prefs.passAfterCast);
   const liveSend = live?.send;
 
   const setUi = useCallback((patch: Partial<UiState> | ((u: UiState) => UiState)) => {

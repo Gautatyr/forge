@@ -22,7 +22,8 @@ function tap(source: ManaSource): CardClick {
     : { kind: 'intent', intent: { type: 'tapForMana', cardId: source.cardId } };
 }
 
-export function cardClick(game: GameView, id: CardId): CardClick {
+/** `hold`: Shift was held on the click; a cast or activation then keeps the priority it gets back (pass after casting). */
+export function cardClick(game: GameView, id: CardId, hold = false): CardClick {
   const d = game.decision;
   const c = game.cards[id];
   if (!c) return { kind: 'none' };
@@ -34,21 +35,21 @@ export function cardClick(game: GameView, id: CardId): CardClick {
 
   if (c.zone !== 'battlefield') {
     if (c.ownerId !== game.youId || c.zone === 'stack' || c.zone === 'library') return { kind: 'none' };
-    if (d.kind === 'priority' && d.playable.includes(id)) return { kind: 'intent', intent: { type: 'play', cardId: id } };
+    if (d.kind === 'priority' && d.playable.includes(id)) return { kind: 'intent', intent: { type: 'play', cardId: id, ...(hold && { hold }) } };
     return { kind: 'note', text: t('click.cantPlay', { name: cardName(c) }) };
   }
   if (d.kind !== 'priority' || c.controllerId !== game.youId) return { kind: 'none' };
   const source = d.manaSources?.find((s) => s.cardId === id);
   if (source) return tap(source);
-  return { kind: 'intent', intent: { type: 'activate', cardId: id } };
+  return { kind: 'intent', intent: { type: 'activate', cardId: id, ...(hold && { hold }) } };
 }
 
 /** Click handler for cards: priority and payment clicks here, everything else to `activateCard`. */
-export function useCardClick(): (id: CardId) => void {
+export function useCardClick(): (id: CardId, hold?: boolean) => void {
   const { game, send, setUi, activateCard } = useMatch();
   return useCallback(
-    (id: CardId) => {
-      const r = cardClick(game, id);
+    (id: CardId, hold = false) => {
+      const r = cardClick(game, id, hold);
       switch (r.kind) {
         case 'intent':
           setUi({ manaChoice: undefined });

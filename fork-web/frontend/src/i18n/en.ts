@@ -210,6 +210,8 @@ export const en = {
   'sc.help': 'This list',
   'sc.mock': 'Mock scenarios (development only)',
   'sc.shiftEnter': 'Shift + Enter',
+  'sc.shiftClick': 'Shift + click',
+  'sc.holdPriority': 'Cast and keep priority (when “Pass after casting” is on)',
 
   'lang.label': 'Language',
   'lang.en': 'English',
@@ -427,6 +429,8 @@ export const en = {
   'stops.perOpp': 'Set per opponent',
   'stops.reset': 'Reset to defaults',
   'stops.autoPass': 'Auto-pass when I can\'t act:',
+  'stops.passAfterCast': 'Pass after casting:',
+  'stops.passAfterCastTitle': 'After your own spell or ability goes on the stack, pass priority once so it resolves unless someone responds. Shift + click to keep priority for one cast. Off by default.',
 
   'combat.declareAtk': 'Declare attackers',
   'combat.atkHint': 'Click your creatures to attack. New attackers go at:',

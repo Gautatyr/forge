@@ -53,6 +53,8 @@ export function intentToFrames(intent: Intent, s: LiveSession, view: GameView): 
   switch (intent.type) {
     case 'play':
     case 'activate':
+      // hold: keep the priority the cast gets back, whatever "Pass priority after casting" says (Shift + click).
+      return [intent.hold ? action('selectCard', { card: num(intent.cardId), hold: true }) : selectCard(intent.cardId)];
     case 'tapForMana':
       return [selectCard(intent.cardId)];
     case 'spendPool':
@@ -198,6 +200,9 @@ export function autoAnswer(s: LiveSession): { key: string; frames: ClientFrame[]
   if (freeMulliganKeep(input)) return { key: `free-keep|${s.game}`, frames: [action('selectButtonOk')] };
   return undefined;
 }
+
+/** "Pass priority after casting" for this seat; the bridge keeps it for the seat's later games. */
+export const passAfterCastFrame = (on: boolean): ClientFrame => ({ t: 'setPassAfterCast', on });
 
 /**
  * Phase stops as SkipPhase yield updates: for every player and step, skip unless the step is a

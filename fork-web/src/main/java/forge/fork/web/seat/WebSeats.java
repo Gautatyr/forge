@@ -2,11 +2,13 @@ package forge.fork.web.seat;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import forge.game.GameView;
@@ -36,6 +38,8 @@ public final class WebSeats implements GameStream.SeatHooks {
         return t;
     });
     private volatile SeatSession publisher;
+    /** Seats with "Pass priority after casting" on (U1b; off by default). Kept across the seat's games. */
+    private final Set<Integer> passAfterCast = ConcurrentHashMap.newKeySet();
     /** Hears the game's events (the launcher plays Forge's sounds from them); none by default. */
     private volatile Consumer<List<GameEvent>> eventSink;
 
@@ -112,8 +116,22 @@ public final class WebSeats implements GameStream.SeatHooks {
         return s == null ? List.of() : s.greeting();
     }
 
+    /** Any thread: the seat's "Pass priority after casting" setting. */
+    boolean passAfterCast(int seat) {
+        return passAfterCast.contains(seat);
+    }
+
     @Override
     public void receive(int seat, JsonObject msg, ClientSink from) {
+        if (msg.has("t") && msg.get("t").isJsonPrimitive() && "setPassAfterCast".equals(msg.get("t").getAsString())) {
+            JsonElement on = msg.get("on");
+            if (on != null && on.isJsonPrimitive() && on.getAsJsonPrimitive().isBoolean() && on.getAsBoolean()) {
+                passAfterCast.add(seat);
+            } else {
+                passAfterCast.remove(seat);
+            }
+            return;
+        }
         SeatSession s = sessions.get(seat);
         if (s == null) {
             from.send(SeatSession.rejected("rejected", msg, "seat " + seat + " is not a human seat"));

@@ -15,9 +15,9 @@ export type PromptAnswer =
 
 export type Intent =
   /** Click a playable card in hand or another zone: land or spell. */
-  | { type: 'play'; cardId: CardId }
+  | { type: 'play'; cardId: CardId; hold?: boolean }
   /** Click a permanent of yours that is not tapped for mana: activate its ability (the engine asks which when there are several). */
-  | { type: 'activate'; cardId: CardId }
+  | { type: 'activate'; cardId: CardId; hold?: boolean }
   /**
    * Tap a mana source for one kind of mana (`colour` may be omitted when it adds
    * one kind). With priority the mana goes to your pool; while paying it pays.

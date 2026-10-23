@@ -13,6 +13,7 @@ export function shortcuts(): Shortcut[] {
     { keys: t('key.space'), action: t('sc.space'), group: 'Play' },
     { keys: t('key.esc'), action: t('sc.esc'), group: 'Play' },
     { keys: t('sc.shiftEnter'), action: t('sc.passTurn'), group: 'Play' },
+    { keys: t('sc.shiftClick'), action: t('sc.holdPriority'), group: 'Play' },
     { keys: 'Z', action: t('sc.undo'), group: 'Play' },
     { keys: 'A', action: t('sc.attackAll'), group: 'Play' },
     { keys: 'P', action: t('sc.autoPass'), group: 'Play' },

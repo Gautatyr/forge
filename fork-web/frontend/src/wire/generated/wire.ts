@@ -1897,6 +1897,8 @@ export interface ActionMessage {
   card?: number;
   /** selectCard. */
   others?: number[];
+  /** selectCard, selectAbility: true keeps the priority the cast gets back, despite setPassAfterCast. */
+  hold?: boolean;
   /** selectPlayer. */
   player?: number;
   /** selectAbility: the spell ability id. */
@@ -1924,4 +1926,10 @@ export interface SetLanguageMessage {
   lang: 'en' | 'fr';
 }
 
-export type ClientMessage = ReplyMessage | ActionMessage | RequestResyncMessage | SetLanguageMessage;
+/** Pass priority after casting (off by default): once the seat's own spell or activated ability goes on the stack, the seat passes the priority it gets back once, unless the cast was sent with hold. Kept for the seat's later games; sent after the greeting and on change. */
+export interface SetPassAfterCastMessage {
+  t: 'setPassAfterCast';
+  on: boolean;
+}
+
+export type ClientMessage = ReplyMessage | ActionMessage | RequestResyncMessage | SetLanguageMessage | SetPassAfterCastMessage;

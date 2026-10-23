@@ -5,7 +5,7 @@ import type { GameView } from '../model/types';
 import { DEFAULT_STOPS, type StopPrefs } from '../state/prefs';
 import { isStop } from '../state/stops';
 import { connectLive, streamUrl, type LiveSource } from './client';
-import { autoAnswer, intentToFrames, stopFrames } from './commands';
+import { autoAnswer, intentToFrames, passAfterCastFrame, stopFrames } from './commands';
 import { bridgeImageLookup, ImageResolver } from './images';
 import { parseRecording, replaySource, RECORDINGS } from './replay';
 import type { Notice } from './session';
@@ -67,7 +67,13 @@ export interface LiveApi {
 }
 
 /** Undefined for the mock source; hooks run either way. */
-export function useLive(config: SourceConfig, stops: StopPrefs = DEFAULT_STOPS, autoPay = false, language: Lang = 'en'): LiveApi | undefined {
+export function useLive(
+  config: SourceConfig,
+  stops: StopPrefs = DEFAULT_STOPS,
+  autoPay = false,
+  language: Lang = 'en',
+  passAfterCast = false,
+): LiveApi | undefined {
   const [source, setSource] = useState<LiveSource>();
   const [error, setError] = useState<string>();
   const [imagesVersion, imagesChanged] = useReducer((n: number) => n + 1, 0);
@@ -171,6 +177,12 @@ export function useLive(config: SourceConfig, stops: StopPrefs = DEFAULT_STOPS, 
     if (config.kind !== 'live' || !source || source.status !== 'open' || !hello) return;
     source.send([{ t: 'setLanguage', lang: language }]);
   }, [config.kind, source, source?.status, hello, language]);
+
+  // Pass after casting → the bridge: after the greeting of every connection (it may have restarted), and on every change.
+  useEffect(() => {
+    if (config.kind !== 'live' || !source || source.status !== 'open' || !hello) return;
+    source.send([passAfterCastFrame(passAfterCast)]);
+  }, [config.kind, source, source?.status, hello, passAfterCast]);
 
   // Phase stops → the engine (the bridge skips none until told): on connect, on a new game or player list, on every edit.
   const stopsKey =

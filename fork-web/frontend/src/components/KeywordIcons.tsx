@@ -19,7 +19,8 @@ import { t } from '../i18n';
 
 /** What a click or right-click on the card does; icons and chips forward pointer clicks to it. */
 export interface CardActions {
-  activate: () => void;
+  /** `hold`: Shift was held (a cast keeps priority). */
+  activate: (hold?: boolean) => void;
   inspect: () => void;
 }
 
@@ -124,7 +125,7 @@ function useTip(card: CardActions) {
     // Only a pointer click (detail > 0) reaches the card: Enter on a focused icon just shows it.
     onClick: (e: MouseEvent<HTMLElement>) => {
       if (tip?.id !== id) show(e.currentTarget);
-      if (e.detail > 0) card.activate();
+      if (e.detail > 0) card.activate(e.shiftKey);
     },
     onContextMenu: (e: MouseEvent<HTMLElement>) => {
       e.preventDefault();
@@ -305,7 +306,7 @@ function WordChips({ icons, card }: { icons: KeywordIcon[]; card: CardActions })
   });
 
   const chipHandlers = {
-    onClick: card.activate,
+    onClick: (e: MouseEvent<HTMLElement>) => card.activate(e.shiftKey),
     onContextMenu: (e: MouseEvent<HTMLElement>) => {
       e.preventDefault();
       card.inspect();

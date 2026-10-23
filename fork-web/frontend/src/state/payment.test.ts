@@ -75,6 +75,15 @@ describe('a click with priority', () => {
     expect(cardClick(g, named(g, 'Krenko, Mob Boss').id)).toEqual({ kind: 'none' });
   });
 
+  it('Shift + click casts or activates keeping priority (pass after casting); a mana tap takes no hold', () => {
+    const forestInHand = g.players[0]!.hand.find((c) => g.cards[c]!.name === 'Forest')!;
+    expect(cardClick(g, forestInHand, true)).toEqual({ kind: 'intent', intent: { type: 'play', cardId: forestInHand, hold: true } });
+    const eidolon = named(g, 'Eidolon of Blossoms');
+    expect(cardClick(g, eidolon.id, true)).toEqual({ kind: 'intent', intent: { type: 'activate', cardId: eidolon.id, hold: true } });
+    const forest = yourUntapped(g, 'Forest');
+    expect(cardClick(g, forest.id, true)).toEqual({ kind: 'intent', intent: { type: 'tapForMana', cardId: forest.id } });
+  });
+
   it('leaves target, combat and choice clicks to the match context', () => {
     const b = scenarioById('blockers').build();
     expect(cardClick(b, Object.keys(b.cards)[0]!)).toEqual({ kind: 'default' });

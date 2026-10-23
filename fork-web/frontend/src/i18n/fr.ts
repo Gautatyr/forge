@@ -212,6 +212,8 @@ export const fr: Record<MsgKey, Msg> = {
   'sc.help': 'Cette liste',
   'sc.mock': 'Scénarios maquette (développement uniquement)',
   'sc.shiftEnter': 'Maj + Entrée',
+  'sc.shiftClick': 'Maj + clic',
+  'sc.holdPriority': 'Lancer en gardant la priorité (si « Passer après un sort » est activé)',
 
   'lang.label': 'Langue',
   'lang.en': 'English',
@@ -429,6 +431,8 @@ export const fr: Record<MsgKey, Msg> = {
   'stops.perOpp': 'Régler par adversaire',
   'stops.reset': 'Rétablir les valeurs par défaut',
   'stops.autoPass': 'Passer auto si je ne peux pas agir :',
+  'stops.passAfterCast': 'Passer après un sort :',
+  'stops.passAfterCastTitle': 'Quand votre sort ou capacité arrive sur la pile, passe la priorité une fois : il se résout sauf si quelqu’un répond. Maj + clic pour garder la priorité le temps d’un sort. Désactivé par défaut.',
 
   'combat.declareAtk': 'Déclarer les attaquants',
   'combat.atkHint': 'Cliquez vos créatures pour attaquer. Les nouveaux attaquants visent :',

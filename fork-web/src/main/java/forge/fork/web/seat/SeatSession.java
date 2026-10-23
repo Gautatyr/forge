@@ -95,6 +95,7 @@ final class SeatSession implements IRemote {
     private final Map<String, String> sticky = new ConcurrentHashMap<>();
     private final ExecutorService actions;
     private final InputPump pump;
+    private final PassAfterCast passAfterCast = new PassAfterCast();
     private volatile IGameController controller;
     private volatile GameView gameView;
     /** The game whose safe points this seat listens to. */
@@ -176,6 +177,9 @@ final class SeatSession implements IRemote {
         public void priority(GameEventPlayerPriority e) {
             pump.runDeferred();
             restartRoundIfAPlayerLeft();
+            if (ThreadUtil.isGameThread() && e.priority() != null) {
+                passAfterCast.priority(game.getPlayer(e.priority().getId()), seatPlayer(), game.getStack(), match.passAfterCast(seat));
+            }
         }
 
         /**
@@ -204,6 +208,16 @@ final class SeatSession implements IRemote {
         public void finished(GameEventGameFinished e) {
             pump.dropDeferred();
         }
+    }
+
+    /** The seat's own player, or null before its controller is bound. */
+    private Player seatPlayer() {
+        return controller instanceof PlayerControllerHuman pch ? pch.getPlayer() : null;
+    }
+
+    /** Game thread, before the seat's input {@code in} waits: the pass "Pass priority after casting" runs for it, or null. */
+    Runnable passAfterCast(Input in) {
+        return passAfterCast.onInput(in, seatPlayer());
     }
 
     void bindController(IGameController c) {
@@ -671,6 +685,7 @@ final class SeatSession implements IRemote {
                 if (card == null) {
                     return "unknown card";
                 }
+                holdIfAsked(msg);
                 List<CardView> others = null;
                 if (msg.has("others") && msg.get("others").isJsonArray()) {
                     others = new ArrayList<>();
@@ -714,6 +729,7 @@ final class SeatSession implements IRemote {
                 }
                 for (SpellAbility sa : card.getAllPossibleAbilities(pch.getPlayer(), true)) {
                     if (sa.getId() == ability) {
+                        holdIfAsked(msg);
                         pch.getInputProxy().selectAbility(sa);
                         return null;
                     }
@@ -769,6 +785,13 @@ final class SeatSession implements IRemote {
                 return null; // the transport answers {"t":"requestResync"} with a snapshot
             default:
                 return "unknown action";
+        }
+    }
+
+    /** A cast sent with {@code "hold":true} keeps the priority it gets back, whatever "Pass priority after casting" says. */
+    private void holdIfAsked(JsonObject msg) {
+        if (Boolean.TRUE.equals(bool(msg, "hold"))) {
+            passAfterCast.hold();
         }
     }
 
