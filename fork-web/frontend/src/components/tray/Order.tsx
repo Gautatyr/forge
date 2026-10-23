@@ -3,6 +3,7 @@ import type { OrderPrompt } from '../../model/types';
 import { useMatch } from '../../state/MatchContext';
 import { Card } from '../Card';
 import type { BodyProps } from './TrayBody';
+import { TILE_CW } from './tileFit';
 import { moveBetween, moveItem, moveLabel, revealScrollTop } from './trayLogic';
 import styles from '../ChoiceTray.module.css';
 import { t } from '../../i18n';
@@ -114,7 +115,7 @@ function TwoLists({ prompt, draft, setDraft }: BodyProps<OrderPrompt>) {
                 const card = o.cardId ? game.cards[o.cardId] : undefined;
                 return (
                   <div key={id} className={styles.orderItem}>
-                    {card ? <Card card={card} context="thumb" style={{ '--cw': '6.6rem' } as CSSProperties} onActivate={() => move(id)} /> : null}
+                    {card ? <Card card={card} context="thumb" style={{ '--cw': TILE_CW } as CSSProperties} onActivate={() => move(id)} /> : null}
                     <div className={styles.orderControls}>
                       <button type="button" onClick={() => setDraft(moveItem(draft, l.id, i, -1))} disabled={i === 0} aria-label={t('tray.moveLeft', { label: o.label })}>
                         ◀

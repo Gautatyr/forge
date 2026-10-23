@@ -66,6 +66,7 @@
 }
 
 .head {
+  flex: none;
   display: flex;
   align-items: center;
   gap: var(--sp-3);
@@ -86,6 +87,7 @@
 
 .titles p {
   margin: 0.15rem 0 0;
+  white-space: pre-line;
   font-size: var(--fs-sm);
   color: var(--c-text-2);
 }
@@ -109,6 +111,10 @@
   padding: var(--sp-3) var(--sp-4);
   overflow: auto;
   min-height: 0;
+}
+
+.body[data-fitting] * {
+  transition: none !important;
 }
 
 .options {
@@ -255,6 +261,7 @@
 }
 
 .foot {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;

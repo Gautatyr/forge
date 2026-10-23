@@ -115,6 +115,7 @@ export const fr: Record<MsgKey, Msg> = {
   'stops.hint': '{name} : {where}. Cliquez pour changer.',
 
   'block.faceDown': 'une créature face cachée',
+  'text.forItem': '(pour {name})',
   'block.that': 'cette créature',
   'block.cant': '{blocker} ne peut pas bloquer {attacker}.',
 
