@@ -111,6 +111,7 @@ export const en = {
   'stops.hint': '{name}: {where}. Click to change.',
 
   'block.faceDown': 'a face-down creature',
+  'text.forItem': '(for {name})',
   'block.that': 'that creature',
   'block.cant': '{blocker} can\'t block {attacker}.',
 

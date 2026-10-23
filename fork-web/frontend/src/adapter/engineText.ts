@@ -192,7 +192,7 @@ const MORE_KEYS = /, [A-Z][A-Za-z]*(?: [A-Za-z]+){0,2}: /;
 function tagWords(key: string, raw: string, text: string, keep: boolean): string {
   if (!keep || key === 'Phase' || MORE_KEYS.test(raw)) return '';
   const value = unwrapList(raw);
-  return !value || /^\d+$/.test(value) || text.includes(value) ? '' : `(for ${value})`;
+  return !value || /^\d+$/.test(value) || text.includes(value) ? '' : t('text.forItem', { name: value });
 }
 
 function tagsAsWords(s: string, keep: boolean): string {
