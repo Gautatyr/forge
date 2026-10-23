@@ -86,10 +86,17 @@ public final class WebGuiGame extends ProtocolGuiGame {
         return super.getAbilityToPlay(hostCard, abilities, triggerEvent);
     }
 
-    /** The game thread waits for this seat's input here and runs the seat's actions meanwhile ({@link InputPump}). */
+    /**
+     * The game thread waits for this seat's input here and runs the seat's actions meanwhile ({@link InputPump}); first,
+     * once, the pass "Pass priority after casting" owes the input ({@link PassAfterCast}).
+     */
     @Override
     public void awaitInput(final CountDownLatch done) throws InterruptedException {
-        session.pump().await(done, this::stopIfOut);
+        session.pump().await(done, () -> {
+            Runnable out = stopIfOut();
+            PlayerControllerHuman pch = human;
+            return out != null || pch == null ? out : session.passAfterCast(pch.getInputQueue().getInput());
+        });
     }
 
     /**

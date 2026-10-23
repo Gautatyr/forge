@@ -135,12 +135,12 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
     };
   }, [c.id, setUi]);
   const actions: CardActions = {
-    activate: () => {
+    activate: (hold = false) => {
       if (onActivate) return onActivate();
       // A group ("Forest ×3") stands for its first card: one click taps one land.
       const id = groupIds?.[0] ?? c.id;
       // An open in-place choice takes the click first; otherwise play, tap for mana or activate.
-      if (!pickInPlace({ kind: 'card', id })) click(id);
+      if (!pickInPlace({ kind: 'card', id })) click(id, hold);
     },
     inspect: () => setUi({ inspectId: c.id, hover: undefined }),
   };
@@ -180,7 +180,7 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
         type="button"
         className={`${styles.card} ${ring ?? ''}`}
         aria-label={label}
-        onClick={actions.activate}
+        onClick={(e) => actions.activate(e.shiftKey)}
         onContextMenu={(e) => {
           e.preventDefault();
           actions.inspect();

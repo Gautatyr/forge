@@ -37,6 +37,10 @@ on stdout, never reported):
   `…LastOpponentButOne…`, `…TwoPlayerGameStillSeesTheEndOfGameReveal`; the sweep's seat concedes in every 4th 4-player
   game and fails on a prompt sent after it left.
 
+- "Pass priority after casting" (seat setting, off by default; decisions.md 2026-10-23): the seat's priority input right
+  after its own spell or activated ability went on the stack is passed once (`PassAfterCast`, `WebGuiGame.awaitInput`).
+  Only that `InputPassPriority`; a cast sent with `hold` keeps it. `HumanSeatPassAfterCastTest`.
+
 - the order of cards put into exile (`order` whose title is the engine's `lblChooseOrderCardsPutIntoExile` and that
   leaves no card out; `Prompt.Order.orderIsMoot`, `SeatSession.sendAndWait`): answered with the engine default (the
   list as given), never sent. Exile has no order in the rules (Living Death asked for one; issue #29 playtest 1 #13).

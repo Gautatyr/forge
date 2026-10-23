@@ -225,8 +225,9 @@
   cursor: pointer;
 }
 
-/* the switches sit together at the right end */
-.switchRow + .switchRow {
+/* Every switch after the first sits next to it, all at the right end. */
+.switchRow + .switchRow,
+.switchRow.next {
   margin-left: 0;
 }
 

@@ -213,6 +213,8 @@ export const fr: Record<MsgKey, Msg> = {
   'sc.help': 'Cette liste',
   'sc.mock': 'Scénarios maquette (développement uniquement)',
   'sc.shiftEnter': 'Maj + Entrée',
+  'sc.shiftClick': 'Maj + clic',
+  'sc.holdPriority': 'Lancer en gardant la priorité (si « Passer après un sort » est activé)',
 
   'lang.label': 'Langue',
   'lang.en': 'English',
@@ -434,6 +436,8 @@ export const fr: Record<MsgKey, Msg> = {
   'stops.involved': 'Ne m\'arrêter que si ça me concerne :',
   'stops.involvedTitle':
     'Pendant les tours adverses : arrêt à la déclaration des attaquants seulement si vous, vos planeswalkers ou vos batailles êtes attaqués, à la déclaration des bloqueurs seulement si vous êtes dans le combat, et à l\'étape de fin seulement au tour du joueur juste avant vous. Les sorts et capacités sur la pile vous arrêtent toujours. Désactivé par défaut.',
+  'stops.passAfterCast': 'Passer après un sort :',
+  'stops.passAfterCastTitle': 'Quand votre sort ou capacité arrive sur la pile, passe la priorité une fois : il se résout sauf si quelqu’un répond. Maj + clic pour garder la priorité le temps d’un sort. Désactivé par défaut.',
 
   'combat.declareAtk': 'Déclarer les attaquants',
   'combat.atkHint': 'Cliquez vos créatures pour attaquer. Les nouveaux attaquants visent :',

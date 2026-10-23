@@ -198,6 +198,7 @@ public final class WireEnvelope {
                     field("method", "ClientMethod", null),
                     new Field("card", "number", true, "selectCard, selectAbility, reorderHand, getActivateDescription."),
                     new Field("others", "number[]", true, "selectCard."),
+                    new Field("hold", "boolean", true, "selectCard, selectAbility: true keeps the priority the cast gets back, despite setPassAfterCast."),
                     new Field("player", "number", true, "selectPlayer."),
                     new Field("ability", "number", true, "selectAbility: the spell ability id."),
                     new Field("stackItem", "number", true, "selectStackItem."),
@@ -210,7 +211,10 @@ public final class WireEnvelope {
                     field("t", "'requestResync'", null))),
             new Message("setLanguage", "SetLanguageMessage", "Sets the language of this seat's card translations: fully visible cards then carry LocalName, LocalType and LocalOracleText (display only; Name, Type and OracleText stay English); anything but 'fr' is English and carries none. Sent after the greeting and on change; spectators stay English.", List.of(
                     field("t", "'setLanguage'", null),
-                    field("lang", "'en' | 'fr'", null))));
+                    field("lang", "'en' | 'fr'", null))),
+            new Message("setPassAfterCast", "SetPassAfterCastMessage", "Pass priority after casting (off by default): once the seat's own spell or activated ability goes on the stack, the seat passes the priority it gets back once, unless the cast was sent with hold. Kept for the seat's later games; sent after the greeting and on change.", List.of(
+                    field("t", "'setPassAfterCast'", null),
+                    field("on", "boolean", null))));
 
     private WireEnvelope() { }
 

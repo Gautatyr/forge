@@ -232,6 +232,20 @@ function StopsEditor() {
             {t('stops.autoPass')} <b>{game.autoPass ? t('common.on') : t('common.off')}</b>
           </span>
         </label>
+        <label className={`${styles.switchRow} ${styles.next}`} title={t('stops.passAfterCastTitle')}>
+          <input
+            type="checkbox"
+            role="switch"
+            checked={prefs.passAfterCast}
+            onChange={(e) => setPrefs({ passAfterCast: e.target.checked })}
+          />
+          <span className={styles.switch} aria-hidden>
+            <span className={styles.knob} />
+          </span>
+          <span>
+            {t('stops.passAfterCast')} <b>{prefs.passAfterCast ? t('common.on') : t('common.off')}</b>
+          </span>
+        </label>
       </footer>
     </section>
   );
