@@ -288,3 +288,9 @@ Newest last. Each entry: the decision, why, and what it implies.
   - Choosing none of an optional pick (tray, in place, action-panel pick: min 0, options offered, nothing chosen) declines it: N sends it. The ability menu's empty answer (cancel the activation): Esc.
   - Space does nothing on those; the button shows the key instead of Space and a hint ("Gives something up: press N, not Space"). Enter confirms nothing in the page (only native button focus).
 - Not guarded: Skip attack / No blocks (combat declarations are the pass flow), the mulligan (Keep is the default), concede (its own dialog).
+## 2026-10-23 — Prompt-key follow-ups (issue #29, supersedes parts of the entries on #110 and U8)
+- Digits 1–9 act only where the order is on screen: the tray's tiles/rows, and your hand in hand order when a choice is made in the hand (Nth card of the hand, not the Nth option; a card that is no option does nothing). On the board they do nothing (the prompt's order is not visible); no new badges. `trayLogic.inPlaceOptions`; Keys panel text `sc.pick` says so.
+- Prompt keys (Space, N, Y, digits) are inert while an inspector or an overlay is open (`state/promptKeys.ts`, used by the tray and `MatchScreen`).
+- Filter box (choose N over 12 options): it takes the letters, so N types; Esc leaves the box first (never cancels the prompt) and the guard hint says "Esc leaves the filter, then press N" while it has focus.
+- Guard hint wording now fits every guarded case: "Space won’t send this: press N" (supersedes "Gives something up: …"; the rule itself is unchanged).
+- Tests: `WebMainTest.gameStartNamesNoSeatAfterItsDeck` (via `WebMain.registeredPlayers`, the start path's player loop).

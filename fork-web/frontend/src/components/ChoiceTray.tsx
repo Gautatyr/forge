@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type CSSP
 import { opponents, player } from '../model/selectors';
 import type { ChoicePrompt } from '../model/types';
 import { useMatch } from '../state/MatchContext';
+import { promptKeysLive } from '../state/promptKeys';
 import type { ChoiceDraft } from '../state/ui';
 import { Card } from './Card';
 import { Icon, SeatGlyph } from './Icon';
@@ -12,6 +13,7 @@ import {
   FILTER_FROM,
   groupOptions,
   guardHint,
+  guardHintFromFilter,
   inPlaceOptions,
   inPlaceRefs,
   initialDraft,
@@ -42,6 +44,8 @@ export function ChoiceTray() {
 function PromptView({ prompt }: { prompt: ChoicePrompt }) {
   const { game, ui, prefs, setUi, send } = useMatch();
   const [query, setQuery] = useState('');
+  const filterRef = useRef<HTMLInputElement>(null);
+  const [typing, setTyping] = useState(false);
   const draft = trayDraft(prompt, ui.choiceDraft);
   const setDraft = (next: ChoiceDraft) => setUi({ choiceDraft: next });
   const confirm = trayConfirm(prompt, draft);
@@ -184,8 +188,9 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
       : [];
   // Identical cards (17 Swamps of a library search) are one tile with a count; digit keys name the tiles.
   const groups = groupOptions(matching, (id) => game.cards[id]?.name);
-  // Keys 1–9 name the options wherever they are shown: the tray's tiles, or in place the prompt's own order.
-  const visible = mode === 'inPlace' ? inPlaceOptions(game, prompt) : groups.map((g) => g.option);
+  // Keys 1–9 name what the player can count on screen: the tray's tiles, or the cards of the hand in hand order.
+  const visible = groups.map((g) => g.option);
+  const digitOptions = mode === 'inPlace' ? inPlaceOptions(game, prompt) : visible;
   const groupMembers = new Map(groups.map((g) => [g.option.id, g.members]));
 
   // Store the starting draft so the main button (primaryAction) answers the
@@ -197,10 +202,17 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
 
   // Capture phase, so the prompt's keys win over the screen's shortcuts.
   const onKey = useEffectEvent((e: KeyboardEvent) => {
-    if (e.ctrlKey || e.metaKey || ui.inspectId || ui.overlay) return;
+    if (e.ctrlKey || e.metaKey || !promptKeysLive(ui)) return;
     const el = e.target as HTMLElement | null;
     const inInput = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT');
-    const a = keyAction(prompt, draft, visible, { key: e.key, alt: e.altKey, inInput }, groupMembers);
+    // Esc in the filter box leaves it first (the next Esc is the screen's: cancel, close), never cancels the prompt.
+    if (inInput && e.key === 'Escape' && el === filterRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      el.blur();
+      return;
+    }
+    const a = keyAction(prompt, draft, digitOptions, { key: e.key, alt: e.altKey, inInput }, groupMembers);
     if (!a || (a.kind === 'peek' && mode !== 'tray' && mode !== 'peek')) return;
     e.preventDefault();
     e.stopPropagation();
@@ -219,7 +231,8 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
   const counter = prompt.shape === 'chooseN' && !isReveal(prompt) ? counterText(prompt, draft.selected.length) : '';
   // An answer that gives something up names its own key, never Space (U8).
   const guard = confirm.enabled ? confirm.guard : undefined;
-  const status = [counter, guard ? guardHint(guard) : ''].filter(Boolean).join(' · ');
+  // Typing in the filter box takes the letters (N too): the hint says to leave it first.
+  const status = [counter, guard ? (typing ? guardHintFromFilter(guard) : guardHint(guard)) : ''].filter(Boolean).join(' · ');
   const confirmButton = (
     <button type="button" className={styles.confirm} disabled={!confirm.enabled} onClick={answer}>
       {confirm.label}
@@ -288,7 +301,10 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
       {filterable ? (
         <div className={styles.filter}>
           <input
+            ref={filterRef}
             type="search"
+            onFocus={() => setTyping(true)}
+            onBlur={() => setTyping(false)}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t('tray.filter')}
