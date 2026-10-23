@@ -679,4 +679,102 @@ public class HumanSeatPaymentTest {
         assertFalse(sol.isTapped(), "Sol Ring stayed untapped");
         assertTrue(me.getManaPool().isEmpty(), "nothing left floating");
     }
+
+    /** Resolved and nothing floating; the sources in {@code spare} stayed untapped. */
+    private void assertCleanPlan(Card spell, List<String> seen, Card... spare) {
+        assertTrue(game.getCardState(spell).isInZone(ZoneType.Battlefield), spell.getName() + " resolved; seen " + seen);
+        assertTrue(me.getManaPool().isEmpty(), "nothing left floating; seen " + seen);
+        for (Card c : spare) {
+            assertFalse(c.isTapped(), c.getName() + " stayed untapped; seen " + seen);
+        }
+    }
+
+    /** Hybrid: {R/G}{R/G} with a Mountain and a two-mana land: the land pays both shards alone (a Mountain first would leave one of its mana floating). */
+    @Test
+    public void autoPayHybridUsesTheTwoManaLandAlone() throws Exception {
+        start();
+        Card mountain = add("Mountain", me, ZoneType.Battlefield);
+        Card turf = add("Gruul Turf", me, ZoneType.Battlefield);
+        Card guildmage = add("Gruul Guildmage", me, ZoneType.Hand);
+        List<String> seen = castWithAuto(guildmage);
+        assertCleanPlan(guildmage, seen, mountain);
+        assertTrue(turf.isTapped(), "Gruul Turf paid; seen " + seen);
+    }
+
+    /** Hybrid: {R/G}{R/G} with a Mountain, a Forest and a two-mana land: no plan leaves mana floating, and all three are not tapped. */
+    @Test
+    public void autoPayHybridWithTwoBasicsAndATwoManaLand() throws Exception {
+        start();
+        Card mountain = add("Mountain", me, ZoneType.Battlefield);
+        Card forest = add("Forest", me, ZoneType.Battlefield);
+        Card turf = add("Gruul Turf", me, ZoneType.Battlefield);
+        Card guildmage = add("Gruul Guildmage", me, ZoneType.Hand);
+        List<String> seen = castWithAuto(guildmage);
+        assertCleanPlan(guildmage, seen);
+        assertFalse(mountain.isTapped() && forest.isTapped() && turf.isTapped(), "not all three tapped; seen " + seen);
+    }
+
+    /** Hybrid: {R/G}{R/G} with two Mountains and a two-mana land: the Mountains pay. */
+    @Test
+    public void autoPayHybridPrefersTheBasicsToAMatchingTwoManaLand() throws Exception {
+        start();
+        Card mountain1 = add("Mountain", me, ZoneType.Battlefield);
+        Card mountain2 = add("Mountain", me, ZoneType.Battlefield);
+        Card turf = add("Gruul Turf", me, ZoneType.Battlefield);
+        Card guildmage = add("Gruul Guildmage", me, ZoneType.Hand);
+        List<String> seen = castWithAuto(guildmage);
+        assertCleanPlan(guildmage, seen);
+        assertFalse(mountain1.isTapped() && mountain2.isTapped() && turf.isTapped(), "not all three tapped; seen " + seen);
+    }
+
+    /** {R}{R/W}{W} with a Mountain, a Plains and a land making {R}{W}: the two-mana land plus one basic is exact; all three leave one floating. */
+    @Test
+    public void autoPayHybridAndMonoShardsDoNotFloatMana() throws Exception {
+        start();
+        Card mountain = add("Mountain", me, ZoneType.Battlefield);
+        Card plains = add("Plains", me, ZoneType.Battlefield);
+        Card garrison = add("Boros Garrison", me, ZoneType.Battlefield);
+        Card smith = add("Practiced Scrollsmith", me, ZoneType.Hand);
+        List<String> seen = castWithAuto(smith);
+        assertCleanPlan(smith, seen);
+        assertTrue(garrison.isTapped(), "Boros Garrison paid; seen " + seen);
+        assertFalse(mountain.isTapped() && plains.isTapped(), "one basic stayed untapped; seen " + seen);
+    }
+
+    /** {2/W}{2/W}{2/W} with Sol Ring, a Mountain and two Plains: Sol Ring pays a whole shard, so nothing floats and the Mountain stays. */
+    @Test
+    public void autoPayTwoOrColorShardsTakeTwoColorlessOrOneColor() throws Exception {
+        start();
+        Card sol = add("Sol Ring", me, ZoneType.Battlefield);
+        Card mountain = add("Mountain", me, ZoneType.Battlefield);
+        Card plains1 = add("Plains", me, ZoneType.Battlefield);
+        Card plains2 = add("Plains", me, ZoneType.Battlefield);
+        Card procession = add("Spectral Procession", me, ZoneType.Hand);
+        mainPhase();
+        List<String> seen = play(() -> game.getCardState(procession).isInZone(ZoneType.Graveyard) || game.getPhaseHandler().getPhase() != PhaseType.MAIN1,
+                in -> in instanceof InputPassPriority && game.getCardState(procession).isInZone(ZoneType.Hand) ? () -> select(procession) : null,
+                HumanSeatPaymentTest::noPrompt);
+        assertTrue(game.getCardState(procession).isInZone(ZoneType.Graveyard), "Spectral Procession resolved; seen " + seen);
+        assertTrue(me.getManaPool().isEmpty(), "nothing left floating; seen " + seen);
+        assertFalse(mountain.isTapped(), "Mountain stayed untapped; seen " + seen);
+        assertTrue(sol.isTapped() && plains1.isTapped() && plains2.isTapped(), "Sol Ring and both Plains paid; seen " + seen);
+    }
+
+    /** {2/W}{2/W}{2/W}: a Plains or Sol Ring pays a whole shard, two Mountains pay one together; all four are needed and nothing floats. */
+    @Test
+    public void autoPayTwoOrColorShardsWithMixedSources() throws Exception {
+        start();
+        Card sol = add("Sol Ring", me, ZoneType.Battlefield);
+        Card mountain1 = add("Mountain", me, ZoneType.Battlefield);
+        Card mountain2 = add("Mountain", me, ZoneType.Battlefield);
+        Card plains = add("Plains", me, ZoneType.Battlefield);
+        Card procession = add("Spectral Procession", me, ZoneType.Hand);
+        mainPhase();
+        List<String> seen = play(() -> game.getCardState(procession).isInZone(ZoneType.Graveyard) || game.getPhaseHandler().getPhase() != PhaseType.MAIN1,
+                in -> in instanceof InputPassPriority && game.getCardState(procession).isInZone(ZoneType.Hand) ? () -> select(procession) : null,
+                HumanSeatPaymentTest::noPrompt);
+        assertTrue(game.getCardState(procession).isInZone(ZoneType.Graveyard), "Spectral Procession resolved; seen " + seen);
+        assertTrue(me.getManaPool().isEmpty(), "nothing left floating; seen " + seen);
+        assertTrue(sol.isTapped() && mountain1.isTapped() && mountain2.isTapped() && plains.isTapped(), "all four paid; seen " + seen);
+    }
 }
