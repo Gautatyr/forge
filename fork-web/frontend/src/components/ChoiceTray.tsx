@@ -127,12 +127,13 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
     const covered = () => hits().length;
     // Over the hand the tray may be a little too tall to clear the lowest card above it: cap its height there
     // (its body scrolls) when that still leaves a usable tray.
-    const MIN_DOCKED = 260;
-    const capAboveCards = () => {
+    // 260 px first; on a short screen (1280x720) down to 150, so the tray does not cover a listed card.
+    const MIN_DOCKED = [260, 150];
+    const capAboveCards = (min: number) => {
       const h = hits();
       if (h.length === 0) return;
       const room = el.getBoundingClientRect().bottom - Math.max(...h.map((r) => r.bottom)) - 2;
-      if (room >= MIN_DOCKED) el.style.maxHeight = `${room}px`;
+      if (room >= min) el.style.maxHeight = `${room}px`;
     };
     let frame = 0;
     // Every frame while open: the board lays itself out after paint and reflows.
@@ -144,14 +145,14 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
       if (fewest === 0) return;
       let best = '';
       let bestCap = '';
-      // Over the hand first, then the sides of the board column; uncapped first, then capped: the first that
+      // Over the hand first, then the sides of the board column; uncapped first, then capped (tallest minimum first): the first that
       // covers none, else the one that covers the fewest.
-      outer: for (const capped of [false, true]) {
+      outer: for (const min of [0, ...MIN_DOCKED]) {
         for (const dock of ['hand', 'handRight', 'handLeft', 'right', 'left']) {
-          if (capped && !dock.startsWith('hand')) continue;
+          if (min && !dock.startsWith('hand')) continue;
           el.dataset.dock = dock;
           el.style.maxHeight = '';
-          if (capped) capAboveCards();
+          if (min) capAboveCards(min);
           const n = covered();
           if (n < fewest) [best, bestCap, fewest] = [dock, el.style.maxHeight, n];
           if (n === 0) break outer;
