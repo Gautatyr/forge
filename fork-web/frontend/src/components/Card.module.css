@@ -72,6 +72,23 @@
   translate: calc(var(--i) * 0.28em) calc(var(--i) * -0.28em);
 }
 
+/* Keyboard focus (U8): the double ring inside the card's edge, over its frame, so it never touches the state
+   ring outside the card nor gets cut by a scrolling zone; drawn by ::before so a state outline on the button
+   (a chosen tray tile) and the focus ring show together. */
+.card:focus-visible {
+  outline: none;
+}
+
+.card:focus-visible::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border: var(--focus-ring);
+  border-radius: var(--r-card);
+  pointer-events: none;
+}
+
 /* --- State rings: colour + line style + icon badge ------------------------- */
 .card::after {
   content: '';

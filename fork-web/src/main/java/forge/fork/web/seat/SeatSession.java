@@ -95,6 +95,8 @@ final class SeatSession implements IRemote {
     private final Map<String, String> sticky = new ConcurrentHashMap<>();
     private final ExecutorService actions;
     private final InputPump pump;
+    /** The seat's "Stop only when I'm involved" setting and stop rows (game thread). */
+    private final InvolvedStops involvedStops = new InvolvedStops();
     private final PassAfterCast passAfterCast = new PassAfterCast();
     private volatile IGameController controller;
     private volatile GameView gameView;
@@ -175,6 +177,13 @@ final class SeatSession implements IRemote {
         /** A player gets priority: state-based actions are done and nothing resolves, the seat's actions may run. */
         @Subscribe
         public void priority(GameEventPlayerPriority e) {
+            // before the engine asks this player (PhaseHandler.mainLoopStep): the step's stop, decided on who is attacked now
+            if (ThreadUtil.isGameThread() && controller instanceof PlayerControllerHuman pch && pch.getPlayer() != null) {
+                YieldUpdate.SkipPhase u = involvedStops.atPriority(game, pch.getPlayer());
+                if (u != null) {
+                    pch.getYieldController().setSkipPhase(u.turnPlayer(), u.phase(), u.skip());
+                }
+            }
             pump.runDeferred();
             restartRoundIfAPlayerLeft();
             if (ThreadUtil.isGameThread() && e.priority() != null) {
@@ -774,7 +783,18 @@ final class SeatSession implements IRemote {
                 return null;
             }
             case "sendYieldUpdate": {
-                YieldUpdate u = yieldUpdate(game, msg.get("update"));
+                JsonElement update = msg.get("update");
+                if (update != null && update.isJsonObject() && "InvolvedStops".equals(str(update.getAsJsonObject(), "kind"))) {
+                    Boolean active = bool(update.getAsJsonObject(), "active");
+                    if (active == null || !(c instanceof PlayerControllerHuman pch) || pch.getPlayer() == null) {
+                        return "unsupported yield update";
+                    }
+                    for (YieldUpdate.SkipPhase u : involvedStops.setActive(game, pch.getPlayer(), active)) {
+                        c.sendYieldUpdate(u);
+                    }
+                    return null;
+                }
+                YieldUpdate u = yieldUpdate(game, update);
                 if (u == null) {
                     return "unsupported yield update";
                 }
@@ -811,7 +831,10 @@ final class SeatSession implements IRemote {
         return game.getPlayer(id.getAsInt());
     }
 
-    /** The yield updates a web client may send: phase stops and auto-pass toggles of its own seat. */
+    /**
+     * The yield updates a web client may send: phase stops and auto-pass toggles of its own seat. The fork's own
+     * {@code {"kind":"InvolvedStops","active"}} ({@link InvolvedStops}) is handled by the {@code sendYieldUpdate} action.
+     */
     private YieldUpdate yieldUpdate(Game game, JsonElement e) {
         if (e == null || !e.isJsonObject()) {
             return null;
@@ -827,7 +850,12 @@ final class SeatSession implements IRemote {
                 Player p = player(game, o.get("turnPlayer"));
                 PhaseType ph = enumOf(PhaseType.class, str(o, "phase"));
                 Boolean skip = bool(o, "skip");
-                return p == null || ph == null || skip == null ? null : new YieldUpdate.SkipPhase(p.getView(), ph, skip);
+                if (p == null || ph == null || skip == null) {
+                    return null;
+                }
+                // the page's row cell; with "Stop only when I'm involved" on, the engine gets the effective value
+                return involvedStops.row(game, controller instanceof PlayerControllerHuman pch ? pch.getPlayer() : null,
+                        new YieldUpdate.SkipPhase(p.getView(), ph, skip));
             }
             case "SetAutoPassUntilEndOfTurn": {
                 Boolean active = bool(o, "active");

@@ -115,7 +115,9 @@ export function ActionPanel() {
             {action.tone === 'attack' ? <Icon name="sword" /> : action.tone === 'block' ? <Icon name="shield" /> : null}
             {ended ? <Icon name="eye" /> : !action.enabled && d.kind === 'waiting' ? <Icon name="hourglass" /> : null}
             {action.label}
-            {action.enabled ? <kbd className={styles.key}>{t('key.space')}</kbd> : null}
+            {action.enabled && !(action.guard && !action.guard.label) ? (
+              <kbd className={styles.key}>{action.guard ? action.guard.label : t('key.space')}</kbd>
+            ) : null}
           </span>
           {action.detail ? (
             <span className={styles.primaryDetail} title={action.detail}>

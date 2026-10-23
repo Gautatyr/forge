@@ -55,6 +55,37 @@ export function resetStops(): StopPrefs {
   return DEFAULT_STOPS;
 }
 
+/** You, or a planeswalker or battle of yours, are attacked in the combat under way (`defenderId` names its controller or protector). */
+function attacked(game: GameView): boolean {
+  return !!game.combat?.attacks.some((a) => a.defenderId === game.youId);
+}
+
+function yourCreatureInCombat(game: GameView): boolean {
+  const yours = (id: string) => game.cards[id]?.controllerId === game.youId;
+  return !!game.combat && (game.combat.attacks.some((a) => yours(a.attackerId)) || game.combat.blocks.some((b) => yours(b.blockerId)));
+}
+
+/**
+ * "Stop only when I'm involved", for the hint: does a stop at `step` of opponent `turnPlayerId`'s turn hold? Mirrors
+ * the bridge's `InvolvedStops`; who is attacked is known only for the combat of the turn under way (`current`), so a
+ * later turn's combat stops count as not holding, like a spell that may or may not be cast.
+ */
+function involved(game: GameView, turnPlayerId: PlayerId, step: StepId, current: boolean): boolean {
+  switch (step) {
+    case 'declareAttackers':
+      return current && attacked(game);
+    case 'declareBlockers':
+      return current && (attacked(game) || yourCreatureInCombat(game));
+    case 'end': {
+      // players are in turn order starting with you: the last one still in plays right before you
+      const inGame = game.players.filter((p) => !p.hasLost || p.id === game.youId);
+      return inGame.at(-1)?.id === turnPlayerId;
+    }
+    default:
+      return true;
+  }
+}
+
 export interface StopPoint {
   playerId: PlayerId;
   step: StepId;
@@ -77,7 +108,8 @@ export function nextStop(game: GameView, stops: StopPrefs): StopPoint | undefine
       if (s.noPriority) continue;
       if (k === 0 && i <= current) continue;
       if (k === order.length && i > current) break;
-      if (isStop(stops, game.youId, p.id, s.id)) return { playerId: p.id, step: s.id };
+      if (isStop(stops, game.youId, p.id, s.id) && (!stops.involvedOnly || p.id === game.youId || involved(game, p.id, s.id, k === 0)))
+        return { playerId: p.id, step: s.id };
     }
   }
   return undefined;

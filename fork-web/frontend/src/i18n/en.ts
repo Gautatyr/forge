@@ -191,7 +191,7 @@ export const en = {
   'sc.group.Play': 'Play',
   'sc.group.Look': 'Look',
   'sc.group.Screen': 'Screen',
-  'sc.space': 'Main button: pass, resolve, attack, block, confirm, pay automatically',
+  'sc.space': 'Main button: pass, resolve, attack, block, confirm, pay automatically. Never cancels, declines or chooses none',
   'sc.esc': 'Cancel a spell being cast or paid for (its lands untap), clear a pending choice, close panels',
   'sc.passTurn': 'Pass until my next turn',
   'sc.undo': 'Undo (while paying: untap the last land)',
@@ -199,6 +199,7 @@ export const en = {
   'sc.autoPass': 'Auto-pass when I can’t act: on / off',
   'sc.pick': 'Pick the Nth option of a choice (in the tray, in your hand or on the board), a row of the ability menu, or the mana a dual land adds',
   'sc.yesNo': 'Answer a yes / no question',
+  'sc.none': 'Choose none in an optional choice',
   'sc.mulligan': 'Mulligan (opening hand)',
   'sc.move': 'Move the focused item while ordering',
   'sc.inspect': 'Inspect the hovered card (or right-click it)',
@@ -256,6 +257,7 @@ export const en = {
   'top.yourTurn': 'Your turn',
   'top.theirTurn': '{name}\'s turn',
   'top.turn': 'Turn {n}',
+  'top.roundTurn': 'Round {round} · Turn {n}',
   'top.next': 'next:',
   'top.you': 'you',
   'top.waitYou': 'Waiting for you',
@@ -429,6 +431,9 @@ export const en = {
   'stops.perOpp': 'Set per opponent',
   'stops.reset': 'Reset to defaults',
   'stops.autoPass': 'Auto-pass when I can\'t act:',
+  'stops.involved': 'Stop only when I\'m involved:',
+  'stops.involvedTitle':
+    'On opponents\' turns: stop at declare attackers only when you or your planeswalkers or battles are attacked, at declare blockers only when you\'re in the combat, and at the end step only on the turn of the player right before you. Spells and abilities on the stack still stop you. Off by default.',
   'stops.passAfterCast': 'Pass after casting:',
   'stops.passAfterCastTitle': 'After your own spell or ability goes on the stack, pass priority once so it resolves unless someone responds. Shift + click to keep priority for one cast. Off by default.',
 
@@ -588,6 +593,8 @@ export const en = {
   'tray.oneLess': 'One less',
   'tray.oneMore': 'One more',
   'tray.confirms': 'confirms',
+  'safe.hint': 'Gives something up: press {key}, not Space',
+  'safe.hintClick': 'Gives something up: click it, not Space',
   'tray.altMoves': 'moves the focused item',
   'tray.emptyList': 'Empty — click a card on the other side to move it here.',
 

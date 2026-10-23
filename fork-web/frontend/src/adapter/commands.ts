@@ -206,10 +206,11 @@ export const passAfterCastFrame = (on: boolean): ClientFrame => ({ t: 'setPassAf
 
 /**
  * Phase stops as SkipPhase yield updates: for every player and step, skip unless the step is a
- * stop (the bridge skips none until told).
+ * stop (the bridge skips none until told). First, the fork's InvolvedStops update: whether those stops on opponents'
+ * turns hold only when you are involved (the bridge decides that on the live combat).
  */
-export function stopFrames(view: GameView, isStop: (turnPlayerId: string, step: StepId) => boolean): ClientFrame[] {
-  const out: ClientFrame[] = [];
+export function stopFrames(view: GameView, isStop: (turnPlayerId: string, step: StepId) => boolean, involvedOnly = false): ClientFrame[] {
+  const out: ClientFrame[] = [action('sendYieldUpdate', { update: { kind: 'InvolvedStops', active: involvedOnly } })];
   for (const p of view.players) {
     for (const step of Object.keys(PHASES_OF) as StepId[]) {
       if (step === 'untap' || step === 'cleanup') continue;

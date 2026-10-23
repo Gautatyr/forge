@@ -3,13 +3,17 @@ import { useMatch } from '../../state/MatchContext';
 import { Card } from '../Card';
 import { PlayerText } from '../PlayerText';
 import type { BodyProps } from './TrayBody';
-import { yesNoKeys } from './trayLogic';
+import { guardHint, trayConfirm, trayDraft, yesNoKeys } from './trayLogic';
 import styles from '../ChoiceTray.module.css';
 import { t } from '../../i18n';
 
-/** Two buttons with the engine's labels; the default is primary and answers Space. Y / N (or the prompt's own keys) answer at once. */
+/**
+ * Two buttons with the engine's labels; the default is primary and answers Space, unless it gives something up (U8):
+ * then only its key answers it, said under the buttons. Y / N (or the prompt's own keys) answer at once.
+ */
 export function YesNo({ prompt, send }: BodyProps<YesNoPrompt>) {
-  const { game } = useMatch();
+  const { game, ui } = useMatch();
+  const guard = trayConfirm(prompt, trayDraft(prompt, ui.choiceDraft)).guard;
   const card = prompt.cardId ? game.cards[prompt.cardId] : undefined;
   const def = prompt.defaultAnswer ?? 'yes';
   const keys = yesNoKeys(prompt);
@@ -32,10 +36,11 @@ export function YesNo({ prompt, send }: BodyProps<YesNoPrompt>) {
             >
               <PlayerText game={game} text={b.label} />
               {b.key ? <kbd>{b.key}</kbd> : null}
-              {primary ? <kbd>{t('key.space')}</kbd> : null}
+              {primary && !guard ? <kbd>{t('key.space')}</kbd> : null}
             </button>
           );
         })}
+        {guard ? <p className={`${styles.status} ${styles.guardHint}`}>{guardHint(guard)}</p> : null}
       </div>
     </div>
   );

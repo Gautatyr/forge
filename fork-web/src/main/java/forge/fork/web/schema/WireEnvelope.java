@@ -32,7 +32,9 @@ public final class WireEnvelope {
                     field("viewer", "{ seat: number; player: number; omniscient?: true } | { spectator: true; omniscient?: true }",
                             "Whose stream this is (Viewer.toJson); omniscient = debug FULL policy."),
                     field("objects", "WireObject[]", null),
-                    field("log", "LogEntry[]", "Tail of the game log, oldest first."))),
+                    field("log", "LogEntry[]", "Tail of the game log, oldest first."),
+                    new Field("round", "number", true,
+                            "Times the first player has started a turn (RoundCounter); absent before turn 1."))),
             new Message("delta", "DeltaMessage",
                     "Apply `new` (replaces the whole object), then `changed` (merge; null = back to default), then `removed`.",
                     List.of(
@@ -45,6 +47,7 @@ public final class WireEnvelope {
                             field("removed", "string[]", "Object keys: `type:id`, or `cardState:id:State`."),
                             field("log", "LogEntry[]", "Log entries since the previous message."),
                             field("events", "string[]", "Engine event class names without the `GameEvent` prefix."),
+                            new Field("round", "number", true, "The new round, when it changed (RoundCounter)."),
                             new Field("final", "true", true, "Last delta of the game."))));
 
     /** A TypeScript declaration the seat messages use. */
@@ -68,10 +71,12 @@ public final class WireEnvelope {
             new Decl("What a selection input asks (forge.fork.web.seat.InputInfo, issue #81).",
                     "export interface InputInfo {\n"
                     + "  /** target: targets of a spell or ability; pick: cards or players chosen for a cost or an effect (discard, sacrifice…); pay: paying a mana cost. */\n"
-                    + "  kind: 'target' | 'pick' | 'pay';\n"
+                    + "  kind: 'target' | 'pick' | 'pay' | 'confirm';\n"
                     + "  /** target: what the targets are for. */\n  ability?: 'spell' | 'activated' | 'triggered';\n"
                     + "  /** pay: the activated ability paid for (\"Equip {2}\"); absent for a spell. */\n  payFor?: string;\n"
-                    + "  /** pick: an \"unless\" cost; Cancel declines it and this happens (the engine's text worded for you: \"You sacrifice Drekavac\"). */\n  decline?: string;\n}"));
+                    + "  /** pick: an \"unless\" cost; Cancel declines it and this happens (the engine's text worded for you: \"You sacrifice Drekavac\"). */\n  decline?: string;\n"
+                    + "  /** confirm (a yes/no on the buttons): the answer that gives up what you were doing (\"Cancel Search?\" Yes); Space never sends it. */\n"
+                    + "  giveUp?: 'yes';\n}"));
 
     /** Server to a human seat, on the seat's stream after hello and snapshot ({@code forge.fork.web.seat.SeatSession}). */
     public static final List<Message> SEAT_MESSAGES = List.of(
@@ -104,7 +109,8 @@ public final class WireEnvelope {
                     new Field("card", "SeatRef", true, null),
                     field("yes", "string", null),
                     field("no", "string", null),
-                    field("default", "boolean", "The engine's default answer."))),
+                    field("default", "boolean", "The engine's default answer."),
+                    new Field("giveUp", "'yes'", true, "The answer that gives up what you were doing; Space never sends it."))),
             new Message("prompt", "PromptOrder",
                     "order: reply {order: indices of the new dest list, remember}; manipulateCardList (piles): {top, bottom}, each choice "
                             + "in one pile, top first on top, bottom last at the very bottom; manipulateCardList (permutation, toAnywhere): "

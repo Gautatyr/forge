@@ -117,6 +117,7 @@ export function promptToChoice(p: PromptMessage, cards: Record<string, CardView>
         yesLabel: p.yes,
         noLabel: p.no,
         defaultAnswer: p.default ? 'yes' : 'no',
+        ...(p.giveUp ? { giveUp: p.giveUp } : {}),
       };
     }
     case 'order': {
@@ -363,6 +364,8 @@ export function inputToChoice(input: InputState, view: Pick<GameView, 'players' 
       confirmLabel: input.ok.label || t('common.ok'),
       yesLabel: input.ok.label || t('common.ok'),
       noLabel: input.cancel.label || t('common.cancel'),
+      // InputConfirm: the bridge names the answer that gives something up (U8).
+      ...(input.info?.kind === 'confirm' && input.info.giveUp ? { giveUp: input.info.giveUp } : {}),
     };
   }
   if (input.ok.enabled || input.cancel.enabled) {

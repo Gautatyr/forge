@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import { player } from '../model/selectors';
 import { useMatch } from '../state/MatchContext';
-import { turnHeading } from '../state/gameStart';
+import { turnHeading, turnNumberText } from '../state/gameStart';
 import { AI_CHIP_DELAY_MS, fitLevel, SettleGate, waitingOn, type FitLevel } from '../state/turnStrip';
 import type { Overlay } from '../state/ui';
 import { Icon, SeatGlyph, type IconName } from './Icon';
@@ -117,7 +117,7 @@ export function TopBar() {
   const winnerId = game.result?.winnerId;
   const headSeat = active ?? (heading.kind === 'over' && winnerId ? player(game, winnerId) : undefined);
   const whose = heading.kind === 'turn' ? (active!.isYou ? t('top.yourTurn') : t('top.theirTurn', { name: active!.name })) : heading.text;
-  const turnLine = heading.kind === 'turn' ? `${t('top.turn', { n: heading.number })}${next ? ` · ${t('top.next')} ${next.isYou ? t('top.you') : next.name}` : ''}` : '';
+  const turnLine = heading.kind === 'turn' ? `${turnNumberText(heading)}${next ? ` · ${t('top.next')} ${next.isYou ? t('top.you') : next.name}` : ''}` : '';
   const chipText = waiting.isYou ? t('top.waitYou') : t('top.waitName', { name: waiting.name });
 
   return (
@@ -128,7 +128,7 @@ export function TopBar() {
         </span>
         {heading.kind === 'turn' ? (
           <span className={styles.turnLine} title={turnLine}>
-            {t('top.turn', { n: heading.number })}
+            {turnNumberText(heading)}
             {next ? (
               <>
                 {` · ${t('top.next')} `}

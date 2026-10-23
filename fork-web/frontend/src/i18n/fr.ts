@@ -193,7 +193,7 @@ export const fr: Record<MsgKey, Msg> = {
   'sc.group.Play': 'Jouer',
   'sc.group.Look': 'Regarder',
   'sc.group.Screen': 'Écran',
-  'sc.space': 'Bouton principal : passer, résoudre, attaquer, bloquer, confirmer, payer automatiquement',
+  'sc.space': 'Bouton principal : passer, résoudre, attaquer, bloquer, confirmer, payer automatiquement. Jamais pour annuler, refuser ou ne rien choisir',
   'sc.esc': 'Annuler un sort en cours de lancement ou de paiement (ses terrains se dégagent), effacer un choix en attente, fermer les panneaux',
   'sc.passTurn': 'Passer jusqu\'à mon prochain tour',
   'sc.undo': 'Annuler (en payant : dégager le dernier terrain)',
@@ -201,6 +201,7 @@ export const fr: Record<MsgKey, Msg> = {
   'sc.autoPass': 'Passer auto si je ne peux pas agir : activé / désactivé',
   'sc.pick': 'Choisir la N-ième option d\'un choix (dans le plateau de choix, dans votre main ou sur le plateau de jeu), une ligne du menu des capacités, ou le mana qu\'ajoute un terrain double',
   'sc.yesNo': 'Répondre à une question oui / non',
+  'sc.none': 'Ne rien choisir dans un choix facultatif',
   'sc.mulligan': 'Mulligan (main de départ)',
   'sc.move': 'Déplacer l\'élément ciblé pendant le tri',
   'sc.inspect': 'Inspecter la carte survolée (ou clic droit)',
@@ -258,6 +259,7 @@ export const fr: Record<MsgKey, Msg> = {
   'top.yourTurn': 'Votre tour',
   'top.theirTurn': 'Tour de {name}',
   'top.turn': 'Tour {n}',
+  'top.roundTurn': 'Tour de table {round} · Tour {n}',
   'top.next': 'ensuite :',
   'top.you': 'vous',
   'top.waitYou': 'On vous attend',
@@ -431,6 +433,9 @@ export const fr: Record<MsgKey, Msg> = {
   'stops.perOpp': 'Régler par adversaire',
   'stops.reset': 'Rétablir les valeurs par défaut',
   'stops.autoPass': 'Passer auto si je ne peux pas agir :',
+  'stops.involved': 'Ne m\'arrêter que si ça me concerne :',
+  'stops.involvedTitle':
+    'Pendant les tours adverses : arrêt à la déclaration des attaquants seulement si vous, vos planeswalkers ou vos batailles êtes attaqués, à la déclaration des bloqueurs seulement si vous êtes dans le combat, et à l\'étape de fin seulement au tour du joueur juste avant vous. Les sorts et capacités sur la pile vous arrêtent toujours. Désactivé par défaut.',
   'stops.passAfterCast': 'Passer après un sort :',
   'stops.passAfterCastTitle': 'Quand votre sort ou capacité arrive sur la pile, passe la priorité une fois : il se résout sauf si quelqu’un répond. Maj + clic pour garder la priorité le temps d’un sort. Désactivé par défaut.',
 
@@ -590,6 +595,8 @@ export const fr: Record<MsgKey, Msg> = {
   'tray.oneLess': 'Un de moins',
   'tray.oneMore': 'Un de plus',
   'tray.confirms': 'confirme',
+  'safe.hint': 'Abandonne quelque chose : touche {key}, pas Espace',
+  'safe.hintClick': 'Abandonne quelque chose : cliquez, pas Espace',
   'tray.altMoves': 'déplace l\'élément ciblé',
   'tray.emptyList': 'Vide — cliquez une carte de l\'autre côté pour la déplacer ici.',
 

@@ -19,6 +19,7 @@ export function shortcuts(): Shortcut[] {
     { keys: 'P', action: t('sc.autoPass'), group: 'Play' },
     { keys: '1 – 9', action: t('sc.pick'), group: 'Play' },
     { keys: 'Y / N', action: t('sc.yesNo'), group: 'Play' },
+    { keys: 'N', action: t('sc.none'), group: 'Play' },
     { keys: 'M', action: t('sc.mulligan'), group: 'Play' },
     { keys: 'Alt + ↑ / ↓', action: t('sc.move'), group: 'Play' },
     { keys: 'I', action: t('sc.inspect'), group: 'Look' },

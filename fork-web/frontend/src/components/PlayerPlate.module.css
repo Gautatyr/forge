@@ -19,24 +19,39 @@
   background: linear-gradient(90deg, var(--c-panel-raised), var(--c-panel));
 }
 
-.ringActionable {
+/* Keyboard focus (U8): the double ring outside the state outline, drawn by ::after so both show. */
+.plate:focus-visible {
+  outline: none;
+}
+
+.plate:focus-visible::after {
+  content: '';
+  position: absolute;
+  /* The plate's 1px border, then the offset, then the ring. */
+  inset: calc(-1px - var(--focus-offset-plate) - var(--focus-w));
+  border: var(--focus-ring);
+  border-radius: calc(var(--r-lg) + var(--focus-offset-plate) + var(--focus-w));
+  pointer-events: none;
+}
+
+.plate.ringActionable {
   outline: var(--outline-w) dashed var(--c-actionable);
   outline-offset: 2px;
 }
-.ringDefender {
+.plate.ringDefender {
   outline: var(--outline-w-strong) solid var(--c-attack);
   outline-offset: 2px;
 }
-.ringSelected {
+.plate.ringSelected {
   outline: var(--outline-w-strong) solid var(--c-selected);
   outline-offset: 2px;
 }
 /* Targeted by the stack item in the spotlight (same shapes as on cards). */
-.ringTargeted {
+.plate.ringTargeted {
   outline: var(--outline-w-strong) dotted var(--c-targeted);
   outline-offset: 2px;
 }
-.ringTargetedStrong {
+.plate.ringTargetedStrong {
   outline: var(--outline-w-strong) solid var(--c-targeted);
   outline-offset: 2px;
   box-shadow: 0 0 18px rgb(204 121 167 / 0.7);

@@ -193,7 +193,7 @@ export function useLive(
   useEffect(() => {
     if (!stopsKey || !source || !game || sentStops.current === stopsKey) return;
     sentStops.current = stopsKey;
-    source.send(stopFrames(game, (turnPlayerId, step) => isStop(stops, game.youId, turnPlayerId, step)));
+    source.send(stopFrames(game, (turnPlayerId, step) => isStop(stops, game.youId, turnPlayerId, step), !!stops.involvedOnly));
     // stopsKey covers game and stops
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stopsKey, source]);

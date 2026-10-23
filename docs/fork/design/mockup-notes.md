@@ -349,3 +349,8 @@ Live (1920×1080, human seat, test decks vs an Islands-only AI): Goblin Guide (h
 | Board cards: a selected card or group says "selected" in its accessible name; a selected group's count chip shows ✓ in `--c-selected`. | `Card.tsx`, `Card.module.css` |
 | X: "Choose X for …" asked as a list (0 … 9, Other…) is the number field ("0 or more" with "Other…"); a number past the list answers "Other…" and the engine's follow-up prompt is typed for you; Cancel / Esc answers nothing (the engine cancels the spell). The payment shows "X = n" (the X announced for that card) and "Equip {2}" (activated ability, from the bridge's `payFor`). | `adapter/trayWords.ts`, `adapter/commands.ts`, `adapter/session.ts`, `adapter/toView.ts`, `Payment.tsx` |
 | Mulligan copy: "…shuffle and draw 7 new ones, then put N on the bottom" (hand shown is already bottomed). | `adapter/prompts.ts` (`mulliganFacts`), `state/gameStart.ts` |
+## Focus ring and round counter (issue #29, U8)
+| What | Code |
+|---|---|
+| Keyboard focus: white 6 px double ring (`--focus-ring`), never a state colour or line style. Cards: inside the card edge over the frame; plates: outside the state outline; other controls: 2 px outside. | `styles/tokens.css`, `styles/global.css`, `Card.module.css`, `PlayerPlate.module.css` |
+| Top bar "Round 7 · Turn 26" (FR "Tour de table 7 · Tour 26"): bridge `round` (`RoundCounter`); mock: turn ÷ players, rounded up. | `state/gameStart.ts` (`turnNumberText`), `TopBar.tsx`, `adapter/session.ts`, `mock/engine.ts` |

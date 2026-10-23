@@ -582,7 +582,7 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
       chosen,
       min: input.ok.enabled ? chosen.length : Math.max(chosen.length + 1, input.selectable?.min ?? 1),
       max,
-      ...(info ? { purpose: 'target' as const } : {}),
+      ...(info?.kind === 'target' ? { purpose: 'target' as const } : {}),
       ...(info?.ability ? { ability: info.ability } : {}),
     };
   }
@@ -771,6 +771,7 @@ export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup,
     ...(starting ? { starting: true } : {}),
     turn: {
       number: gp.Turn ?? 0,
+      ...(s.round !== undefined ? { round: s.round } : {}),
       activePlayerId: sid(activeId),
       step: STEP_OF[gp.Phase ?? 'UNTAP'] ?? 'untap',
       priorityPlayerId: priority !== undefined ? sid(priority) : undefined,
