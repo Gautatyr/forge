@@ -26,6 +26,7 @@ import forge.game.card.CardView;
 import forge.game.event.GameEvent;
 import forge.game.event.GameEventShuffle;
 import forge.game.event.GameEventSnapshotRestored;
+import forge.game.event.GameEventTurnBegan;
 import forge.game.player.PlayerView;
 import forge.game.zone.ZoneType;
 import forge.gamemodes.net.DeltaPacket;
@@ -94,6 +95,8 @@ public final class GameStream {
     private int gameNumber;
     private int logIndex;
     private int lastSampledTurn = -1;
+    /** The round beside the turn number (top bar); fed by the published turn events. */
+    private final RoundCounter rounds = new RoundCounter();
     private ViewerStream spectator;
     private List<ViewerStream> seats = List.of();
     /** Each seat's card-text language ({@code en} unless set), kept across games. */
@@ -148,6 +151,7 @@ public final class GameStream {
             logTail.clear();
             logIndex = 0;
             lastSampledTurn = -1;
+            rounds.reset();
             gameNumber++;
             metrics = new StreamMetrics(label + "-game" + gameNumber);
             gameOver = new CountDownLatch(1);
@@ -245,7 +249,7 @@ public final class GameStream {
             if (d.isEmpty()) {
                 return;
             }
-            String text = deltaJson(vs, d, new JsonArray(), new JsonArray(), false);
+            String text = deltaJson(vs, d, new JsonArray(), new JsonArray(), null, false);
             for (Map.Entry<ClientSink, Integer> c : clients.entrySet()) {
                 if (c.getValue() == seat) {
                     c.getKey().send(text);
@@ -352,6 +356,9 @@ public final class GameStream {
         JsonArray log = new JsonArray();
         logTail.forEach(log::add);
         o.add("log", log);
+        if (rounds.round() > 0) {
+            o.addProperty("round", rounds.round());
+        }
         String s = o.toString();
         if (metrics != null) {
             metrics.recordSnapshotSerialize(System.nanoTime() - t0);
@@ -387,6 +394,13 @@ public final class GameStream {
             Flush flush = new Flush(live, news, changes, reorderedCards(live, events));
             JsonArray newLog = drainLog();
             JsonArray eventNames = eventNames(events);
+            int roundBefore = rounds.round();
+            for (GameEvent ev : events) {
+                if (ev instanceof GameEventTurnBegan tb) {
+                    rounds.turnBegan(tb.turnOwner().getId(), inGamePlayerIds());
+                }
+            }
+            Integer round = rounds.round() != roundBefore ? rounds.round() : null;
 
             List<ViewerStream> all = new ArrayList<>(seats.size() + 1);
             all.add(spectator);
@@ -394,10 +408,10 @@ public final class GameStream {
             long seatBytes = 0;
             for (ViewerStream vs : all) {
                 ViewerStream.Delta d = vs.apply(flush);
-                if (d.isEmpty() && newLog.isEmpty() && !final0) {
+                if (d.isEmpty() && newLog.isEmpty() && round == null && !final0) {
                     continue;
                 }
-                String text = deltaJson(vs, d, newLog, eventNames, final0);
+                String text = deltaJson(vs, d, newLog, eventNames, round, final0);
                 for (Map.Entry<ClientSink, Integer> c : clients.entrySet()) {
                     if (streamFor(c.getValue()) == vs) {
                         c.getKey().send(text);
@@ -428,7 +442,21 @@ public final class GameStream {
         }
     }
 
-    private String deltaJson(ViewerStream vs, ViewerStream.Delta d, JsonArray newLog, JsonArray eventNames, boolean final0) {
+    /** The players still in the game, in turn order (the view's list holds every player of the game). */
+    private List<Integer> inGamePlayerIds() {
+        List<Integer> ids = new ArrayList<>();
+        if (gameView.getPlayers() != null) {
+            for (PlayerView p : gameView.getPlayers()) {
+                if (!p.getHasLost()) {
+                    ids.add(p.getId());
+                }
+            }
+        }
+        return ids;
+    }
+
+    /** {@code round}: the new round when this flush changed it, else null (absent). */
+    private String deltaJson(ViewerStream vs, ViewerStream.Delta d, JsonArray newLog, JsonArray eventNames, Integer round, boolean final0) {
         JsonObject msg = new JsonObject();
         msg.addProperty("t", "delta");
         msg.addProperty("game", gameNumber);
@@ -458,6 +486,9 @@ public final class GameStream {
         msg.add("removed", r);
         msg.add("log", newLog);
         msg.add("events", eventNames);
+        if (round != null) {
+            msg.addProperty("round", round);
+        }
         if (final0) {
             msg.addProperty("final", true);
         }
