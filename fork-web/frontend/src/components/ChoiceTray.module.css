@@ -113,6 +113,10 @@
   min-height: 0;
 }
 
+.body[data-fitting] * {
+  transition: none !important;
+}
+
 .options {
   display: flex;
   flex-wrap: wrap;

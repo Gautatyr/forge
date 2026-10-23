@@ -5,6 +5,7 @@ import { Card } from '../Card';
 import { Icon } from '../Icon';
 import { ManaCost } from '../ManaCost';
 import type { BodyProps } from './TrayBody';
+import { TILE_CW } from './tileFit';
 import { chosenIn, dropFromGroup, stepGroup, toggleOption } from './trayLogic';
 import styles from '../ChoiceTray.module.css';
 import { t } from '../../i18n';
@@ -59,7 +60,7 @@ function CardTile({ o, index, chosen, onClick }: OptionProps) {
   return (
     <div className={`${styles.tile} ${chosen ? styles.tileChosen : ''}`}>
       {card ? (
-        <Card card={card} context="thumb" style={{ '--cw': '6.6rem' } as CSSProperties} onActivate={onClick} ariaExtra={chosen ? 'chosen' : undefined} />
+        <Card card={card} context="thumb" style={{ '--cw': TILE_CW } as CSSProperties} onActivate={onClick} ariaExtra={chosen ? 'chosen' : undefined} />
       ) : null}
       <button type="button" className={`${styles.option} ${chosen ? styles.chosen : ''}`} aria-pressed={chosen} onClick={onClick}>
         <OptionKey index={index} chosen={chosen} />
@@ -85,7 +86,7 @@ function GroupTile({ o, members, index, chosen, onStep, onDrop }: { o: ChoiceOpt
           card={card}
           context="thumb"
           count={members.length}
-          style={{ '--cw': '6.6rem' } as CSSProperties}
+          style={{ '--cw': TILE_CW } as CSSProperties}
           onActivate={onStep}
           ariaExtra={chosen > 0 ? t('tray.chosenCount', { count: chosen }) : undefined}
         />
