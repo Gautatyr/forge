@@ -124,6 +124,8 @@ export class LiveSession {
   attackOptions?: AttackOptionsMessage['defenders'];
   /** attackOptions.max: the most creatures that may attack together (Silent Arbiter). */
   attackMax?: number;
+  /** yields: the abilities you auto-yield ("Always yield to this"), by the engine's key; a new game starts empty. */
+  yields: string[] = [];
   /** showRevealedCards: cards the engine shows you until the input ends (e.g. an opponent's hand). */
   revealed: number[] = [];
   /** Last card this client clicked (selectCard): names the spell being paid for when the engine's ref is unknown. */
@@ -244,6 +246,7 @@ export class LiveSession {
         this.blockOptions = undefined;
         this.attackOptions = undefined;
         this.attackMax = undefined;
+        this.yields = []; // the greeting that follows a snapshot re-sends them
         if (newGame) {
           this.lastCard = undefined;
           this.lastCardFrom = undefined;
@@ -315,6 +318,9 @@ export class LiveSession {
       case 'attackOptions':
         this.attackOptions = frame.defenders;
         this.attackMax = frame.max;
+        return 'ok';
+      case 'yields':
+        this.yields = frame.autoYieldTo;
         return 'ok';
       case 'rejected':
         // A bridge without per-seat language (setLanguage) answers it "unknown message type": nothing to tell the player.

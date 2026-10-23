@@ -77,7 +77,7 @@ function StackPanel() {
         {items.map((item, i) => {
           const src = game.cards[item.sourceCardId];
           const ctrl = player(game, item.controllerId);
-          const yieldKey = src?.name ?? item.text;
+          const yieldKey = item.yieldKey ?? src?.name ?? item.text;
           const yielding = game.autoYieldTo.includes(yieldKey);
           const chosen = d.kind === 'chooseTargets' && isTarget(d.chosen, item.id);
           const legal = d.kind === 'chooseTargets' && isTarget(d.legal, item.id);
@@ -140,7 +140,7 @@ function StackPanel() {
                     {chosen ? t('rail.targetChosen') : t('rail.targetThis')}
                   </button>
                 ) : null}
-                {!ctrl.isYou ? (
+                {item.kind !== 'spell' ? (
                   <button
                     type="button"
                     className={`${styles.yield} ${yielding ? styles.yieldOn : ''}`}

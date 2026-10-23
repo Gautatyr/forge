@@ -4,7 +4,7 @@ import { currentAttackAim } from '../state/focus';
 import { gameEndView, watching } from '../state/gameEnd';
 import { useMatch } from '../state/MatchContext';
 import { primaryAction } from '../state/primaryAction';
-import { dropsFocusAfterClick, escapeStep, handleSpace, pickDigitTarget, promptKeysLive, takesKeys } from '../state/promptKeys';
+import { dropsFocusAfterClick, escapeStep, handleSpace, ownsKey, pickDigitTarget, promptKeysLive } from '../state/promptKeys';
 import { NONE_GUARD } from './tray/trayLogic';
 import { Arrows } from './Arrows';
 import { Board } from './Board';
@@ -34,8 +34,9 @@ export function MatchScreen() {
   const onKey = useEffectEvent((e: KeyboardEvent) => {
     const { game, ui, setUi, send } = match;
     const el = e.target as HTMLElement | null;
-    // A field takes its own keys (a switch only with keyboard focus: after a click Space still passes, issue #126).
-    if (takesKeys(el) && e.key !== 'Escape') return;
+    // A field takes its own keys (a switch only with keyboard focus: after a click Space still passes, issue #126);
+    // a focused switch owns only Space and Enter, the other keys still play (P, issue #125).
+    if (ownsKey(el, e.key)) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     // A game-end dialog or panel owns the keyboard while open (GameEnd.tsx).
     if (gameEndView(game, ui) || ui.leftMatch) return;

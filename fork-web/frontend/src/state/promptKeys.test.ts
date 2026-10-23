@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Intent } from '../model/intents';
 import { scenarioById } from '../mock/scenarios';
 import type { GameView } from '../model/types';
-import { dropsFocusAfterClick, escapeStep, handleSpace, pickDigitTarget, promptKeysLive, takesKeys } from './promptKeys';
+import { dropsFocusAfterClick, escapeStep, handleSpace, ownsKey, pickDigitTarget, promptKeysLive, takesKeys } from './promptKeys';
 
 describe('prompt keys (inert under an inspector or an overlay)', () => {
   it('are live with nothing open', () => {
@@ -64,6 +64,16 @@ describe('a switch only takes the keys with keyboard focus (issue #126)', () => 
     expect(takesKeys({ tagName: 'SELECT' })).toBe(true);
     expect(takesKeys({ tagName: 'BUTTON' })).toBe(false);
     expect(takesKeys(null)).toBe(false);
+  });
+  it('a keyboard-focused switch owns only Space and Enter: P and the other hotkeys still play (issue #125)', () => {
+    expect(ownsKey(sw(true), ' ')).toBe(true);
+    expect(ownsKey(sw(true), 'Enter')).toBe(true);
+    expect(ownsKey(sw(true), 'p')).toBe(false);
+    expect(ownsKey(sw(true), 'Escape')).toBe(false);
+    expect(ownsKey(sw(false), ' ')).toBe(false);
+    expect(ownsKey({ tagName: 'INPUT', type: 'text', matches: () => false }, 'p')).toBe(true);
+    expect(ownsKey({ tagName: 'INPUT', type: 'text', matches: () => false }, 'Escape')).toBe(false);
+    expect(ownsKey(null, 'p')).toBe(false);
   });
   it('a click makes a pointer-focused switch give up focus, never a keyboard-focused one or a text field', () => {
     expect(dropsFocusAfterClick(sw(false))).toBe(true);

@@ -1871,6 +1871,12 @@ export interface BlockOptionsMessage {
   attackers: { card: number; blockers: number[]; ifFreed: number[]; min?: number }[];
 }
 
+/** The abilities the seat auto-yields ("Always yield to this"), as the engine keys them (the ability's text, without the card's id), when they change; sticky, and a new game starts empty. Honoured only while setAutoYield is on. */
+export interface YieldsMessage {
+  t: 'yields';
+  autoYieldTo: string[];
+}
+
 /** While the seat declares attackers, after each change: what the engine lets it attack (cleared by clearWeaklySelectable). */
 export interface AttackOptionsMessage {
   t: 'attackOptions';
@@ -1888,7 +1894,7 @@ export interface ActivateDescriptionMessage {
 }
 
 export type PromptMessage = PromptChoose | PromptConfirm | PromptOrder | PromptDistribute | PromptText;
-export type SeatMessage = CallMessage | PromptChoose | PromptConfirm | PromptOrder | PromptDistribute | PromptText | PromptClosedMessage | ReplyRejectedMessage | ActionRejectedMessage | RejectedMessage | BlockOptionsMessage | AttackOptionsMessage | ActivateDescriptionMessage;
+export type SeatMessage = CallMessage | PromptChoose | PromptConfirm | PromptOrder | PromptDistribute | PromptText | PromptClosedMessage | ReplyRejectedMessage | ActionRejectedMessage | RejectedMessage | BlockOptionsMessage | YieldsMessage | AttackOptionsMessage | ActivateDescriptionMessage;
 
 /** Answers an open prompt; the value's form depends on its shape. */
 export interface ReplyMessage {
@@ -1919,7 +1925,7 @@ export interface ActionMessage {
   index?: number;
   decision?: NextGameDecision;
   action?: DrawOfferMessageAction;
-  /** sendYieldUpdate. */
+  /** sendYieldUpdate: SkipPhase, InvolvedStops, AutoYieldTo {stackItem, active}, SetMarker/ClearMarker, StackYield… */
   update?: { kind: string; [field: string]: unknown };
 }
 
@@ -1940,4 +1946,16 @@ export interface SetPassAfterCastMessage {
   on: boolean;
 }
 
-export type ClientMessage = ReplyMessage | ActionMessage | RequestResyncMessage | SetLanguageMessage | SetPassAfterCastMessage;
+/** Auto-pass when I can't act (off by default): the seat passes the priority it has no playable action for; blocks, attacks, targets and choices are never skipped. Kept for the seat's later games; sent after the greeting and on change. */
+export interface SetAutoPassMessage {
+  t: 'setAutoPass';
+  on: boolean;
+}
+
+/** Auto-yield (off by default): honour the abilities the seat chose with action sendYieldUpdate {kind:'AutoYieldTo'}. Kept for the seat's later games; sent after the greeting and on change. */
+export interface SetAutoYieldMessage {
+  t: 'setAutoYield';
+  on: boolean;
+}
+
+export type ClientMessage = ReplyMessage | ActionMessage | RequestResyncMessage | SetLanguageMessage | SetPassAfterCastMessage | SetAutoPassMessage | SetAutoYieldMessage;

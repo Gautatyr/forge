@@ -620,6 +620,15 @@ export interface LiveLocal {
   passingUntilYourTurn: boolean;
   /** Turn number when "To my turn" was pressed. */
   passFromTurn?: number;
+  /** The seat's settings, kept by the client and applied by the bridge (issue #125); off by default. */
+  autoPass?: boolean;
+  autoYield?: boolean;
+}
+
+/** The engine's key of an ability, as `AutoYieldStore.abilitySuffix`: the stack item's key without the card's "Name (id=N): " prefix. */
+export function abilityKey(key: string): string {
+  const i = key.indexOf('): ');
+  return i < 0 ? key : key.slice(i + 3);
 }
 
 export const NO_LOCAL: LiveLocal = { passingUntilYourTurn: false };
@@ -727,6 +736,8 @@ export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup,
         kind: si.Ability ? ((si.SourceTrigger ?? -1) >= 0 ? 'trigger' : 'ability') : 'spell',
         text: si.Description ?? '',
         targets,
+        // the engine auto-yields abilities only (a spell on top of the stack is never skipped)
+        ...(si.Ability && si.Key ? { yieldKey: abilityKey(si.Key) } : {}),
       },
     ];
   });
@@ -786,10 +797,10 @@ export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup,
       priorityPlayerId: priority !== undefined ? sid(priority) : undefined,
     },
     combat,
-    autoPass: false,
+    autoPass: local.autoPass ?? false,
     autoPay,
-    autoYield: false,
-    autoYieldTo: [],
+    autoYield: local.autoYield ?? false,
+    autoYieldTo: s.yields,
     passingUntilYourTurn: local.passingUntilYourTurn,
     // Step changes are the strip's job, not the log's.
     log: s.log.filter((e) => e.type !== 'PHASE').map((e): LogEntry => ({ id: `w${e.id}`, turn: e.turn, text: logText(e.msg, cards, youName, logFaceDown) })),

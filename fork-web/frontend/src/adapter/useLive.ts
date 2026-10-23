@@ -5,7 +5,7 @@ import type { GameView } from '../model/types';
 import { DEFAULT_STOPS, type StopPrefs } from '../state/prefs';
 import { isStop } from '../state/stops';
 import { connectLive, streamUrl, type LiveSource } from './client';
-import { autoAnswer, intentToFrames, passAfterCastFrame, stopFrames } from './commands';
+import { autoAnswer, autoPassFrame, autoYieldFrame, intentToFrames, passAfterCastFrame, stopFrames } from './commands';
 import { bridgeImageLookup, ImageResolver } from './images';
 import { parseRecording, replaySource, RECORDINGS } from './replay';
 import type { Notice } from './session';
@@ -73,6 +73,8 @@ export function useLive(
   autoPay = false,
   language: Lang = 'en',
   passAfterCast = false,
+  autoPass = false,
+  autoYield = false,
 ): LiveApi | undefined {
   const [source, setSource] = useState<LiveSource>();
   const [error, setError] = useState<string>();
@@ -83,7 +85,8 @@ export function useLive(
     () => (config.kind === 'live' ? bridgeImageLookup(config.url, config.token, language) : images.lookup),
     [config, images, language],
   );
-  const [local, setLocal] = useState<LiveLocal>(NO_LOCAL);
+  const [localState, setLocal] = useState<LiveLocal>(NO_LOCAL);
+  const local = useMemo(() => ({ ...localState, autoPass, autoYield }), [localState, autoPass, autoYield]);
 
   useEffect(() => {
     if (config.kind === 'mock') return;
@@ -183,6 +186,12 @@ export function useLive(
     if (config.kind !== 'live' || !source || source.status !== 'open' || !hello) return;
     source.send([passAfterCastFrame(passAfterCast)]);
   }, [config.kind, source, source?.status, hello, passAfterCast]);
+
+  // Auto-pass and auto-yield → the bridge: the same, and it applies them to each game of the seat.
+  useEffect(() => {
+    if (config.kind !== 'live' || !source || source.status !== 'open' || !hello) return;
+    source.send([autoPassFrame(autoPass), autoYieldFrame(autoYield)]);
+  }, [config.kind, source, source?.status, hello, autoPass, autoYield]);
 
   // Phase stops → the engine (the bridge skips none until told): on connect, on a new game or player list, on every edit.
   const stopsKey =
