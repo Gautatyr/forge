@@ -5,7 +5,7 @@
    A card hovered inside the rail or the log drawer would sit under it: its preview takes the same box moved
    left of the rail, or of the drawer while it is open (previewSpot.ts), as an overlay over the board.
    Short rail column (previewSpot.ts): the preview leaves the rail for the board (.overBoard), so the panels keep
-   their size. */
+   their size, whatever the hovered card (a rail or drawer card too: it sits flush left of the rail or drawer). */
 .preview {
   --pv-notes: 5rem;
   /* The image's width, shared with the notes block above it. */

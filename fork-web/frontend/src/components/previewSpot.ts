@@ -4,7 +4,8 @@
  * shows beside that panel, on its left: left of the drawer while it is open, else left of the rail.
  * At small heights (the rail's panel column under IN_RAIL_MIN_COLUMN_REM) the rail cannot hold a readable preview and
  * complete Stack and Combat panels: the preview shows over the board instead (previewPlacement.ts; owner ruling
- * 2026-10-22, match-screen-decisions.md).
+ * 2026-10-22, match-screen-decisions.md). That includes a card hovered in the rail or drawer: its preview sits flush
+ * left of the rail (or drawer) at the hovered element's height, at the same readable size.
  */
 export const PREVIEW_BESIDE_ATTR = 'data-preview-beside';
 
@@ -28,6 +29,7 @@ export function previewBeside(el: Closest): boolean {
 
 /** `columnRem`: the rail's panel column height in rem; 0 or absent (not measured yet) keeps the rail spot. */
 export function previewSpot(hover: { beside?: boolean }, logOpen: boolean, columnRem = 0): PreviewSpot {
+  if (columnRem > 0 && columnRem < IN_RAIL_MIN_COLUMN_REM) return 'overBoard';
   if (hover.beside) return logOpen ? 'besideDrawer' : 'besideRail';
-  return columnRem > 0 && columnRem < IN_RAIL_MIN_COLUMN_REM ? 'overBoard' : 'rail';
+  return 'rail';
 }
