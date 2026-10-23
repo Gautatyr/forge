@@ -52,10 +52,13 @@ public class RoundStreamTest {
         stream.publish(List.of(turn(ps.get(1), 2), turn(ps.get(2), 3), turn(ps.get(0), 4), turn(ps.get(1), 5)), false);
         assertEquals(last(seat0).get("round").getAsInt(), 2);
 
-        // A flush that does not change the round leaves it out.
+        // A flush that does not change the round leaves it out (a life change makes sure a delta is sent).
         int mark = seat0.mark();
+        ps.get(2).setLife(15, null);
         stream.publish(List.of(turn(ps.get(2), 6)), false);
-        assertTrue(seat0.textSince(mark).isEmpty() || !last(seat0).has("round"));
+        String sent = seat0.textSince(mark);
+        assertFalse(sent.isEmpty(), "a delta is sent");
+        assertFalse(sent.contains("\"round\""), sent);
 
         // The first player is out: the next one opens the rounds.
         ps.get(0).getView().setHasLost(true);

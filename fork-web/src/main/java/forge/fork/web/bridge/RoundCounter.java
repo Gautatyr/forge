@@ -6,8 +6,9 @@ import java.util.List;
 /**
  * The round shown beside the turn number ("Round 7 · Turn 26"): how many times the first player has
  * started a turn. The first player is the starting player, or once they are out, the next player in
- * turn order still in the game; the round they were in goes on. A new round starts when turn order
- * wraps around, or when the first player takes an extra turn right after their own. Fed from
+ * turn order still in the game; the round they were in goes on. A new round starts only on a turn of the first
+ * player that does not follow later in turn order (a regular turn after a wrap, an extra turn, or a
+ * turn after a reversal); out-of-order turns of other players never start one. Fed from
  * {@code GameEventTurnBegan} in order, so batching never skips a turn. Not thread-safe (game thread).
  */
 public final class RoundCounter {
@@ -52,7 +53,7 @@ public final class RoundCounter {
             return round;
         }
         Integer first = order.stream().filter(inGame::contains).findFirst().orElse(null);
-        if (pos < lastPos || (pos == lastPos && Integer.valueOf(owner).equals(first))) {
+        if (Integer.valueOf(owner).equals(first) && pos <= lastPos) {
             round++;
         }
         lastPos = pos;

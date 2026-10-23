@@ -54,6 +54,27 @@ public class RoundCounterTest {
     }
 
     @Test
+    public void outOfOrderExtraTurnOfAnotherPlayerIsNotANewRound() {
+        RoundCounter rc = new RoundCounter();
+        // Player 2 gives player 1 an extra turn (Time Warp): 1 plays again after 2.
+        assertEquals(play(rc, List.of(0, 1, 2, 3), 0, 1, 2, 1, 3, 0), List.of(1, 1, 1, 1, 1, 2));
+    }
+
+    @Test
+    public void extraTurnAtEachOtherEndStepIsNotANewRound() {
+        RoundCounter rc = new RoundCounter();
+        // Player 1 takes an extra turn after every other player's turn (Lighthouse Chronologist).
+        assertEquals(play(rc, List.of(0, 1, 2, 3), 0, 1, 1, 2, 1, 3, 1, 0), List.of(1, 1, 1, 1, 1, 1, 1, 2));
+    }
+
+    @Test
+    public void reversedTurnOrderCountsFirstPlayerTurnsOnly() {
+        RoundCounter rc = new RoundCounter();
+        // Turn order reverses after player 2's turn (Aeon Engine).
+        assertEquals(play(rc, List.of(0, 1, 2, 3), 0, 1, 2, 1, 0, 3, 2, 1, 0), List.of(1, 1, 1, 1, 2, 2, 2, 2, 3));
+    }
+
+    @Test
     public void extraTurnOfTheFirstPlayerStartsARound() {
         RoundCounter rc = new RoundCounter();
         assertEquals(play(rc, List.of(0, 1, 2), 0, 1, 2, 0, 0, 1), List.of(1, 1, 1, 2, 3, 3));
