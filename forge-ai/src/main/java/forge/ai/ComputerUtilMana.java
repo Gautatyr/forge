@@ -9,6 +9,7 @@ import com.google.common.collect.MultimapBuilder;
 import com.google.common.collect.SetMultimap;
 import forge.ai.AiCardMemory.MemorySet;
 import forge.ai.ability.AnimateAi;
+import forge.card.CardStateName;
 import forge.card.ColorSet;
 import forge.card.MagicColor;
 import forge.card.mana.ManaAtom;
@@ -718,7 +719,7 @@ public class ComputerUtilMana {
             saList.removeAll(saExcludeList);
 
             if (sourcesForShards != null && !saList.isEmpty() && isAutoPayForHuman(ai)) {
-                sourcesForShards.replaceValues(toPay, sortForHumanAutoPay(saList, cost.getUnpaidShards(), sourcesForShards.values(), paymentList));
+                sourcesForShards.replaceValues(toPay, sortForHumanAutoPay(saList, cost.getUnpaidShards(), sourcesForShards.values(), paymentList, coloursStillNeeded(ai, sa)));
                 saList = sourcesForShards.get(toPay);
             }
 
@@ -1710,11 +1711,16 @@ public class ComputerUtilMana {
      * Auto for a human, re-done before every pick against what is still unpaid (unused mana is free, damage is not):
      * sources that hurt the payer go last, then sources that would leave mana floating (more units than the unpaid
      * shards can still take), then sources after which the rest of the cost cannot be paid without floating mana
-     * though another pick could (Mountain first against {R/G}{R/G} with a Gruul Turf left). Ties keep their order.
-     * Filter abilities (they need other mana) keep their place, front or back, as {@code sortManaAbilities} put them.
+     * though another pick could (Mountain first against {R/G}{R/G} with a Gruul Turf left). Then, against what the rest
+     * of the hand and the commanders still need ({@code needs}: per card face, one mask of the colours that can pay
+     * each coloured pip, so a hybrid pip is one need any of its colours meets; a card counts only while the untapped
+     * sources can be matched to all its pips): sources a counted card cannot do without go last; then the order of
+     * {@code sortManaAbilities} (creatures and cards with other abilities last); then sources the counted cards they
+     * serve have the most spare sources for go first. Ties keep their order. Filter abilities (they need other mana)
+     * keep their place, front or back, as {@code sortManaAbilities} put them.
      */
     private static List<SpellAbility> sortForHumanAutoPay(final Collection<SpellAbility> candidates, final List<ManaCostShard> unpaid,
-                                                          final Collection<SpellAbility> sources, final List<SpellAbility> paid) {
+                                                          final Collection<SpellAbility> sources, final List<SpellAbility> paid, final List<int[]> needs) {
         final List<SpellAbility> plain = new ArrayList<>();
         final List<SpellAbility> filters = new ArrayList<>();
         for (SpellAbility m : candidates) {
@@ -1724,11 +1730,41 @@ public class ComputerUtilMana {
         final boolean sized = unpaid.stream().noneMatch(shard -> shard.isOr2Generic() || shard.isOfKind(ManaAtom.IS_X));
         final Set<Card> taken = paid.stream().map(SpellAbility::getHostCard).collect(Collectors.toSet());
         final Map<Card, Integer> units = new HashMap<>();
+        final Map<Card, Integer> hostMasks = new HashMap<>(); // every colour a source can make (tapping it loses them all)
         for (SpellAbility m : sources) {
             if (!taken.contains(m.getHostCard())) {
                 units.merge(m.getHostCard(), Math.max(0, m.amountOfManaGenerated(true)), Math::max);
+                int mask = 0;
+                for (final byte unit : producedMasks(m)) {
+                    mask |= unit;
+                }
+                hostMasks.merge(m.getHostCard(), mask, (a, b) -> a | b);
             }
         }
+        final List<Card> hosts = new ArrayList<>(hostMasks.keySet());
+        final int[] masks = new int[hosts.size()];
+        for (int i = 0; i < masks.length; i++) {
+            masks[i] = hostMasks.get(hosts.get(i));
+        }
+        // a card counts only while the sources left can be matched to all its pips (red sources can never pay {R}{R}{R} on two)
+        final List<int[]> counted = new ArrayList<>();
+        final List<Integer> spare = new ArrayList<>(); // sources that can pay one of its pips, beyond the pips
+        for (final int[] pips : needs) {
+            if (maxMatching(pips, masks, -1) == pips.length) {
+                int any = 0;
+                for (final int pip : pips) {
+                    any |= pip;
+                }
+                int usable = 0;
+                for (final int mask : masks) {
+                    usable += (mask & any) != 0 ? 1 : 0;
+                }
+                counted.add(pips);
+                spare.add(usable - pips.length);
+            }
+        }
+        final Map<Card, int[]> scarcity = new HashMap<>(); // per source card: {cannot be done without, least spare}
+        final Map<Card, Integer> scores = new HashMap<>();
         final Map<SpellAbility, int[]> keys = new HashMap<>();
         for (SpellAbility m : plain) {
             final int made = producedMasks(m).size();
@@ -1748,13 +1784,101 @@ public class ComputerUtilMana {
                 }
                 forced = !reach[rest];
             }
-            keys.put(m, new int[] { hurtsPayer(m) ? 1 : 0, wasted, forced ? 1 : 0 });
+            final int[] scarce = scarcity.computeIfAbsent(m.getHostCard(), host -> {
+                final int at = hosts.indexOf(host);
+                int essential = 0;
+                int least = Integer.MAX_VALUE;
+                for (int c = 0; at >= 0 && c < counted.size(); c++) {
+                    final int[] pips = counted.get(c);
+                    int any = 0;
+                    for (final int pip : pips) {
+                        any |= pip;
+                    }
+                    if ((masks[at] & any) != 0) {
+                        essential |= maxMatching(pips, masks, at) < pips.length ? 1 : 0;
+                        least = Math.min(least, spare.get(c));
+                    }
+                }
+                return new int[] { essential, least };
+            });
+            final int score = scores.computeIfAbsent(m.getHostCard(), ComputerUtilMana::scoreManaProducingCard);
+            keys.put(m, new int[] { hurtsPayer(m) ? 1 : 0, wasted, forced ? 1 : 0, scarce[0], score,
+                    scarce[1] == Integer.MAX_VALUE ? 0 : 1000 - scarce[1] });
         }
         plain.sort((a, b) -> Arrays.compare(keys.get(a), keys.get(b))); // stable
         final boolean filtersFirst = !candidates.isEmpty() && getGenericCostToActivate(candidates.iterator().next()) > 0;
         final List<SpellAbility> result = new ArrayList<>(filtersFirst ? filters : plain);
         result.addAll(filtersFirst ? plain : filters);
         return result;
+    }
+
+    /**
+     * For every castable face of every other card in the payer's hand (spell being paid excepted) and of the commanders in
+     * the command zone (both halves of a split card, an adventure, the back of a modal double-faced card), one mask per
+     * coloured or colourless pip: the {@code ManaAtom} colours that can pay it. A hybrid pip is one pip with both colours;
+     * {2/C} and Phyrexian pips keep their colour (the alternative is not a mana source). Generic pips are left out.
+     */
+    private static List<int[]> coloursStillNeeded(final Player payer, final SpellAbility paying) {
+        final List<int[]> needs = new ArrayList<>();
+        for (final Card c : CardCollection.combine(payer.getCardsIn(ZoneType.Hand), payer.getCardsIn(ZoneType.Command))) {
+            if (c.equals(paying.getHostCard()) || (c.isInZone(ZoneType.Command) && !c.isCommander())) {
+                continue;
+            }
+            final List<CardStateName> faces = new ArrayList<>();
+            if (c.hasState(CardStateName.LeftSplit)) {
+                faces.add(CardStateName.LeftSplit);
+                faces.add(CardStateName.RightSplit);
+            } else {
+                faces.add(CardStateName.Original);
+            }
+            faces.add(CardStateName.Secondary);
+            if (c.isModal()) {
+                faces.add(CardStateName.Backside);
+            }
+            for (final CardStateName face : faces) {
+                if (!c.hasState(face)) {
+                    continue;
+                }
+                final List<Integer> pips = new ArrayList<>();
+                for (final ManaCostShard shard : c.getState(face).getManaCost()) {
+                    final int mask = shard.getShard() & ManaAtom.ALL_MANA_TYPES;
+                    if (mask != 0) {
+                        pips.add(mask);
+                    }
+                }
+                if (!pips.isEmpty()) {
+                    needs.add(pips.stream().mapToInt(Integer::intValue).toArray());
+                }
+            }
+        }
+        return needs;
+    }
+
+    /** Most of {@code pips} (colour masks) that distinct sources (colour masks, {@code skip} left out) can pay, one source per pip. */
+    private static int maxMatching(final int[] pips, final int[] sources, final int skip) {
+        final int[] owner = new int[sources.length]; // pip paid by each source, -1 none
+        Arrays.fill(owner, -1);
+        int matched = 0;
+        for (int pip = 0; pip < pips.length; pip++) {
+            if (augments(pip, pips, sources, skip, owner, new boolean[sources.length])) {
+                matched++;
+            }
+        }
+        return matched;
+    }
+
+    private static boolean augments(final int pip, final int[] pips, final int[] sources, final int skip, final int[] owner, final boolean[] seen) {
+        for (int src = 0; src < sources.length; src++) {
+            if (src == skip || seen[src] || (sources[src] & pips[pip]) == 0) {
+                continue;
+            }
+            seen[src] = true;
+            if (owner[src] < 0 || augments(owner[src], pips, sources, skip, owner, seen)) {
+                owner[src] = pip;
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The mana {@code ma} makes, one mask per unit. */
