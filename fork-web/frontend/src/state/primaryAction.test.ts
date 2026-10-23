@@ -336,11 +336,38 @@ describe('card picks are worded from what the engine asks (issue #81)', () => {
   it('a discard reads as a discard with its range, never as casting the source', () => {
     const none = primaryAction(at(pick({})), INITIAL_UI, DEFAULT_STOPS);
     expect(none.label).toBe('Discard none');
-    expect(none.detail).toBe('Discard 2 card(s) · up to 2');
+    // Choosing none declines the pick (U8): N sends it, never Space; the detail says so.
+    expect(none.detail).toBe('Gives something up: press N, not Space');
+    expect(none.guard).toEqual({ key: 'n', label: 'N' });
     expect(none.enabled).toBe(true);
     const one = primaryAction(at(pick({ chosen: [{ kind: 'card', id: '20' }], instruction: 'Discard 1 card(s)' })), INITIAL_UI, DEFAULT_STOPS);
     expect(one.label).toBe('Discard (1)');
     expect(one.detail).toBe('Raise the Alarm · up to 2');
+  });
+
+  it('Space-default safety (U8): a pick with something chosen, or a target, has no guard', () => {
+    expect(primaryAction(at(pick({ chosen: [{ kind: 'card', id: '20' }] })), INITIAL_UI, DEFAULT_STOPS).guard).toBeUndefined();
+    const target: Decision = { kind: 'chooseTargets', sourceCardId: '15', instruction: 'Select up to 1 target', legal: [{ kind: 'card', id: '20' }], chosen: [], min: 0, max: 1, purpose: 'target' };
+    expect(primaryAction(at(target), INITIAL_UI, DEFAULT_STOPS).guard).toBeUndefined();
+  });
+
+  it("Space-default safety (U8): a choice whose answer gives something up carries the tray's guard", () => {
+    const prompt = {
+      id: 'input:buttons:x',
+      shape: 'yesNo' as const,
+      title: 'Cancel Search?',
+      instruction: '',
+      confirmLabel: 'Yes',
+      yesLabel: 'Yes',
+      noLabel: 'No',
+      giveUp: 'yes' as const,
+    };
+    const a = primaryAction(at({ kind: 'choice', prompt }), INITIAL_UI, DEFAULT_STOPS);
+    expect(a.guard).toEqual({ key: 'y', label: 'Y' });
+    expect(a.detail).toBe('Gives something up: press Y, not Space');
+    const plain = primaryAction(at({ kind: 'choice', prompt: { ...prompt, giveUp: undefined } }), INITIAL_UI, DEFAULT_STOPS);
+    expect(plain.guard).toBeUndefined();
+    expect(plain.detail).toBe('Cancel Search?');
   });
 
   it('a sacrifice cost reads as a sacrifice; too few picked asks for more', () => {

@@ -4,7 +4,7 @@ import { parseCost, poolTotal } from '../model/mana';
 import { nameOfCard, player, targetName, you } from '../model/selectors';
 import type { ChoicePrompt, GameView, StepId } from '../model/types';
 import { distributeConfirm, inputConfirm, inputStart, startAmounts } from '../components/tray/numberLogic';
-import { trayConfirm, trayDraft } from '../components/tray/trayLogic';
+import { guardHint, NONE_GUARD, trayConfirm, trayDraft, type Guard } from '../components/tray/trayLogic';
 import { attackCapText, overAttackCap } from './attackLimit';
 import { incoming, incomingText, strikeDamage } from './combatForecast';
 import { watching } from './gameEnd';
@@ -23,6 +23,8 @@ export interface PrimaryAction {
   enabled: boolean;
   tone: Tone;
   intent?: Intent;
+  /** The intent gives something up (U8): Space never sends it, this key does; the detail says so. */
+  guard?: Guard;
 }
 
 /** The draft for a prompt, initialised from the prompt when missing or stale. */
@@ -155,7 +157,8 @@ export function primaryAction(game: GameView, ui: UiState, stops: StopPrefs): Pr
       const c = trayConfirm(d.prompt, trayDraft(d.prompt, ui.choiceDraft));
       return {
         label: c.label,
-        detail: d.prompt.title,
+        detail: c.guard ? guardHint(c.guard) : d.prompt.title,
+        ...(c.guard ? { guard: c.guard } : {}),
         enabled: c.enabled,
         tone: 'priority',
         intent: c.enabled && c.answer ? { type: 'answer', promptId: d.prompt.id, answer: c.answer } : undefined,
@@ -187,6 +190,10 @@ function pickAction(game: GameView, d: Extract<GameView['decision'], { kind: 'ch
   const withRange = (s: string) => [s, range].filter(Boolean).join(' · ');
   const verb = pickVerb(d.instruction);
   if (n < d.min) return { label: t('pa.pickMore', { verb, count: d.min - n }), detail: withRange(d.instruction), enabled: false, tone: 'priority' };
+  // Picking none of an optional pick declines it (U8): N, never Space.
+  if (n === 0 && d.legal.length > 0) {
+    return { label: t('pa.pickNone', { verb }), detail: guardHint(NONE_GUARD), enabled: true, tone: 'priority', intent: { type: 'primary' }, guard: NONE_GUARD };
+  }
   return {
     label: n === 0 ? t('pa.pickNone', { verb }) : `${verb} (${n})`,
     detail: withRange(n === 0 ? d.instruction : d.chosen.map((c) => targetName(game, c)).join(', ')),
