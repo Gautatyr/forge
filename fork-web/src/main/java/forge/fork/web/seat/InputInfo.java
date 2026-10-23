@@ -15,6 +15,7 @@ import forge.game.spellability.SpellAbility;
 import forge.game.trigger.WrappedAbility;
 import forge.gamemodes.match.input.Input;
 import forge.gamemodes.match.input.InputBase;
+import forge.gamemodes.match.input.InputConfirm;
 import forge.gamemodes.match.input.InputPayMana;
 import forge.gamemodes.match.input.InputSelectManyBase;
 import forge.gamemodes.match.input.InputSelectStackItems;
@@ -27,7 +28,9 @@ import forge.gamemodes.match.input.InputSelectTargets;
  * {@code ability} (targets): the spell, activated or triggered ability the targets are for. {@code decline} (picks): the
  * input pays an "unless" cost and Cancel lets this happen: the engine's words ({@code PlaySpellAbility.getOrStringFromCost})
  * worded for the seat ({@link #declineWords}). {@code kind} {@code pay} ({@link InputPayMana}): {@code payFor} is the
- * activated ability being paid for ("Equip {2}", {@link #payAbility}); absent for a spell.
+ * activated ability being paid for ("Equip {2}", {@link #payAbility}); absent for a spell. {@code kind} {@code confirm}
+ * ({@link InputConfirm}, a yes/no on the buttons): {@code giveUp} {@code yes} when Yes gives up what the seat was doing
+ * ({@link GiveUpConfirms}, U8: the page never answers it with Space).
  *
  * <p>The inputs keep their spell ability in a non-public field ({@code sa}; {@code saPaidFor} for a payment), read by reflection; when it is renamed upstream
  * the info keeps its {@code kind} only ({@code InputInfoTest} fails).
@@ -38,8 +41,11 @@ final class InputInfo {
 
     private InputInfo() { }
 
-    /** Null for an input that is not a selection. */
+    /** Null for an input that is neither a selection, a payment nor a yes/no. */
     static JsonObject of(Input in) {
+        if (in instanceof InputConfirm confirm) {
+            return confirm(confirm);
+        }
         String kind = in instanceof InputSelectTargets || in instanceof InputSelectStackItems ? "target"
                 : in instanceof InputSelectManyBase<?> ? "pick"
                 : in instanceof InputPayMana ? "pay" : null;
@@ -69,6 +75,33 @@ final class InputInfo {
             }
         }
         return o;
+    }
+
+    private static JsonObject confirm(InputConfirm in) {
+        JsonObject o = new JsonObject();
+        o.addProperty("kind", "confirm");
+        if (GiveUpConfirms.yesGivesUp(confirmMessage(in))) {
+            o.addProperty("giveUp", "yes");
+        }
+        return o;
+    }
+
+    /** The question as the engine asked it: {@code showMessage} may prefix the card and its ability to it. */
+    private static String confirmMessage(InputConfirm in) {
+        try {
+            Field f = FIELDS.computeIfAbsent(InputConfirm.class, c -> {
+                try {
+                    Field x = c.getDeclaredField("message");
+                    x.setAccessible(true);
+                    return x;
+                } catch (ReflectiveOperationException e) {
+                    throw new IllegalStateException(e);
+                }
+            });
+            return f.get(in) instanceof String s ? s : null;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return null;
+        }
     }
 
     static SpellAbility spellAbility(Input in) {

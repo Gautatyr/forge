@@ -582,7 +582,7 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
       chosen,
       min: input.ok.enabled ? chosen.length : Math.max(chosen.length + 1, input.selectable?.min ?? 1),
       max,
-      ...(info ? { purpose: 'target' as const } : {}),
+      ...(info?.kind === 'target' ? { purpose: 'target' as const } : {}),
       ...(info?.ability ? { ability: info.ability } : {}),
     };
   }

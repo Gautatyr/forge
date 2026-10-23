@@ -100,24 +100,56 @@ export function counterText(p: ChooseNPrompt, n: number): string {
   return t('tray.between', { n, min: p.min, max: p.max });
 }
 
+/** The deliberate key that sends an answer Space won't (U8): `key` as KeyboardEvent.key in lower case, `label` as shown. */
+export interface Guard {
+  key: string;
+  label: string;
+}
+
+/** The key that chooses none of an optional pick. */
+export const NONE_GUARD: Guard = { key: 'n', label: 'N' };
+
 export interface Confirm {
   enabled: boolean;
   /** Button text; when disabled it says why ("Choose 1 more"). */
   label: string;
   answer?: PromptAnswer;
+  /** The answer gives something up (U8): Space never sends it, this key does. */
+  guard?: Guard;
 }
+
+/**
+ * Space-default safety (U8): the key that must send `answer` instead of Space when it gives something up, from engine
+ * data only. A yes/no: the bridge's `giveUp` answer (its Y / N key). A pick: choosing none of the options of an optional
+ * choice declines it (N); the ability menu's empty answer cancels the activation (Esc).
+ */
+export function giveUpGuard(p: ChoicePrompt, answer: PromptAnswer | undefined): Guard | undefined {
+  if (p.shape === 'yesNo' && answer?.shape === 'yesNo' && p.giveUp && answer.yes === (p.giveUp === 'yes')) {
+    const k = yesNoKeys(p)[p.giveUp];
+    return { key: (k ?? '').toLowerCase(), label: k ?? '' };
+  }
+  if (p.shape === 'chooseN' && answer?.shape === 'chooseN' && answer.optionIds.length === 0 && p.max > 0 && p.options.length > 0) {
+    return p.abilityMenu ? { key: 'escape', label: t('key.esc') } : NONE_GUARD;
+  }
+  return undefined;
+}
+
+/** What a guarded answer's button says under it: the key that sends it, not Space. */
+export const guardHint = (g: Guard): string => (g.label ? t('safe.hint', { key: g.label }) : t('safe.hintClick'));
 
 /** The tray's confirm. Same answer and enablement as the main button (`answerFromDraft`). */
 export function trayConfirm(p: ChoicePrompt, d: ChoiceDraft): Confirm {
   if (p.shape === 'distribute') return distributeConfirm(p, d.amounts ?? startAmounts(p));
   if (p.shape === 'input') return inputConfirm(p, d.selected[0] ?? inputStart(p));
   const answer = answerFromDraft(p, d);
+  const guard = giveUpGuard(p, answer);
+  const guarded = guard ? { guard } : {};
   if (p.shape === 'chooseN' && !isReveal(p)) {
     const n = d.selected.length;
     if (n < p.min) return { enabled: false, label: p.quiet ? p.confirmLabel : t('tray.chooseMore', { count: p.min - n }) };
-    return { enabled: answer !== undefined, label: p.progress || p.quiet ? p.confirmLabel : `${p.confirmLabel} (${n})`, answer };
+    return { enabled: answer !== undefined, label: p.progress || p.quiet ? p.confirmLabel : `${p.confirmLabel} (${n})`, answer, ...guarded };
   }
-  return { enabled: answer !== undefined, label: p.confirmLabel, answer };
+  return { enabled: answer !== undefined, label: p.confirmLabel, answer, ...guarded };
 }
 
 /** Options shown for a filter query: all in engine order, or the matches by name or type line, sorted by name. */
@@ -210,6 +242,8 @@ export function yesNoKeys(p: YesNoPrompt): { yes?: string; no?: string } {
 
 export type KeyAction =
   | { kind: 'answer'; answer: PromptAnswer }
+  /** The key is the prompt's, and does nothing now (Space on an answer that gives something up, U8). */
+  | { kind: 'none' }
   | { kind: 'draft'; draft: ChoiceDraft }
   | { kind: 'peek' };
 
@@ -249,7 +283,12 @@ export function keyAction(
   }
   if (k === ' ') {
     const c = trayConfirm(p, d);
+    if (c.guard) return { kind: 'none' };
     return c.enabled && c.answer ? { kind: 'answer', answer: c.answer } : undefined;
+  }
+  if (p.shape === 'chooseN' && k === NONE_GUARD.key) {
+    const c = trayConfirm(p, d);
+    if (c.guard === NONE_GUARD && c.enabled && c.answer) return { kind: 'answer', answer: c.answer };
   }
   if (k === 'v') return { kind: 'peek' };
   if (p.shape === 'chooseN' && !isReveal(p)) {
