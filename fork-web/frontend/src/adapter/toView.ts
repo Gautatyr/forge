@@ -771,6 +771,7 @@ export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup,
     ...(starting ? { starting: true } : {}),
     turn: {
       number: gp.Turn ?? 0,
+      ...(s.round !== undefined ? { round: s.round } : {}),
       activePlayerId: sid(activeId),
       step: STEP_OF[gp.Phase ?? 'UNTAP'] ?? 'untap',
       priorityPlayerId: priority !== undefined ? sid(priority) : undefined,

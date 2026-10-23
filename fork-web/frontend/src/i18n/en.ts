@@ -255,6 +255,7 @@ export const en = {
   'top.yourTurn': 'Your turn',
   'top.theirTurn': '{name}\'s turn',
   'top.turn': 'Turn {n}',
+  'top.roundTurn': 'Round {round} · Turn {n}',
   'top.next': 'next:',
   'top.you': 'you',
   'top.waitYou': 'Waiting for you',

@@ -32,7 +32,9 @@ public final class WireEnvelope {
                     field("viewer", "{ seat: number; player: number; omniscient?: true } | { spectator: true; omniscient?: true }",
                             "Whose stream this is (Viewer.toJson); omniscient = debug FULL policy."),
                     field("objects", "WireObject[]", null),
-                    field("log", "LogEntry[]", "Tail of the game log, oldest first."))),
+                    field("log", "LogEntry[]", "Tail of the game log, oldest first."),
+                    new Field("round", "number", true,
+                            "Times the first player has started a turn (RoundCounter); absent before turn 1."))),
             new Message("delta", "DeltaMessage",
                     "Apply `new` (replaces the whole object), then `changed` (merge; null = back to default), then `removed`.",
                     List.of(
@@ -45,6 +47,7 @@ public final class WireEnvelope {
                             field("removed", "string[]", "Object keys: `type:id`, or `cardState:id:State`."),
                             field("log", "LogEntry[]", "Log entries since the previous message."),
                             field("events", "string[]", "Engine event class names without the `GameEvent` prefix."),
+                            new Field("round", "number", true, "The new round, when it changed (RoundCounter)."),
                             new Field("final", "true", true, "Last delta of the game."))));
 
     /** A TypeScript declaration the seat messages use. */

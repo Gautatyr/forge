@@ -1459,6 +1459,8 @@ export interface SnapshotMessage {
   objects: WireObject[];
   /** Tail of the game log, oldest first. */
   log: LogEntry[];
+  /** Times the first player has started a turn (RoundCounter); absent before turn 1. */
+  round?: number;
 }
 
 /** Apply `new` (replaces the whole object), then `changed` (merge; null = back to default), then `removed`. */
@@ -1477,6 +1479,8 @@ export interface DeltaMessage {
   log: LogEntry[];
   /** Engine event class names without the `GameEvent` prefix. */
   events: string[];
+  /** The new round, when it changed (RoundCounter). */
+  round?: number;
   /** Last delta of the game. */
   final?: true;
 }

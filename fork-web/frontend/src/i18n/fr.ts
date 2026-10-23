@@ -257,6 +257,7 @@ export const fr: Record<MsgKey, Msg> = {
   'top.yourTurn': 'Votre tour',
   'top.theirTurn': 'Tour de {name}',
   'top.turn': 'Tour {n}',
+  'top.roundTurn': 'Tour de table {round} · Tour {n}',
   'top.next': 'ensuite :',
   'top.you': 'vous',
   'top.waitYou': 'On vous attend',

@@ -42,6 +42,13 @@ const selection = (sel: { cards?: object[]; min?: number; max?: number; targets?
 });
 
 describe('toGameView', () => {
+  it('carries the bridge round beside the turn number, and none before the bridge sends one', () => {
+    const s = session();
+    expect(toGameView(s).turn.round).toBeUndefined();
+    s.apply({ t: 'delta', game: 1, seq: 1, ts: 0, new: [], changed: [], removed: [], log: [], events: [], round: 2 });
+    expect(toGameView(s).turn).toMatchObject({ number: 5, round: 2 });
+  });
+
   it('puts you first and maps players', () => {
     const g = toGameView(session());
     expect(g.youId).toBe('0');

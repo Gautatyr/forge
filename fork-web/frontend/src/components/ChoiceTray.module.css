@@ -432,11 +432,6 @@
   background: var(--c-panel-raised);
 }
 
-.row:focus-within {
-  outline: var(--outline-w) solid var(--c-actionable);
-  outline-offset: 1px;
-}
-
 .rowIndex {
   min-width: 1.5em;
   text-align: center;

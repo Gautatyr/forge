@@ -151,8 +151,10 @@ function moveCard(g: MockGame, id: CardId, to: CardView['zone']) {
   if (to === 'hand') owner.handCount = owner.hand.length;
 }
 
-/** Recompute P/T and keywords from printed text, counters, attachments, anthems and end-of-turn effects. */
+/** Recompute the round, and P/T and keywords from printed text, counters, attachments, anthems and end-of-turn effects. */
 export function recompute(g: MockGame) {
+  // The mock keeps no turn history: players take turns in seat order from turn 1.
+  g.turn = { ...g.turn, round: Math.ceil(g.turn.number / Math.max(1, g.players.length)) };
   for (const c of Object.values(g.cards)) {
     if (c.zone !== 'battlefield') c.keywords = printedKeywords(currentFace(c).oracleText);
   }

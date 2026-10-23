@@ -40,6 +40,9 @@
   --c-targeted: #cc79a7;
   /* Neutral information. */
   --c-info: #0072b2;
+  /* Keyboard focus (U8): never a state. White, outside the Okabe–Ito set, and drawn as a double
+     line (--focus-ring) where every state is a single solid, dashed or dotted line. */
+  --c-focus: #ffffff;
   /* Text-safe tints of the state colours on dark surfaces (≥ 4.5:1 on --c-panel). */
   --c-attack-text: #ff9a5c;
   --c-block-text: #3fd1a6;
@@ -108,6 +111,15 @@
   --card-ratio: 0.716; /* width / height */
   --outline-w: 3px;
   --outline-w-strong: 4px;
+
+  /* --- Keyboard focus ring (U8) -------------------------------------------- */
+  /* 6 px double: two 2 px lines with a 2 px gap. Cards draw it inside their edge (the state ring is outside);
+     plates draw it outside their state outline with a 2 px gap. */
+  --focus-w: 6px;
+  --focus-ring: var(--focus-w) double var(--c-focus);
+  --focus-offset: 2px;
+  /* Plates: past the state outline (2px offset + --outline-w-strong, PlayerPlate.module.css). */
+  --focus-offset-plate: calc(2px + var(--outline-w-strong) + 2px);
 
   /* --- Layout ---------------------------------------------------------------- */
   --topbar-h: 3.75rem;

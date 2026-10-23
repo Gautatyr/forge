@@ -46,11 +46,6 @@
   background: var(--c-panel-raised);
 }
 
-.row:focus-within {
-  outline: var(--outline-w) solid var(--c-actionable);
-  outline-offset: 1px;
-}
-
 /* The trample row while a blocker lacks lethal damage: dashed edge, note says why. */
 .rowDisabled {
   border-style: dashed;
@@ -126,8 +121,8 @@
 }
 
 .value:focus-visible {
-  outline: var(--outline-w) solid var(--c-actionable);
-  outline-offset: 1px;
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 
 .value[aria-disabled] {
@@ -156,10 +151,10 @@
   text-align: center;
 }
 
-.numberInput:focus,
-.textInput:focus {
-  outline: var(--outline-w) solid var(--c-actionable);
-  outline-offset: 1px;
+.numberInput:focus-visible,
+.textInput:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 
 .range {

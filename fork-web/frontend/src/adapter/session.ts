@@ -106,6 +106,8 @@ export class LiveSession {
   game = -1;
   seq = -1;
   log: SessionLogEntry[] = [];
+  /** The bridge's round count (snapshot, then the deltas that change it); undefined before turn 1. */
+  round?: number;
   input: InputState = NO_INPUT;
   /** Open prompts, oldest first. */
   prompts: PromptMessage[] = [];
@@ -230,6 +232,7 @@ export class LiveSession {
         this.viewer = frame.viewer;
         this.game = frame.game;
         this.seq = frame.seq;
+        this.round = frame.round;
         this.awaitingSnapshot = false;
         // Every snapshot (connect, reconnect, resync) is followed by the seat's greeting, which re-sends the
         // current input and the prompts still open: drop ours, or a prompt closed meanwhile stays forever.
@@ -267,6 +270,7 @@ export class LiveSession {
           return 'resync';
         }
         this.seq = frame.seq;
+        if (frame.round !== undefined) this.round = frame.round;
         for (const o of frame.new) this.objects.set(objectKey(o), structuredClone(o));
         for (const patch of frame.changed) {
           const cur = this.objects.get(objectKey(patch));

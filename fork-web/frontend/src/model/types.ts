@@ -278,6 +278,8 @@ export type StepId =
 
 export interface TurnState {
   number: number;
+  /** Times the first player has started a turn ("Round 7 · Turn 26"); live, the bridge's RoundCounter. Absent from older recordings. */
+  round?: number;
   activePlayerId: PlayerId;
   step: StepId;
   /** Undefined while nobody holds priority (untap, cleanup, mid-resolution). */
