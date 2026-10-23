@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PREVIEW_BESIDE_ATTR, previewBeside, previewSpot } from './previewSpot';
+import { IN_RAIL_MIN_COLUMN_REM, PREVIEW_BESIDE_ATTR, previewBeside, previewSpot } from './previewSpot';
 
 /** An element whose ancestors (itself first) carry these attribute sets; `closest` takes `[attr]` selectors. */
 const el = (...chain: string[][]) => ({
@@ -22,5 +22,33 @@ describe('hover preview spot (PR #52 round 2)', () => {
     expect(previewSpot({}, true)).toBe('rail');
     expect(previewSpot({ beside: true }, false)).toBe('besideRail');
     expect(previewSpot({ beside: true }, true)).toBe('besideDrawer');
+  });
+});
+
+describe('hover preview at small heights (owner ruling 2026-10-22)', () => {
+  it('a short rail column moves the preview over the board', () => {
+    expect(previewSpot({}, false, IN_RAIL_MIN_COLUMN_REM - 0.1)).toBe('overBoard');
+    expect(previewSpot({ beside: false }, true, 30)).toBe('overBoard');
+  });
+
+  it('a tall column keeps the fixed rail spot (1080p: 50 rem)', () => {
+    expect(previewSpot({}, false, IN_RAIL_MIN_COLUMN_REM)).toBe('rail');
+    expect(previewSpot({}, false, 50.25)).toBe('rail');
+  });
+
+  it('1366x768 (44 rem) and 1280x720 (40 rem) are short, 1920x1080 is not', () => {
+    expect(previewSpot({}, false, 550 / 12.5)).toBe('overBoard');
+    expect(previewSpot({}, false, 502 / 12.5)).toBe('overBoard');
+    expect(previewSpot({}, false, 804 / 16)).toBe('rail');
+  });
+
+  it('a card hovered in the rail keeps the PR #52 rule at any height', () => {
+    expect(previewSpot({ beside: true }, false, 30)).toBe('besideRail');
+    expect(previewSpot({ beside: true }, true, 30)).toBe('besideDrawer');
+  });
+
+  it('an unmeasured column (0) keeps the rail spot', () => {
+    expect(previewSpot({}, false, 0)).toBe('rail');
+    expect(previewSpot({}, false)).toBe('rail');
   });
 });

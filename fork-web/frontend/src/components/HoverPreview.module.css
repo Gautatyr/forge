@@ -3,7 +3,9 @@
    or the action block. It takes its own height in the column, so the panels above it (stack, combat, Recent)
    reflow and stay readable while it shows; the image is at most half of the column, the notes stack above it.
    A card hovered inside the rail or the log drawer would sit under it: its preview takes the same box moved
-   left of the rail, or of the drawer while it is open (previewSpot.ts), as an overlay over the board. */
+   left of the rail, or of the drawer while it is open (previewSpot.ts), as an overlay over the board.
+   Short rail column (previewSpot.ts): the preview leaves the rail for the board (.overBoard), so the panels keep
+   their size. */
 .preview {
   --pv-notes: 5rem;
   /* The image's width, shared with the notes block above it. */
@@ -31,6 +33,14 @@
   right: calc(100% + var(--sp-2));
   left: auto;
   width: calc(100% - 2 * var(--sp-2));
+}
+
+/* Over the board: fixed to the window, placed by HoverPreview.tsx (left, top and --pv-w are set there). */
+.overBoard {
+  position: fixed;
+  z-index: var(--z-preview);
+  padding: 0;
+  visibility: hidden;
 }
 
 /* The drawer is fixed to the viewport's right edge, as the rail is. */

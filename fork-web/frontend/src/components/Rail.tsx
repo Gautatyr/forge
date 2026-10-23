@@ -10,6 +10,7 @@ import { HoverPreview } from './HoverPreview';
 import { Icon, SeatGlyph } from './Icon';
 import { LogText } from './LogText';
 import { PREVIEW_BESIDE_ATTR } from './previewSpot';
+import { useSize } from './useSize';
 import { recentRows } from './recentRows';
 import { zoneCardIds, zoneTitle } from './zoneBrowser';
 import styles from './Rail.module.css';
@@ -22,20 +23,23 @@ import { t, tDynamic, type MsgKey } from '../i18n';
  * content and anchored to the bottom edge, so its persistent controls never
  * move. Each region keeps its header in view and scrolls its own body, so an
  * open zone never pushes the log out of reach. The hover preview shows over
- * the regions, never over the board, the seats, the hand or the action block;
- * for a card hovered in the rail itself, left of it (previewSpot.ts).
+ * the regions, never over the seats, the hand or the action block; for a card
+ * hovered in the rail itself, left of it, and over the board when the column is
+ * too short for it (previewSpot.ts).
  */
 export function Rail() {
+  // The panel column's height decides where the hover preview shows (previewSpot.ts).
+  const [upper, size] = useSize<HTMLDivElement>();
   return (
     <aside className={styles.rail} {...{ [PREVIEW_BESIDE_ATTR]: '' }}>
-      <div className={styles.upper}>
+      <div className={styles.upper} ref={upper}>
         <div className={styles.regions}>
           <StackPanel />
           <CombatPanel />
           <ZoneViewer />
           <RecentEvents />
         </div>
-        <HoverPreview />
+        <HoverPreview columnRem={size.h / size.rem} />
       </div>
       <ActionPanel />
     </aside>
