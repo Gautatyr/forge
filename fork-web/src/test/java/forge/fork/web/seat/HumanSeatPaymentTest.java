@@ -857,7 +857,7 @@ public class HumanSeatPaymentTest {
         assertEquals(islandsTapped, 1, "the {1} was paid with an Island; seen " + seen);
     }
 
-    /** Issue #133: nothing else in hand needs a colour: the order is unchanged (Mountain, added first, pays {1}). */
+    /** Issue #133: nothing else in hand needs a colour: {1} is paid by exactly one land, nothing else is spent. */
     @Test
     public void autoPayGenericKeepsTheOrderWhenNoColourIsNeeded() throws Exception {
         start();
