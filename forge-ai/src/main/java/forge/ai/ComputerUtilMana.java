@@ -9,6 +9,7 @@ import com.google.common.collect.MultimapBuilder;
 import com.google.common.collect.SetMultimap;
 import forge.ai.AiCardMemory.MemorySet;
 import forge.ai.ability.AnimateAi;
+import forge.card.CardStateName;
 import forge.card.ColorSet;
 import forge.card.MagicColor;
 import forge.card.mana.ManaAtom;
@@ -1710,12 +1711,15 @@ public class ComputerUtilMana {
      * Auto for a human, re-done before every pick against what is still unpaid (unused mana is free, damage is not):
      * sources that hurt the payer go last, then sources that would leave mana floating (more units than the unpaid
      * shards can still take), then sources after which the rest of the cost cannot be paid without floating mana
-     * though another pick could (Mountain first against {R/G}{R/G} with a Gruul Turf left), then sources of colours
-     * the rest of the hand or a commander still needs go last (fewest such colours first). Ties keep their order.
-     * Filter abilities (they need other mana) keep their place, front or back, as {@code sortManaAbilities} put them.
+     * though another pick could (Mountain first against {R/G}{R/G} with a Gruul Turf left). Then, against what the rest
+     * of the hand and the commanders still need ({@code needed}, pips of one card per colour): sources that are the
+     * last ones left for a colour a card needs go last; then the order of {@code sortManaAbilities} (creatures and
+     * cards with other abilities last); then sources whose scarcest needed colour has the most sources left go first.
+     * Ties keep their order. Filter abilities (they need other mana) keep their place, front or back, as
+     * {@code sortManaAbilities} put them.
      */
     private static List<SpellAbility> sortForHumanAutoPay(final Collection<SpellAbility> candidates, final List<ManaCostShard> unpaid,
-                                                          final Collection<SpellAbility> sources, final List<SpellAbility> paid, final int neededColours) {
+                                                          final Collection<SpellAbility> sources, final List<SpellAbility> paid, final int[] needed) {
         final List<SpellAbility> plain = new ArrayList<>();
         final List<SpellAbility> filters = new ArrayList<>();
         for (SpellAbility m : candidates) {
@@ -1725,11 +1729,26 @@ public class ComputerUtilMana {
         final boolean sized = unpaid.stream().noneMatch(shard -> shard.isOr2Generic() || shard.isOfKind(ManaAtom.IS_X));
         final Set<Card> taken = paid.stream().map(SpellAbility::getHostCard).collect(Collectors.toSet());
         final Map<Card, Integer> units = new HashMap<>();
+        final Map<Card, Integer> hostMasks = new HashMap<>(); // every colour a source can make (tapping it loses them all)
         for (SpellAbility m : sources) {
             if (!taken.contains(m.getHostCard())) {
                 units.merge(m.getHostCard(), Math.max(0, m.amountOfManaGenerated(true)), Math::max);
+                int mask = 0;
+                for (final byte unit : producedMasks(m)) {
+                    mask |= unit;
+                }
+                hostMasks.merge(m.getHostCard(), mask, (a, b) -> a | b);
             }
         }
+        final int[] left = new int[MagicColor.WUBRGC.length]; // sources still untapped per needed colour
+        for (final int mask : hostMasks.values()) {
+            for (int i = 0; i < left.length; i++) {
+                if ((mask & MagicColor.WUBRGC[i]) != 0) {
+                    left[i]++;
+                }
+            }
+        }
+        final Map<Card, Integer> scores = new HashMap<>();
         final Map<SpellAbility, int[]> keys = new HashMap<>();
         for (SpellAbility m : plain) {
             final int made = producedMasks(m).size();
@@ -1749,11 +1768,18 @@ public class ComputerUtilMana {
                 }
                 forced = !reach[rest];
             }
-            int produced = 0;
-            for (final byte mask : producedMasks(m)) {
-                produced |= mask;
+            final int hostMask = hostMasks.getOrDefault(m.getHostCard(), 0);
+            boolean lastOne = false; // would leave fewer sources of a colour than one card needs
+            int slack = Integer.MAX_VALUE; // sources of the scarcest needed colour this one makes, beyond what a card needs
+            for (int i = 0; i < left.length; i++) {
+                if (needed[i] > 0 && (hostMask & MagicColor.WUBRGC[i]) != 0) {
+                    lastOne |= left[i] <= needed[i];
+                    slack = Math.min(slack, left[i] - needed[i]);
+                }
             }
-            keys.put(m, new int[] { hurtsPayer(m) ? 1 : 0, wasted, forced ? 1 : 0, Integer.bitCount(produced & neededColours) });
+            final int score = scores.computeIfAbsent(m.getHostCard(), ComputerUtilMana::scoreManaProducingCard);
+            keys.put(m, new int[] { hurtsPayer(m) ? 1 : 0, wasted, forced ? 1 : 0, lastOne ? 1 : 0, score,
+                    slack == Integer.MAX_VALUE ? 0 : 1000 - slack });
         }
         plain.sort((a, b) -> Arrays.compare(keys.get(a), keys.get(b))); // stable
         final boolean filtersFirst = !candidates.isEmpty() && getGenericCostToActivate(candidates.iterator().next()) > 0;
@@ -1762,15 +1788,44 @@ public class ComputerUtilMana {
         return result;
     }
 
-    /** The {@code ManaAtom} colours (and colourless) in the mana costs of the payer's hand, spell being paid excepted, and of commanders in the command zone. */
-    private static int coloursStillNeeded(final Player payer, final SpellAbility paying) {
-        int needed = 0;
+    /**
+     * Per {@code MagicColor.WUBRGC} colour (colourless last), the most pips of it in one card's mana cost among the payer's
+     * hand, spell being paid excepted, and the commanders in the command zone: what it takes to cast the dearest of them.
+     * Every castable face counts (both halves of a split card, an adventure, the back of a modal double-faced card);
+     * hybrid, {2/C} and Phyrexian shards count each of their colours.
+     */
+    private static int[] coloursStillNeeded(final Player payer, final SpellAbility paying) {
+        final int[] needed = new int[MagicColor.WUBRGC.length];
         for (final Card c : CardCollection.combine(payer.getCardsIn(ZoneType.Hand), payer.getCardsIn(ZoneType.Command))) {
             if (c.equals(paying.getHostCard()) || (c.isInZone(ZoneType.Command) && !c.isCommander())) {
                 continue;
             }
-            for (final ManaCostShard shard : c.getManaCost()) {
-                needed |= shard.getShard() & ManaAtom.ALL_MANA_TYPES;
+            final List<CardStateName> faces = new ArrayList<>();
+            if (c.hasState(CardStateName.LeftSplit)) {
+                faces.add(CardStateName.LeftSplit);
+                faces.add(CardStateName.RightSplit);
+            } else {
+                faces.add(CardStateName.Original);
+            }
+            faces.add(CardStateName.Secondary);
+            if (c.isModal()) {
+                faces.add(CardStateName.Backside);
+            }
+            for (final CardStateName face : faces) {
+                if (!c.hasState(face)) {
+                    continue;
+                }
+                final int[] pips = new int[needed.length];
+                for (final ManaCostShard shard : c.getState(face).getManaCost()) {
+                    for (int i = 0; i < pips.length; i++) {
+                        if ((shard.getShard() & MagicColor.WUBRGC[i]) != 0) {
+                            pips[i]++;
+                        }
+                    }
+                }
+                for (int i = 0; i < pips.length; i++) {
+                    needed[i] = Math.max(needed[i], pips[i]);
+                }
             }
         }
         return needed;
