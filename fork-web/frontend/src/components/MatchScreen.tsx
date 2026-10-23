@@ -4,6 +4,7 @@ import { currentAttackAim } from '../state/focus';
 import { gameEndView, watching } from '../state/gameEnd';
 import { useMatch } from '../state/MatchContext';
 import { primaryAction } from '../state/primaryAction';
+import { handleSpace, promptKeysLive } from '../state/promptKeys';
 import { NONE_GUARD } from './tray/trayLogic';
 import { Arrows } from './Arrows';
 import { Board } from './Board';
@@ -42,15 +43,14 @@ export function MatchScreen() {
     const d = game.decision;
     const key = e.key;
     const manaChoice = liveManaChoice(game, ui);
+    // The prompt's keys (Space, N, digits) are inert while an inspector or an overlay is open, as in the tray.
+    const promptKeys = promptKeysLive(ui);
 
     if (key === ' ') {
-      e.preventDefault();
-      const a = primaryAction(game, ui, prefs.stops);
-      // Never an answer that gives something up (U8): its own key sends it.
-      if (a.enabled && a.intent && !a.guard) send(a.intent);
+      handleSpace(e, ui, primaryAction(game, ui, prefs.stops), send);
       return;
     }
-    if (key.toLowerCase() === NONE_GUARD.key && !e.shiftKey) {
+    if (promptKeys && key.toLowerCase() === NONE_GUARD.key && !e.shiftKey) {
       const a = primaryAction(game, ui, prefs.stops);
       if (a.guard === NONE_GUARD && a.enabled && a.intent) {
         e.preventDefault();
@@ -99,7 +99,7 @@ export function MatchScreen() {
         return;
     }
     // A dual land's mana chooser: live only while paying or holding priority, so never alongside the tray.
-    if (/^[1-9]$/.test(key) && manaChoice) {
+    if (promptKeys && /^[1-9]$/.test(key) && manaChoice) {
       const colour = manaChoice.colours[Number(key) - 1];
       if (colour) {
         setUi({ manaChoice: undefined });

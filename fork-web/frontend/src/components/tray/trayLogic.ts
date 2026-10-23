@@ -5,6 +5,7 @@
  */
 import type { PromptAnswer } from '../../model/intents';
 import type { CardId, ChoiceOption, ChoicePrompt, ChooseNPrompt, GameView, PlayerId, YesNoPrompt } from '../../model/types';
+import { you } from '../../model/selectors';
 import { answerFromDraft, draftFor } from '../../state/primaryAction';
 import type { ChoiceDraft } from '../../state/ui';
 import { distributeConfirm, inputConfirm, inputStart, startAmounts } from './numberLogic';
@@ -137,6 +138,9 @@ export function giveUpGuard(p: ChoicePrompt, answer: PromptAnswer | undefined): 
 /** What a guarded answer's button says under it: the key that sends it, not Space. */
 export const guardHint = (g: Guard): string => (g.label ? t('safe.hint', { key: g.label }) : t('safe.hintClick'));
 
+/** The same hint while the filter box has focus: it takes the letters, so Esc leaves it before the key works. */
+export const guardHintFromFilter = (g: Guard): string => (g.label ? t('safe.hintFilter', { key: g.label }) : t('safe.hintClick'));
+
 /** The tray's confirm. Same answer and enablement as the main button (`answerFromDraft`). */
 export function trayConfirm(p: ChoicePrompt, d: ChoiceDraft): Confirm {
   if (p.shape === 'distribute') return distributeConfirm(p, d.amounts ?? startAmounts(p));
@@ -230,9 +234,20 @@ export function inPlaceRefs(game: GameView, p: ChoicePrompt): InPlaceRefs | unde
   return refs;
 }
 
-/** The options keys 1–9 name when they are picked in place (in your hand or on the board): the prompt's order. */
-export function inPlaceOptions(game: GameView, p: ChoicePrompt): ChoiceOption[] {
-  return p.shape === 'chooseN' && inPlaceRefs(game, p) ? p.options : [];
+/**
+ * What keys 1–9 name when the choice is made in place: the Nth card of your hand, in hand order (the one order the
+ * player can see and count), as that card's option, or undefined when it is not an option. Nothing on the board:
+ * the prompt's own order is not on screen there.
+ */
+export function inPlaceOptions(game: GameView, p: ChoicePrompt): (ChoiceOption | undefined)[] {
+  if (p.shape !== 'chooseN') return [];
+  const refs = inPlaceRefs(game, p);
+  if (!refs) return [];
+  const byHand = you(game).hand.slice(0, 9).map((id) => {
+    const optionId = refs.cards.get(id);
+    return optionId === undefined ? undefined : p.options.find((o) => o.id === optionId);
+  });
+  return byHand.some(Boolean) ? byHand : [];
 }
 
 /** The keys that answer a yes/no at once: Y / N unless the prompt names its own (the mulligan: M only). */
@@ -256,12 +271,13 @@ export interface KeyInput {
 
 /**
  * What a key does while a prompt is open; undefined leaves it to the screen's
- * own shortcuts. `visible` is the options in the order the tray shows them.
+ * own shortcuts. `visible` is what digits 1–9 name, by position: the options in the order the tray shows them, or
+ * (in place) the cards of your hand in hand order, a hole where a card is not an option.
  */
 export function keyAction(
   p: ChoicePrompt,
   d: ChoiceDraft,
-  visible: ChoiceOption[],
+  visible: ReadonlyArray<ChoiceOption | undefined>,
   e: KeyInput,
   /** Option id of a group's first card → every option id of the group (identical cards shown as one tile). */
   groups?: ReadonlyMap<string, string[]>,
