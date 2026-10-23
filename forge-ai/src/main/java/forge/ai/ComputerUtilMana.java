@@ -718,7 +718,7 @@ public class ComputerUtilMana {
             saList.removeAll(saExcludeList);
 
             if (sourcesForShards != null && !saList.isEmpty() && isAutoPayForHuman(ai)) {
-                sourcesForShards.replaceValues(toPay, sortForHumanAutoPay(saList, cost.getUnpaidShards(), sourcesForShards.values(), paymentList));
+                sourcesForShards.replaceValues(toPay, sortForHumanAutoPay(saList, cost.getUnpaidShards(), sourcesForShards.values(), paymentList, coloursStillNeeded(ai, sa)));
                 saList = sourcesForShards.get(toPay);
             }
 
@@ -1710,11 +1710,12 @@ public class ComputerUtilMana {
      * Auto for a human, re-done before every pick against what is still unpaid (unused mana is free, damage is not):
      * sources that hurt the payer go last, then sources that would leave mana floating (more units than the unpaid
      * shards can still take), then sources after which the rest of the cost cannot be paid without floating mana
-     * though another pick could (Mountain first against {R/G}{R/G} with a Gruul Turf left). Ties keep their order.
+     * though another pick could (Mountain first against {R/G}{R/G} with a Gruul Turf left), then sources of colours
+     * the rest of the hand or a commander still needs go last (fewest such colours first). Ties keep their order.
      * Filter abilities (they need other mana) keep their place, front or back, as {@code sortManaAbilities} put them.
      */
     private static List<SpellAbility> sortForHumanAutoPay(final Collection<SpellAbility> candidates, final List<ManaCostShard> unpaid,
-                                                          final Collection<SpellAbility> sources, final List<SpellAbility> paid) {
+                                                          final Collection<SpellAbility> sources, final List<SpellAbility> paid, final int neededColours) {
         final List<SpellAbility> plain = new ArrayList<>();
         final List<SpellAbility> filters = new ArrayList<>();
         for (SpellAbility m : candidates) {
@@ -1748,13 +1749,31 @@ public class ComputerUtilMana {
                 }
                 forced = !reach[rest];
             }
-            keys.put(m, new int[] { hurtsPayer(m) ? 1 : 0, wasted, forced ? 1 : 0 });
+            int produced = 0;
+            for (final byte mask : producedMasks(m)) {
+                produced |= mask;
+            }
+            keys.put(m, new int[] { hurtsPayer(m) ? 1 : 0, wasted, forced ? 1 : 0, Integer.bitCount(produced & neededColours) });
         }
         plain.sort((a, b) -> Arrays.compare(keys.get(a), keys.get(b))); // stable
         final boolean filtersFirst = !candidates.isEmpty() && getGenericCostToActivate(candidates.iterator().next()) > 0;
         final List<SpellAbility> result = new ArrayList<>(filtersFirst ? filters : plain);
         result.addAll(filtersFirst ? plain : filters);
         return result;
+    }
+
+    /** The {@code ManaAtom} colours (and colourless) in the mana costs of the payer's hand, spell being paid excepted, and of commanders in the command zone. */
+    private static int coloursStillNeeded(final Player payer, final SpellAbility paying) {
+        int needed = 0;
+        for (final Card c : CardCollection.combine(payer.getCardsIn(ZoneType.Hand), payer.getCardsIn(ZoneType.Command))) {
+            if (c.equals(paying.getHostCard()) || (c.isInZone(ZoneType.Command) && !c.isCommander())) {
+                continue;
+            }
+            for (final ManaCostShard shard : c.getManaCost()) {
+                needed |= shard.getShard() & ManaAtom.ALL_MANA_TYPES;
+            }
+        }
+        return needed;
     }
 
     /** The mana {@code ma} makes, one mask per unit. */

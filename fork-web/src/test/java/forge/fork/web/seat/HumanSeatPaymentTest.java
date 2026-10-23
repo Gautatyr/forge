@@ -777,4 +777,95 @@ public class HumanSeatPaymentTest {
         assertTrue(me.getManaPool().isEmpty(), "nothing left floating; seen " + seen);
         assertTrue(sol.isTapped() && mountain1.isTapped() && mountain2.isTapped() && plains.isTapped(), "all four paid; seen " + seen);
     }
+
+    /** Issue #133: {3} with 2 Mountains, 2 Islands and a Zoetic Cavern, a {1}{R} card in hand: the Mountains stay for it. */
+    @Test
+    public void autoPayGenericKeepsTheOnlyRedSourcesForTheHand() throws Exception {
+        start();
+        Card mountain1 = add("Mountain", me, ZoneType.Battlefield);
+        Card mountain2 = add("Mountain", me, ZoneType.Battlefield);
+        Card island1 = add("Island", me, ZoneType.Battlefield);
+        Card island2 = add("Island", me, ZoneType.Battlefield);
+        Card cavern = add("Zoetic Cavern", me, ZoneType.Battlefield);
+        Card vat = add("Mimic Vat", me, ZoneType.Hand);
+        add("Curse of the Pierced Heart", me, ZoneType.Hand);
+        List<String> seen = castWithAuto(vat);
+        assertCleanPlan(vat, seen, mountain1, mountain2);
+        assertTrue(island1.isTapped() && island2.isTapped() && cavern.isTapped(), "Islands and Cavern paid; seen " + seen);
+    }
+
+    /** Issue #133: {1}{R}{R} with a red Chrome Mox, 2 Mountains and 3 Islands, a {R} card in hand: the {1} is paid with an Island, a red source stays. */
+    @Test
+    public void autoPayGenericDoesNotSpendTheMoxWhenARedCardWaits() throws Exception {
+        start();
+        Card mox = add("Chrome Mox", me, ZoneType.Battlefield);
+        Card imprinted = add("Shock", me, ZoneType.Exile);
+        mox.addImprintedCard(imprinted);
+        Card mountain1 = add("Mountain", me, ZoneType.Battlefield);
+        Card mountain2 = add("Mountain", me, ZoneType.Battlefield);
+        Card island1 = add("Island", me, ZoneType.Battlefield);
+        Card island2 = add("Island", me, ZoneType.Battlefield);
+        Card island3 = add("Island", me, ZoneType.Battlefield);
+        Card phoenix = add("Phoenix of Ash", me, ZoneType.Hand);
+        add("Faithless Looting", me, ZoneType.Hand);
+        List<String> seen = castWithAuto(phoenix);
+        assertCleanPlan(phoenix, seen);
+        int redLeft = (mox.isTapped() ? 0 : 1) + (mountain1.isTapped() ? 0 : 1) + (mountain2.isTapped() ? 0 : 1);
+        assertEquals(redLeft, 1, "one red source stayed for Faithless Looting; seen " + seen);
+        int islandsTapped = (island1.isTapped() ? 1 : 0) + (island2.isTapped() ? 1 : 0) + (island3.isTapped() ? 1 : 0);
+        assertEquals(islandsTapped, 1, "the {1} was paid with an Island; seen " + seen);
+    }
+
+    /** Issue #133: a commander in the command zone counts like a card in hand: its colour is kept. */
+    @Test
+    public void autoPayGenericKeepsTheCommandersColour() throws Exception {
+        start();
+        Card mountain = add("Mountain", me, ZoneType.Battlefield);
+        Card island1 = add("Island", me, ZoneType.Battlefield);
+        Card island2 = add("Island", me, ZoneType.Battlefield);
+        Card cavern = add("Zoetic Cavern", me, ZoneType.Battlefield);
+        Card plains = add("Plains", me, ZoneType.Battlefield);
+        Card vat = add("Mimic Vat", me, ZoneType.Hand);
+        Card commander = add("Goblin Piker", me, ZoneType.Command);
+        commander.setCommander(true);
+        List<String> seen = castWithAuto(vat);
+        assertCleanPlan(vat, seen, mountain);
+        int others = (island1.isTapped() ? 1 : 0) + (island2.isTapped() ? 1 : 0) + (cavern.isTapped() ? 1 : 0) + (plains.isTapped() ? 1 : 0);
+        assertEquals(others, 3, "three of the other four paid; seen " + seen);
+    }
+
+    /** Issue #133: the Chrome Mox (red) is kept for a red commander too: the {1} of {1}{R}{R} is paid with an Island. */
+    @Test
+    public void autoPayGenericKeepsTheMoxForARedCommander() throws Exception {
+        start();
+        Card mox = add("Chrome Mox", me, ZoneType.Battlefield);
+        Card imprinted = add("Shock", me, ZoneType.Exile);
+        mox.addImprintedCard(imprinted);
+        Card mountain1 = add("Mountain", me, ZoneType.Battlefield);
+        Card mountain2 = add("Mountain", me, ZoneType.Battlefield);
+        Card island1 = add("Island", me, ZoneType.Battlefield);
+        Card island2 = add("Island", me, ZoneType.Battlefield);
+        Card island3 = add("Island", me, ZoneType.Battlefield);
+        Card phoenix = add("Phoenix of Ash", me, ZoneType.Hand);
+        Card commander = add("Goblin Piker", me, ZoneType.Command);
+        commander.setCommander(true);
+        List<String> seen = castWithAuto(phoenix);
+        assertCleanPlan(phoenix, seen);
+        int redLeft = (mox.isTapped() ? 0 : 1) + (mountain1.isTapped() ? 0 : 1) + (mountain2.isTapped() ? 0 : 1);
+        assertEquals(redLeft, 1, "one red source stayed for the commander; seen " + seen);
+        int islandsTapped = (island1.isTapped() ? 1 : 0) + (island2.isTapped() ? 1 : 0) + (island3.isTapped() ? 1 : 0);
+        assertEquals(islandsTapped, 1, "the {1} was paid with an Island; seen " + seen);
+    }
+
+    /** Issue #133: nothing else in hand needs a colour: the order is unchanged (Mountain, added first, pays {1}). */
+    @Test
+    public void autoPayGenericKeepsTheOrderWhenNoColourIsNeeded() throws Exception {
+        start();
+        Card mountain = add("Mountain", me, ZoneType.Battlefield);
+        Card island = add("Island", me, ZoneType.Battlefield);
+        Card sol = add("Sol Ring", me, ZoneType.Hand); // {1}
+        List<String> seen = castWithAuto(sol);
+        assertTrue(game.getCardState(sol).isInZone(ZoneType.Battlefield), "Sol Ring resolved; seen " + seen);
+        assertTrue(mountain.isTapped() != island.isTapped(), "exactly one land paid; seen " + seen);
+    }
 }
