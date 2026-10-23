@@ -100,7 +100,7 @@ public class LocalizedImagesTest {
         assertEquals(get(l.find(KEY, "fr")).bytes(), EN);
         assertEquals(urlsAsked.size(), 1, "a 404 is remembered");
         try (Stream<Path> files = Files.list(cache)) {
-            assertEquals(files.count(), 0);
+            assertEquals(files.filter(f -> f.toString().endsWith(".img")).count(), 0);
         }
     }
 
@@ -120,6 +120,51 @@ public class LocalizedImagesTest {
         LocalizedImages l = images();
         assertEquals(get(l.find(KEY, "fr")).bytes(), EN);
         assertFalse(Files.exists(l.fileOf(KEY)));
+    }
+
+    @Test
+    public void imagesCachedBeforePlaceholderDetectionAreDroppedOnce() throws Exception {
+        LocalizedImages probe = images();
+        Files.deleteIfExists(cache.resolve(LocalizedImages.CHECKED_MARKER));
+        Files.write(probe.fileOf(KEY), FR); // a banner an earlier version cached
+        Files.write(cache.resolve("keep.txt"), new byte[] {1});
+        LocalizedImages l = images();
+        assertFalse(Files.exists(l.fileOf(KEY)), "unvetted cached file dropped");
+        assertTrue(Files.exists(cache.resolve("keep.txt")), "only .img files are touched");
+        assertEquals(get(l.find(KEY, "fr")).bytes(), FR);
+        assertEquals(urlsAsked.size(), 1, "re-downloaded, vetted by the downloader");
+        // vetted files survive the next start
+        assertEquals(get(images().find(KEY, "fr")).bytes(), FR);
+        assertEquals(urlsAsked.size(), 1);
+    }
+
+    /** The real downloader over a fake HTTP seam: a placeholder record means English, remembered, no image request. */
+    @Test
+    public void placeholderRecordFallsBackToEnglishAndIsRememberedWithoutImageRequest() throws Exception {
+        List<String> requests = new CopyOnWriteArrayList<>();
+        LocalizedImages l = new LocalizedImages(key -> CompletableFuture.completedFuture(new Image(EN, "image/jpeg")),
+                k -> "https://scry.test/cards/mir/128/fr?format=image&version=normal",
+                new ScryfallDownloader((url, accept, max) -> {
+                    requests.add(url);
+                    return new ScryfallDownloader.Response(200, null,
+                            "{\"object\":\"card\",\"lang\":\"fr\",\"image_status\":\"placeholder\"}".getBytes());
+                }), cache, edt, io, dl, 5_000);
+        assertEquals(get(l.find(KEY, "fr")).bytes(), EN);
+        assertEquals(get(l.find(KEY, "fr")).bytes(), EN);
+        assertEquals(requests, List.of("https://scry.test/cards/mir/128/fr"), "one record lookup, never the image, never again");
+        assertFalse(Files.exists(l.fileOf(KEY)));
+    }
+
+    @Test
+    public void realFrenchRecordIsServedFrench() throws Exception {
+        LocalizedImages l = new LocalizedImages(key -> CompletableFuture.completedFuture(new Image(EN, "image/jpeg")),
+                k -> "https://scry.test/cards/m10/1/fr?format=image&version=normal",
+                new ScryfallDownloader((url, accept, max) -> url.contains("?")
+                        ? new ScryfallDownloader.Response(200, null, FR)
+                        : new ScryfallDownloader.Response(200, null, "{\"image_status\":\"lowres\"}".getBytes())),
+                cache, edt, io, dl, 5_000);
+        assertEquals(get(l.find(KEY, "fr")).bytes(), FR);
+        assertTrue(Files.exists(l.fileOf(KEY)));
     }
 
     @Test

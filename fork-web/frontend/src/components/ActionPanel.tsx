@@ -108,8 +108,13 @@ export function ActionPanel() {
         <button
           type="button"
           className={`${styles.primary} ${styles[action.tone]}`}
-          disabled={!action.enabled}
-          onClick={() => action.intent && send(action.intent)}
+          // A refused answer stays clickable so the click can say why (issue #129).
+          disabled={!action.enabled && !action.refusal}
+          aria-disabled={action.refusal ? true : undefined}
+          onClick={() => {
+            if (action.refusal) setUi((u) => ({ ...u, promptNote: { id: (u.promptNote?.id ?? 0) + 1, text: action.refusal! } }));
+            else if (action.intent) send(action.intent);
+          }}
         >
           <span className={styles.primaryLabel}>
             {action.tone === 'attack' ? <Icon name="sword" /> : action.tone === 'block' ? <Icon name="shield" /> : null}
