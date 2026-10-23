@@ -5,6 +5,7 @@ import { nameOfCard, player, targetName, you } from '../model/selectors';
 import type { ChoicePrompt, GameView, StepId } from '../model/types';
 import { distributeConfirm, inputConfirm, inputStart, startAmounts } from '../components/tray/numberLogic';
 import { guardHint, NONE_GUARD, trayConfirm, trayDraft, type Guard } from '../components/tray/trayLogic';
+import { underBlocked } from './blockClick';
 import { attackCapText, overAttackCap } from './attackLimit';
 import { incoming, incomingText, strikeDamage } from './combatForecast';
 import { watching } from './gameEnd';
@@ -23,6 +24,11 @@ export interface PrimaryAction {
   enabled: boolean;
   tone: Tone;
   intent?: Intent;
+  /**
+   * The engine would refuse the intent (a menace attacker with too few blockers): the button is inert and Space or a
+   * click says this instead of doing nothing.
+   */
+  refusal?: string;
   /** The intent gives something up (U8): Space never sends it, this key does; the detail says so. */
   guard?: Guard;
 }
@@ -122,8 +128,15 @@ export function primaryAction(game: GameView, ui: UiState, stops: StopPrefs): Pr
     }
     case 'declareBlockers': {
       const n = d.draft.length;
+      // A menace attacker with fewer blockers than its minimum is refused by the engine: it is not blocked (issue #129).
+      const short = d.attackers.find((a) => underBlocked(d, a) !== undefined && d.draft.some((b) => b.attackerId === a));
+      const valid = d.draft.filter((b) => underBlocked(d, b.attackerId) === undefined);
       // Every attack on you, also the ones you have no blocker for (issue #79).
-      const forecast = incoming(game, [...(game.combat?.blocks ?? []), ...d.draft]);
+      const forecast = incoming(game, [...(game.combat?.blocks ?? []), ...valid]);
+      if (short !== undefined) {
+        const refusal = t('pa.needsBlockers', { name: nameOfCard(game, short) ?? t('block.faceDown'), count: underBlocked(d, short)! });
+        return { label: refusal, detail: incomingText(game, forecast), enabled: false, tone: 'block', refusal };
+      }
       return {
         label: n === 0 ? t('pa.noBlocks') : t('pa.blockWith', { count: n }),
         detail: incomingText(game, forecast),

@@ -71,11 +71,11 @@
   transition: filter var(--dur-fast);
 }
 
-.primary:not(:disabled):hover {
+.primary:not(:disabled):not([aria-disabled='true']):hover {
   filter: brightness(1.08);
 }
 
-.primary:not(:disabled):active {
+.primary:not(:disabled):not([aria-disabled='true']):active {
   transform: translateY(1px);
 }
 
@@ -127,7 +127,8 @@
   color: var(--c-text);
   border: 1px solid var(--c-line-strong);
 }
-.primary:disabled {
+.primary:disabled,
+.primary[aria-disabled='true'] {
   background: var(--c-panel);
   color: var(--c-text-2);
   border: 1px dashed var(--c-line-strong);

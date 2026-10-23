@@ -427,3 +427,42 @@ describe('card picks are worded from what the engine asks (issue #81)', () => {
     expect(canCancel(at(pick({ purpose: 'target' })), INITIAL_UI)).toBe(true);
   });
 });
+
+describe('menace attacker with too few blockers (issue #129)', () => {
+  const brute = (id: string) => card(id, 'Boggart Brute', { power: 3, toughness: 3, kw: ['Menace'] });
+  const cards = [brute('b1'), brute('b2'), mine('m1', 'Rograkh', { power: 0, toughness: 1 }), mine('m2', 'Cavern', { power: 2, toughness: 2 })];
+  const combat = { attacks: ['b1', 'b2'].map((a) => ({ attackerId: a, defenderId: 'you' })), blocks: [] };
+  const decision = (draft: Block[]): Decision => ({
+    kind: 'declareBlockers',
+    candidates: ['m1', 'm2'],
+    attackers: ['b1', 'b2'],
+    draft,
+    options: [
+      { attackerId: 'b1', blockers: ['m1', 'm2'], ifFreed: [], min: 2 },
+      { attackerId: 'b2', blockers: ['m1', 'm2'], ifFreed: [], min: 2 },
+    ],
+  });
+  const at = (draft: Block[]) => primaryAction(game(cards, decision(draft), { combat }), INITIAL_UI, DEFAULT_STOPS);
+
+  it('one blocker: no "Block with 1", says what is missing, forecast leaves the attacker unblocked, nothing is sent', () => {
+    const a = at([{ blockerId: 'm1', attackerId: 'b1' }]);
+    expect(a.label).toBe('Boggart Brute needs 2 blockers');
+    expect(a.refusal).toBe('Boggart Brute needs 2 blockers');
+    expect(a.enabled).toBe(false);
+    expect(a.intent).toBeUndefined();
+    expect(a.detail).toBe('You take 6 damage');
+  });
+
+  it('two blockers: unchanged', () => {
+    const a = at([
+      { blockerId: 'm1', attackerId: 'b1' },
+      { blockerId: 'm2', attackerId: 'b1' },
+    ]);
+    expect(a).toMatchObject({ label: 'Block with 2', detail: 'You take 3 damage', enabled: true });
+    expect(a.refusal).toBeUndefined();
+  });
+
+  it('no blocks at all is still allowed', () => {
+    expect(at([])).toMatchObject({ label: 'No blocks', enabled: true });
+  });
+});
