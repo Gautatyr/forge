@@ -824,6 +824,50 @@ describe('selections off the board (library searches, choosing a player)', () =>
     expect(answer(['c72'])).toEqual([act('selectCard', { card: 71 }), act('selectCard', { card: 72 }), act('selectButtonOk')]);
   });
 
+  /** Woe Strider's Escape (issue #109): four other cards of your graveyard, exactly four: the engine's min and max are the prompt's. */
+  function escapeCost(): LiveSession {
+    const s = session();
+    const grave = [81, 82, 83, 84, 85];
+    s.apply(
+      delta1({
+        new: grave.flatMap((id): WireObject[] => [
+          { type: 'card', id, props: { Owner: 0, Controller: 0, Zone: 'Graveyard', CurrentState: 'Original' } },
+          { type: 'cardState', id, state: 'Original', props: { Name: `Card ${id}`, Type: 'Instant' } },
+        ]),
+      }),
+    );
+    s.apply(selection({ cards: grave.map(card), min: 4, max: 4 }));
+    s.apply({
+      t: 'call',
+      method: 'showPromptMessage',
+      args: [YOU, 'Woe Strider (52) - As an additional cost to cast this spell, exile four other cards from your graveyard\nExile 4 card(s) from your graveyard', card(52)],
+      input: { kind: 'pick' },
+    });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, true, true] });
+    return s;
+  }
+
+  it('asks for exactly the count the engine requires (exile four from the graveyard)', () => {
+    const d = toGameView(escapeCost()).decision;
+    expect(d).toMatchObject({ kind: 'choice', prompt: { shape: 'chooseN', min: 4, max: 4 } });
+    expect(d.kind === 'choice' && d.prompt.shape === 'chooseN' && d.prompt.options).toHaveLength(5);
+  });
+
+  it('keeps min 0 only when the engine sends it (an "up to" pick)', () => {
+    const s = escapeCost();
+    s.apply(selection({ cards: [81, 82].map(card), min: 0, max: 2 }));
+    expect(toGameView(s).decision).toMatchObject({ prompt: { min: 0, max: 2 } });
+  });
+
+  it('answers an exact pick with its picks only: the last one ends the input', () => {
+    const s = escapeCost();
+    const g = toGameView(s);
+    const id = g.decision.kind === 'choice' ? g.decision.prompt.id : '';
+    expect(intentToFrames({ type: 'answer', promptId: id, answer: { shape: 'chooseN', optionIds: ['c81', 'c82', 'c83', 'c84'] } }, s, g)).toEqual(
+      [81, 82, 83, 84].map((c) => act('selectCard', { card: c })),
+    );
+  });
+
   it('keeps the prompt id while the engine highlights picks', () => {
     const s = search();
     const before = toGameView(s).decision;
