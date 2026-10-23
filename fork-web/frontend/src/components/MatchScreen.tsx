@@ -4,7 +4,7 @@ import { currentAttackAim } from '../state/focus';
 import { gameEndView, watching } from '../state/gameEnd';
 import { useMatch } from '../state/MatchContext';
 import { primaryAction } from '../state/primaryAction';
-import { dropsFocusAfterClick, handleSpace, pickDigitTarget, promptKeysLive, takesKeys } from '../state/promptKeys';
+import { dropsFocusAfterClick, escapeStep, handleSpace, pickDigitTarget, promptKeysLive, takesKeys } from '../state/promptKeys';
 import { NONE_GUARD } from './tray/trayLogic';
 import { Arrows } from './Arrows';
 import { Board } from './Board';
@@ -65,16 +65,32 @@ export function MatchScreen() {
       return;
     }
     if (key === 'Escape') {
-      if (ui.inspectId) setUi({ inspectId: undefined });
-      else if (ui.overlay) setUi({ overlay: undefined });
-      else if (ui.logOpen) setUi({ logOpen: false });
-      else if (manaChoice) setUi({ manaChoice: undefined });
-      else if (ui.pendingBlocker || ui.pendingAttacker) setUi({ pendingBlocker: undefined, pendingAttacker: undefined });
-      // The Cancel button's Esc: a combat draft is cleared, the declaration goes on (issue #130).
-      else if ((d.kind === 'declareAttackers' || d.kind === 'declareBlockers') && d.draft.length > 0) send({ type: 'cancel' });
-      else if (d.kind === 'chooseTargets' || d.kind === 'payMana' || (d.kind === 'choice' && d.cancellable)) send({ type: 'cancel' });
-      else if (ui.zoneView) setUi({ zoneView: undefined });
-      else if (ui.trayPeek) setUi({ trayPeek: false });
+      switch (escapeStep(d, ui, !!manaChoice)) {
+        case 'inspect':
+          setUi({ inspectId: undefined });
+          break;
+        case 'overlay':
+          setUi({ overlay: undefined });
+          break;
+        case 'log':
+          setUi({ logOpen: false });
+          break;
+        case 'mana':
+          setUi({ manaChoice: undefined });
+          break;
+        case 'pending':
+          setUi({ pendingBlocker: undefined, pendingAttacker: undefined });
+          break;
+        case 'cancel':
+          send({ type: 'cancel' });
+          break;
+        case 'zone':
+          setUi({ zoneView: undefined });
+          break;
+        case 'peek':
+          setUi({ trayPeek: false });
+          break;
+      }
       return;
     }
     if (key === '?') return setUi((u) => ({ ...u, overlay: u.overlay === 'shortcuts' ? undefined : 'shortcuts' }));

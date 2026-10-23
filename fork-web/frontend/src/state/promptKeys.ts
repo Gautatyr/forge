@@ -64,3 +64,26 @@ export function handleSpace(
   if (action.refusal) return note?.(action.refusal);
   if (action.enabled && action.intent && !action.guard) send(action.intent);
 }
+
+export type EscapeStep = 'inspect' | 'overlay' | 'log' | 'mana' | 'pending' | 'zone' | 'peek' | 'cancel';
+
+/**
+ * What Esc does, innermost first: close whatever is open, else cancel the prompt. A combat draft is cleared (the
+ * Cancel button's Esc, issue #130) only after any open view, so Esc on a pile you are looking at never wipes it.
+ */
+export function escapeStep(
+  d: GameView['decision'],
+  ui: Pick<UiState, 'inspectId' | 'overlay' | 'logOpen' | 'pendingBlocker' | 'pendingAttacker' | 'zoneView' | 'trayPeek'>,
+  manaChoiceOpen: boolean,
+): EscapeStep | undefined {
+  if (ui.inspectId) return 'inspect';
+  if (ui.overlay) return 'overlay';
+  if (ui.logOpen) return 'log';
+  if (manaChoiceOpen) return 'mana';
+  if (ui.pendingBlocker || ui.pendingAttacker) return 'pending';
+  if (d.kind === 'chooseTargets' || d.kind === 'payMana' || (d.kind === 'choice' && d.cancellable)) return 'cancel';
+  if (ui.zoneView) return 'zone';
+  if ((d.kind === 'declareAttackers' || d.kind === 'declareBlockers') && d.draft.length > 0) return 'cancel';
+  if (ui.trayPeek) return 'peek';
+  return undefined;
+}

@@ -134,8 +134,10 @@ export function primaryAction(game: GameView, ui: UiState, stops: StopPrefs): Pr
       // Every attack on you, also the ones you have no blocker for (issue #79).
       const forecast = incoming(game, [...(game.combat?.blocks ?? []), ...valid]);
       if (short !== undefined) {
-        const refusal = t('pa.needsBlockers', { name: nameOfCard(game, short) ?? t('block.faceDown'), count: underBlocked(d, short)! });
-        return { label: refusal, detail: incomingText(game, forecast), enabled: false, tone: 'block', refusal };
+        const count = underBlocked(d, short)!;
+        const refusal = t('pa.needsBlockers', { name: nameOfCard(game, short) ?? t('block.faceDown'), count });
+        // A short label keeps the button on one line; the name is in the refusal note (Space or a click).
+        return { label: t('pa.needsBlockersShort', { count }), detail: incomingText(game, forecast), enabled: false, tone: 'block', refusal };
       }
       return {
         label: n === 0 ? t('pa.noBlocks') : t('pa.blockWith', { count: n }),

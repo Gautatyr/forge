@@ -57,6 +57,7 @@ export const fr: Record<MsgKey, Msg> = {
   'pa.noBlocks': 'Aucun blocage',
   'pa.blockWith': 'Bloquer avec {count}',
   'pa.needsBlockers': '{name} demande {count} bloqueurs',
+  'pa.needsBlockersShort': '{count} bloqueurs requis',
   'pa.payAuto': 'Payer automatiquement',
   'pa.usesFloating': 'Utilise votre mana flottant',
   'pa.payByHand': 'Le paiement auto ne fait qu\'engager et dépenser du mana : payez à la main',

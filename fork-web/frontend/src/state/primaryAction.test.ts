@@ -446,7 +446,7 @@ describe('menace attacker with too few blockers (issue #129)', () => {
 
   it('one blocker: no "Block with 1", says what is missing, forecast leaves the attacker unblocked, nothing is sent', () => {
     const a = at([{ blockerId: 'm1', attackerId: 'b1' }]);
-    expect(a.label).toBe('Boggart Brute needs 2 blockers');
+    expect(a.label).toBe('Needs 2 blockers');
     expect(a.refusal).toBe('Boggart Brute needs 2 blockers');
     expect(a.enabled).toBe(false);
     expect(a.intent).toBeUndefined();

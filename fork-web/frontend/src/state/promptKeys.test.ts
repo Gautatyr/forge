@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Intent } from '../model/intents';
 import { scenarioById } from '../mock/scenarios';
 import type { GameView } from '../model/types';
-import { dropsFocusAfterClick, handleSpace, pickDigitTarget, promptKeysLive, takesKeys } from './promptKeys';
+import { dropsFocusAfterClick, escapeStep, handleSpace, pickDigitTarget, promptKeysLive, takesKeys } from './promptKeys';
 
 describe('prompt keys (inert under an inspector or an overlay)', () => {
   it('are live with nothing open', () => {
@@ -106,5 +106,37 @@ describe('digits in a card pick from your hand (issue #131)', () => {
   it('board picks and spell targets ignore digits', () => {
     expect(pickDigitTarget(pick(['h1'], ['bf1']), '1')).toBeUndefined();
     expect(pickDigitTarget(pick(['h1'], ['h1'], 'target'), '1')).toBeUndefined();
+  });
+});
+
+describe('Esc (issue #130)', () => {
+  const dec = (kind: 'declareAttackers' | 'declareBlockers', draft: unknown[]) =>
+    ({ kind, candidates: [], attackers: [], defenders: [], defenderCards: [], draft }) as unknown as GameView['decision'];
+  const attack = { attackerId: 'a1', defender: { kind: 'player', id: 'p2' } };
+  const block = { blockerId: 'm1', attackerId: 'b1' };
+  it('clears a non-empty attack or block draft (what Cancel Esc shows)', () => {
+    expect(escapeStep(dec('declareAttackers', [attack]), {}, false)).toBe('cancel');
+    expect(escapeStep(dec('declareBlockers', [block]), {}, false)).toBe('cancel');
+  });
+  it('does nothing on an empty draft', () => {
+    expect(escapeStep(dec('declareAttackers', []), {}, false)).toBeUndefined();
+    expect(escapeStep(dec('declareBlockers', []), {}, false)).toBeUndefined();
+  });
+  it('closes an open zone view first and keeps the draft', () => {
+    expect(escapeStep(dec('declareBlockers', [block]), { zoneView: { playerId: 'p1', zone: 'graveyard' } } as never, false)).toBe('zone');
+  });
+  it('closes the inspector, an overlay, the log or a mana chooser before the draft', () => {
+    const d = dec('declareBlockers', [block]);
+    expect(escapeStep(d, { inspectId: '1' }, false)).toBe('inspect');
+    expect(escapeStep(d, { overlay: 'shortcuts' }, false)).toBe('overlay');
+    expect(escapeStep(d, { logOpen: true }, false)).toBe('log');
+    expect(escapeStep(d, {}, true)).toBe('mana');
+    expect(escapeStep(d, { pendingBlocker: 'm1' } as never, false)).toBe('pending');
+  });
+  it('still cancels a target pick, a payment or a cancellable choice', () => {
+    expect(escapeStep({ kind: 'chooseTargets' } as never, {}, false)).toBe('cancel');
+    expect(escapeStep({ kind: 'payMana' } as never, {}, false)).toBe('cancel');
+    expect(escapeStep({ kind: 'choice', cancellable: true } as never, {}, false)).toBe('cancel');
+    expect(escapeStep({ kind: 'choice', cancellable: false } as never, {}, false)).toBeUndefined();
   });
 });

@@ -55,6 +55,7 @@ export const en = {
   'pa.noBlocks': 'No blocks',
   'pa.blockWith': 'Block with {count}',
   'pa.needsBlockers': '{name} needs {count} blockers',
+  'pa.needsBlockersShort': 'Needs {count} blockers',
   'pa.payAuto': 'Pay automatically',
   'pa.usesFloating': 'Uses your floating mana',
   'pa.payByHand': 'Auto-pay only taps and spends mana: pay by hand',
