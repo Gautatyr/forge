@@ -1,7 +1,25 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { setLanguage } from '../i18n';
 import { applyIntent, type MockGame } from '../mock/engine';
 import { scenarioById } from '../mock/scenarios';
-import { bottomPrompt, mulliganPrompt, mulliganTag, turnHeading, turnPlayerId } from './gameStart';
+import { bottomPrompt, mulliganPrompt, mulliganTag, turnHeading, turnNumberText, turnPlayerId } from './gameStart';
+
+describe('round beside the turn number (U8)', () => {
+  afterEach(() => setLanguage('en'));
+
+  it('reads "Round 7 · Turn 26", and the turn alone when the round is unknown', () => {
+    expect(turnNumberText({ number: 26, round: 7 })).toBe('Round 7 · Turn 26');
+    expect(turnNumberText({ number: 26 })).toBe('Turn 26');
+    setLanguage('fr');
+    expect(turnNumberText({ number: 26, round: 7 })).toBe('Tour de table 7 · Tour 26');
+  });
+
+  it('the heading carries the game\'s round', () => {
+    const g = scenarioById('priority').build();
+    const h = turnHeading({ ...g, turn: { ...g.turn, number: 26, round: 7 } });
+    expect(h).toMatchObject({ kind: 'turn', number: 26, round: 7 });
+  });
+});
 
 describe('London mulligan prompt (design pass 4 §2.4)', () => {
   it('offers Keep 7 (Space) and Mulligan (M), and says when the next mulligan is free', () => {
@@ -70,7 +88,7 @@ describe('no turn before turn 1 or after the game (top bar, plates, step strip)'
     g = play(g, true); // Keep 7
     expect(g.starting).toBeUndefined();
     expect(turnPlayerId(g)).toBe('mira');
-    expect(turnHeading(g)).toEqual({ kind: 'turn', playerId: 'mira', number: 1, nextId: 'theo' });
+    expect(turnHeading(g)).toEqual({ kind: 'turn', playerId: 'mira', number: 1, round: 1, nextId: 'theo' });
   });
 
   it('the mulligan scenario and the next game of a match start the same way', () => {

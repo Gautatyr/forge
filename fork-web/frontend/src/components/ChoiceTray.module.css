@@ -432,11 +432,6 @@
   background: var(--c-panel-raised);
 }
 
-.row:focus-within {
-  outline: var(--outline-w) solid var(--c-actionable);
-  outline-offset: 1px;
-}
-
 .rowIndex {
   min-width: 1.5em;
   text-align: center;
@@ -455,4 +450,11 @@
 .row .orderControls button {
   padding: var(--sp-0) var(--sp-3);
   font-size: var(--fs-md);
+}
+
+/* U8: under the yes / no buttons, the key that answers a default that gives something up (not Space). */
+.guardHint {
+  flex-basis: 100%;
+  margin: 0;
+  text-align: center;
 }

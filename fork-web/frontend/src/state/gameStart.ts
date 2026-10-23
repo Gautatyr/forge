@@ -20,7 +20,7 @@ export function turnPlayerId(game: GameView): PlayerId | undefined {
 
 /** What the top bar's turn block reads. */
 export type TurnHeading =
-  | { kind: 'turn'; playerId: PlayerId; number: number; nextId?: PlayerId }
+  | { kind: 'turn'; playerId: PlayerId; number: number; round?: number; nextId?: PlayerId }
   /** Before turn 1: "Game start" (the toss), then "Opening hands". */
   | { kind: 'start'; text: string }
   /** The result's headline: "You won", "Mira won" (with `playerId`'s seat shape), "Draw". */
@@ -30,7 +30,13 @@ export function turnHeading(game: GameView): TurnHeading {
   if (game.result) return { kind: 'over', ...headline(game) };
   const id = turnPlayerId(game);
   if (!id) return { kind: 'start', text: game.players.some((p) => p.mulligan) ? t('start.openingHands') : t('start.gameStart') };
-  return { kind: 'turn', playerId: id, number: game.turn.number, nextId: nextPlayer(game)?.id };
+  const round = game.turn.round;
+  return { kind: 'turn', playerId: id, number: game.turn.number, ...(round ? { round } : {}), nextId: nextPlayer(game)?.id };
+}
+
+/** "Round 7 · Turn 26"; "Turn 26" alone when the round is unknown (older recordings). */
+export function turnNumberText(h: { number: number; round?: number }): string {
+  return h.round ? t('top.roundTurn', { round: h.round, n: h.number }) : t('top.turn', { n: h.number });
 }
 
 /** Who chooses the starting player: the toss winner (first game) or the loser of the last game. */

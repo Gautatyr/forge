@@ -11,6 +11,7 @@ import {
   counterText,
   FILTER_FROM,
   groupOptions,
+  guardHint,
   inPlaceOptions,
   inPlaceRefs,
   initialDraft,
@@ -205,7 +206,7 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
     e.stopPropagation();
     if (a.kind === 'answer') send({ type: 'answer', promptId: prompt.id, answer: a.answer });
     else if (a.kind === 'draft') setDraft(a.draft);
-    else setUi((u) => ({ ...u, trayPeek: !u.trayPeek }));
+    else if (a.kind === 'peek') setUi((u) => ({ ...u, trayPeek: !u.trayPeek }));
   });
   useEffect(() => {
     const h = (e: KeyboardEvent) => onKey(e);
@@ -216,10 +217,13 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
   if (mode === 'menu' && prompt.shape === 'chooseN') return <AbilityMenu prompt={prompt} />;
 
   const counter = prompt.shape === 'chooseN' && !isReveal(prompt) ? counterText(prompt, draft.selected.length) : '';
+  // An answer that gives something up names its own key, never Space (U8).
+  const guard = confirm.enabled ? confirm.guard : undefined;
+  const status = [counter, guard ? guardHint(guard) : ''].filter(Boolean).join(' · ');
   const confirmButton = (
     <button type="button" className={styles.confirm} disabled={!confirm.enabled} onClick={answer}>
       {confirm.label}
-      {confirm.enabled ? <kbd>{t('key.space')}</kbd> : null}
+      {!confirm.enabled ? null : guard ? guard.label ? <kbd>{guard.label}</kbd> : null : <kbd>{t('key.space')}</kbd>}
     </button>
   );
 
@@ -227,7 +231,7 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
     return (
       <div ref={barRef} className={`${styles.tray} ${styles.bar}`} role="region" aria-label={prompt.title}>
         <h2 className={styles.barTitle}>{prompt.title}</h2>
-        <span className={styles.status}>{counter}</span>
+        <span className={styles.status}>{status}</span>
         {confirmButton}
       </div>
     );
@@ -254,7 +258,7 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
     prompt.shape === 'yesNo' ? null : (
       <footer className={styles.foot}>
         <span className={styles.status}>
-          {counter || (prompt.shape === 'order' && prompt.lists.length > 1 ? t('tray.orderHint') : '')}
+          {status || (prompt.shape === 'order' && prompt.lists.length > 1 ? t('tray.orderHint') : '')}
         </span>
         {confirmButton}
       </footer>

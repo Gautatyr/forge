@@ -30,6 +30,18 @@ const delta = (seq: number, d: Partial<DeltaMessage> = {}): DeltaMessage => ({
 });
 
 describe('LiveSession state stream', () => {
+  it('keeps the round from the snapshot until a delta changes it; a new game without one clears it', () => {
+    const s = new LiveSession();
+    s.apply({ ...snapshot(), round: 3 });
+    expect(s.round).toBe(3);
+    s.apply(delta(11));
+    expect(s.round).toBe(3);
+    s.apply(delta(12, { round: 4 }));
+    expect(s.round).toBe(4);
+    s.apply(snapshot(2, 1));
+    expect(s.round).toBeUndefined();
+  });
+
   it('applies new, then changed (null = default), then removed', () => {
     const s = new LiveSession();
     s.apply(snapshot());

@@ -293,6 +293,8 @@ abstract class Prompt {
         final String yes;
         final String no;
         final boolean defaultYes;
+        /** Yes gives up what the seat was doing ({@link GiveUpConfirms}); read here, on the engine's thread. */
+        final boolean yesGivesUp;
 
         Confirm(ProtocolMethod m, String message, String title, CardView card, String yes, String no, boolean defaultYes) {
             super(m);
@@ -302,6 +304,7 @@ abstract class Prompt {
             this.yes = yes;
             this.no = no;
             this.defaultYes = defaultYes;
+            this.yesGivesUp = GiveUpConfirms.yesGivesUp(message);
         }
 
         @Override
@@ -321,6 +324,9 @@ abstract class Prompt {
             j.addProperty("yes", yes == null ? "Yes" : yes);
             j.addProperty("no", no == null ? "No" : no);
             j.addProperty("default", defaultYes);
+            if (yesGivesUp) {
+                j.addProperty("giveUp", "yes");
+            }
         }
 
         @Override

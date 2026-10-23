@@ -1459,6 +1459,8 @@ export interface SnapshotMessage {
   objects: WireObject[];
   /** Tail of the game log, oldest first. */
   log: LogEntry[];
+  /** Times the first player has started a turn (RoundCounter); absent before turn 1. */
+  round?: number;
 }
 
 /** Apply `new` (replaces the whole object), then `changed` (merge; null = back to default), then `removed`. */
@@ -1477,6 +1479,8 @@ export interface DeltaMessage {
   log: LogEntry[];
   /** Engine event class names without the `GameEvent` prefix. */
   events: string[];
+  /** The new round, when it changed (RoundCounter). */
+  round?: number;
   /** Last delta of the game. */
   final?: true;
 }
@@ -1721,13 +1725,15 @@ export interface PromptChoice {
 /** What a selection input asks (forge.fork.web.seat.InputInfo, issue #81). */
 export interface InputInfo {
   /** target: targets of a spell or ability; pick: cards or players chosen for a cost or an effect (discard, sacrifice…); pay: paying a mana cost. */
-  kind: 'target' | 'pick' | 'pay';
+  kind: 'target' | 'pick' | 'pay' | 'confirm';
   /** target: what the targets are for. */
   ability?: 'spell' | 'activated' | 'triggered';
   /** pay: the activated ability paid for ("Equip {2}"); absent for a spell. */
   payFor?: string;
   /** pick: an "unless" cost; Cancel declines it and this happens (the engine's text worded for you: "You sacrifice Drekavac"). */
   decline?: string;
+  /** confirm (a yes/no on the buttons): the answer that gives up what you were doing ("Cancel Search?" Yes); Space never sends it. */
+  giveUp?: 'yes';
 }
 
 /** A no-reply IGuiGame method: args positional, refs as SeatRef or SpellAbilityRef, enums by name. */
@@ -1774,6 +1780,8 @@ export interface PromptConfirm {
   no: string;
   /** The engine's default answer. */
   default: boolean;
+  /** The answer that gives up what you were doing; Space never sends it. */
+  giveUp?: 'yes';
 }
 
 /** order: reply {order: indices of the new dest list, remember}; manipulateCardList (piles): {top, bottom}, each choice in one pile, top first on top, bottom last at the very bottom; manipulateCardList (permutation, toAnywhere): the full permutation; sideboard: indices of the new main deck. */

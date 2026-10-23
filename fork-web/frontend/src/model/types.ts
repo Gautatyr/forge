@@ -278,6 +278,8 @@ export type StepId =
 
 export interface TurnState {
   number: number;
+  /** Times the first player has started a turn ("Round 7 · Turn 26"); live, the bridge's RoundCounter. Absent from older recordings. */
+  round?: number;
   activePlayerId: PlayerId;
   step: StepId;
   /** Undefined while nobody holds priority (untap, cleanup, mid-resolution). */
@@ -379,6 +381,8 @@ export interface YesNoPrompt extends PromptBase {
   noLabel: string;
   /** The engine's default (primary button, Space). Yes when absent. */
   defaultAnswer?: 'yes' | 'no';
+  /** The answer that gives up what you were doing ("Cancel Search?" Yes), from the engine: Space never sends it (U8). */
+  giveUp?: 'yes' | 'no';
   /** Card shown in the body, e.g. a commander about to change zones. */
   cardId?: CardId;
   /**

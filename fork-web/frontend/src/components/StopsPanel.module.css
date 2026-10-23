@@ -274,6 +274,6 @@
 }
 
 .switchRow input:focus-visible + .switch {
-  outline: 2px solid var(--c-selected);
-  outline-offset: 2px;
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
