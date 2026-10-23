@@ -1016,6 +1016,26 @@ public class HumanSeatPaymentTest {
         assertTrue(elves.isTapped(), "the Elves paid; seen " + seen);
     }
 
+    /**
+     * A hybrid pip is one need that either colour meets: Kitchen Finks {1}{G/W}{G/W} is castable with the Forest and the Plains,
+     * so they stay and Mind Stone's {2} is paid with two Islands (Opt {U} also waits, three Islands).
+     */
+    @Test
+    public void autoPayKeepsTheTwoSourcesAHybridCardNeeds() throws Exception {
+        start();
+        Card forest = add("Forest", me, ZoneType.Battlefield);
+        Card plains = add("Plains", me, ZoneType.Battlefield);
+        Card island1 = add("Island", me, ZoneType.Battlefield);
+        Card island2 = add("Island", me, ZoneType.Battlefield);
+        Card island3 = add("Island", me, ZoneType.Battlefield);
+        Card stone = add("Mind Stone", me, ZoneType.Hand); // {2}
+        add("Kitchen Finks", me, ZoneType.Hand); // {1}{G/W}{G/W}
+        add("Opt", me, ZoneType.Hand); // {U}
+        List<String> seen = castWithAuto(stone);
+        assertCleanPlan(stone, seen, forest, plains);
+        assertEquals((island1.isTapped() ? 1 : 0) + (island2.isTapped() ? 1 : 0) + (island3.isTapped() ? 1 : 0), 2, "two Islands paid; seen " + seen);
+    }
+
     /** Both faces of a modal double-faced card count: Valki needs {B}, Tibalt (its back) {R}; with one Mountain and two Swamps a Swamp pays. */
     @Test
     public void autoPayCountsTheColoursOfTheOtherFaceToo() throws Exception {
