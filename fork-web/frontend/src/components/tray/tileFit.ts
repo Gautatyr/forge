@@ -3,7 +3,7 @@ import { useLayoutEffect, type RefObject } from 'react';
 /** The card width (rem) of a tray tile: the full size, or what the tray body sets in `--tile-cw` to fit. */
 export const TILE_CW_MAX = 6.6;
 const TILE_CW_MIN = 4;
-export const TILE_CW = `var(--tile-cw, ${TILE_CW_MAX}rem)`;
+export const TILE_CW = 'var(--tile-cw, 6.6rem)';
 
 /**
  * The largest size in [min, max] for which `fits` holds, by bisection. `undefined` = keep the full size: it already fits,
@@ -20,6 +20,22 @@ export function largestFit(min: number, max: number, fits: (size: number) => boo
   return lo;
 }
 
+/** Set `--tile-cw` on a tray body to the largest tile size at which nothing overflows (none = the full size). */
+function fitTiles(el: HTMLElement): void {
+  const overflows = () => el.scrollHeight > el.clientHeight;
+  // Cards animate their size: measure the end state at once (the attribute switches the transitions off).
+  el.dataset.fitting = '';
+  el.style.removeProperty('--tile-cw');
+  const size = largestFit(TILE_CW_MIN, TILE_CW_MAX, (cw) => {
+    el.style.setProperty('--tile-cw', `${cw}rem`);
+    return !overflows();
+  });
+  if (size === undefined) el.style.removeProperty('--tile-cw');
+  else el.style.setProperty('--tile-cw', `${size}rem`);
+  void el.scrollHeight;
+  delete el.dataset.fitting;
+}
+
 /**
  * A tray whose body is capped to the board's height shrinks its card tiles until the whole body (tiles, labels, key
  * hints) is in view without scrolling; a long prompt text above takes the room. Re-fits when the body or the prompt changes.
@@ -28,22 +44,8 @@ export function useFitTiles(body: RefObject<HTMLElement | null>, deps: readonly 
   useLayoutEffect(() => {
     const el = body.current;
     if (!el) return;
-    const fit = () => {
-      const overflows = () => el.scrollHeight > el.clientHeight;
-      // Cards animate their size: measure the end state at once (the attribute switches the transitions off).
-      el.dataset.fitting = '';
-      el.style.removeProperty('--tile-cw');
-      const size = largestFit(TILE_CW_MIN, TILE_CW_MAX, (cw) => {
-        el.style.setProperty('--tile-cw', `${cw}rem`);
-        return !overflows();
-      });
-      if (size === undefined) el.style.removeProperty('--tile-cw');
-      else el.style.setProperty('--tile-cw', `${size}rem`);
-      void el.scrollHeight;
-      delete el.dataset.fitting;
-    };
-    fit();
-    const watch = new ResizeObserver(fit);
+    fitTiles(el);
+    const watch = new ResizeObserver(() => fitTiles(el));
     watch.observe(el);
     return () => watch.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
