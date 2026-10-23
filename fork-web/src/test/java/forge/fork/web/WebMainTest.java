@@ -19,6 +19,13 @@ public class WebMainTest {
         TestEngine.boot();
     }
 
+    /** Issue #110: an AI seat is "AI n", never carrying its deck name. */
+    @Test
+    public void aiSeatNamesArePlain() {
+        assertEquals(WebMain.aiName(1), "AI 1");
+        assertEquals(WebMain.aiName(3), "AI 3");
+    }
+
     /**
      * Issue #68: Match.startGame reveals every AI deck's "AI can't play these cards well" list to each player when
      * {@code warnAboutAICards()} holds (the GameRules default); a web match turns it off.

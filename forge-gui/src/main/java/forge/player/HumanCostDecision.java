@@ -68,8 +68,12 @@ public class HumanCostDecision extends CostDecisionMakerBase {
         inp.setCancelAllowed(true);
         inp.showAndWait();
 
-        if (inp.hasCancelled() || CardLists.getTotalCMC(inp.getSelected()) < total) {
+        if (inp.hasCancelled()) {
             return null;
+        }
+        final int sum = CardLists.getTotalCMC(inp.getSelected());
+        if (sum < total) {
+            return rejectedPick(Localizer.getInstance().getMessage("lblCMC"), sum, total);
         }
         return PaymentDecision.card(inp.getSelected());
     }
@@ -297,8 +301,11 @@ public class HumanCostDecision extends CostDecisionMakerBase {
             inp.showAndWait();
 
             int sum = CardLists.getTotalCMC(inp.getSelected());
-            if (inp.hasCancelled() || (sum != total && !totalCMCgreater) || (sum < total && totalCMCgreater)) {
+            if (inp.hasCancelled()) {
                 return null;
+            }
+            if ((sum != total && !totalCMCgreater) || (sum < total && totalCMCgreater)) {
+                return rejectedPick(Localizer.getInstance().getMessage("lblCMC"), sum, total);
             }
             return PaymentDecision.card(inp.getSelected());
         }
@@ -314,8 +321,11 @@ public class HumanCostDecision extends CostDecisionMakerBase {
 
             int sum = CardLists.getTotalChroma(inp.getSelected(), MagicColor.fromName(totalManaSymbolsColor));
             int right = AbilityUtils.calculateAmount(source, totalManaSymbolsCmp.substring(2) , ability);
-            if (inp.hasCancelled() || !Expressions.compare(sum, totalManaSymbolsCmp, right)) {
+            if (inp.hasCancelled()) {
                 return null;
+            }
+            if (!Expressions.compare(sum, totalManaSymbolsCmp, right)) {
+                return rejectedPick(Localizer.getInstance().getMessage("lblChromatic"), sum, right);
             }
             return PaymentDecision.card(inp.getSelected());
         }
@@ -328,9 +338,12 @@ public class HumanCostDecision extends CostDecisionMakerBase {
                 Localizer.getInstance().getMessage("lblSelectToExile", Lang.getNumeral(nTypes)));
             inp.setCancelAllowed(true);
             inp.showAndWait();
-            if (inp.hasCancelled() ||
-                !Expressions.compare(AbilityUtils.countCardTypesFromList(inp.getSelected(), false), "GE", nTypes)) {
-                    return null;
+            if (inp.hasCancelled()) {
+                return null;
+            }
+            final int types = AbilityUtils.countCardTypesFromList(inp.getSelected(), false);
+            if (!Expressions.compare(types, "GE", nTypes)) {
+                return rejectedPick(Localizer.getInstance().getMessage("lblTypes"), types, nTypes);
             }
             return PaymentDecision.card(inp.getSelected());
         }
@@ -371,6 +384,18 @@ public class HumanCostDecision extends CostDecisionMakerBase {
             }
         }
         return exileFromSame(cost, list, c, payableZone);
+    }
+
+    /**
+     * A confirmed pick that does not pay the cost (its total is short): the cast or activation is cancelled, so say why
+     * instead of rolling back silently (fork issue 109).
+     */
+    private PaymentDecision rejectedPick(final String what, final int got, final int needed) {
+        if (!isEffect()) {
+            controller.getGui().message(Localizer.getInstance().getMessage("lblCostPickNotEnough", what, got, needed),
+                    Localizer.getInstance().getMessage("lblCostPaymentInvalid"));
+        }
+        return null;
     }
 
     // Inputs
@@ -471,17 +496,8 @@ public class HumanCostDecision extends CostDecisionMakerBase {
 
         if (!sharedType) {
             final List<ZoneType> origin = Lists.newArrayList(cost.from);
-            final List<Card> chosen = controller.chooseCardsForZoneChange(
-                    ZoneType.Exile,
-                    origin,
-                    ability,
-                    typeList,
-                    mandatory ? nNeeded : 0,
-                    nNeeded,
-                    null,
-                    cost.toString(nNeeded),
-                    null
-            );
+            final List<Card> chosen = controller.chooseCardsForCost(ability, origin, typeList, nNeeded, !mandatory,
+                    cost.toString(nNeeded));
 
             if (chosen.size() < nNeeded) {
                 return null;
@@ -493,7 +509,7 @@ public class HumanCostDecision extends CostDecisionMakerBase {
             return null;
         }
 
-        final InputSelectCardsFromList inp = new InputSelectCardsFromList(controller, mandatory ? nNeeded : 0, nNeeded, typeList, ability) {
+        final InputSelectCardsFromList inp = new InputSelectCardsFromList(controller, nNeeded, nNeeded, typeList, ability) {
             private static final long serialVersionUID = 1L;
 
             @Override
@@ -1442,8 +1458,12 @@ public class HumanCostDecision extends CostDecisionMakerBase {
             inp.setCancelAllowed(true);
             inp.showAndWait();
 
-            if (inp.hasCancelled() || CardLists.getTotalPower(inp.getSelected(), ability) < i) {
+            if (inp.hasCancelled()) {
                 return null;
+            }
+            final int power = CardLists.getTotalPower(inp.getSelected(), ability);
+            if (power < i) {
+                return rejectedPick(Localizer.getInstance().getMessage("lblPower"), power, i);
             }
             return PaymentDecision.card(inp.getSelected());
         }

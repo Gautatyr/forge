@@ -7,7 +7,7 @@ import { DEFAULT_STOPS } from '../../state/prefs';
 import { primaryAction } from '../../state/primaryAction';
 import { INITIAL_UI } from '../../state/ui';
 import { cardStatusWithChoice, playerChoice } from './inPlace';
-import { initialDraft, inPlaceRefs, toggleOption, trayConfirm } from './trayLogic';
+import { initialDraft, inPlaceOptions, inPlaceRefs, keyAction, toggleOption, trayConfirm } from './trayLogic';
 
 const promptOf = (g: MockGame): ChoicePrompt => {
   if (g.decision.kind !== 'choice') throw new Error(`no prompt: ${g.decision.kind}`);
@@ -65,6 +65,20 @@ describe('choosing in place', () => {
     const after = answer(g, { shape: 'chooseN', optionIds: [elf] });
     expect(after.cards[elf]!.zone).toBe('graveyard');
     expect(after.decision.kind).toBe('priority');
+  });
+
+  it('keys 1–9 pick the Nth option in place, as in the tray (#110)', () => {
+    const g = scenarioById('sacrifice').build();
+    const p = promptOf(g) as Extract<ChoicePrompt, { shape: 'chooseN' }>;
+    const visible = inPlaceOptions(g, p);
+    expect(visible).toEqual(p.options);
+    const d = initialDraft(p);
+    const key = (k: string) => ({ key: k, alt: false, inInput: false });
+    expect(keyAction(p, d, visible, key('2'))).toEqual({ kind: 'draft', draft: toggleOption(p, d, p.options[1]!.id) });
+    expect(keyAction(p, d, visible, key(String(p.options.length + 1)))).toBeUndefined();
+    // the tray (search) is not in place: no options named by the in-place list
+    const search = scenarioById('search').build();
+    expect(inPlaceOptions(search, promptOf(search))).toEqual([]);
   });
 
   it('choose a player: plates are options', () => {

@@ -231,6 +231,12 @@ describe('LiveSession input state (bridge seat protocol)', () => {
     expect(s.notices[1]!.id).toBeGreaterThan(s.notices[0]!.id);
   });
 
+  it('shows why the engine cancelled a cast after a pick (issue #109)', () => {
+    const s = new LiveSession();
+    s.apply({ t: 'call', method: 'message', args: ['The selected cards do not pay the cost (Power: 0, needs 1). The spell or ability was cancelled.', 'Cost payment invalid'] });
+    expect(s.notices.at(-1)?.text).toBe('Cost payment invalid: The selected cards do not pay the cost (Power: 0, needs 1). The spell or ability was cancelled.');
+  });
+
   it('says nothing when a bridge does not know setLanguage, but shows any other rejection', () => {
     const s = new LiveSession();
     s.apply({ t: 'rejected', reason: 'unknown message type' });
