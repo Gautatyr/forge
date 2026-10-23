@@ -265,9 +265,18 @@ function agreeVerb(verb: string): string {
   return verb.endsWith('s') && !verb.endsWith('ss') ? verb.slice(0, -1) : verb;
 }
 
+/**
+ * The verbs the engine writes after the seat in its log lines ("reveals it, puts it into their hand, then shuffles"): only these
+ * agree, so a plural noun or a function word in the same slot ("and enchantments that", ", as the") is left alone.
+ */
+const SEAT_VERBS =
+  'adds|attaches|becomes|casts|chooses|creates|deals|destroys|discards|does|draws|exiles|explores|gains|gets|goes|has|investigates|is|keeps|looks|loses|makes|mills|moves|names|pays|picks|plays|proliferates|puts|reveals|returns|sacrifices|scries|searches|selects|shows|shuffles|surveils|takes|taps|untaps';
+
 /** A verb after a comma, "then" or "and" whose subject is the seat: "reveals it, puts it into their hand, then shuffles". */
-const NEXT_VERB =
-  /(, (?:then )?|\bthen |\band )([a-z]+s)\b(?=\s+(?:it|them|their|your|a|an|the|that|those|this|each|up|one|two|three|all|another|its|\d)\b|(?<=\bthen \w+)(?=\s*(?:[,.;]|$)))/g;
+const NEXT_VERB = new RegExp(
+  `(, (?:then )?|\\bthen |\\band )(${SEAT_VERBS})\\b(?=\\s+(?:it|them|their|your|a|an|the|that|those|this|each|up|one|two|three|all|another|its|\\d)\\b|(?<=\\bthen \\w+)(?=\\s*(?:[,.;]|$)))`,
+  'g',
+);
 
 /** The rest of a clause whose subject is the seat: "their" is "your" ("their owner's" stays: the cards' owner), later verbs agree. */
 const agreeRest = (rest: string): string =>

@@ -69,7 +69,8 @@ export function promptWords(message: string | null | undefined, title: string | 
   const first = head || lines[0] || '';
   const others = head ? (lines.join('\n') === head ? [] : lines) : lines.slice(1);
   const cut = splitLong(first);
-  if (cut) return { title: cut.title, instruction: [cut.instruction, ...others].join('\n') };
+  // The engine's own instruction ("Select target …") comes first, the card's rules text after it: what to do stays on top.
+  if (cut) return { title: cut.title, instruction: [...others, cut.instruction].join('\n') };
   return { title: first || fallback, instruction: others.join('\n') };
 }
 

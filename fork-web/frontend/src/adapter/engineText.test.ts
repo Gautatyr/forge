@@ -238,6 +238,13 @@ describe('engineText: "You" after a card name (issue #127)', () => {
     expect(youGrammar('Opt - AI 1 scries 1.', 'You')).toBe('Opt - AI 1 scries 1.');
   });
 
+  it('agrees only verbs after a comma, "then" or "and", never a function word or a plural noun', () => {
+    expect(youGrammar('Spell - You sacrifices a creature, as the rules say.', 'You')).toBe('Spell - You sacrifice a creature, as the rules say.');
+    expect(youGrammar('Spell - You destroys all artifacts and enchantments that you control.', 'You')).toBe('Spell - You destroy all artifacts and enchantments that you control.');
+    expect(youGrammar('Spell - You destroys all lands and creatures each player controls.', 'You')).toBe('Spell - You destroy all lands and creatures each player controls.');
+    expect(youGrammar('Spell - You gains 3 life and draws a card, then discards a card.', 'You')).toBe('Spell - You gain 3 life and draw a card, then discard a card.');
+  });
+
   it('the stack text is worded like the log', () => {
     expect(engineLog('Faithless Looting - You draw two cards. You discards two cards. [Phase: You]', 'You')).toBe(
       'Faithless Looting - You draw two cards. You discard two cards.',

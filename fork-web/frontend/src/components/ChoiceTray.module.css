@@ -75,9 +75,6 @@
 }
 
 .titles {
-  /* A whole ability text as a prompt title scrolls here; the choices below keep their room. */
-  max-height: 3.6rem;
-  overflow-y: auto;
   flex: 1;
   min-width: 0;
 }
@@ -90,6 +87,7 @@
 
 .titles p {
   margin: 0.15rem 0 0;
+  white-space: pre-line;
   font-size: var(--fs-sm);
   color: var(--c-text-2);
 }

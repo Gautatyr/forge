@@ -145,7 +145,7 @@ describe('prompt → choice tray', () => {
     // as the prompt's title, or as its message: the card names the tray, the text is the instruction
     expect(promptWords('Select target creature card in a graveyard', line, 'Choose')).toEqual({
       title: 'Necromancy',
-      instruction: `${text}\nSelect target creature card in a graveyard`,
+      instruction: `Select target creature card in a graveyard\n${text}`,
     });
     expect(promptWords(line, undefined, 'Choose')).toEqual({ title: 'Necromancy', instruction: text });
     // a short line stays whole
