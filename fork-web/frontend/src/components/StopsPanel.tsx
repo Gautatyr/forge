@@ -204,6 +204,20 @@ function StopsEditor() {
           <Icon name="undo" />
           {t('stops.reset')}
         </button>
+        <label className={styles.switchRow} title={t('stops.involvedTitle')}>
+          <input
+            type="checkbox"
+            role="switch"
+            checked={!!stops.involvedOnly}
+            onChange={(e) => setStops({ ...stops, involvedOnly: e.target.checked })}
+          />
+          <span className={styles.switch} aria-hidden>
+            <span className={styles.knob} />
+          </span>
+          <span>
+            {t('stops.involved')} <b>{stops.involvedOnly ? t('common.on') : t('common.off')}</b>
+          </span>
+        </label>
         <label className={styles.switchRow} title={t('action.autoPassTitle')}>
           <input
             type="checkbox"

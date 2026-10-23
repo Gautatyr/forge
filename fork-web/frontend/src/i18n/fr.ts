@@ -431,6 +431,9 @@ export const fr: Record<MsgKey, Msg> = {
   'stops.perOpp': 'Régler par adversaire',
   'stops.reset': 'Rétablir les valeurs par défaut',
   'stops.autoPass': 'Passer auto si je ne peux pas agir :',
+  'stops.involved': 'Ne m\'arrêter que si ça me concerne :',
+  'stops.involvedTitle':
+    'Pendant les tours adverses : arrêt à la déclaration des attaquants seulement si vous, vos planeswalkers ou vos batailles êtes attaqués, à la déclaration des bloqueurs seulement si vous êtes dans le combat, et à l\'étape de fin seulement au tour du joueur juste avant vous. Les sorts et capacités sur la pile vous arrêtent toujours. Désactivé par défaut.',
 
   'combat.declareAtk': 'Déclarer les attaquants',
   'combat.atkHint': 'Cliquez vos créatures pour attaquer. Les nouveaux attaquants visent :',

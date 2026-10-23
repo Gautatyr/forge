@@ -225,6 +225,11 @@
   cursor: pointer;
 }
 
+/* the switches sit together at the right end */
+.switchRow + .switchRow {
+  margin-left: 0;
+}
+
 .switchRow b {
   color: var(--c-text);
 }

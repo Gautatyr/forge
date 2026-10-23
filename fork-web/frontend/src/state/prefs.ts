@@ -17,6 +17,12 @@ export interface StopPrefs {
   opponentsTurn: StepId[];
   /** "Set per opponent": an opponent's own row once it differs. Lasts one match: not restored on load. */
   perOpponent: Record<PlayerId, StepId[]>;
+  /**
+   * "Stop only when I'm involved" (ruling 2026-10-22, memo U1a): on opponents' turns, a stop at declare attackers or
+   * declare blockers holds only when you are in that combat, at the end step only on the turn of the player right
+   * before you, never at beginning of combat. The bridge decides on the live combat (`InvolvedStops`). Off (absent) by default (D4).
+   */
+  involvedOnly?: boolean;
 }
 
 /** Forge's defaults (`ForgePreferences` PHASE_HUMAN_* for your turns, PHASE_AI_* for opponents'). */
@@ -73,6 +79,7 @@ function parseStops(raw: unknown): StopPrefs {
     yourTurn: stepList(r.yourTurn) ?? DEFAULT_STOPS.yourTurn,
     opponentsTurn: stepList(r.opponentsTurn) ?? DEFAULT_STOPS.opponentsTurn,
     perOpponent: {},
+    ...(r.involvedOnly === true ? { involvedOnly: true } : {}),
   };
 }
 
