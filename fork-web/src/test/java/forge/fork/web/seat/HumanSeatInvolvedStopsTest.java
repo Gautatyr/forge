@@ -149,12 +149,16 @@ public class HumanSeatInvolvedStopsTest {
 
     /** As the page: every step of every player's turn, skipped unless a default stop (none on the seat's own turn here). */
     private void sendStops(boolean involved) throws InterruptedException {
+        sendStops(involved, oppStops());
+    }
+
+    private void sendStops(boolean involved, Set<PhaseType> oppStops) throws InterruptedException {
         if (involved) {
             yieldUpdate("{\"kind\":\"InvolvedStops\",\"active\":true}"); // before the rows: either order works
         }
         for (Player p : game.getPlayers()) {
             for (PhaseType ph : PhaseType.values()) {
-                boolean skip = p == me || !oppStops().contains(ph);
+                boolean skip = p == me || !oppStops.contains(ph);
                 yieldUpdate("{\"kind\":\"SkipPhase\",\"turnPlayer\":" + p.getId() + ",\"phase\":\"" + ph.name() + "\",\"skip\":" + skip + "}");
             }
         }
@@ -237,13 +241,14 @@ public class HumanSeatInvolvedStopsTest {
     }
 
     @Test
-    public void attackedTheSeatStopsAtDeclareAttackersAndBlockersOnlyNotAtBeginningOfCombatOrAnotherPlayersEndStep() throws Exception {
+    public void attackedTheSeatStopsAtDeclareAttackersAndBlockersNotAtAnotherPlayersEndStep() throws Exception {
         start();
         Card bears = add("Grizzly Bears", me);
         Card juggernaut = juggernautAttacking(me);
         sendStops(true);
         List<String> stops = playTurn(opps.get(0), PhaseType.MAIN1, bears);
-        assertEquals(empty(stops), List.of("1:COMBAT_DECLARE_ATTACKERS:empty", "1:COMBAT_DECLARE_BLOCKERS:empty"), "stops " + stops);
+        assertEquals(empty(stops), List.of("1:COMBAT_BEGIN:empty", "1:COMBAT_DECLARE_ATTACKERS:empty", "1:COMBAT_DECLARE_BLOCKERS:empty"),
+                "stops " + stops);
         assertTrue(game.getCardState(bears).isInZone(ZoneType.Graveyard), "the seat blocked: the Juggernaut killed the bears");
         assertEquals(me.getLife(), 20, "blocked");
         assertTrue(game.getCardState(juggernaut).isInZone(ZoneType.Battlefield));
@@ -255,7 +260,8 @@ public class HumanSeatInvolvedStopsTest {
         juggernautAttacking(me);
         sendStops(true);
         List<String> stops = playTurn(opps.get(0), PhaseType.MAIN1, null);
-        assertEquals(empty(stops), List.of("1:COMBAT_DECLARE_ATTACKERS:empty", "1:COMBAT_DECLARE_BLOCKERS:empty"), "stops " + stops);
+        assertEquals(empty(stops), List.of("1:COMBAT_BEGIN:empty", "1:COMBAT_DECLARE_ATTACKERS:empty", "1:COMBAT_DECLARE_BLOCKERS:empty"),
+                "stops " + stops);
         assertEquals(me.getLife(), 15, "unblocked Juggernaut");
     }
 
@@ -264,7 +270,7 @@ public class HumanSeatInvolvedStopsTest {
         start();
         add("Grizzly Bears", me);
         juggernautAttacking(opps.get(1));
-        sendStops(true);
+        sendStops(true, EnumSet.of(PhaseType.COMBAT_DECLARE_ATTACKERS, PhaseType.COMBAT_DECLARE_BLOCKERS, PhaseType.END_OF_TURN));
         List<String> stops = playTurn(opps.get(0), PhaseType.MAIN1, null);
         assertEquals(empty(stops), List.of(), "stops " + stops);
         assertEquals(opps.get(1).getLife(), 15, "the Juggernaut attacked seat 2");
@@ -289,6 +295,19 @@ public class HumanSeatInvolvedStopsTest {
         List<String> stops = playTurn(opps.get(0), PhaseType.MAIN1, null);
         assertEquals(empty(stops), List.of("1:COMBAT_BEGIN:empty", "1:COMBAT_DECLARE_ATTACKERS:empty",
                 "1:COMBAT_DECLARE_BLOCKERS:empty", "1:END_OF_TURN:empty"), "stops " + stops);
+    }
+
+    /** Memo U1a: beginning of combat stays one click away in the Stops panel, so the setting leaves its row as set. */
+    @Test
+    public void withTheSettingOnBeginningOfCombatHoldsAsTheRowIsSet() throws Exception {
+        start();
+        juggernautAttacking(opps.get(1));
+        sendStops(true);
+        List<String> stops = playTurn(opps.get(0), PhaseType.MAIN1, null);
+        assertEquals(empty(stops), List.of("1:COMBAT_BEGIN:empty"), "row set to Stop: " + stops);
+        yieldUpdate("{\"kind\":\"SkipPhase\",\"turnPlayer\":" + opps.get(0).getId() + ",\"phase\":\"COMBAT_BEGIN\",\"skip\":true}");
+        stops = playTurn(opps.get(0), PhaseType.MAIN1, null);
+        assertEquals(empty(stops), List.of(), "row set to Pass: " + stops);
     }
 
     @Test

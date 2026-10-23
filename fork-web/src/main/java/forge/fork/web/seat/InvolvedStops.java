@@ -19,9 +19,9 @@ import forge.gamemodes.match.YieldUpdate;
  * The seat's "Stop only when I'm involved" setting (owner ruling 2026-10-22, memo U1a; off by default, D4). On an
  * opponent's turn, a stop the page set at one of {@link #DECIDED} holds only when the seat is involved: declare
  * attackers when the seat, or a planeswalker or battle it controls or protects, is attacked; declare blockers when it is
- * attacked or one of its creatures is in the combat; the end step on the turn of the player right before it; never
- * beginning of combat. The seat's own turn, other steps and stack stops ({@code skipsPromptForStackOrPhase} checks the
- * stack first) are unchanged.
+ * attacked or one of its creatures is in the combat; the end step on the turn of the player right before it. The seat's
+ * own turn, other steps (beginning of combat included: it holds as the page set it, memo U1a) and stack stops
+ * ({@code skipsPromptForStackOrPhase} checks the stack first) are unchanged.
  *
  * <p>The page sends its stop rows as {@code SkipPhase} updates; they are kept here and the engine's skip set gets the
  * effective value. Who is attacked is known only at that step, so the value for the step under way is decided again at
@@ -32,8 +32,8 @@ import forge.gamemodes.match.YieldUpdate;
 final class InvolvedStops {
 
     /** The opponents' steps the setting decides. */
-    static final Set<PhaseType> DECIDED = EnumSet.of(PhaseType.COMBAT_BEGIN, PhaseType.COMBAT_DECLARE_ATTACKERS,
-            PhaseType.COMBAT_DECLARE_BLOCKERS, PhaseType.END_OF_TURN);
+    static final Set<PhaseType> DECIDED = EnumSet.of(PhaseType.COMBAT_DECLARE_ATTACKERS, PhaseType.COMBAT_DECLARE_BLOCKERS,
+            PhaseType.END_OF_TURN);
 
     private boolean active;
     /** The page's rows: steps it passes, per turn player id. */

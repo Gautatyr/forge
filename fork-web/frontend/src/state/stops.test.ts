@@ -169,6 +169,7 @@ describe('auto-pay is kept in prefs', () => {
 describe('“Stop only when I’m involved” (ruling 2026-10-22, memo U1a)', () => {
   const g = scenarioById('priority').build(); // you, Mira, Theo, Ana: Ana plays right before you
   const on: StopPrefs = { ...DEFAULT_STOPS, involvedOnly: true };
+  const quiet: StopPrefs = { ...setSharedOpponentStop(DEFAULT_STOPS, 'beginCombat', false), involvedOnly: true };
   const attack = (defenderId: string): GameView['combat'] => ({ attacks: [{ attackerId: 'x', defenderId }], blocks: [] });
 
   it('is off by default, kept in prefs, and garbage reads as off', () => {
@@ -183,9 +184,14 @@ describe('“Stop only when I’m involved” (ruling 2026-10-22, memo U1a)', ()
     expect(isStop(on, 'you', 'theo', 'end')).toBe(true);
   });
 
-  it('next stop skips beginning of combat, unknown attacks and the end steps of players not right before you', () => {
-    expect(nextStop(at(g, 'you', 'main2'), on)).toEqual({ playerId: 'ana', step: 'end' });
-    expect(nextStopLabel(at(g, 'you', 'main2'), on)).toBe("Ana's end step");
+  it('beginning of combat holds as the row is set (memo U1a: one click away in the Stops panel)', () => {
+    expect(nextStop(at(g, 'you', 'main2'), on)).toEqual({ playerId: 'mira', step: 'beginCombat' });
+    expect(nextStop(at(g, 'you', 'main2'), quiet)).not.toEqual({ playerId: 'mira', step: 'beginCombat' });
+  });
+
+  it('next stop skips unknown attacks and the end steps of players not right before you', () => {
+    expect(nextStop(at(g, 'you', 'main2'), quiet)).toEqual({ playerId: 'ana', step: 'end' });
+    expect(nextStopLabel(at(g, 'you', 'main2'), quiet)).toBe("Ana's end step");
   });
 
   it('keeps your own turn', () => {
@@ -196,7 +202,7 @@ describe('“Stop only when I’m involved” (ruling 2026-10-22, memo U1a)', ()
     const attacked = { ...at(g, 'theo', 'declareAttackers'), combat: attack('you') };
     expect(nextStop(attacked, on)).toEqual({ playerId: 'theo', step: 'declareBlockers' });
     const other = { ...at(g, 'theo', 'declareAttackers'), combat: attack('mira') };
-    expect(nextStop(other, on)).toEqual({ playerId: 'ana', step: 'end' });
+    expect(nextStop(other, quiet)).toEqual({ playerId: 'ana', step: 'end' });
   });
 
   it('holds declare blockers when one of your creatures blocks', () => {
@@ -209,13 +215,13 @@ describe('“Stop only when I’m involved” (ruling 2026-10-22, memo U1a)', ()
   });
 
   it('a step set to Pass stays passed', () => {
-    const s = { ...setSharedOpponentStop(DEFAULT_STOPS, 'end', false), involvedOnly: true };
+    const s = setSharedOpponentStop(quiet, 'end', false);
     expect(nextStop(at(g, 'you', 'main2'), s)).toEqual({ playerId: 'you', step: 'main1' });
   });
 
   it('“right before you” skips players who have lost', () => {
     const lost = { ...g, players: g.players.map((p) => (p.id === 'ana' ? { ...p, hasLost: true } : p)) };
-    expect(nextStop(at(lost, 'you', 'main2'), on)).toEqual({ playerId: 'theo', step: 'end' });
+    expect(nextStop(at(lost, 'you', 'main2'), quiet)).toEqual({ playerId: 'theo', step: 'end' });
   });
 
   it('reset turns it off with the rows', () => {

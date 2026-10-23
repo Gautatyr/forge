@@ -72,8 +72,6 @@ function yourCreatureInCombat(game: GameView): boolean {
  */
 function involved(game: GameView, turnPlayerId: PlayerId, step: StepId, current: boolean): boolean {
   switch (step) {
-    case 'beginCombat':
-      return false;
     case 'declareAttackers':
       return current && attacked(game);
     case 'declareBlockers':

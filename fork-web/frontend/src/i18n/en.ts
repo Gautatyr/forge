@@ -429,7 +429,7 @@ export const en = {
   'stops.autoPass': 'Auto-pass when I can\'t act:',
   'stops.involved': 'Stop only when I\'m involved:',
   'stops.involvedTitle':
-    'On opponents\' turns: stop at declare attackers only when you or your planeswalkers or battles are attacked, at declare blockers only when you\'re in the combat, at the end step only on the turn of the player right before you, and never at beginning of combat. Spells and abilities on the stack still stop you. Off by default.',
+    'On opponents\' turns: stop at declare attackers only when you or your planeswalkers or battles are attacked, at declare blockers only when you\'re in the combat, and at the end step only on the turn of the player right before you. Spells and abilities on the stack still stop you. Off by default.',
 
   'combat.declareAtk': 'Declare attackers',
   'combat.atkHint': 'Click your creatures to attack. New attackers go at:',
