@@ -76,7 +76,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   const [source, setSource] = useState<SourceConfig>(() => sourceFromLocation(location));
   // Before any child renders: every `t()` of this pass reads the new language.
   setLanguage(prefs.language);
-  const live = useLive(source, prefs.stops, prefs.autoPay, prefs.language, prefs.passAfterCast);
+  const live = useLive(source, prefs.stops, prefs.autoPay, prefs.language, prefs.passAfterCast, prefs.autoPass, prefs.autoYield);
   const liveSend = live?.send;
 
   const setUi = useCallback((patch: Partial<UiState> | ((u: UiState) => UiState)) => {
@@ -93,6 +93,11 @@ export function MatchProvider({ children }: { children: ReactNode }) {
 
   const send = useCallback((intent: Intent) => {
     if (intent.type === 'setAutoPay') setPrefs({ autoPay: intent.on });
+    // Live, auto-pass and auto-yield are seat settings kept here (and by the bridge); the mock keeps them in its game.
+    if (liveSend && intent.type === 'setAutoPass') setPrefs({ autoPass: intent.on });
+    if (liveSend && intent.type === 'setAutoYield') setPrefs({ autoYield: intent.on });
+    // "Always yield to this" does nothing while auto-yield is off: choosing an ability switches it on.
+    if (liveSend && intent.type === 'toggleAutoYieldTo' && !prefs.autoYield) setPrefs({ autoYield: true });
     if (liveSend) liveSend(intent);
     else dispatch({ type: 'intent', intent });
     if (['primary', 'cancel', 'undo', 'answer', 'play'].includes(intent.type)) {
@@ -102,7 +107,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     setUiState((u) => (u.promptNote?.sticky ? { ...u, promptNote: undefined } : u));
     const focus = focusForIntent(intent);
     if (focus) setUiState((u) => ({ ...u, focusOpponentId: focus }));
-  }, [liveSend, setPrefs]);
+  }, [liveSend, setPrefs, prefs.autoYield]);
 
   const loadScenario = useCallback((id: string) => {
     setSource({ kind: 'mock' });

@@ -2,6 +2,7 @@ package forge.fork.web.seat;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,7 @@ import forge.gamemodes.net.event.GuiGameEvent;
 import forge.gamemodes.net.event.IdentifiableNetEvent;
 import forge.gamemodes.net.event.NetEvent;
 import forge.interfaces.IGameController;
+import forge.player.AutoYieldStore;
 import forge.player.PlayerControllerHuman;
 import forge.trackable.TrackableCollection;
 import forge.trackable.TrackableObject;
@@ -72,7 +74,7 @@ final class SeatSession implements IRemote {
 
     /** Calls a reconnecting client needs to show the current input, in this order. */
     private static final List<String> STICKY_ORDER = List.of(
-            "openView", "showPromptMessage", "updateButtons", "selection", "weakly", "blockOptions", "attackOptions", "revealed", "drawOffer", "finishGame");
+            "openView", "showPromptMessage", "updateButtons", "selection", "weakly", "blockOptions", "attackOptions", "revealed", "drawOffer", "yields", "finishGame");
 
     /**
      * Actions that answer the seat's current input. They run only on the game thread waiting for it; one that finds no
@@ -98,6 +100,8 @@ final class SeatSession implements IRemote {
     /** The seat's "Stop only when I'm involved" setting and stop rows (game thread). */
     private final InvolvedStops involvedStops = new InvolvedStops();
     private final PassAfterCast passAfterCast = new PassAfterCast();
+    /** The auto-yielded abilities last sent to the seat (game thread); null before the first. */
+    private List<String> lastYields;
     private volatile IGameController controller;
     private volatile GameView gameView;
     /** The game whose safe points this seat listens to. */
@@ -184,6 +188,7 @@ final class SeatSession implements IRemote {
                     pch.getYieldController().setSkipPhase(u.turnPlayer(), u.phase(), u.skip());
                 }
             }
+            publishYields();
             pump.runDeferred();
             restartRoundIfAPlayerLeft();
             if (ThreadUtil.isGameThread() && e.priority() != null) {
@@ -231,6 +236,52 @@ final class SeatSession implements IRemote {
 
     void bindController(IGameController c) {
         controller = c;
+        if (c instanceof PlayerControllerHuman pch) {
+            // the seat's settings outlive its games: this game's controller starts from them
+            SeatYields.apply(pch.getYieldController(), match.autoPass(seat), match.autoYield(seat));
+        }
+    }
+
+    /** The page changed "Auto-pass when I can't act" or "Auto-yield": applied at the game's next safe point. */
+    void yieldSettingsChanged() {
+        Game sentIn = currentGame();
+        if (closed || sentIn == null) {
+            return; // the next controller starts from them (bindController)
+        }
+        pump.defer(() -> {
+            if (sentIn == currentGame() && controller instanceof PlayerControllerHuman pch) {
+                for (YieldUpdate u : SeatYields.updates(match.autoPass(seat), match.autoYield(seat))) {
+                    pch.sendYieldUpdate(u);
+                }
+            }
+        }, () -> true, () -> { });
+    }
+
+    /**
+     * Game thread: tells the seat which abilities it auto-yields ("Always yield to this"), when that changed since the
+     * last time (sticky: a reconnecting page gets it). The engine drops them at the game's end, so a new game starts empty.
+     */
+    private void publishYields() {
+        if (!(controller instanceof PlayerControllerHuman pch)) {
+            return;
+        }
+        List<String> keys = new ArrayList<>();
+        for (String k : pch.getYieldController().getAutoYields()) {
+            keys.add(k);
+        }
+        Collections.sort(keys);
+        if (keys.equals(lastYields)) {
+            return;
+        }
+        lastYields = keys;
+        toSeat(refs -> {
+            JsonObject j = new JsonObject();
+            j.addProperty("t", "yields");
+            JsonArray a = new JsonArray();
+            keys.forEach(a::add);
+            j.add("autoYieldTo", a);
+            return j;
+        }, text -> sticky.put("yields", text));
     }
 
     void publish(List<forge.game.event.GameEvent> events) {
@@ -799,6 +850,7 @@ final class SeatSession implements IRemote {
                     return "unsupported yield update";
                 }
                 c.sendYieldUpdate(u);
+                publishYields();
                 return null;
             }
             case "requestResync":
@@ -856,6 +908,20 @@ final class SeatSession implements IRemote {
                 // the page's row cell; with "Stop only when I'm involved" on, the engine gets the effective value
                 return involvedStops.row(game, controller instanceof PlayerControllerHuman pch ? pch.getPlayer() : null,
                         new YieldUpdate.SkipPhase(p.getView(), ph, skip));
+            }
+            case "AutoYieldTo": {
+                // "Always yield to this" on a stack item: the engine auto-yields abilities (not spells) by their text
+                Integer id = integer(o, "stackItem");
+                Boolean active = bool(o, "active");
+                if (id == null || active == null || gameView == null || gameView.getStack() == null) {
+                    return null;
+                }
+                for (StackItemView si : gameView.getStack()) {
+                    if (si.getId() == id && si.isAbility() && si.getKey() != null) {
+                        return new YieldUpdate.CardAutoYield(AutoYieldStore.abilitySuffix(si.getKey()), active);
+                    }
+                }
+                return null;
             }
             case "SetAutoPassUntilEndOfTurn": {
                 Boolean active = bool(o, "active");

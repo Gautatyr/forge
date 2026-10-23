@@ -259,6 +259,11 @@ export interface StackItem {
   kind: 'spell' | 'ability' | 'trigger';
   /** Engine-rendered description, e.g. "Lightning Bolt deals 3 damage to Eidolon of Blossoms". */
   text: string;
+  /**
+   * What "Always yield to this" is keyed by: live, the engine's key of the ability (its text); the same for every item of that
+   * ability. Absent on a spell, which cannot be auto-yielded, and in the mock (the card name stands in).
+   */
+  yieldKey?: string;
   targets: TargetRef[];
 }
 
@@ -565,13 +570,13 @@ export interface GameView {
   turn: TurnState;
   combat?: CombatState;
   decision: Decision;
-  /** Pass priority automatically when you have no possible action. Off by default (D4). */
+  /** Pass priority automatically when you have no possible action (never skips a block, a target or a choice). Off by default (D4). */
   autoPass: boolean;
   /** Pay mana costs at once when casting. Off (or absent) by default: payment is manual (pass-3 override). */
   autoPay?: boolean;
   /** Honour per-ability auto-yields set on stack items. Off by default (D4). */
   autoYield: boolean;
-  /** Card names/abilities the player chose to always yield to. */
+  /** `StackItem.yieldKey` of the abilities the player chose to always yield to (live: as the bridge reports them). */
   autoYieldTo: string[];
   /** "End turn" was pressed: passing until your next turn. */
   passingUntilYourTurn: boolean;

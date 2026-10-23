@@ -48,6 +48,10 @@ export interface Prefs {
   autoPay: boolean;
   /** Pass priority once after your own spell or ability goes on the stack (memo U1b; off by default, D4). Shift on the cast holds it. */
   passAfterCast: boolean;
+  /** Pass priority when you have no playable action (issue #125; off by default, D4). The bridge applies it; sent on connect and on change. */
+  autoPass: boolean;
+  /** Honour the abilities you chose with "Always yield to this" (off by default, D4). */
+  autoYield: boolean;
   /** Interface language; also tells the bridge which language to serve card text and images in. */
   language: Lang;
 }
@@ -65,6 +69,8 @@ export const DEFAULT_PREFS: Prefs = {
   stops: DEFAULT_STOPS,
   autoPay: false,
   passAfterCast: false,
+  autoPass: false,
+  autoYield: false,
   language: 'en',
 };
 
@@ -97,6 +103,8 @@ export function parsePrefs(raw: string): Prefs {
     delete (p as { cardSize?: unknown }).cardSize;
     if (typeof p.autoPay !== 'boolean') p.autoPay = false;
     if (typeof p.passAfterCast !== 'boolean') p.passAfterCast = false;
+    if (typeof p.autoPass !== 'boolean') p.autoPass = false;
+    if (typeof p.autoYield !== 'boolean') p.autoYield = false;
     // Nothing stored (or unreadable): French for a French browser, else English.
     p.language = parseLanguage(stored.language) ?? defaultLanguage();
     if (!OPPONENT_SHARES.includes(p.opponentShare)) p.opponentShare = DEFAULT_PREFS.opponentShare;
