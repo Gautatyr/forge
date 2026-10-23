@@ -88,6 +88,8 @@ export interface CardView {
    * `front` are its real face, `back` the face-down one in play (`transformed`). Otherwise `front` is the face-down face.
    */
   faceDown?: { seen: boolean; foretold?: boolean };
+  /** The engine's hidden id of a card that was turned face down (its "H4" in engine text); only to word that text. */
+  hiddenId?: number;
   ownerId: PlayerId;
   controllerId: PlayerId;
   zone: Zone;

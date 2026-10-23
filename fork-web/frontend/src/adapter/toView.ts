@@ -30,7 +30,7 @@ import type {
   OutReason,
 } from '../model/types';
 import type { CardProps, CardStateProps, PhaseType, PlayerProps, StackItemProps, ZoneType } from '../wire/generated/wire';
-import { engineLog, engineText, targetInstruction } from './engineText';
+import { engineLog, faceDownLookup, targetInstruction, tellApart } from './engineText';
 import { parseImageKey, scryfallLookup, type ImageLookup } from './images';
 import { cancelValue, freeMulliganKeep, promptToChoice, promptWords, inputToChoice, SELECT_PROMPT_PREFIX, targetKey, tossChooser } from './prompts';
 import { tossTitle } from '../state/gameStart';
@@ -237,6 +237,7 @@ export function mapCard(s: LiveSession, id: number, images: ImageLookup = scryfa
     back,
     transformed,
     ...(faceDown ? { faceDown: { seen, ...(cp.Foretold === true ? { foretold: true } : {}) } } : {}),
+    ...(cp.HiddenId ? { hiddenId: cp.HiddenId } : {}),
     ownerId: sid(owner),
     controllerId: sid(controller),
     zone,
@@ -258,7 +259,7 @@ export function mapCard(s: LiveSession, id: number, images: ImageLookup = scryfa
 }
 
 /** Log text with "Name (id)" turned into {card:id} tokens for cards this viewer can see, the rest as player words (engineText). */
-export function logText(text: string, cards: Record<string, CardView>, seatName?: string): string {
+export function logText(text: string, cards: Record<string, CardView>, seatName?: string, faceDown = faceDownLookup(cards, true)): string {
   let out = '';
   let last = 0;
   for (const m of text.matchAll(/ \((\d+)\)/g)) {
@@ -268,7 +269,7 @@ export function logText(text: string, cards: Record<string, CardView>, seatName?
     out += name ? `${before.slice(0, before.length - name.length)}{card:${c!.id}}` : before + m[0];
     last = m.index + m[0].length;
   }
-  return engineLog(out + text.slice(last), seatName);
+  return engineLog(out + text.slice(last), seatName, faceDown);
 }
 
 /** "Pay Mana Cost: {2}{G}" (InputPayMana). */
@@ -708,6 +709,8 @@ export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup,
 
   // Every player id in the view names a player of the game (components look them up and throw otherwise).
   const activeId = gamePlayer(s, gp.PlayerTurn) ?? youNum ?? -1;
+  const stackFaceDown = faceDownLookup(cards);
+  const logFaceDown = faceDownLookup(cards, true);
 
   // The engine lists the stack top first; the view-model wants bottom → top.
   const stack: StackItem[] = [...(gp.Stack ?? [])].reverse().flatMap((id): StackItem[] => {
@@ -722,11 +725,17 @@ export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup,
         sourceCardId: sid(si.SourceCard ?? -1),
         controllerId: controller !== undefined ? sid(controller) : (source?.controllerId ?? sid(activeId)),
         kind: si.Ability ? ((si.SourceTrigger ?? -1) >= 0 ? 'trigger' : 'ability') : 'spell',
-        text: engineText(si.Description ?? ''),
+        text: si.Description ?? '',
         targets,
       },
     ];
   });
+  const stackYou = players.find((p) => p.isYou)?.name;
+  const stackTexts = tellApart(
+    stack.map((i) => ({ text: i.text, key: i.sourceCardId })),
+    (raw, keepTags) => engineLog(raw, stackYou, stackFaceDown, keepTags),
+  );
+  stack.forEach((i, n) => (i.text = stackTexts[n]!));
 
   const priority = playerIds.find((pid) => s.get('player', pid)?.props.HasPriority && !s.get('player', pid)?.props.HasLost);
   const combat: CombatState | undefined = gp.CombatView?.length
@@ -783,7 +792,7 @@ export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup,
     autoYieldTo: [],
     passingUntilYourTurn: local.passingUntilYourTurn,
     // Step changes are the strip's job, not the log's.
-    log: s.log.filter((e) => e.type !== 'PHASE').map((e): LogEntry => ({ id: `w${e.id}`, turn: e.turn, text: logText(e.msg, cards, youName) })),
+    log: s.log.filter((e) => e.type !== 'PHASE').map((e): LogEntry => ({ id: `w${e.id}`, turn: e.turn, text: logText(e.msg, cards, youName, logFaceDown) })),
   };
   const decision = decisionFor(s, base);
   const view: GameView = { ...base, decision };

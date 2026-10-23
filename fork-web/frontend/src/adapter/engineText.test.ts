@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { engineLog, engineNotice, engineText, resolveFilters, stripCardIds, targetInstruction, unlessChoice, youGrammar } from './engineText';
+import { engineLog, engineNotice, engineText, faceDownLookup, resolveFilters, stripCardIds, targetInstruction, tellApart, unlessChoice, youGrammar } from './engineText';
 
 // Strings are the engine's own (InputSelectTargets, ChangeZoneEffect, TriggeredAbility, the web log), as seen in playtests 1 and 2.
 describe('engineText: engine words → player words', () => {
@@ -141,5 +141,106 @@ describe('engineText: the seat is "You"', () => {
     expect(engineNotice("Can't block Llanowar Elves (12)", 'Forge')).toBe("Can't block Llanowar Elves");
     expect(engineNotice('Attack declaration invalid', undefined)).toBe('Attack declaration invalid');
     expect(engineNotice('Nothing here', 'Deck check')).toBe('Deck check: Nothing here');
+  });
+});
+
+// Strings are the ones QA playtest 3 copied from the log, the stack and the trays (issue #127).
+describe('engineText: raw tags and ids (issue #127)', () => {
+  it('drops the tags that repeat the card or say nothing a player needs', () => {
+    expect(engineText('At the beginning of your upkeep, flip a coin. If you lose the flip, Mana Crypt deals 3 damage to you. [Phase: You]')).toBe(
+      'At the beginning of your upkeep, flip a coin. If you lose the flip, Mana Crypt deals 3 damage to you.',
+    );
+    expect(engineText('At the beginning of your upkeep, you draw a card. [Phase: AI 2 (Feline Ferocity [C17])]')).toBe(
+      'At the beginning of your upkeep, you draw a card.',
+    );
+    expect(engineText("When Bojuka Bog enters, exile all cards from target player's graveyard. (Targeting: [[AI 1]]) [Zone Changer: Bojuka Bog (12)]")).toBe(
+      "When Bojuka Bog enters, exile all cards from target player's graveyard. (Targeting: AI 1)",
+    );
+    expect(engineText('Whenever Goblin Guide attacks, defending player reveals the top card. [Attacker: Goblin Guide (5)]')).toBe(
+      'Whenever Goblin Guide attacks, defending player reveals the top card.',
+    );
+    expect(engineText('Whenever City of Brass becomes tapped, it deals 1 damage to you. [Tapped: City of Brass (9)]')).toBe(
+      'Whenever City of Brass becomes tapped, it deals 1 damage to you.',
+    );
+    expect(engineText('Hideaway 4 (When this permanent enters, look at the top four cards.) [Zone Changer: Shelldock Isle (7)]')).toBe(
+      'Hideaway 4 (When this permanent enters, look at the top four cards.)',
+    );
+    // several values: nothing a player can use
+    expect(
+      engineText(
+        'Extort (Whenever you cast a spell, you may pay {W/B}.) [Card: Diabolic Intent (3), Activator: You, SpellAbility: As an additional cost to cast this spell, sacrifice a creature. Search your library [C17] for a card.]',
+      ),
+    ).toBe('Extort (Whenever you cast a spell, you may pay {W/B}.)');
+    expect(engineText('Whenever a creature deals damage, draw. [Damage Source: Otrimi (331), Damaged: AI 2 (Feline Ferocity [C17])]')).toBe(
+      'Whenever a creature deals damage, draw.',
+    );
+    // a bracket that is no tag stays (set codes, rules text)
+    expect(engineText('Feline Ferocity [C17] deals 2 damage')).toBe('Feline Ferocity [C17] deals 2 damage');
+  });
+
+  it('words what tells identical triggers apart (three Mimic Vat triggers)', () => {
+    const vat = 'Whenever a nontoken creature dies, you may exile that card. If you do, create a token that is a copy of it. [Zone Changer: ';
+    const raw = [`${vat}Boggart Brute (30)]`, `${vat}Rograkh, Son of Rohgahh (31)]`, `${vat}Face-down card (H0)]`];
+    const plain = 'Whenever a nontoken creature dies, you may exile that card. If you do, create a token that is a copy of it.';
+    expect(engineText(raw[0]!, undefined, true)).toBe(`${plain} (for Boggart Brute)`);
+    expect(tellApart(raw.map((text) => ({ text })), (r, keep) => engineText(r, undefined, keep))).toEqual([
+      `${plain} (for Boggart Brute)`,
+      `${plain} (for Rograkh, Son of Rohgahh)`,
+      `${plain} (for a face-down creature)`,
+    ]);
+    // different items stay plain, and so do identical ones from different sources
+    expect(tellApart([{ text: raw[0]! }, { text: 'Draw a card. [Phase: You]' }], (r, keep) => engineText(r, undefined, keep))).toEqual([plain, 'Draw a card.']);
+    expect(tellApart([{ text: raw[0]!, key: 'a' }, { text: raw[1]!, key: 'b' }], (r, keep) => engineText(r, undefined, keep))).toEqual([plain, plain]);
+    expect(engineText('Whenever Attackers attack. [Number Attackers: [The Ur-Dragon (100)]]', undefined, true)).toBe('Whenever Attackers attack. (for The Ur-Dragon)');
+  });
+
+  it('unwraps the target lists', () => {
+    expect(engineText('AI 3 cast Spitting Earth targeting [ Karador, Ghost Chieftain (4)]')).toBe('AI 3 cast Spitting Earth targeting Karador, Ghost Chieftain');
+    expect(engineText('You cast Fireball targeting [Goblin Guide (1), Goblin Guide (2)]')).toBe('You cast Fireball targeting Goblin Guide, Goblin Guide');
+    expect(engineText('You triggered Bojuka Bog targeting [AI 1]')).toBe('You triggered Bojuka Bog targeting AI 1');
+  });
+
+  it('words a face-down card by its hidden id: named only when the viewer may look at it', () => {
+    expect(engineText('You assigned Rograkh and Face-down card (H4) to block Boggart Brute.')).toBe(
+      'You assigned Rograkh and a face-down creature to block Boggart Brute.',
+    );
+    expect(engineText('Face-down card (H4) deals 2 damage to Boggart Brute.')).toBe('A face-down creature deals 2 damage to Boggart Brute.');
+    const cards = {
+      '30': { id: '30', name: 'Zoetic Cavern', hiddenId: 4, faceDown: { seen: true } },
+      '31': { id: '31', name: 'Face-down card', hiddenId: 5, faceDown: { seen: false } },
+      '32': { id: '32', name: 'Boggart Brute', hiddenId: 6 },
+    } as never;
+    const lookup = faceDownLookup(cards);
+    expect(engineText('Face-down card (H4) deals 2 damage to Boggart Brute.', lookup)).toBe('Zoetic Cavern deals 2 damage to Boggart Brute.');
+    // an opponent's face-down card stays face-down
+    expect(engineText('Face-down card (H5) deals 2 damage.', lookup)).toBe('A face-down creature deals 2 damage.');
+    // a card that is face up now (it died) is public
+    expect(engineText('Face-down card (H6) dies.', lookup)).toBe('Boggart Brute dies.');
+    expect(engineText('Face-down card (H0) dies.', lookup)).toBe('A face-down creature dies.');
+    const asToken = faceDownLookup({ '30': { id: '30', name: 'Zoetic Cavern', hiddenId: 4, faceDown: { seen: true } } } as never, true);
+    expect(engineText('You cast Morph. Face-down card (H4) dies.', asToken)).toBe('You cast Morph. {card:30} dies.');
+  });
+});
+
+describe('engineText: "You" after a card name (issue #127)', () => {
+  it('agrees the verb of a seat name after "Card - " and the verbs that follow in the clause', () => {
+    expect(youGrammar('Diabolic Intent - You searches their library for a card, reveals it, puts it into their hand, then shuffles.', 'You')).toBe(
+      'Diabolic Intent - You search your library for a card, reveal it, put it into your hand, then shuffle.',
+    );
+    expect(youGrammar("Buried Alive - You searches their library for up to three creature cards, puts them into their owner's graveyard, then shuffles.", 'You')).toBe(
+      "Buried Alive - You search your library for up to three creature cards, put them into their owner's graveyard, then shuffle.",
+    );
+    expect(youGrammar('Opt - You scries 1. You draw a card.', 'You')).toBe('Opt - You scry 1. You draw a card.');
+    expect(youGrammar('Consider - You surveils. You draw a card.', 'You')).toBe('Consider - You surveil. You draw a card.');
+    expect(youGrammar('Faithless Looting - You draw two cards. You discards two cards.', 'You')).toBe('Faithless Looting - You draw two cards. You discard two cards.');
+    // a noun after "and" is no verb; another player stays
+    expect(youGrammar('Wrath - You sacrifices a creature and lands you control.', 'You')).toBe('Wrath - You sacrifice a creature and lands you control.');
+    expect(youGrammar('Opt - AI 1 scries 1.', 'You')).toBe('Opt - AI 1 scries 1.');
+  });
+
+  it('the stack text is worded like the log', () => {
+    expect(engineLog('Faithless Looting - You draw two cards. You discards two cards. [Phase: You]', 'You')).toBe(
+      'Faithless Looting - You draw two cards. You discard two cards.',
+    );
   });
 });

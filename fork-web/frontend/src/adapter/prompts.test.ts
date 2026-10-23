@@ -110,6 +110,48 @@ describe('prompt → choice tray', () => {
     expect(replyValue(torment, { shape: 'chooseN', optionIds: ['1'] })).toEqual([1]);
   });
 
+  it('words three identical triggers apart in player words, no engine tags (issue #127)', () => {
+    const vat = 'Whenever a nontoken creature dies, you may exile that card. [Zone Changer: ';
+    const order: PromptMessage = {
+      ...base,
+      method: 'order',
+      shape: 'order',
+      message: 'Choose the order of the triggers',
+      destLabel: 'Resolve first',
+      choices: [
+        { i: 0, label: `Mimic Vat (4) - ${vat}Boggart Brute (30)]`, inDest: false },
+        { i: 1, label: `Mimic Vat (4) - ${vat}Rograkh, Son of Rohgahh (31)]`, inDest: false },
+        { i: 2, label: `Mimic Vat (4) - ${vat}Face-down card (H0)]`, inDest: false },
+        { i: 3, label: 'Mimic Vat (4) - At the beginning of your upkeep, draw. [Phase: You]', inDest: false },
+      ],
+      remainingMin: 0,
+      remainingMax: 0,
+      rememberOption: false,
+    };
+    const p = promptToChoice(order, cards);
+    const labels = p.shape === 'order' ? p.lists.flatMap((l) => l.items.map((i) => i.label)) : [];
+    expect(labels).toEqual([
+      'Mimic Vat - Whenever a nontoken creature dies, you may exile that card. (for Boggart Brute)',
+      'Mimic Vat - Whenever a nontoken creature dies, you may exile that card. (for Rograkh, Son of Rohgahh)',
+      'Mimic Vat - Whenever a nontoken creature dies, you may exile that card. (for a face-down creature)',
+      'Mimic Vat - At the beginning of your upkeep, draw.',
+    ]);
+    expect(labels.join(' ')).not.toMatch(/\[|\(H\d/);
+  });
+
+  it('shows a prompt title that is a whole ability text without its tag (issue #127)', () => {
+    const text = 'When Necromancy enters, if it\'s on the battlefield, it becomes an Aura. Put target creature card from a graveyard onto the battlefield.';
+    const line = `Necromancy (3) - ${text} [Zone Changer: Necromancy (3)]`;
+    // as the prompt's title, or as its message: the card names the tray, the text is the instruction
+    expect(promptWords('Select target creature card in a graveyard', line, 'Choose')).toEqual({
+      title: 'Necromancy',
+      instruction: `${text}\nSelect target creature card in a graveyard`,
+    });
+    expect(promptWords(line, undefined, 'Choose')).toEqual({ title: 'Necromancy', instruction: text });
+    // a short line stays whole
+    expect(promptWords('Opt - Scry 1', undefined, 'Choose')).toEqual({ title: 'Opt - Scry 1', instruction: '' });
+  });
+
   it('maps order to one list when everything must be ordered, two when some may stay out', () => {
     const order = (remainingMax: number): PromptMessage => ({
       ...base,

@@ -8,7 +8,7 @@ import type { PromptAnswer } from '../model/intents';
 import type { CardId, CardView, ChoiceOption, ChoicePrompt, DistributeRecipient, GameView, TargetRef } from '../model/types';
 import { bottomPrompt, mulliganPrompt, tossTitle, type MulliganFacts, type TossChooser } from '../state/gameStart';
 import type { PromptChoice, PromptMessage } from './protocol';
-import { engineText, unlessChoice, unlessEffect } from './engineText';
+import { engineText, faceDownLookup, tellApart, unlessChoice, unlessEffect, type FaceDownLookup } from './engineText';
 import { colourOptions, isSurveil, numberList, pickedNumber, rangeOfNumberPrompt, surveilWords } from './trayWords';
 import { londonLeft, type InputState } from './session';
 import { t } from '../i18n';
@@ -38,8 +38,8 @@ export function inputPromptKind(id: string): InputPromptKind | undefined {
 /** Name a card: a text prompt with this many options or more is a name list, fewer a list to pick from. */
 const NAME_LIST_MIN = 13;
 
-function option(c: PromptChoice, cards: Record<string, CardView>, players?: readonly string[]): ChoiceOption {
-  const o: ChoiceOption = { id: String(c.i), label: engineText(c.label) || c.label };
+function option(c: PromptChoice, cards: Record<string, CardView>, players?: readonly string[], faceDown?: FaceDownLookup, text?: string): ChoiceOption {
+  const o: ChoiceOption = { id: String(c.i), label: text || engineText(c.label, faceDown) || c.label };
   const ref = c.ref;
   if (ref?.type === 'card' && cards[String(ref.id)]) o.cardId = String(ref.id);
   if (ref?.type === 'player' && (!players || players.includes(String(ref.id)))) o.playerId = String(ref.id);
@@ -49,24 +49,32 @@ function option(c: PromptChoice, cards: Record<string, CardView>, players?: read
 /** A single line longer than this is split at an early "Card name: " into title and instruction. */
 const LONG_LINE = 80;
 
-/**
- * An engine message as tray words, never the same line twice: "Cultivate (12)\nSelect up to 2…" → title
- * "Cultivate" (no engine card id), instruction the other lines; one line → the title alone, unless it is a
- * long "Card name: rule text" line (the card names the tray). An engine title is kept as the title.
- */
-export function promptWords(message: string | null | undefined, title: string | undefined, fallback: string) {
-  const lines = engineText(message ?? '').split('\n').filter(Boolean);
-  const head = engineText(title ?? '');
-  if (head) return { title: head, instruction: lines.join('\n') === head ? '' : lines.join('\n') };
-  if (lines.length > 1) return { title: lines[0]!, instruction: lines.slice(1).join('\n') };
-  const line = lines[0] ?? '';
-  const colon = line.indexOf(': ');
-  if (line.length > LONG_LINE && colon > 0 && colon < 60) return { title: line.slice(0, colon), instruction: line.slice(colon + 2) };
-  return { title: line || fallback, instruction: '' };
+/** A long "Card name - rule text" or "Card name: rule text" line as the card's name and its text (the card names the tray). */
+function splitLong(line: string): { title: string; instruction: string } | undefined {
+  if (line.length <= LONG_LINE) return undefined;
+  const cuts = [line.indexOf(': '), line.indexOf(' - ')].filter((i) => i > 0 && i < 60);
+  if (cuts.length === 0) return undefined;
+  const at = Math.min(...cuts);
+  return { title: line.slice(0, at), instruction: line.slice(at + (line.startsWith(' - ', at) ? 3 : 2)) };
 }
 
-function words(p: { message?: string | null; title?: string }, fallback: string) {
-  return promptWords(p.message, p.title, fallback);
+/**
+ * An engine message as tray words, never the same line twice: "Cultivate (12)\nSelect up to 2…" → title
+ * "Cultivate" (no engine card id), instruction the other lines; a long first line "Card name - rule text" (or "Card
+ * name: rule text") → the card names the tray and the text is the instruction. An engine title is kept as the title.
+ */
+export function promptWords(message: string | null | undefined, title: string | undefined, fallback: string, faceDown?: FaceDownLookup) {
+  const lines = engineText(message ?? '', faceDown).split('\n').filter(Boolean);
+  const head = engineText(title ?? '', faceDown);
+  const first = head || lines[0] || '';
+  const others = head ? (lines.join('\n') === head ? [] : lines) : lines.slice(1);
+  const cut = splitLong(first);
+  if (cut) return { title: cut.title, instruction: [cut.instruction, ...others].join('\n') };
+  return { title: first || fallback, instruction: others.join('\n') };
+}
+
+function words(p: { message?: string | null; title?: string }, fallback: string, faceDown?: FaceDownLookup) {
+  return promptWords(p.message, p.title, fallback, faceDown);
 }
 
 const cardOf = (ref: { type: string; id: number } | undefined, cards: Record<string, CardView>): CardId | undefined =>
@@ -77,11 +85,16 @@ const isWhole = (s: string) => /^-?\d+$/.test(s.trim());
 /** `players`: the game's player ids; a choice naming another player id keeps its label only. */
 export function promptToChoice(p: PromptMessage, cards: Record<string, CardView>, players?: readonly string[]): ChoicePrompt {
   const id = promptViewId(p.id);
-  const opt = (c: PromptChoice) => option(c, cards, players);
+  const faceDown = faceDownLookup(cards);
+  // Choices that read the same without the engine's tags (three identical triggers) keep what tells them apart.
+  const choices: readonly PromptChoice[] = 'choices' in p ? p.choices : [];
+  const apart = tellApart(choices.map((c) => ({ text: c.label })), (raw, keep) => engineText(raw, faceDown, keep));
+  const labelOf = new Map(choices.map((c, n) => [c, apart[n]!]));
+  const opt = (c: PromptChoice) => option(c, cards, players, faceDown, labelOf.get(c));
   const sourceCardId = cardOf('card' in p ? p.card : undefined, cards);
   switch (p.shape) {
     case 'choose': {
-      let w = words(p, p.method === 'getAbilityToPlay' ? t('prompt.chooseAbility') : t('prompt.choose'));
+      let w = words(p, p.method === 'getAbilityToPlay' ? t('prompt.chooseAbility') : t('prompt.choose'), faceDown);
       let options = p.choices.filter((c) => !c.disabled).map((c) => opt(c));
       // "You lose 3 life unless you sacrifice…" / "…unless you discard…" (Torment of Hailfire): the costs to pick from.
       const unless = p.method === 'getAbilityToPlay' ? undefined : unlessEffect(options.map((o) => o.label));
@@ -106,7 +119,7 @@ export function promptToChoice(p: PromptMessage, cards: Record<string, CardView>
       return { ...base, shape: 'chooseN', options: colourOptions(options) ?? options, min: p.min, max: p.max };
     }
     case 'confirm': {
-      const w = words(p, t('common.confirm'));
+      const w = words(p, t('common.confirm'), faceDown);
       return {
         id,
         ...w,
@@ -121,7 +134,7 @@ export function promptToChoice(p: PromptMessage, cards: Record<string, CardView>
       };
     }
     case 'order': {
-      const w = words(p, t('prompt.putInOrder'));
+      const w = words(p, t('prompt.putInOrder'), faceDown);
       const base = { id, ...w, sourceCardId, confirmLabel: t('common.confirm'), shape: 'order' as const };
       if (p.piles) {
         // scry: only the looked-at cards, each to the top or the bottom of the library (the scry layout)
@@ -201,7 +214,7 @@ export function promptToChoice(p: PromptMessage, cards: Record<string, CardView>
       };
     }
     case 'text': {
-      const w = words(p, t('prompt.answer'));
+      const w = words(p, t('prompt.answer'), faceDown);
       const base = { id, ...w, sourceCardId, confirmLabel: t('common.confirm') };
       const opts = p.options ?? [];
       if (opts.length >= NAME_LIST_MIN) {

@@ -320,6 +320,22 @@ const TRAY_SCENARIOS: Scenario[] = [
       options: lands.map((id) => ({ id, label: b.g.cards[id]!.name, cardId: id })),
     };
   }),
+  trayScenario('long-title', '3g3 · A prompt whose title is a whole ability text', 'Necromancy-style target prompt with a five-line title: the tray stays inside the window, its body scrolls.', (b, ids) => {
+    const elves = b.card('Llanowar Elves', 'you', 'graveyard');
+    const chieftain = b.card('Goblin Chieftain', 'mira', 'graveyard');
+    return {
+      id: 'long-title',
+      shape: 'chooseN',
+      title:
+        'Necromancy - When Necromancy enters, if it\'s on the battlefield, it becomes an Aura with "enchant creature put onto the battlefield with Necromancy." Put target creature card from a graveyard onto the battlefield under your control and attach Necromancy to it. When Necromancy leaves the battlefield, that creature\'s controller sacrifices it.',
+      instruction: 'Select target creature card in a graveyard',
+      sourceCardId: ids.knight,
+      confirmLabel: 'Choose',
+      min: 1,
+      max: 1,
+      options: [elves, chieftain].map((id) => ({ id, label: b.g.cards[id]!.name, cardId: id })),
+    };
+  }),
   trayScenario('optional', '3h · Yes / no: optional trigger', 'The source card is in the tray header; Y, N, Space.', (b) => {
     const sigil = b.p('you').battlefield.find((id) => b.g.cards[id]!.name === 'Sigil of the Empty Throne')!;
     return {

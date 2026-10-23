@@ -66,6 +66,7 @@
 }
 
 .head {
+  flex: none;
   display: flex;
   align-items: center;
   gap: var(--sp-3);
@@ -74,6 +75,9 @@
 }
 
 .titles {
+  /* A whole ability text as a prompt title scrolls here; the choices below keep their room. */
+  max-height: 3.6rem;
+  overflow-y: auto;
   flex: 1;
   min-width: 0;
 }
@@ -255,6 +259,7 @@
 }
 
 .foot {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
