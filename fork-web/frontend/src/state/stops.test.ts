@@ -165,3 +165,60 @@ describe('auto-pay is kept in prefs', () => {
     expect(parsePrefs(JSON.stringify({ autoPay: 'yes' })).autoPay).toBe(false);
   });
 });
+
+describe('“Stop only when I’m involved” (ruling 2026-10-22, memo U1a)', () => {
+  const g = scenarioById('priority').build(); // you, Mira, Theo, Ana: Ana plays right before you
+  const on: StopPrefs = { ...DEFAULT_STOPS, involvedOnly: true };
+  const attack = (defenderId: string): GameView['combat'] => ({ attacks: [{ attackerId: 'x', defenderId }], blocks: [] });
+
+  it('is off by default, kept in prefs, and garbage reads as off', () => {
+    expect(DEFAULT_STOPS.involvedOnly).toBeFalsy();
+    expect(parsePrefs(JSON.stringify({ stops: { ...DEFAULT_STOPS, involvedOnly: true } })).stops.involvedOnly).toBe(true);
+    expect(parsePrefs(JSON.stringify({ stops: { ...DEFAULT_STOPS, involvedOnly: 'yes' } })).stops.involvedOnly).toBeFalsy();
+    expect(parsePrefs('{}').stops.involvedOnly).toBeFalsy();
+  });
+
+  it('leaves the rows sent to the bridge as they are (the bridge decides on the live combat)', () => {
+    expect(isStop(on, 'you', 'mira', 'beginCombat')).toBe(true);
+    expect(isStop(on, 'you', 'theo', 'end')).toBe(true);
+  });
+
+  it('next stop skips beginning of combat, unknown attacks and the end steps of players not right before you', () => {
+    expect(nextStop(at(g, 'you', 'main2'), on)).toEqual({ playerId: 'ana', step: 'end' });
+    expect(nextStopLabel(at(g, 'you', 'main2'), on)).toBe("Ana's end step");
+  });
+
+  it('keeps your own turn', () => {
+    expect(nextStop(at(g, 'ana', 'end'), on)).toEqual({ playerId: 'you', step: 'main1' });
+  });
+
+  it('holds declare blockers when the combat under way attacks you', () => {
+    const attacked = { ...at(g, 'theo', 'declareAttackers'), combat: attack('you') };
+    expect(nextStop(attacked, on)).toEqual({ playerId: 'theo', step: 'declareBlockers' });
+    const other = { ...at(g, 'theo', 'declareAttackers'), combat: attack('mira') };
+    expect(nextStop(other, on)).toEqual({ playerId: 'ana', step: 'end' });
+  });
+
+  it('holds declare blockers when one of your creatures blocks', () => {
+    const blockerId = Object.values(g.cards).find((c) => c.controllerId === 'you' && c.zone === 'battlefield')!.id;
+    const blocking = {
+      ...at(g, 'theo', 'declareAttackers'),
+      combat: { attacks: [{ attackerId: 'x', defenderId: 'mira' }], blocks: [{ blockerId, attackerId: 'x' }] },
+    };
+    expect(nextStop(blocking, on)).toEqual({ playerId: 'theo', step: 'declareBlockers' });
+  });
+
+  it('a step set to Pass stays passed', () => {
+    const s = { ...setSharedOpponentStop(DEFAULT_STOPS, 'end', false), involvedOnly: true };
+    expect(nextStop(at(g, 'you', 'main2'), s)).toEqual({ playerId: 'you', step: 'main1' });
+  });
+
+  it('“right before you” skips players who have lost', () => {
+    const lost = { ...g, players: g.players.map((p) => (p.id === 'ana' ? { ...p, hasLost: true } : p)) };
+    expect(nextStop(at(lost, 'you', 'main2'), on)).toEqual({ playerId: 'theo', step: 'end' });
+  });
+
+  it('reset turns it off with the rows', () => {
+    expect(resetStops().involvedOnly).toBeFalsy();
+  });
+});

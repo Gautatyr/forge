@@ -403,7 +403,13 @@ describe('intents → frames', () => {
     const frames = stopFrames(g, (pid, step) => pid === '0' && step === 'main1');
     expect(frames).toContainEqual(act('sendYieldUpdate', { update: { kind: 'SkipPhase', turnPlayer: 0, phase: 'MAIN1', skip: false } }));
     expect(frames).toContainEqual(act('sendYieldUpdate', { update: { kind: 'SkipPhase', turnPlayer: 1, phase: 'MAIN1', skip: true } }));
-    expect(frames).toHaveLength(2 * 11);
+    expect(frames).toHaveLength(2 * 11 + 1);
+    expect(frames[0]).toEqual(act('sendYieldUpdate', { update: { kind: 'InvolvedStops', active: false } }));
+  });
+
+  it('tells the bridge when stops hold only when you are involved', () => {
+    const frames = stopFrames(toGameView(session()), () => true, true);
+    expect(frames[0]).toEqual(act('sendYieldUpdate', { update: { kind: 'InvolvedStops', active: true } }));
   });
 });
 
