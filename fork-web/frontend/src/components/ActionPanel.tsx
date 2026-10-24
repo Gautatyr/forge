@@ -5,6 +5,7 @@ import { currentAttackAim } from '../state/focus';
 import { watching } from '../state/gameEnd';
 import { useMatch } from '../state/MatchContext';
 import { canCancel, cancelLabel, primaryAction, promptText } from '../state/primaryAction';
+import { pressPrimary, refusalNote, refusalNoteStale } from '../state/promptKeys';
 import { Icon } from './Icon';
 import { FloatingMana, PaymentCost } from './Payment';
 import styles from './ActionPanel.module.css';
@@ -25,7 +26,9 @@ export function ActionPanel() {
   const prompt = promptText(game);
   const d = game.decision;
   const paying = d.kind === 'payMana' ? d : undefined;
-  const note = ui.promptNote;
+  // A refusal note ends with the refusal: the second blocker made the block valid.
+  const stale = refusalNoteStale(ui.promptNote, action.refusal);
+  const note = stale ? undefined : ui.promptNote;
   // Out of the game or game over: the block reads "Watching" / "Game over" and offers nothing (§2.6).
   const ended = game.result !== undefined || watching(game);
   const cancel = canCancel(game, ui);
@@ -33,17 +36,18 @@ export function ActionPanel() {
   const cancelText = cancelLabel(game);
 
   // A refused attack declaration stays until the player acts (send clears it) or the declaration ends.
-  const stale = note?.sticky && d.kind !== 'declareAttackers';
+  const attackOver = note?.sticky && d.kind !== 'declareAttackers';
   useEffect(() => {
-    if (!note) return;
-    if (stale) {
-      setUi((u) => (u.promptNote?.id === note.id ? { ...u, promptNote: undefined } : u));
+    const current = ui.promptNote;
+    if (!current) return;
+    if (stale || attackOver) {
+      setUi((u) => (u.promptNote?.id === current.id ? { ...u, promptNote: undefined } : u));
       return;
     }
-    if (note.sticky) return;
-    const timer = window.setTimeout(() => setUi((u) => (u.promptNote?.id === note.id ? { ...u, promptNote: undefined } : u)), NOTE_MS);
+    if (current.sticky) return;
+    const timer = window.setTimeout(() => setUi((u) => (u.promptNote?.id === current.id ? { ...u, promptNote: undefined } : u)), NOTE_MS);
     return () => window.clearTimeout(timer);
-  }, [note, stale, setUi]);
+  }, [ui.promptNote, stale, attackOver, setUi]);
 
   return (
     <section className={styles.panel} aria-label={t('action.decision')}>
@@ -111,10 +115,7 @@ export function ActionPanel() {
           // A refused answer stays clickable so the click can say why (issue #129).
           disabled={!action.enabled && !action.refusal}
           aria-disabled={action.refusal ? true : undefined}
-          onClick={() => {
-            if (action.refusal) setUi((u) => ({ ...u, promptNote: { id: (u.promptNote?.id ?? 0) + 1, text: action.refusal! } }));
-            else if (action.intent) send(action.intent);
-          }}
+          onClick={() => pressPrimary(action, send, (text) => setUi((u) => ({ ...u, promptNote: refusalNote(u, text) })))}
         >
           <span className={styles.primaryLabel}>
             {action.tone === 'attack' ? <Icon name="sword" /> : action.tone === 'block' ? <Icon name="shield" /> : null}

@@ -104,6 +104,12 @@ final class SeatSession implements IRemote {
     private List<String> lastYields;
     private volatile IGameController controller;
     private volatile GameView gameView;
+    /**
+     * Whether the seat's current input allows Cancel: the last {@code updateButtons} second button state sent to it. A
+     * {@code selectButtonCancel} is refused while it is off: {@code InputSelectManyBase.onCancel} does not check it (the
+     * desktop screen relies on its disabled button), so a mandatory discard would end with nothing chosen (issue #139).
+     */
+    private volatile boolean cancelEnabled;
     /** The game whose safe points this seat listens to. */
     private Game safePointsOf;
     /** Set by {@link #close}; guarded by {@link #out} for sends, so nothing reaches the seat once it is set. */
@@ -350,6 +356,9 @@ final class SeatSession implements IRemote {
         }
         if (closed) {
             return;
+        }
+        if (method == ProtocolMethod.updateButtons && args.length == 6 && args[4] instanceof Boolean cancel) {
+            cancelEnabled = cancel;
         }
         flush(); // the call may name objects changed since the last batch
         Object[] sent = method == ProtocolMethod.setSelection && args.length == 1 && args[0] instanceof Selection sel
@@ -718,6 +727,9 @@ final class SeatSession implements IRemote {
                 c.selectButtonOk();
                 return null;
             case "selectButtonCancel":
+                if (!cancelEnabled) {
+                    return "cannot cancel here"; // the client is not trusted: its Esc may ignore the input's Cancel state
+                }
                 c.selectButtonCancel();
                 return null;
             case "concede":

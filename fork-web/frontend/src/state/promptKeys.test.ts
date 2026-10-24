@@ -1,8 +1,21 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Intent } from '../model/intents';
 import { scenarioById } from '../mock/scenarios';
 import type { GameView } from '../model/types';
-import { dropsFocusAfterClick, escapeStep, handleSpace, ownsKey, pickDigitTarget, promptKeysLive, takesKeys } from './promptKeys';
+import {
+  blurAfterClick,
+  digitAction,
+  dropsFocusAfterClick,
+  escapeStep,
+  handleSpace,
+  ownsKey,
+  pickDigitTarget,
+  pressPrimary,
+  promptKeysLive,
+  refusalNote,
+  refusalNoteStale,
+  takesKeys,
+} from './promptKeys';
 
 describe('prompt keys (inert under an inspector or an overlay)', () => {
   it('are live with nothing open', () => {
@@ -148,5 +161,119 @@ describe('Esc (issue #130)', () => {
     expect(escapeStep({ kind: 'payMana' } as never, {}, false)).toBe('cancel');
     expect(escapeStep({ kind: 'choice', cancellable: true } as never, {}, false)).toBe('cancel');
     expect(escapeStep({ kind: 'choice', cancellable: false } as never, {}, false)).toBeUndefined();
+  });
+  it('does not cancel a pick the engine does not allow cancelling (a mandatory discard, issue #139)', () => {
+    const pick = (cancellable: boolean | undefined) => ({ kind: 'chooseTargets', purpose: 'pick', cancellable }) as never;
+    expect(escapeStep(pick(false), {}, false)).toBeUndefined();
+    expect(escapeStep(pick(true), {}, false)).toBe('cancel');
+    expect(escapeStep({ kind: 'chooseTargets', purpose: 'target' } as never, {}, false)).toBe('cancel');
+  });
+  it('a mandatory pick still lets Esc close an open zone view or the tray peek', () => {
+    const d = { kind: 'chooseTargets', purpose: 'pick', cancellable: false } as never;
+    expect(escapeStep(d, { zoneView: { playerId: 'p1', zone: 'graveyard' } } as never, false)).toBe('zone');
+    expect(escapeStep(d, { trayPeek: true }, false)).toBe('peek');
+  });
+});
+
+describe('the click-to-blur listener (issue #126, #141)', () => {
+  const sw = (focusVisible: boolean) => ({
+    tagName: 'INPUT',
+    type: 'checkbox',
+    matches: (s: string) => s === ':focus-visible' && focusVisible,
+    blur: vi.fn(),
+  });
+  it('blurs a switch the pointer focused', () => {
+    const el = sw(false);
+    blurAfterClick(el);
+    expect(el.blur).toHaveBeenCalledTimes(1);
+  });
+  it('keeps a keyboard-focused switch, a text field and nothing focused', () => {
+    const focused = sw(true);
+    const text = { tagName: 'INPUT', type: 'text', matches: () => false, blur: vi.fn() };
+    blurAfterClick(focused);
+    blurAfterClick(text);
+    blurAfterClick(null);
+    expect(focused.blur).not.toHaveBeenCalled();
+    expect(text.blur).not.toHaveBeenCalled();
+  });
+});
+
+describe('the primary button click (issue #129, #141)', () => {
+  const intent = { type: 'passPriority' } as unknown as Intent;
+  it('a refused button shows the reason and sends nothing', () => {
+    const send = vi.fn();
+    const note = vi.fn();
+    pressPrimary({ intent, refusal: 'Boggart Brute needs 2 blockers' }, send, note);
+    expect(note).toHaveBeenCalledWith('Boggart Brute needs 2 blockers');
+    expect(send).not.toHaveBeenCalled();
+  });
+  it('an allowed button sends its intent and says nothing', () => {
+    const send = vi.fn();
+    const note = vi.fn();
+    pressPrimary({ intent }, send, note);
+    expect(send).toHaveBeenCalledWith(intent);
+    expect(note).not.toHaveBeenCalled();
+  });
+});
+
+describe('the refusal note ends with the refusal (issue #141)', () => {
+  const note = refusalNote({}, 'Boggart Brute needs 2 blockers');
+  it('is marked a refusal and restarts the timer id', () => {
+    expect(note).toEqual({ id: 1, text: 'Boggart Brute needs 2 blockers', refusal: true });
+    expect(refusalNote({ promptNote: note }, 'x').id).toBe(2);
+  });
+  it('stays while the same refusal stands', () => {
+    expect(refusalNoteStale(note, 'Boggart Brute needs 2 blockers')).toBe(false);
+  });
+  it('goes as soon as the block is valid (no refusal) or the refusal changes', () => {
+    expect(refusalNoteStale(note, undefined)).toBe(true);
+    expect(refusalNoteStale(note, 'Boggart Brute needs 3 blockers')).toBe(true);
+  });
+  it('never touches a plain note or no note', () => {
+    expect(refusalNoteStale({ id: 1, text: "You can't play that right now." }, undefined)).toBe(false);
+    expect(refusalNoteStale(undefined, undefined)).toBe(false);
+  });
+});
+
+describe('the number-key branch of the key handler', () => {
+  const hand = ['h1', 'h2', 'h3'];
+  const game = (kind: 'pick' | 'priority'): GameView => {
+    const g = scenarioById('duel').build();
+    const decision: GameView['decision'] =
+      kind === 'pick'
+        ? {
+            kind: 'chooseTargets',
+            sourceCardId: 'h1',
+            instruction: 'Discard 2 card(s)',
+            legal: hand.map((id) => ({ kind: 'card' as const, id })),
+            chosen: [],
+            min: 2,
+            max: 2,
+            purpose: 'pick',
+          }
+        : g.decision;
+    return { ...g, players: g.players.map((p) => (p.id === g.youId ? { ...p, hand } : p)), decision };
+  };
+  const mana = { cardId: 'land1', colours: ['W', 'U'] } as never;
+  it('toggles the Nth card of the hand in a card pick', () => {
+    expect(digitAction(game('pick'), '2', true, undefined)).toEqual({
+      handled: true,
+      intent: { type: 'toggleTarget', target: { kind: 'card', id: 'h2' } },
+    });
+  });
+  it('is inert while an overlay or the inspector owns the prompt keys', () => {
+    expect(digitAction(game('pick'), '2', false, mana)).toEqual({ handled: false });
+  });
+  it('lets the mana chooser take the Nth colour, then close', () => {
+    expect(digitAction(game('priority'), '2', true, mana)).toEqual({
+      handled: true,
+      closeManaChoice: true,
+      intent: { type: 'tapForMana', cardId: 'land1', colour: 'U' },
+    });
+  });
+  it('spends the key on the chooser even without an Nth colour, and ignores it with no chooser', () => {
+    expect(digitAction(game('priority'), '5', true, mana)).toEqual({ handled: true });
+    expect(digitAction(game('priority'), '2', true, undefined)).toEqual({ handled: false });
+    expect(digitAction(game('priority'), 'a', true, mana)).toEqual({ handled: false });
   });
 });
