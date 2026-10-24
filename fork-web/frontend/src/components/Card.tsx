@@ -148,6 +148,8 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
     context === 'hand' ? styles.hand : '',
     context === 'thumb' ? styles.thumb : '',
     s.dimmed ? styles.dimmed : '',
+    // Cards with their own click (tray tiles, inspector) are not the choice's picks.
+    s.inert && !onActivate ? styles.inert : '',
     s.attacking && onBoard ? styles.nudged : '',
     count > 1 ? styles.grouped : '',
     nameLabel ? styles.labelled : '',

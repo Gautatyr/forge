@@ -18,6 +18,8 @@ export interface CardStatus {
   selected: boolean;
   /** Not usable for the current decision: drawn faded. */
   dimmed: boolean;
+  /** A card choice is open and this card is no legal pick of it: the click does nothing (or is refused), so no pointer cursor. */
+  inert: boolean;
   attacking?: { defender: string; draft: boolean };
   /** A planeswalker or battle attacked: the names of its attackers (issue #65). */
   attackedBy: string[];
@@ -69,6 +71,7 @@ export function cardStatus(game: GameView, ui: UiState, id: CardId): CardStatus 
     actionable: false,
     selected: false,
     dimmed: false,
+    inert: false,
     attackedBy: [],
     targetedBy: [],
   };
@@ -81,6 +84,7 @@ export function cardStatus(game: GameView, ui: UiState, id: CardId): CardStatus 
     s.actionKind = source ? 'mana' : undefined;
     s.selected = id === d.sourceCardId;
     s.dimmed = !source && !s.selected && c.zone === 'battlefield' && c.controllerId === game.youId;
+    s.inert = !source;
   }
 
   if (d.kind === 'chooseTargets') {
@@ -95,6 +99,7 @@ export function cardStatus(game: GameView, ui: UiState, id: CardId): CardStatus 
     s.actionKind = legal && !pick && !d.tapToPay ? 'target' : undefined;
     s.selected = chosen || source;
     s.dimmed = !legal && !source && c.zone === 'battlefield';
+    s.inert = !legal && !chosen;
   }
 
   // Combat: committed attacks/blocks and the draft being built.
@@ -118,6 +123,7 @@ export function cardStatus(game: GameView, ui: UiState, id: CardId): CardStatus 
     s.actionKind = cand ? 'attack' : defender ? 'defender' : undefined;
     s.selected = defender && pickedDefenderCard(game, ui) === id;
     s.dimmed = !cand && !defender && c.zone === 'battlefield' && c.controllerId === game.youId && !atk;
+    s.inert = !s.actionable;
   }
   if (d.kind === 'declareBlockers') {
     // After a first click, only the partners the engine allows for it are lit (issue #48).
@@ -128,6 +134,7 @@ export function cardStatus(game: GameView, ui: UiState, id: CardId): CardStatus 
     s.actionKind = cand ? 'block' : incoming ? 'blockTarget' : undefined;
     s.selected = ui.pendingBlocker === id || ui.pendingAttacker === id;
     s.dimmed = !cand && !incoming && c.zone === 'battlefield' && c.controllerId === game.youId;
+    s.inert = !s.actionable;
     s.needsBlockers = underBlocked(d, id);
   }
 

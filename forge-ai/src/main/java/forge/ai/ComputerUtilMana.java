@@ -620,6 +620,11 @@ public class ComputerUtilMana {
             return null;
         }
 
+        // Auto for a human pays all of the cost or none of it: giving the mana back below does not give the paid shards
+        // back, so the next Auto would pay what is left with the mana of the first (a {1}{G} card for one Swamp).
+        if (!test && !sa.isManaAbility() && isAutoPayForHuman(ai) && payManaCost(new ManaCostBeingPaid(cost), sa, ai, true, checkPlayable, effect) == null) {
+            return null;
+        }
         // A filter's own cost is paid in the middle of another payment, which still needs what it has set aside.
         // The filter is among that; if it isn't, the ability is being activated on its own and starts afresh like any other.
         if (test || !sa.isManaAbility() || !AiCardMemory.isRememberedCard(ai, sa.getHostCard(), MemorySet.PAYS_TAP_COST)) {
