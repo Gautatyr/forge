@@ -36,27 +36,56 @@ In Forge's top menu bar, between the tabs and the window buttons, there is a che
 
 Your browser opens the match screen on its own. If the page is already open from an earlier game, it switches to the new game instead and no new tab opens. If no browser opens, start with `make play ARGS="--no-browser"`: the terminal prints the link (`http://127.0.0.1:…/?live=1&seat=0#token=…`). Open it, and keep it to yourself: the token in it lets anyone on your computer play your seat.
 
-When the game ends, the page shows the result and Forge's lobby is ready for the next Start. Closing the browser tab does not end the game: reopen the link within a minute. After a minute without the page (or 15 minutes without an answer), a pending question gets Forge's default answer, and the game goes on.
+When the game ends, the page shows the result: **Back to lobby** (Enter) or **View the board** (Esc). Forge's lobby is ready for the next Start. The next Start shows its game in the same open page, whether you left the result open or pressed **Back to lobby**; no reload.
+
+Closing the browser tab does not end the game: reopen the link within a minute. After a minute without the page (or 15 minutes without an answer), a pending question gets Forge's default answer, and the game goes on.
+
+A tab left open from an earlier launch of Forge cannot rejoin: it stays frozen on its last view. Close it and use the page the new launch opens.
+
+### Saved settings
+The page lives at `http://127.0.0.1:47321/` (a fixed port), so the browser keeps your settings between launches on the same computer and browser: stops, language, display options, Auto-pay and the switches in the Stops panel.
+
+If port 47321 is taken (a second Forge open at the same time), that Forge uses a free port and its page starts from default settings, stored apart. `make play ARGS="--port 9000"` picks the port yourself.
 
 ## What works
-Checked on a 4-player Commander game (you plus 3 AIs, 40 life) started from the lobby:
+Checked on 4-player Commander games (you plus 3 AIs, 40 life) started from the lobby:
 - Mulligan (keep or mulligan), land drops, casting spells and your commander from the command zone (with commander tax).
-- Mana payment: click your lands and mana rocks one by one, or **Pay automatically**; the plan shows which sources it would tap. Floating mana is used by **Pay automatically**.
+- Mana payment: click your lands and mana rocks one by one, or **Pay automatically**; the plan shows which sources it would tap. Floating mana shows above the prompt: while you pay, click a floating symbol that still helps to spend it, or let **Pay automatically** use it.
 - Attacks: click your creatures, then **Attack with N** (or **Attack all**); click an opponent, planeswalker or battle first to change what they attack.
-- Prompts: yes/no questions (for example, sending your commander back to the command zone) and cards an opponent reveals to you. Blocks, targets and library searches were checked in earlier test games, not in this one.
+- Blocks, targets, library searches, "may" triggers, trigger ordering, X costs, coin flips, ability menus, yes/no questions and cards an opponent reveals to you.
 - Discard to hand size at the end of your turn: click the cards in your hand, then **OK**.
-- **To my turn** passes until your next turn; it stops when the game asks you something.
-- Card images come from Forge's own image cache (the same pictures as the desktop app, tokens included); a card Forge has no picture for comes from Scryfall.
+- Card images come from Forge's own image cache (the same pictures as the desktop app, tokens included); a card Forge has no picture for comes from Scryfall. A card with no picture at all (for example Alchemy "A-" cards in generated AI decks) shows as a readable text card in the hover preview.
+- In a short window (about 1366x700 and below), choices over many cards show as a compact list instead of card tiles. Hover a row for the card.
 - Reloading the page or a short disconnect resumes where you were, open questions included.
 - Conceding (**Game** menu) ends your part; the AIs play on to the end, then Forge's lobby is ready again.
+
+## Passing priority and stops
+Open **Stops** (the button at the end of the turn-step strip at the top) to choose where the game waits for you, step by step, on your turn and on opponents' turns. The panel also has:
+- **Stop only when I'm involved** (off by default): on opponents' turns, stop at declare attackers only when you are attacked, at declare blockers only when you are in the combat, and at the end step only on the turn of the player right before you.
+- **Skip spells between opponents** (off by default): don't stop for spells and abilities that neither target nor affect you or your cards. Anything aimed at you or that you control still stops you.
+- **Auto-pass when I can't act** (off by default; also `P`): pass automatically when you have nothing you can play.
+- **Pass after casting** (off by default): after your own spell goes on the stack, pass priority once so it resolves unless someone responds. Shift + click keeps priority for one cast.
+- **Always yielding to:** the list of abilities you set to **Always yield to this** on a stack item (it needs **Auto-yield on**, the switch in the Stack panel). Click the cross on an entry to remove it.
+
+**To my turn** (Shift + Enter) passes for you until your next turn starts, through your stops. Questions the game asks you (a discard, for example) are still asked. It ends early, and you get priority as usual, when an opponent casts a spell or activates an ability, or attacks you. After that the normal stops apply again (for example the opponent's end step): press **To my turn** again to carry on. The button can still read "Stop passing" after the pass has ended; it does no harm.
+
+**Auto-pay mana** (below the main button, remembered) pays a cost at once when you cast or activate, when Forge can pay it. Off by default: you click your lands.
+
+## Keyboard
+Press `?` in the game for the full list (also the **Keys** button). The main ones:
+- `Space`: the main button (pass, resolve, attack, block, confirm, pay automatically). It never cancels or declines.
+- `Esc`: cancel a spell being cast or paid for, clear a pending choice, close panels.
+- `Shift + Enter`: pass until my next turn. `Z`: undo (while paying: untap the last land). `A`: attack all. `P`: auto-pass on / off.
+- `1`-`9`: pick the Nth option in the choice tray (or the Nth card of your hand). `Y` / `N`: yes / no. `N`: choose none in an optional choice. `M`: mulligan.
+- `I`: inspect the hovered card. `V`: peek at the board while a choice is open. `L`: game log. `D`: display options.
+
+## Language
+**Display** (`D`), **Language**: English or French. It switches the screen, card names, card text and card images (French pictures come from Scryfall; a card without one keeps its English picture). The page starts in French when the browser's language is French. Lines the engine writes (the game log, some prompts) stay English.
 
 ## Known limitations
 - One game per match: the lobby's "games per match" setting is ignored in the new screen.
 - Only lobby games with exactly one human player open in the browser. Quest, gauntlet, draft, puzzle and hotseat games stay in the Swing screen.
-- Floating mana can't be clicked on its own while paying; **Pay automatically** uses it.
-- Text is English only.
-- Seen once, not yet explained: Szarekh, the Silent King's attack trigger (mill three) did not trigger in our test game. If an attack trigger seems missing, compare with the Swing screen (toggle off) and tell us.
-- Phase stops (the **Stops** panel) and display settings are kept by the browser, per computer.
+- Scry and surveil with 5 or more cards in one pile may need a sideways scroll to reach every card.
 
 ## Back to the Swing screen
 Untick **Use the new match screen** in Forge's menu bar, then press **Start**: the match opens in Forge's usual screen. This needs no restart. To run upstream's plain desktop app instead, build and run `forge-gui-desktop` as described in [README.md](README.md#development-setup).
