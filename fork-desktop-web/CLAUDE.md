@@ -32,6 +32,7 @@ Depends on `forge-gui-desktop` and `fork-web`; nothing depends on it. Package `f
 - `make play` (ARGS="--no-browser" to print the URL): builds the frontend and modules, runs `run.sh`. Owner's guide: `docs/fork/PLAY.md`.
 - Live play without Swing: `MAIN=forge.fork.desktop.LobbyRun fork-desktop-web/run.sh --wait-client 900 --players 4 [--deck0 file.dck]`,
   then open the printed seat 0 URL in a browser.
+  `--games N --game-gap S` plays N matches in a row on the same server and page (check that an open page switches to the next game).
 - End-to-end: `fork-desktop-web/check/lobby-run.sh <outdir> <label> --players 4 [--deck0 file.dck]`
   (scripted seat 0 via `human-seat.mjs`, `VIEWERS=spectator,1,2,3` for `ws-check.mjs`; exit 0 = passed).
 - Never run `Main` against `~/.forge` from tooling: set `JAVA_TOOL_OPTIONS=-Duser.home=<scratch dir>`.
