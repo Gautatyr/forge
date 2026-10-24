@@ -100,6 +100,7 @@ final class SeatSession implements IRemote {
     /** The seat's "Stop only when I'm involved" setting and stop rows (game thread). */
     private final InvolvedStops involvedStops = new InvolvedStops();
     private final PassAfterCast passAfterCast = new PassAfterCast();
+    private final SkipOpponentStack skipOpponentStack = new SkipOpponentStack();
     /** The auto-yielded abilities last sent to the seat (game thread); null before the first. */
     private List<String> lastYields;
     private volatile IGameController controller;
@@ -204,6 +205,7 @@ final class SeatSession implements IRemote {
             restartRoundIfAPlayerLeft();
             if (ThreadUtil.isGameThread() && e.priority() != null) {
                 passAfterCast.priority(game.getPlayer(e.priority().getId()), seatPlayer(), game.getStack(), match.passAfterCast(seat));
+                skipOpponentStack.priority(game, game.getPlayer(e.priority().getId()), seatPlayer(), game.getStack(), match.skipOpponentStack(seat));
             }
         }
 
@@ -240,9 +242,13 @@ final class SeatSession implements IRemote {
         return controller instanceof PlayerControllerHuman pch ? pch.getPlayer() : null;
     }
 
-    /** Game thread, before the seat's input {@code in} waits: the pass "Pass priority after casting" runs for it, or null. */
+    /**
+     * Game thread, before the seat's input {@code in} waits: the pass "Pass priority after casting" or "Skip spells between
+     * opponents" runs for it, or null.
+     */
     Runnable passAfterCast(Input in) {
-        return passAfterCast.onInput(in, seatPlayer());
+        Runnable out = passAfterCast.onInput(in, seatPlayer());
+        return out != null ? out : skipOpponentStack.onInput(in, seatPlayer());
     }
 
     void bindController(IGameController c) {
@@ -906,7 +912,8 @@ final class SeatSession implements IRemote {
     }
 
     /**
-     * The yield updates a web client may send: phase stops and auto-pass toggles of its own seat. The fork's own
+     * The yield updates a web client may send: phase stops and auto-pass toggles of its own seat (an auto-yield is added
+     * from a stack item, {@code {"kind":"AutoYieldTo","stackItem","active"}}, and removed by its key too). The fork's own
      * {@code {"kind":"InvolvedStops","active"}} ({@link InvolvedStops}) is handled by the {@code sendYieldUpdate} action.
      */
     private YieldUpdate yieldUpdate(Game game, JsonElement e) {
@@ -935,6 +942,11 @@ final class SeatSession implements IRemote {
                 // "Always yield to this" on a stack item: the engine auto-yields abilities (not spells) by their text
                 Integer id = integer(o, "stackItem");
                 Boolean active = bool(o, "active");
+                String key = str(o, "key");
+                if (key != null) {
+                    // removing one whose stack item is gone: by the key the seat was told (publishYields); never adds
+                    return id != null || !Boolean.FALSE.equals(active) ? null : new YieldUpdate.CardAutoYield(AutoYieldStore.abilitySuffix(key), false);
+                }
                 if (id == null || active == null || gameView == null || gameView.getStack() == null) {
                     return null;
                 }

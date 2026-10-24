@@ -304,6 +304,36 @@ public class HumanSeatAutoPassTest {
         assertEquals(yields.get(yields.size() - 1).size(), 1, "the seat is told the ability: " + yields);
     }
 
+    /** The stack item is long gone: the page removes the ability by the key it was told (PR #144 review). */
+    @Test
+    public void anAutoYieldCanBeRemovedByKeyOnceItsStackItemIsGone() throws Exception {
+        start();
+        add("Dogged Pursuit", ai, ZoneType.Battlefield);
+        add("Dogged Pursuit", ai, ZoneType.Battlefield);
+        settings(false, true);
+        playTurn(ai, PhaseType.MAIN2, yieldToTheTrigger(new int[] {0}));
+        List<String> listed = yields.get(yields.size() - 1);
+        assertEquals(listed.size(), 1, "the seat is told the ability: " + yields);
+        assertTrue(game.getStack().isEmpty(), "its stack item is gone");
+
+        yields.clear();
+        action("sendYieldUpdate", "\"update\":{\"kind\":\"AutoYieldTo\",\"key\":" + new com.google.gson.JsonPrimitive(listed.get(0)) + ",\"active\":false}");
+        playTurn(me, PhaseType.MAIN1, null);
+        assertEquals(rejected, List.of(), "accepted");
+        assertEquals(yields.get(yields.size() - 1), List.of(), "the seat is told it is no longer listed: " + yields);
+        assertFalse(pch.getYieldController().shouldAutoYield(listed.get(0)), "the engine no longer yields to it");
+    }
+
+    /** A key can only remove: adding goes through a stack item. */
+    @Test
+    public void aKeyedAutoYieldNeverAdds() throws Exception {
+        start();
+        action("sendYieldUpdate", "\"update\":{\"kind\":\"AutoYieldTo\",\"key\":\"Draw a card.\",\"active\":true}");
+        playTurn(me, PhaseType.MAIN1, null);
+        assertEquals(rejected, List.of("unsupported yield update"));
+        assertFalse(pch.getYieldController().getAutoYields().iterator().hasNext(), "nothing added");
+    }
+
     @Test
     public void withAutoYieldOffTheChosenAbilitiesAreKeptButNotHonoured() throws Exception {
         start();
