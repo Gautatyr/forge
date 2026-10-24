@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fitPreview, layoutPreview, OVER_BOARD_MIN_W, overBoardWidth, placePreview, type Box } from './previewPlacement';
+import { fitPreview, layoutNotes, layoutPreview, OVER_BOARD_MIN_W, overBoardWidth, placePreview, type Box, type NotesSide } from './previewPlacement';
 
 const area: Box = { left: 8, top: 47, width: 1040, height: 665 }; // 1280x720: left of the rail, below the top bar
 const size = { width: 271, height: 460 };
@@ -89,39 +89,112 @@ describe('clear flag and fitting (issue #172: the bigger preview never costs the
   });
 });
 
+/**
+ * A fake DOM for the notes block: chips of the given widths wrap into the block like the page's flex-wrap. Above, the block
+ * is as wide as the image; beside, as wide as its rows need up to the max width. Each row is 22 px, a 4 px gap, a 4 px padding
+ * and a 1 px border.
+ */
+const flowNotes = (chips: number[], imageWidth: number) => (side: NotesSide, maxWidth: number) => {
+  const width = side === 'above' ? imageWidth : Math.min(maxWidth, chips.reduce((a, c) => a + c + 4, 0) + 10);
+  const inner = width - 10;
+  let rows = 1;
+  let used = 0;
+  for (const c of chips) {
+    if (used > 0 && used + 4 + c > inner) [rows, used] = [rows + 1, 0];
+    used += (used > 0 ? 4 : 0) + c;
+  }
+  return { width, height: rows * 22 + (rows - 1) * 4 + 10 };
+};
+/** The reviewer's heavy card (round 3): tapped, three counters, granted keywords, three attachments, the hint. In French. */
+const HEAVY = [90, 150, 130, 120, 110, 260, 330, 300, 190, 280, 250, 200];
+const LIGHT = [90, 150];
+
 describe('layoutPreview: the image rect does not depend on the notes (round 3, issue #172)', () => {
-  // A fake DOM: the image is 0.716 wide per high; the notes block wraps (taller when narrower), as in the page.
-  const env = { area, rem: 16, vh: 720, keep: [] as Box[] };
-  const measureWith = (notesAt271: number) => (width: number) => ({
-    image: { width, height: Math.round(width / 0.716) },
-    notes: Math.round((notesAt271 * 271) / width),
-  });
+  const env = { area, rem: 16, vh: 720 };
+  const run = (chips: number[], keep: Box[] = []) => {
+    // The notes are measured against the image width the layout settled on, as the page does.
+    let width = 0;
+    return layoutPreview({
+      ...env,
+      keep,
+      measure: (w) => ((width = w), { width: w, height: Math.round(w / 0.716) }),
+      measureNotes: (side, maxWidth) => flowNotes(chips, width)(side, maxWidth),
+    });
+  };
   const imageRect = (r: { left: number; top: number; width: number }) => ({ left: r.left, top: r.top, width: r.width });
 
-  it('no prompt: the same image rect for a short and a very tall notes block, bottom on the hand', () => {
-    const rects = [0, 30, 67, 83, 109, 400].map((n) => layoutPreview({ ...env, measure: measureWith(n) }));
+  it('no prompt: the same image rect for no notes, short and very tall ones, bottom on the hand', () => {
+    const rects = [[], LIGHT, HEAVY, [...HEAVY, ...HEAVY, ...HEAVY]].map((c) => run(c));
     for (const r of rects) expect(imageRect(r)).toEqual(imageRect(rects[0]!));
-    const h = Math.round(rects[0]!.width / 0.716);
-    expect(rects[0]!.top + h).toBe(area.top + area.height);
+    expect(rects[0]!.top + Math.round(rects[0]!.width / 0.716)).toBe(area.top + area.height);
   });
 
-  it('a tray in keep: the same image rect for every notes height (fit and place on the image only)', () => {
-    // Tray across the bottom: the image narrows to clear it, whatever the card's notes.
+  it('a tray in keep: the same image rect for every notes block', () => {
     const tray = box(area.left, 520, area.width, 192);
-    const rects = [0, 30, 57, 83, 109, 300].map((n) => layoutPreview({ ...env, keep: [tray], measure: measureWith(n) }));
+    const rects = [[], LIGHT, HEAVY].map((c) => run(c, [tray]));
     for (const r of rects) expect(imageRect(r)).toEqual(imageRect(rects[0]!));
     expect(rects[0]!.width).toBeLessThan(overBoardWidth({ rem: 16, vh: 720, areaHeight: area.height }));
     expect(rects[0]!.clear).toBe(true);
   });
 
-  it('notes taller than the reserve plus the overflow never push the image: its bottom stays on the hand', () => {
-    const tall = layoutPreview({ ...env, measure: measureWith(500) });
-    const short = layoutPreview({ ...env, measure: measureWith(10) });
-    const h = Math.round(tall.width / 0.716);
-    expect(tall.top + h).toBe(area.top + area.height);
-    expect(tall.top).toBe(short.top);
-    // The notes grow upward inside their own block: at most the room above the image (a 0.5 rem gap above it, down to a 0.5 rem margin at the window top).
-    expect(tall.notes).toBe(tall.top - 16);
-    expect(short.notes).toBe(Math.round((10 * 271) / short.width));
+  it('notes that fit above the image stay above it, as wide as the image, a 0.5 rem gap over it', () => {
+    const r = run(LIGHT);
+    expect(r.notes.side).toBe('above');
+    expect(r.notes.maxHeight).toBeNull();
+    expect(r.notes.box.left).toBe(r.left);
+    expect(r.notes.box.top + r.notes.box.height + 8).toBe(r.top);
+  });
+
+  it('notes too tall to fit above the image go beside it, whole: no row is cut (round 4)', () => {
+    const r = run(HEAVY);
+    const natural = flowNotes(HEAVY, r.width)('above', r.width).height;
+    expect(natural).toBeGreaterThan(r.top - 8 - 8); // does not fit above
+    expect(r.notes.side).toBe('left');
+    expect(r.notes.maxHeight).toBeNull(); // nothing cut
+    expect(r.notes.box.top).toBe(r.top); // at the image's top
+    expect(r.notes.box.left + r.notes.box.width + 8).toBe(r.left); // against the image's left edge
+    expect(r.notes.box.left).toBeGreaterThanOrEqual(8);
+    expect(r.notes.box.top + r.notes.box.height).toBeLessThanOrEqual(area.top + area.height);
+  });
+
+  it('beside the image the block widens until every row fits', () => {
+    const r = run(Array.from({ length: 20 }, () => 150));
+    expect(r.notes.side).toBe('left');
+    expect(r.notes.maxHeight).toBeNull();
+    expect(r.notes.box.top + r.notes.box.height).toBeLessThanOrEqual(area.top + area.height);
+    expect(r.notes.maxWidth).toBeGreaterThan(14 * 16);
+  });
+});
+
+describe('layoutNotes: never over what the prompt keeps, never a cut row (round 4, issue #172)', () => {
+  const image: Box = { left: 736, top: 97, width: 313, height: 437 };
+  const base = { image, area, rem: 16, vh: 720 };
+  const heavy = flowNotes(HEAVY, image.width);
+
+  it('goes to the right of the image when the board left of it is kept', () => {
+    const mid: Box = { ...image, left: 400 }; // room on both sides
+    const kept = box(60, 90, 320, 440); // a prompt card block left of the image
+    const p = layoutNotes({ ...base, image: mid, keep: [kept], measure: heavy });
+    expect(p.side).toBe('right');
+    expect(p.maxHeight).toBeNull();
+    expect(p.box.left).toBe(mid.left + mid.width + 8);
+  });
+
+  it('keeps the above block off a kept box: beside the image instead', () => {
+    const tray = box(700, 60, 360, 30); // right over the image's top
+    const p = layoutNotes({ ...base, keep: [tray], measure: flowNotes(LIGHT, image.width) });
+    expect(p.side).not.toBe('above');
+    expect(p.maxHeight).toBeNull();
+  });
+
+  it('cuts only as the last resort: nothing holds the rows, the least lost wins', () => {
+    const huge = flowNotes(Array.from({ length: 200 }, () => 300), image.width);
+    const p = layoutNotes({ ...base, keep: [], measure: huge });
+    expect(p.maxHeight).not.toBeNull();
+    expect(p.maxHeight!).toBeGreaterThan(0);
+  });
+
+  it('with no notes the block stays above', () => {
+    expect(layoutNotes({ ...base, keep: [], measure: flowNotes([], image.width) }).side).toBe('above');
   });
 });

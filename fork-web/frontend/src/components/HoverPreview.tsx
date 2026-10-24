@@ -35,8 +35,9 @@ const boxOf = (el: Element): Box => {
  * preview (previewPlacement.ts `overBoardWidth`, from the window only), flush with the rail (or the log drawer), its
  * image bottom on the hand. It may cover the hovered card (the 2026-10-16 behaviour). Only what the open prompt is about
  * moves or narrows it (previewPlacement.ts `layoutPreview`): the cards and tray of the prompt, the targets a hovered
- * stack item lights. The box is the image alone; the notes block hangs above it, out of the flow, so no card's notes
- * ever move or resize the image (they are clipped at the window top). Placed before paint, from the DOM.
+ * stack item lights. The box is the image alone; the notes block hangs out of the flow (above the image, or beside it when
+ * its rows do not fit above: previewPlacement.ts `layoutNotes`), so no card's notes ever move or resize the image and no
+ * note row is cut. Placed before paint, from the DOM.
  */
 function Preview({ keepIds, keepPlayerIds, children }: { keepIds: string[]; keepPlayerIds: string[]; children: ReactNode }) {
   const anchor = useRef<HTMLSpanElement>(null);
@@ -58,7 +59,7 @@ function Preview({ keepIds, keepPlayerIds, children }: { keepIds: string[]; keep
     const cards = (id: string) => [...document.querySelectorAll<HTMLElement>(`[data-card-id="${CSS.escape(id)}"]`)];
     const plates = (id: string) => [...document.querySelectorAll<HTMLElement>(`[data-player-id="${CSS.escape(id)}"]`)];
     const keep = [...keepIds.flatMap(cards), ...keepPlayerIds.flatMap(plates), ...document.querySelectorAll('[data-dock]')].map(boxOf);
-    info.style.maxHeight = 'none';
+    const sizeOf = (e: HTMLElement) => ({ width: e.offsetWidth, height: e.offsetHeight });
     const at = layoutPreview({
       area,
       rem,
@@ -67,12 +68,20 @@ function Preview({ keepIds, keepPlayerIds, children }: { keepIds: string[]; keep
       measure: (w) => {
         box.style.setProperty('--pv-w', `${w}px`);
         // offset sizes ignore the `appear` animation's scale, still applied on first mount. The box is the image alone.
-        return { image: { width: box.offsetWidth, height: box.offsetHeight }, notes: info.offsetHeight };
+        return sizeOf(box);
+      },
+      measureNotes: (side, maxWidth) => {
+        info.dataset.side = side;
+        info.style.setProperty('--notes-w', `${maxWidth}px`);
+        info.style.maxHeight = 'none';
+        return sizeOf(info);
       },
     });
     box.style.left = `${at.left}px`;
     box.style.top = `${at.top}px`;
-    info.style.maxHeight = `${at.notes}px`;
+    info.dataset.side = at.notes.side;
+    info.style.setProperty('--notes-w', `${at.notes.maxWidth}px`);
+    info.style.maxHeight = at.notes.maxHeight === null ? 'none' : `${at.notes.maxHeight}px`;
     box.style.visibility = 'visible';
   });
   return (
