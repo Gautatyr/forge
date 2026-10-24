@@ -1,18 +1,12 @@
-/* One fixed place whatever the card's position (playtest 1 ruling): the bottom of the rail, below the panels
-   (Rail.module.css .upper is the container), so it never covers the board, the seats, the hand, the choice tray
-   or the action block. It takes its own height in the column, so the panels above it (stack, combat, Recent)
-   reflow and stay readable while it shows; the image is at most half of the column, the notes stack above it.
-   A card hovered inside the rail or the log drawer would sit under it: its preview takes the same box moved
-   left of the rail, or of the drawer while it is open (previewSpot.ts), as an overlay over the board.
-   Short rail column (previewSpot.ts): the preview leaves the rail for the board (.overBoard), so the panels keep
-   their size, whatever the hovered card (a rail or drawer card too: it sits flush left of the rail or drawer). */
+/* The hover preview, one place whatever the card's position (playtest 1 ruling): over the board, above the hand, flush
+   with the rail side, fixed to the window. HoverPreview.tsx sets left, top and --pv-w (previewPlacement.ts: the
+   2026-10-16 size, 486x678 px at 1920x1080; never under 271x378), so it covers neither the hovered card nor what the
+   open prompt is about. The rail's panels never move for it; the notes block stacks above the image. */
 .preview {
-  --pv-notes: 5rem;
-  /* The image's width, shared with the notes block above it. */
-  --pv-w: min(100%, calc(50cqh * var(--card-ratio)));
-  flex: 0 0 auto;
+  position: fixed;
+  z-index: var(--z-preview);
+  visibility: hidden;
   box-sizing: border-box;
-  padding: 0 var(--sp-2) var(--sp-2);
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -21,31 +15,6 @@
   pointer-events: none;
   transform-origin: bottom center;
   animation: appear var(--dur-fast) 70ms both var(--ease-out);
-}
-
-.besideRail,
-.besideDrawer {
-  --pv-w: min(100%, calc((100cqh - 2 * var(--sp-2) - var(--pv-notes)) * var(--card-ratio)));
-  position: absolute;
-  inset: var(--sp-2);
-  z-index: var(--z-preview);
-  padding: 0;
-  right: calc(100% + var(--sp-2));
-  left: auto;
-  width: calc(100% - 2 * var(--sp-2));
-}
-
-/* Over the board: fixed to the window, placed by HoverPreview.tsx (left, top and --pv-w are set there). */
-.overBoard {
-  position: fixed;
-  z-index: var(--z-preview);
-  padding: 0;
-  visibility: hidden;
-}
-
-/* The drawer is fixed to the viewport's right edge, as the rail is. */
-.besideDrawer {
-  right: calc(100% + max(0px, var(--drawer-w) - var(--rail-w)) + var(--sp-2));
 }
 
 .img {

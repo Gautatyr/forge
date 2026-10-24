@@ -358,3 +358,7 @@ Live (1920×1080, human seat, test decks vs an Islands-only AI): Goblin Guide (h
 | What | Code |
 |---|---|
 | Tiles that cannot fit even at 4 rem become a list (name, key hint, chosen state; piles: index, name, ↑ / move / ↓); hover shows the card preview. Decided once per prompt; mock scenarios `long-title`, `surveil`, `scry`, `tutor-groups` at 1280x720 / 1366x700, `look-many` for the reveal rule. | `tray/tileFit.ts` (`settleFit`, `tileKind`), `tray/CompactList.tsx`, `useCardHover.ts`, `ChoiceTray.module.css` (`.compactList`) |
+## Hover preview size (issue #172)
+| What | Code |
+|---|---|
+| Preview over the board at every height, above the hand, flush with the rail or log drawer side; the 2026-10-16 size (mock image rect, same for every hovered card: 1920x1080 486x678, 1920x950 427x596, 2560x1440 647x904, 1366x768 339x473; never under 271x378), narrower only to stay clear of the hovered card, the prompt's cards/tray or the hovered stack item's targets. Supersedes the in-rail rects of the "Hover preview in one fixed place" row above. | `HoverPreview.*`, `previewPlacement.ts` (`overBoardWidth`, `fitPreview`), `previewSpot.ts`, `Hand.tsx` (`data-hand`) |

@@ -1,5 +1,5 @@
 /**
- * Where the hover preview sits when it shows over the board (previewSpot.ts: short rail columns). Pure geometry:
+ * Size and place of the hover preview over the board. Pure geometry:
  * HoverPreview measures the DOM and applies the result.
  */
 export interface Box {
@@ -9,15 +9,19 @@ export interface Box {
   height: number;
 }
 
-/** The readable size: the in-rail preview image at 1920x1080 (271x378 px). Never smaller over the board. */
+/** The readable floor: 271x378 px (the in-rail size of PR #52). Never smaller. */
 export const OVER_BOARD_MIN_W = 271;
-/** Width of the image in rem at the 1080p root size (16 px); it grows with the root size above that. */
-const OVER_BOARD_REM_W = 16.94;
 const RATIO = 0.716;
 
-/** Image width over the board: at least the 1920 size, scaled with the UI, never taller than 70 % of the area. */
-export function overBoardWidth(rem: number, areaHeight: number): number {
-  return Math.round(Math.max(OVER_BOARD_MIN_W, Math.min(OVER_BOARD_REM_W * rem, areaHeight * 0.7 * RATIO)));
+/**
+ * Image width: the size of the first fixed preview (2026-10-16, 486x678 px at 1920x1080): height at most 66 % of the
+ * window and 58 rem, and what the area leaves under the notes block (at least the 3.5 rem it reserved, else `infoHeight`
+ * plus a 0.5 rem gap); never under the floor.
+ * `areaHeight`: the board above the hand, where the preview may sit.
+ */
+export function overBoardWidth(o: { rem: number; vh: number; areaHeight: number; infoHeight: number }): number {
+  const h = Math.min(o.vh * 0.66, 58 * o.rem, o.areaHeight - Math.max(o.infoHeight + 0.5 * o.rem, 3.5 * o.rem));
+  return Math.round(Math.max(OVER_BOARD_MIN_W, h * RATIO));
 }
 
 const overlap = (a: Box, b: Box): number => {
@@ -32,7 +36,7 @@ const grow = (b: Box, m: number): Box => ({ left: b.left - m, top: b.top - m, wi
  * The top-left corner for a preview of `size` inside `area` that covers neither the hovered card nor any `keep` box
  * (the cards and tray of an open prompt). Candidates, first clear one wins: flush with the rail side, then the far
  * side, then the middle; each at the hovered card's height, then at the top, then at the bottom. When nothing is
- * clear, the candidate covering the least of them (the hovered card weighs most) wins.
+ * clear, the candidate covering the least of them (the hovered card weighs most) wins (`clear: false`).
  */
 export function placePreview(o: {
   area: Box;
@@ -41,7 +45,7 @@ export function placePreview(o: {
   keep: Box[];
   /** Clear space kept around the hovered card and the kept boxes. */
   gap?: number;
-}): { left: number; top: number } {
+}): { left: number; top: number; clear: boolean } {
   const { area, size, hovered, keep, gap = 6 } = o;
   const maxLeft = Math.max(area.left, area.left + area.width - size.width);
   const maxTop = Math.max(area.top, area.top + area.height - size.height);
@@ -52,15 +56,31 @@ export function placePreview(o: {
   const ys = [clampY(mid), area.top, maxTop];
   const avoid = keep.map((b) => grow(b, gap));
   const hov = hovered ? grow(hovered, gap) : undefined;
-  let best = { left: xs[0]!, top: ys[0]! };
+  let best = { left: xs[0]!, top: ys[0]!, clear: false };
   let bestScore = Infinity;
   for (const x of xs) {
     for (const y of ys) {
       const box = { left: x, top: y, width: size.width, height: size.height };
       const score = (hov ? overlap(box, hov) * 1000 : 0) + avoid.reduce((n, b) => n + overlap(box, b), 0);
-      if (score < bestScore) [best, bestScore] = [{ left: x, top: y }, score];
+      if (score < bestScore) [best, bestScore] = [{ left: x, top: y, clear: score === 0 }, score];
       if (score === 0) return best;
     }
   }
   return best;
+}
+
+/** Each retry takes this share off the width. */
+const SHRINK = 0.94;
+
+/**
+ * The preview at `startWidth`, narrowed step by step (never under the readable floor) until `attempt` (place it,
+ * measure it) finds a spot clear of the hovered card and the open prompt; the floor's answer when none is.
+ */
+export function fitPreview<T extends { clear: boolean }>(startWidth: number, attempt: (width: number) => T): { width: number; at: T } {
+  let width = Math.max(OVER_BOARD_MIN_W, startWidth);
+  for (;;) {
+    const at = attempt(width);
+    if (at.clear || width <= OVER_BOARD_MIN_W) return { width, at };
+    width = Math.max(OVER_BOARD_MIN_W, Math.floor(width * SHRINK));
+  }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { OVER_BOARD_MIN_W, overBoardWidth, placePreview, type Box } from './previewPlacement';
+import { fitPreview, OVER_BOARD_MIN_W, overBoardWidth, placePreview, type Box } from './previewPlacement';
 
 const area: Box = { left: 8, top: 47, width: 1040, height: 665 }; // 1280x720: left of the rail, below the top bar
 const size = { width: 271, height: 460 };
@@ -70,19 +70,58 @@ describe('hover preview over the board (small heights)', () => {
   });
 
   it('is deterministic without a hovered card', () => {
-    expect(placePreview({ area, size, keep: [] })).toEqual({ left: area.left + area.width - size.width, top: area.top + area.height - size.height });
+    expect(placePreview({ area, size, keep: [] })).toEqual({ left: area.left + area.width - size.width, top: area.top + area.height - size.height, clear: true });
   });
 });
 
-describe('over-board size', () => {
-  it('is at least the 1920 in-rail image (271 px wide)', () => {
-    expect(overBoardWidth(12.5, 665)).toBe(OVER_BOARD_MIN_W);
-    expect(overBoardWidth(10, 400)).toBe(OVER_BOARD_MIN_W);
+describe('over-board size (restores the 2026-10-16 size, issue #172)', () => {
+  // The area is the board above the hand; the image takes what the notes block leaves (infoHeight + gap).
+  const at = (rem: number, vh: number, hand: number, infoHeight = 56) =>
+    overBoardWidth({ rem, vh, areaHeight: vh - 60 - hand - 16, infoHeight });
+
+  it('1920x1080 is about 486 px wide (was 271 in the rail)', () => {
+    expect(at(16, 1080, 270)).toBeGreaterThanOrEqual(475);
+    expect(at(16, 1080, 270)).toBeLessThanOrEqual(486);
   });
 
-  it('grows with the UI scale, and with room, never past 70 % of the area height', () => {
-    expect(overBoardWidth(20, 900)).toBe(339);
-    expect(overBoardWidth(30, 700)).toBe(Math.round(700 * 0.7 * 0.716));
-    expect(overBoardWidth(30, 500)).toBe(OVER_BOARD_MIN_W); // the floor wins
+  it('1366x768 is well above the old 271 px floor', () => {
+    expect(at(12.5, 768, 192)).toBeGreaterThan(310);
+  });
+
+  it('never below the readable floor (271 px), whatever the room', () => {
+    expect(at(10, 600, 152)).toBe(OVER_BOARD_MIN_W);
+    expect(overBoardWidth({ rem: 16, vh: 1080, areaHeight: 100, infoHeight: 56 })).toBe(OVER_BOARD_MIN_W);
+  });
+
+  it('is capped by 66 % of the window height and 58 rem', () => {
+    expect(overBoardWidth({ rem: 16, vh: 1000, areaHeight: 5000, infoHeight: 0 })).toBe(Math.round(660 * 0.716));
+    expect(overBoardWidth({ rem: 10, vh: 5000, areaHeight: 5000, infoHeight: 0 })).toBe(Math.round(580 * 0.716));
+  });
+
+  it('a taller notes block leaves a smaller image', () => {
+    expect(at(16, 1080, 270, 120)).toBeLessThan(at(16, 1080, 270, 40));
+  });
+});
+
+describe('clear flag and fitting (issue #172: the bigger preview never costs the tray clearance)', () => {
+  it('is clear when a candidate covers nothing, and not when every one covers the tray', () => {
+    expect(placePreview({ area, size, hovered: box(100, 300), keep: [] }).clear).toBe(true);
+    const wall = box(area.left, area.top, area.width, area.height);
+    expect(placePreview({ area, size, hovered: box(100, 300), keep: [wall] }).clear).toBe(false);
+  });
+
+  it('a preview too tall to clear the tray narrows until it clears', () => {
+    // Tray across the bottom of the area: only a preview under about 500 px tall (width about 320) clears it.
+    const tray = box(area.left, 560, area.width, 152);
+    const attempt = (width: number) => placePreview({ area, size: { width, height: Math.round(width / 0.716) + 60 }, hovered: box(100, 100), keep: [tray] });
+    const fit = fitPreview(400, attempt);
+    expect(fit.at.clear).toBe(true);
+    expect(fit.width).toBeLessThan(400);
+    expect(fit.width).toBeGreaterThanOrEqual(OVER_BOARD_MIN_W);
+  });
+
+  it('keeps the wide size when it is clear, and stops at the floor when nothing clears', () => {
+    expect(fitPreview(486, () => ({ clear: true })).width).toBe(486);
+    expect(fitPreview(486, () => ({ clear: false })).width).toBe(OVER_BOARD_MIN_W);
   });
 });
