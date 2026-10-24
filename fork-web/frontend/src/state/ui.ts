@@ -38,8 +38,8 @@ export interface UiState {
   watchingGame?: string;
   /** The game is over and you chose "View the board" in this game (its id). */
   boardViewGame?: string;
-  /** "Back to lobby": the match screen is done. */
-  leftMatch?: boolean;
+  /** "Back to lobby" in this game (its id): the match screen is done with it; a later game shows as usual. */
+  leftGame?: string;
 }
 
 export interface ChoiceDraft {

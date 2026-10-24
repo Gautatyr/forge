@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, type CSSProperties } from 'react';
 import { opponents, player, you } from '../model/selectors';
-import { gameEndView, headline, outLine, rankingRows, TOAST_MS, youAreOutText } from '../state/gameEnd';
+import { gameEndView, headline, leaveUi, outLine, rankingRows, TOAST_MS, youAreOutText } from '../state/gameEnd';
 import { useMatch } from '../state/MatchContext';
 import { DevPanel } from './Overlays';
 import { Icon, SeatGlyph } from './Icon';
@@ -16,10 +16,10 @@ import { t } from '../i18n';
 
 /** "Back to lobby" from any of the views: the game ends and the screen says where the lobby is. */
 function useLeave() {
-  const { send, setUi } = useMatch();
+  const { game, send, setUi } = useMatch();
   return () => {
     send({ type: 'leaveMatch' });
-    setUi({ leftMatch: true, overlay: undefined });
+    setUi(leaveUi(game));
   };
 }
 

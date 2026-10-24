@@ -39,9 +39,11 @@ import forge.fork.web.seat.WebSeats;
  * --web-root DIR        page to serve (default ../fork-web/frontend/dist)
  * --home DIR            isolated profile (default target/forge-home-lobby)
  * --wait-client S       wait up to S seconds for a client on seat 0 before pressing Start
+ * --games N             play N matches in a row on the same server and page (default 1)
+ * --game-gap S          seconds between a match's end and the next Start (default 0)
  * </pre>
- * Prints "[web] seat N: URL" for every seat (AI seats too, for checking their views), plays one match,
- * then exits 0 once the match has handed back to the lobby.
+ * Prints "[web] seat N: URL" for every seat (AI seats too, for checking their views), plays the match(es),
+ * then exits 0 once the last match has handed back to the lobby.
  */
 public final class LobbyRun {
 
@@ -129,18 +131,26 @@ public final class LobbyRun {
         }
 
         LocalLobby lobby = commanderLobby(decks);
-        long t0 = System.currentTimeMillis();
-        pressStart(lobby);
-        HostedMatch match = lobby.getHostedMatch();
-        System.out.println("[web] lobby started " + match.getClass().getSimpleName() + ", human GUI "
-                + match.getHumanControllers().get(0).getGui().getClass().getSimpleName());
-        for (Player p : match.getGame().getPlayers()) {
-            System.out.println("[web] player " + p.getName() + " life " + p.getStartingLife() + " deck " + p.getRegisteredPlayer().getDeck().getName());
+        int games = Integer.parseInt(opt.getOrDefault("games", "1"));
+        int gap = Integer.parseInt(opt.getOrDefault("game-gap", "0"));
+        for (int g = 1; g <= games; g++) {
+            if (g > 1) {
+                System.out.println("[web] game " + g + " starts in " + gap + " s");
+                Thread.sleep(gap * 1000L); // the page may be left on its result screen: it must show the next game
+            }
+            long t0 = System.currentTimeMillis();
+            pressStart(lobby);
+            HostedMatch match = lobby.getHostedMatch();
+            System.out.println("[web] lobby started " + match.getClass().getSimpleName() + ", human GUI "
+                    + match.getHumanControllers().get(0).getGui().getClass().getSimpleName());
+            for (Player p : match.getGame().getPlayers()) {
+                System.out.println("[web] player " + p.getName() + " life " + p.getStartingLife() + " deck " + p.getRegisteredPlayer().getDeck().getName());
+            }
+            while (lobby.getHostedMatch() != null) {
+                Thread.sleep(200);
+            }
+            System.out.println("[web] match over and handed back to the lobby after " + (System.currentTimeMillis() - t0) + " ms");
         }
-        while (lobby.getHostedMatch() != null) {
-            Thread.sleep(200);
-        }
-        System.out.println("[web] match over and handed back to the lobby after " + (System.currentTimeMillis() - t0) + " ms");
         for (String m : host.stream().describe()) {
             System.out.println("[web] metrics " + m);
         }

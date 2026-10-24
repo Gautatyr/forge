@@ -1,7 +1,7 @@
 import { useEffect, useEffectEvent } from 'react';
 import { canAttackAll } from '../state/attackLimit';
 import { currentAttackAim } from '../state/focus';
-import { gameEndView, watching } from '../state/gameEnd';
+import { gameEndView, hasLeft, watching } from '../state/gameEnd';
 import { useMatch } from '../state/MatchContext';
 import { primaryAction } from '../state/primaryAction';
 import { blurAfterClick, digitAction, escapeStep, handleSpace, ownsKey, promptKeysLive, refusalNote } from '../state/promptKeys';
@@ -39,7 +39,7 @@ export function MatchScreen() {
     if (ownsKey(el, e.key)) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     // A game-end dialog or panel owns the keyboard while open (GameEnd.tsx).
-    if (gameEndView(game, ui) || ui.leftMatch) return;
+    if (gameEndView(game, ui) || hasLeft(game, ui)) return;
     const d = game.decision;
     const key = e.key;
     const manaChoice = liveManaChoice(game, ui);
@@ -95,7 +95,11 @@ export function MatchScreen() {
       return;
     }
     if (key === '?') return setUi((u) => ({ ...u, overlay: u.overlay === 'shortcuts' ? undefined : 'shortcuts' }));
-    if (key === '`') return setUi((u) => ({ ...u, overlay: u.overlay === 'dev' ? undefined : 'dev' }));
+    if (key === '`') {
+      // Never in a live game (a scenario would replace it).
+      if (match.mockAllowed) setUi((u) => ({ ...u, overlay: u.overlay === 'dev' ? undefined : 'dev' }));
+      return;
+    }
     switch (key.toLowerCase()) {
       case 'l':
         return setUi((u) => ({ ...u, logOpen: !u.logOpen }));
@@ -139,7 +143,7 @@ export function MatchScreen() {
     return () => document.removeEventListener('click', h);
   }, []);
 
-  if (match.ui.leftMatch) return <LeftMatch />;
+  if (hasLeft(match.game, match.ui)) return <LeftMatch />;
 
   return (
     <div className={styles.screen}>

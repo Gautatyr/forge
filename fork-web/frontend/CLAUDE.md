@@ -6,7 +6,7 @@ design-token file. Data comes from mock scenarios, a recorded game, or the live 
 ## Layout
 - `src/model/` — the UI view-model. Components depend only on these types.
 - `src/mock/` — mock scenarios (switch with the "Mock" tag or the `` ` `` key; or
-  `?scenario=<id>&layout=<columns|table|focus>` in the URL).
+  `?scenario=<id>&layout=<columns|table|focus>` in the URL). Not offered in a live game (`mockScenariosAllowed`).
 - `src/components/`, `src/state/`, `src/styles/` — UI, UI state, tokens and global styles.
 - `src/wire/generated/` — wire types generated from the engine (issue #9). Only
   `src/wire/` and `src/adapter/` may import them; ESLint blocks imports elsewhere.
