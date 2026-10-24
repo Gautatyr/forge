@@ -1,8 +1,6 @@
-import type { PointerEvent } from 'react';
 import { useMatch } from '../state/MatchContext';
 import { logParts } from './logParts';
 import { ManaSymbol } from './ManaSymbol';
-import { previewBeside } from './previewSpot';
 import styles from './LogText.module.css';
 import { t } from '../i18n';
 import { cardName } from '../model/selectors';
@@ -24,8 +22,8 @@ export function LogText({ text }: { text: string }) {
         const id = part.id;
         const c = game.cards[id];
         const name = c ? cardName(c) : 'a card';
-        const show = (e: PointerEvent<HTMLElement>) => {
-          if (c) setUi({ hover: { cardId: id, beside: previewBeside(e.currentTarget) } });
+        const show = () => {
+          if (c) setUi({ hover: { cardId: id } });
         };
         return c ? (
           <button

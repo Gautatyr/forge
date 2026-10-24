@@ -31,26 +31,16 @@ const boxOf = (el: Element): Box => {
 
 /**
  * The preview shows over the board (also for a card hovered in the rail or drawer), so the rail's panels keep their size
- * (nothing reflows while the pointer moves). It takes the size of the first fixed preview (previewPlacement.ts
- * `overBoardWidth`) and sits above the hand where it covers neither the hovered card nor a card or tray of the open
- * prompt. Placed before paint, from the DOM.
+ * (nothing reflows while the pointer moves). One place and one size for every hovered card: the size of the first fixed
+ * preview (previewPlacement.ts `overBoardWidth`, from the window only), flush with the rail (or the log drawer), its
+ * image bottom on the hand; the notes block stacks above the image. It may cover the hovered card (the 2026-10-16
+ * behaviour). Only what the open prompt is about moves or narrows it (previewPlacement.ts `fitPreview`): the cards and
+ * tray of the prompt, the targets a hovered stack item lights. Placed before paint, from the DOM.
  */
-function Preview({
-  cardId,
-  beside,
-  keepIds,
-  keepPlayerIds,
-  children,
-}: {
-  cardId: string;
-  beside: boolean;
-  keepIds: string[];
-  keepPlayerIds: string[];
-  children: ReactNode;
-}) {
+function Preview({ keepIds, keepPlayerIds, children }: { keepIds: string[]; keepPlayerIds: string[]; children: ReactNode }) {
   const anchor = useRef<HTMLSpanElement>(null);
   const el = useRef<HTMLDivElement>(null);
-  // Every render: the board reflows after paint, and the hovered card or the prompt may have changed.
+  // Every render: the board reflows after paint, and the prompt may have changed.
   useLayoutEffect(() => {
     const column = anchor.current?.parentElement;
     const box = el.current;
@@ -63,27 +53,15 @@ function Preview({
     // The board above the hand: the preview never covers the hand unless there is no room (the readable floor wins).
     const bottom = document.querySelector('[data-hand]')?.getBoundingClientRect().top ?? window.innerHeight;
     const area: Box = { left: m, top: top + m, width: right - 2 * m, height: bottom - top - 2 * m };
-    const info = box.querySelector<HTMLElement>('[data-preview-info]');
-    const size = (infoHeight: number) => overBoardWidth({ rem, vh: window.innerHeight, areaHeight: area.height, infoHeight });
-    // The notes block wraps with the image's width: size once, measure it, size again.
-    box.style.setProperty('--pv-w', `${size(3.5 * rem)}px`);
-    box.style.setProperty('--pv-w', `${size(info?.offsetHeight ?? 3.5 * rem)}px`);
     const cards = (id: string) => [...document.querySelectorAll<HTMLElement>(`[data-card-id="${CSS.escape(id)}"]`)];
-    const hoveredEls = cards(cardId);
-    // Hovered in the rail or drawer (a stack item, a zone card, a Recent link): that very element, which the area
-    // never contains, so the preview lands beside the panel at its height. Elsewhere: the card on the board.
-    const panel = beside ? [...document.querySelectorAll(`[${PREVIEW_BESIDE_ATTR}] *`)] : [];
-    const deepest = panel.filter((e) => e.matches(':hover')).pop() ?? panel.find((e) => e.matches(':focus-visible'));
-    const inPanel = deepest && (deepest.closest('[data-card-id], button') ?? deepest);
-    const hovered = inPanel ?? hoveredEls.find((e) => e.matches(':hover') || e.contains(document.activeElement)) ?? hoveredEls[0];
     const plates = (id: string) => [...document.querySelectorAll<HTMLElement>(`[data-player-id="${CSS.escape(id)}"]`)];
     const keep = [...keepIds.flatMap(cards), ...keepPlayerIds.flatMap(plates), ...document.querySelectorAll('[data-dock]')].map(boxOf);
-    // Narrower until a spot is clear of the hovered card and the prompt (never under the readable floor).
-    const hov = hovered && boxOf(hovered);
-    const { at } = fitPreview(parseFloat(box.style.getPropertyValue('--pv-w')), (w) => {
+    const start = overBoardWidth({ rem, vh: window.innerHeight, areaHeight: area.height });
+    // Narrower only until a spot is clear of the prompt (never under the readable floor).
+    const { at } = fitPreview(start, (w) => {
       box.style.setProperty('--pv-w', `${w}px`);
       // offset sizes ignore the `appear` animation's scale, still applied on first mount.
-      return placePreview({ area, size: { width: box.offsetWidth, height: box.offsetHeight }, hovered: hov, keep });
+      return placePreview({ area, size: { width: box.offsetWidth, height: box.offsetHeight }, keep });
     });
     box.style.left = `${at.left}px`;
     box.style.top = `${at.top}px`;
@@ -148,7 +126,7 @@ export function HoverPreview() {
   const lit = hoverLitTargets(game, ui);
   const keepIds = [...new Set([...Object.keys(game.cards).filter((id) => cardStatus(game, ui, id).selected), ...lit.cards])];
   return (
-    <Preview cardId={c.id} beside={!!ui.hover.beside} keepIds={keepIds} keepPlayerIds={lit.players}>
+    <Preview keepIds={keepIds} keepPlayerIds={lit.players}>
       {body}
     </Preview>
   );
