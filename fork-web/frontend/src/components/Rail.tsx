@@ -10,6 +10,7 @@ import { HoverPreview } from './HoverPreview';
 import { Icon, SeatGlyph } from './Icon';
 import { LogText } from './LogText';
 import { PREVIEW_BESIDE_ATTR } from './previewSpot';
+import { isAlwaysYielded, offersAlwaysYield, yieldKeyOf } from './stackYield';
 import { useSize } from './useSize';
 import { recentRows } from './recentRows';
 import { zoneCardIds, zoneTitle } from './zoneBrowser';
@@ -77,8 +78,8 @@ function StackPanel() {
         {items.map((item, i) => {
           const src = game.cards[item.sourceCardId];
           const ctrl = player(game, item.controllerId);
-          const yieldKey = item.yieldKey ?? src?.name ?? item.text;
-          const yielding = game.autoYieldTo.includes(yieldKey);
+          const yieldKey = yieldKeyOf(game, item);
+          const yielding = isAlwaysYielded(game, item);
           const chosen = d.kind === 'chooseTargets' && isTarget(d.chosen, item.id);
           const legal = d.kind === 'chooseTargets' && isTarget(d.legal, item.id);
           const toggle = legal || chosen ? () => send({ type: 'toggleTarget', target: { kind: 'stackItem', id: item.id } }) : undefined;
@@ -140,7 +141,7 @@ function StackPanel() {
                     {chosen ? t('rail.targetChosen') : t('rail.targetThis')}
                   </button>
                 ) : null}
-                {item.kind !== 'spell' ? (
+                {offersAlwaysYield(item) ? (
                   <button
                     type="button"
                     className={`${styles.yield} ${yielding ? styles.yieldOn : ''}`}
