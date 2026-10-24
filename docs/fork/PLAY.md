@@ -43,7 +43,7 @@ Closing the browser tab does not end the game: reopen the link within a minute. 
 A tab left open from an earlier launch of Forge cannot rejoin: it stays frozen on its last view. Close it and use the page the new launch opens.
 
 ### Saved settings
-The page lives at `http://127.0.0.1:47321/` (a fixed port), so the browser keeps your settings between launches on the same computer and browser: stops, language, display options, Auto-pay and the switches in the Stops panel.
+The page lives at `http://127.0.0.1:47321/` (a fixed port), so the browser keeps your settings between launches on the same computer and browser: stops (except the rows from "Set per opponent", which last one match), language, display options, Auto-pay and the switches in the Stops panel.
 
 If port 47321 is taken (a second Forge open at the same time), that Forge uses a free port and its page starts from default settings, stored apart. `make play ARGS="--port 9000"` picks the port yourself.
 
@@ -55,7 +55,7 @@ Checked on 4-player Commander games (you plus 3 AIs, 40 life) started from the l
 - Blocks, targets, library searches, "may" triggers, trigger ordering, X costs, coin flips, ability menus, yes/no questions and cards an opponent reveals to you.
 - Discard to hand size at the end of your turn: click the cards in your hand, then **OK**.
 - Card images come from Forge's own image cache (the same pictures as the desktop app, tokens included); a card Forge has no picture for comes from Scryfall. A card with no picture at all (for example Alchemy "A-" cards in generated AI decks) shows as a readable text card in the hover preview.
-- In a short window (about 1366x700 and below), choices over many cards show as a compact list instead of card tiles. Hover a row for the card.
+- In a short window (about 1366x700 and below), choices over many cards show as a compact list when the card tiles do not fit. Hover a row for the card.
 - Reloading the page or a short disconnect resumes where you were, open questions included.
 - Conceding (**Game** menu) ends your part; the AIs play on to the end, then Forge's lobby is ready again.
 
@@ -64,10 +64,10 @@ Open **Stops** (the button at the end of the turn-step strip at the top) to choo
 - **Stop only when I'm involved** (off by default): on opponents' turns, stop at declare attackers only when you are attacked, at declare blockers only when you are in the combat, and at the end step only on the turn of the player right before you.
 - **Skip spells between opponents** (off by default): don't stop for spells and abilities that neither target nor affect you or your cards. Anything aimed at you or that you control still stops you.
 - **Auto-pass when I can't act** (off by default; also `P`): pass automatically when you have nothing you can play.
-- **Pass after casting** (off by default): after your own spell goes on the stack, pass priority once so it resolves unless someone responds. Shift + click keeps priority for one cast.
-- **Always yielding to:** the list of abilities you set to **Always yield to this** on a stack item (it needs **Auto-yield on**, the switch in the Stack panel). Click the cross on an entry to remove it.
+- **Pass after casting** (off by default): after your own spell or ability goes on the stack, pass priority once so it resolves unless someone responds. Shift + click keeps priority for one cast.
+- **Always yielding to:** the list of abilities you set to **Always yield to this** on a stack item (choosing **Always yield to this** turns **Auto-yield on**, the switch in the Stack panel, on by itself; it does nothing while that switch is off). Click the cross on an entry to remove it.
 
-**To my turn** (Shift + Enter) passes for you until your next turn starts, through your stops. Questions the game asks you (a discard, for example) are still asked. It ends early, and you get priority as usual, when an opponent casts a spell or activates an ability, or attacks you. After that the normal stops apply again (for example the opponent's end step): press **To my turn** again to carry on. The button can still read "Stop passing" after the pass has ended; it does no harm.
+**To my turn** (Shift + Enter) passes for you until your next turn starts, through your stops. Questions the game asks you (a discard, for example) are still asked. It ends early, and you get priority as usual, when an opponent casts a spell or activates an ability, or attacks you. After that the normal stops apply again (for example the opponent's end step): to carry on, press Shift + Enter, or click **Stop passing** once (it turns back into **To my turn**) and then click **To my turn**. The button can still read "Stop passing" after the pass has ended; it does no harm.
 
 **Auto-pay mana** (below the main button, remembered) pays a cost at once when you cast or activate, when Forge can pay it. Off by default: you click your lands.
 
