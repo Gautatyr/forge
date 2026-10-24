@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { scenarioById } from '../mock/scenarios';
-import { zoneBrowserCards, zoneTitle } from './zoneBrowser';
+import { zoneBrowserCards, zoneCardIds, zoneTitle } from './zoneBrowser';
 
 const names = (g: ReturnType<typeof game>, ids: string[]) => ids.map((id) => g.cards[id]!.name);
 const game = () => scenarioById('priority').build();
@@ -25,5 +25,14 @@ describe('large zone view (playtest 1)', () => {
     const g = game();
     expect(zoneTitle(g, g.youId, 'graveyard')).toBe('Your graveyard');
     expect(zoneTitle(g, 'theo', 'exile')).toBe("Theo's exile");
+  });
+
+  it('lists a library top first, and names whose library it is (issue 185)', () => {
+    const g = game();
+    const you = g.players.find((p) => p.isYou)!;
+    you.library = [you.graveyard[0]!, you.graveyard[1]!];
+    expect(zoneCardIds(g, you.id, 'library')).toEqual(you.library);
+    expect(zoneTitle(g, g.youId, 'library')).toBe('Your library');
+    expect(zoneTitle(g, 'theo', 'library')).toBe("Theo's library");
   });
 });

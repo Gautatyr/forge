@@ -59,8 +59,19 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
   const stackSpot = playerTargetSpot(game, ui, p.id);
   const spotSource = stackSpot ? nameOfCard(game, spotlightItem(game, ui)?.sourceCardId ?? '') : undefined;
 
+  const libraryTop = p.library[0];
+  const libraryHover =
+    libraryTop === undefined
+      ? {}
+      : {
+          onPointerEnter: () => showCard(libraryTop),
+          onPointerLeave: () => hideCard(libraryTop),
+          onFocus: () => showCard(libraryTop),
+          onBlur: () => hideCard(libraryTop),
+        };
   const zoneChip = (zone: ViewableZone | 'hand' | 'library', icon: IconName, label: string, n: number) => {
-    const viewable = zone === 'graveyard' || zone === 'exile';
+    // A library is only opened while the engine lets this viewer look at some of it (Mystic Forge, Courser, a scry).
+    const viewable = zone === 'graveyard' || zone === 'exile' || (zone === 'library' && p.library.length > 0);
     const open = ui.zoneView?.playerId === p.id && ui.zoneView.zone === zone;
     const content = (
       <>
@@ -79,6 +90,8 @@ export function PlayerPlate({ player: p, density, vertical = false, onExpand }: 
         }}
         aria-pressed={open}
         title={p.isYou ? tDynamic(`show.you.${zone}` as MsgKey) : tDynamic(`show.their.${zone}` as MsgKey, { name: p.name })}
+        // The top card you may look at shows in the hover preview, as a card of the board does.
+        {...(zone === 'library' ? libraryHover : {})}
       >
         {content}
       </button>

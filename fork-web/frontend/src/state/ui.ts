@@ -1,7 +1,7 @@
 import type { CardId, ManaColour, PlayerId, StackItemId } from '../model/types';
 
 export type Overlay = 'shortcuts' | 'display' | 'dev' | 'menu' | 'stops' | 'concede';
-export type ViewableZone = 'graveyard' | 'exile' | 'command';
+export type ViewableZone = 'graveyard' | 'exile' | 'command' | 'library';
 
 /** Screen-only state: never sent to the engine. */
 export interface UiState {

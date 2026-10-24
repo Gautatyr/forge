@@ -54,6 +54,7 @@ export class GameBuilder {
       counters: [],
       handCount: 0,
       libraryCount: 60,
+      library: [],
       hand: [],
       battlefield: [],
       graveyard: [],
