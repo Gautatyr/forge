@@ -4,9 +4,9 @@ import { useLive } from '../adapter/useLive';
 import type { Intent } from '../model/intents';
 import type { CardId, GameView, PlayerId } from '../model/types';
 import { applyIntent, type MockGame } from '../mock/engine';
-import { ATTACK_INVALID, attackInvalidReason } from './attackLimit';
 import { switchesAutoYieldOn } from './autoYield';
 import { blockClick, refusedText } from './blockClick';
+import { engineNote, noteAfterAction } from './engineNote';
 import { currentAttackAim, focusForIntent, focusOnTurnChange, pickDefender } from './focus';
 import { buildScenario } from './seedGame';
 import { loadPrefs, savePrefs, type Prefs } from './prefs';
@@ -105,8 +105,8 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     if (['primary', 'cancel', 'undo', 'answer', 'play'].includes(intent.type)) {
       setUiState((u) => ({ ...u, pendingAttacker: undefined, pendingBlocker: undefined, trayPeek: false }));
     }
-    // Any action changes the declaration: a refusal note has done its job.
-    setUiState((u) => (u.promptNote?.sticky ? { ...u, promptNote: undefined } : u));
+    // Any action changes the declaration or the pick: a refusal note has done its job.
+    setUiState((u) => (noteAfterAction(u.promptNote) === u.promptNote ? u : { ...u, promptNote: undefined }));
     const focus = focusForIntent(intent);
     if (focus) setUiState((u) => ({ ...u, focusOpponentId: focus }));
   }, [liveSend, setPrefs, prefs.autoYield, autoYieldTo]);
@@ -126,10 +126,8 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   const [seenNotice, setSeenNotice] = useState(notice?.id);
   if (notice && seenNotice !== notice.id) {
     setSeenNotice(notice.id);
-    // A refused attack declaration says why and stays until the declaration changes.
-    const refused = ATTACK_INVALID.test(notice.text);
-    const text = refused ? attackInvalidReason(game.decision) : notice.text;
-    setUiState((u) => ({ ...u, promptNote: { id: (u.promptNote?.id ?? 0) + 1, text, ...(refused ? { sticky: true } : {}) } }));
+    // A refused attack declaration says why and stays until the declaration changes; a refused pick, until the next action.
+    setUiState((u) => ({ ...u, promptNote: engineNote(u.promptNote, notice.text, game.decision) }));
   }
 
   // Focus layout: when the turn passes, focus follows it (see focus.ts).
