@@ -1925,7 +1925,7 @@ export interface ActionMessage {
   index?: number;
   decision?: NextGameDecision;
   action?: DrawOfferMessageAction;
-  /** sendYieldUpdate: SkipPhase, InvolvedStops, AutoYieldTo {stackItem, active}, SetMarker/ClearMarker, StackYield… */
+  /** sendYieldUpdate: SkipPhase, InvolvedStops, AutoYieldTo {stackItem, active} or, to remove one, {key, active:false} (a key the seat's autoYieldTo lists), SetMarker/ClearMarker, StackYield… */
   update?: { kind: string; [field: string]: unknown };
 }
 
@@ -1946,6 +1946,12 @@ export interface SetPassAfterCastMessage {
   on: boolean;
 }
 
+/** Skip spells between opponents (off by default): at a priority with a non-empty stack whose every item neither targets nor affects the seat or its cards, the seat passes without being asked; anything else keeps its priority. Kept for the seat's later games; sent after the greeting and on change. */
+export interface SetSkipOpponentStackMessage {
+  t: 'setSkipOpponentStack';
+  on: boolean;
+}
+
 /** Auto-pass when I can't act (off by default): the seat passes the priority it has no playable action for; blocks, attacks, targets and choices are never skipped. Kept for the seat's later games; sent after the greeting and on change. */
 export interface SetAutoPassMessage {
   t: 'setAutoPass';
@@ -1958,4 +1964,4 @@ export interface SetAutoYieldMessage {
   on: boolean;
 }
 
-export type ClientMessage = ReplyMessage | ActionMessage | RequestResyncMessage | SetLanguageMessage | SetPassAfterCastMessage | SetAutoPassMessage | SetAutoYieldMessage;
+export type ClientMessage = ReplyMessage | ActionMessage | RequestResyncMessage | SetLanguageMessage | SetPassAfterCastMessage | SetSkipOpponentStackMessage | SetAutoPassMessage | SetAutoYieldMessage;

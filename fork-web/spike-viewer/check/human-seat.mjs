@@ -7,11 +7,13 @@
 // a card the seat may not see (alias or unseen id only, labelled without its name) and that no prompt
 // closes unanswered (timeout or disconnect).
 // Usage: node human-seat.mjs --token <seat token> [--seat 0] [--url ws://127.0.0.1:7655/ws] [--timeout 3600]
-//   [--stops page|involved] [--until-turn N]
+//   [--stops page|involved] [--until-turn N] [--skip-opp-stack on|off]
 // --stops: send the page's default stops (state/prefs.ts DEFAULT_STOPS) as the page does, with "Stop only when I'm
 // involved" off (page) or on (involved); without it the bridge skips no step. The report's stats.oppPriority counts the
 // seat's priority passes on opponents' turns by step and stack; oppTurns, the opponents' turns seen. --until-turn N: stop
 // once turn N+1 begins (exit 0).
+// --skip-opp-stack: send "Skip spells between opponents" (setSkipOpponentStack) on or off; the report's stackAsked lists the
+// stack items (activator, source card, targets) the seat was given priority for on opponents' turns.
 // Prints a JSON report; exit 0 = the game reached its final delta (or --until-turn) with no error.
 import { Stream, ALIAS_BASE } from './stream.mjs';
 
@@ -33,8 +35,18 @@ class HumanSeat extends Stream {
     this.prompts = new Map(); this.epoch = 0; this.actedEpoch = -1; this.lastMessageAt = Date.now();
     this.tried = new Set(); this.attacked = new Set(); this.sameState = 0; this.lastState = '';
     this.stats = { prompts: {}, shapes: {}, calls: {}, actions: {}, closed: {}, replyRejected: 0, actionRejected: [], blockOptions: 0, callCardRefs: 0, promptCardRefs: 0, hiddenPromptRefs: 0, revealedCopies: 0, danglingRefs: 0, oppPriority: {} };
-    this.turnPlayers = {}; this.combatLog = [];
+    this.turnPlayers = {}; this.combatLog = []; this.stackAsked = [];
     this.timer = null; this.gameEnded = false; this.lastLog = [];
+  }
+
+  /** The stack as the seat sees it when asked: each item's text, activator, targets; `you` marks the seat. */
+  describeStack(g, me) {
+    const name = (id) => (id === me ? 'YOU' : this.objects.get(`player:${id}`)?.props?.Name ?? id);
+    return (g.Stack ?? []).map((id) => {
+      const it = this.objects.get(`stackItem:${id}`)?.props ?? {};
+      const card = (c) => `${this.objects.get(`card:${c}`)?.props?.Controller === me ? 'YOUR ' : ''}${this.objects.get(`cardState:${c}`)?.props?.Name ?? this.objects.get(`card:${c}`)?.props?.Name ?? c}`;
+      return `${it.Description ?? it.Key ?? id} [by ${name(it.ActivatingPlayer)}; targets ${[...(it.TargetPlayers ?? []).map(name), ...(it.TargetCards ?? []).map(card)].join(', ') || 'none'}]`;
+    });
   }
 
   bump(map, k) { map[k] = (map[k] ?? 0) + 1; }
@@ -43,6 +55,10 @@ class HumanSeat extends Stream {
     this.lastMessageAt = Date.now();
     super.onMessage(text);
     const g = this.gameObj()?.props;
+    if (args['skip-opp-stack'] && !this.skipSent && this.viewer) {
+      this.skipSent = true;
+      this.send({ t: 'setSkipOpponentStack', on: args['skip-opp-stack'] === 'on' });
+    }
     if (args.stops && !this.stopsSent && this.viewer && g?.Players?.length) {
       this.stopsSent = true;
       const me = this.viewer.player;
@@ -72,6 +88,7 @@ class HumanSeat extends Stream {
   onSeatMessage(m) {
     switch (m.t) {
       case 'call': this.onCall(m); return true;
+      case 'yields': return true; // the auto-yielded abilities ("Always yield to this"): not checked here
       case 'prompt': this.onPrompt(m); return true;
       case 'promptClosed':
         this.prompts.delete(m.id);
@@ -260,8 +277,15 @@ class HumanSeat extends Stream {
       if (next !== undefined) { this.picked.add(`p${next}`); this.act('selectPlayer', { player: next }); return; }
     }
     if (this.buttons.ok) {
+      if (args['skip-opp-stack'] && !myTurn && !stackEmpty && /^Priority:/.test(this.message) && this.settledOn !== state) {
+        // the engine shows a priority input for a moment before the bridge passes it (the setting): count it only if it stays
+        this.settledOn = state;
+        setTimeout(() => this.decide(true), 500);
+        return;
+      }
       if (!myTurn && /^Priority:/.test(this.message)) {
         this.bump(this.stats.oppPriority, `${g.Phase}:${stackEmpty ? 'empty' : 'stack'}`);
+        if (!stackEmpty) this.stackAsked.push(this.describeStack(g, me));
       }
       this.act('selectButtonOk');
     } else if (this.buttons.cancel) this.act('selectButtonCancel');
@@ -289,7 +313,7 @@ console.log(JSON.stringify({
   seconds: (Date.now() - t0) / 1000, end, viewer: seat.viewer, deltas: seat.deltas, turn: g.Turn,
   players: players.map((p) => ({ name: p.Name, life: p.Life ?? 0, lost: !!p.HasLost })),
   stats: seat.stats, oppTurns: Object.values(seat.turnPlayers).filter((p) => p !== seat.viewer?.player).length,
-  ...(args.stops ? { combatLog: seat.combatLog } : {}), placeholderChecks: seat.placeholdersSeen, cardRefChecks: seat.cardRefChecks,
+  ...(args.stops ? { combatLog: seat.combatLog } : {}), ...(args['skip-opp-stack'] ? { stackAsked: seat.stackAsked } : {}), placeholderChecks: seat.placeholdersSeen, cardRefChecks: seat.cardRefChecks,
   lastLog: seat.lastLog, errors: seat.errors,
 }, null, 1));
 process.exit(seat.errors.length ? 1 : 0);

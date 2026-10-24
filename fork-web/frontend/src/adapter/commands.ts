@@ -119,6 +119,9 @@ export function intentToFrames(intent: Intent, s: LiveSession, view: GameView): 
       const item = view.stack.find((it) => it.yieldKey === intent.key);
       return item ? [action('sendYieldUpdate', { update: { kind: 'AutoYieldTo', stackItem: num(item.id), active: !view.autoYieldTo.includes(intent.key) } })] : [];
     }
+    case 'removeAutoYieldTo':
+      // The stack item may be long gone: the bridge removes it by the key it listed (never adds by key).
+      return [action('sendYieldUpdate', { update: { kind: 'AutoYieldTo', key: intent.key, active: false } })];
     case 'setAutoPass':
     case 'setAutoYield':
     case 'setAutoPay':
@@ -211,6 +214,9 @@ export const autoYieldFrame = (on: boolean): ClientFrame => ({ t: 'setAutoYield'
 
 /** "Pass priority after casting" for this seat; the bridge keeps it for the seat's later games. */
 export const passAfterCastFrame = (on: boolean): ClientFrame => ({ t: 'setPassAfterCast', on });
+
+/** "Skip spells between opponents" for this seat; the bridge keeps it for the seat's later games. */
+export const skipOpponentStackFrame = (on: boolean): ClientFrame => ({ t: 'setSkipOpponentStack', on });
 
 /**
  * Phase stops as SkipPhase yield updates: for every player and step, skip unless the step is a
