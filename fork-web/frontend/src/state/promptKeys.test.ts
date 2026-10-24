@@ -168,6 +168,11 @@ describe('Esc (issue #130)', () => {
     expect(escapeStep(pick(true), {}, false)).toBe('cancel');
     expect(escapeStep({ kind: 'chooseTargets', purpose: 'target' } as never, {}, false)).toBe('cancel');
   });
+  it('does not cancel a triggered ability’s targets, which the engine makes mandatory', () => {
+    const trig = (cancellable: boolean | undefined) => ({ kind: 'chooseTargets', purpose: 'target', ability: 'triggered', cancellable }) as never;
+    expect(escapeStep(trig(false), {}, false)).toBeUndefined();
+    expect(escapeStep(trig(undefined), {}, false)).toBe('cancel');
+  });
   it('a mandatory pick still lets Esc close an open zone view or the tray peek', () => {
     const d = { kind: 'chooseTargets', purpose: 'pick', cancellable: false } as never;
     expect(escapeStep(d, { zoneView: { playerId: 'p1', zone: 'graveyard' } } as never, false)).toBe('zone');

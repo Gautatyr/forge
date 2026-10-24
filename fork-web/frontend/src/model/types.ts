@@ -499,7 +499,7 @@ export type Decision =
       ability?: 'spell' | 'activated' | 'triggered';
       /** Pick: Cancel declines an "unless" cost, and this happens (the engine's text). */
       decline?: string;
-      /** Pick: whether the engine lets you cancel it. Targets can always be cancelled. */
+      /** Whether the engine lets you cancel it (a discard, a triggered ability's targets: no). Absent: yes (mock, replays). */
       cancellable?: boolean;
       /** Picking permanents that pay part of the cost by tapping (convoke, improvise): the chosen ones are not targets. */
       tapToPay?: boolean;

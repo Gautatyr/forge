@@ -678,6 +678,7 @@ export const en = {
   'session.answerRefused': 'Answer not accepted: {reason}',
   'session.actionRefused': '{method}: {reason}',
   'session.action': 'Action',
+  'session.cannotCancel': 'This cannot be cancelled.',
 
   'mana.thisLand': 'this land',
   'mana.chooserAria': 'Choose the mana {name} adds',

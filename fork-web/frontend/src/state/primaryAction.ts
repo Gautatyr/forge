@@ -224,9 +224,9 @@ export function cancelLabel(game: GameView): string {
   return d.kind === 'chooseTargets' && d.decline ? t('pa.decline', { what: d.decline.replace(/\.$/, '') }) : t('common.cancel');
 }
 
-/** A target list can always be cancelled; a pick (a discard, a cost) only when the engine allows it (issue #139). */
+/** A target list or pick can be cancelled unless the engine disables its Cancel (a discard, a trigger's targets, issue #139). */
 export function targetsCancellable(d: GameView['decision']): boolean {
-  return d.kind === 'chooseTargets' && (d.purpose !== 'pick' || d.cancellable !== false);
+  return d.kind === 'chooseTargets' && d.cancellable !== false;
 }
 
 /** Cancel (button and Esc): a half-cast spell or ability, a choice the engine lets you back out of, a combat draft. */
