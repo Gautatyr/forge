@@ -12,6 +12,26 @@
   pointer-events: none;
 }
 
+/* A creature's P/T box (lower right, painted later) must not cover the count. On a wide enough card the pills stop
+   short of the box (4.6em: its widest, "10/10" with a direction arrow, plus a gap); on a narrow one, where that
+   leaves no room for a count, the stack goes up above the box (and the damage chip: 1.7em per row, as for the
+   damage chip in Card.module.css `.damage`) and stays clear of the keyword icon column at the right. */
+.counters:not([data-lift='0']) {
+  max-width: calc(92% - 4.6em);
+}
+
+@container card (width < 9em) {
+  .counters[data-lift='1'] {
+    bottom: calc(4% + 1.7em);
+    max-width: max(calc(92% - 3em), 2.6em);
+  }
+
+  .counters[data-lift='2'] {
+    bottom: calc(4% + 3.4em);
+    max-width: max(calc(92% - 3em), 2.6em);
+  }
+}
+
 .counter {
   display: flex;
   max-width: 100%;
