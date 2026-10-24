@@ -308,6 +308,7 @@ export const fr: Record<MsgKey, Msg> = {
   'zone.command': 'Zone de commandement',
   'zone.commandTax': 'Zone de commandement · taxe +{tax}',
   'zone.via': '{zone} · {via}',
+  'zone.ofPlayer': '{zone} · {owner}',
 
   'via.flashback': 'flashback',
   'via.escape': 'évasion',

@@ -406,6 +406,11 @@
   cursor: pointer;
 }
 
+/* A card that is no legal pick of the open choice: not clickable, so no pointer (hover preview and inspect stay). */
+.inert .card {
+  cursor: default;
+}
+
 .thumb .face {
   box-shadow: none;
 }
