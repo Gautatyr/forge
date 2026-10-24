@@ -1,7 +1,8 @@
-/* The hover preview, one place whatever the card's position (playtest 1 ruling): over the board, above the hand, flush
-   with the rail side, fixed to the window. HoverPreview.tsx sets left, top and --pv-w (previewPlacement.ts: the
-   2026-10-16 size, 486x678 px at 1920x1080; never under 271x378), so it covers neither the hovered card nor what the
-   open prompt is about. The rail's panels never move for it; the notes block stacks above the image. */
+/* The hover preview, one place and one size for every hovered card (playtest 1 ruling): over the board, above the hand,
+   flush with the rail side, fixed to the window. HoverPreview.tsx sets left, top and --pv-w (previewPlacement.ts: the
+   2026-10-16 size, 486x679 px at 1920x1080; never under 271x378). It may cover the hovered card; only the open
+   prompt (its cards, its tray, a hovered stack item's targets) moves or narrows it. The rail's panels never move for
+   it; the notes block stacks above the image. */
 .preview {
   position: fixed;
   z-index: var(--z-preview);

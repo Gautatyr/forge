@@ -45,12 +45,16 @@ export function placePreview(o: {
   keep: Box[];
   /** Clear space kept around the kept boxes. */
   gap?: number;
+  /**
+   * How far above the area the fixed spot may reach: a tall notes block grows upward, so the image bottom stays on the
+   * hand (the same image place for every card) instead of the box sliding down.
+   */
+  overflowTop?: number;
 }): { left: number; top: number; clear: boolean } {
-  const { area, size, keep, gap = 6 } = o;
+  const { area, size, keep, gap = 6, overflowTop = 0 } = o;
   const maxLeft = Math.max(area.left, area.left + area.width - size.width);
-  const maxTop = Math.max(area.top, area.top + area.height - size.height);
   const xs = [maxLeft, area.left, Math.min(maxLeft, Math.max(area.left, area.left + (area.width - size.width) / 2))];
-  const ys = [maxTop, area.top];
+  const ys = [Math.max(area.top - overflowTop, area.top + area.height - size.height), area.top];
   const avoid = keep.map((b) => grow(b, gap));
   let best = { left: xs[0]!, top: ys[0]!, clear: false };
   let bestScore = Infinity;

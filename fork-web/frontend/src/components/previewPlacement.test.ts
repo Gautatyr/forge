@@ -27,9 +27,16 @@ describe('hover preview: one fixed place (playtest 1 ruling, issue #172)', () =>
     expect(tall.top + 520).toBe(area.top + area.height);
   });
 
-  it('stays inside the area', () => {
+  it('a notes block taller than the room grows upward, up to overflowTop above the area, the image bottom still on the hand', () => {
+    const p = placePreview({ area, size: { width: 271, height: area.height + 9 }, keep: [], overflowTop: 16 });
+    expect(p.top).toBe(area.top - 9);
+    expect(p.top + area.height + 9).toBe(area.top + area.height);
+  });
+
+  it('stays inside the area, beyond overflowTop', () => {
     const p = placePreview({ area, size: { width: 271, height: 900 }, keep: [] });
     expect(p.top).toBe(area.top);
+    expect(placePreview({ area, size: { width: 271, height: 900 }, keep: [], overflowTop: 16 }).top).toBe(area.top - 16);
     expect(placePreview({ area, size: { width: 2000, height: 100 }, keep: [] }).left).toBe(area.left);
   });
 });

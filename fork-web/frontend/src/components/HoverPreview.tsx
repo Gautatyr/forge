@@ -61,7 +61,7 @@ function Preview({ keepIds, keepPlayerIds, children }: { keepIds: string[]; keep
     const { at } = fitPreview(start, (w) => {
       box.style.setProperty('--pv-w', `${w}px`);
       // offset sizes ignore the `appear` animation's scale, still applied on first mount.
-      return placePreview({ area, size: { width: box.offsetWidth, height: box.offsetHeight }, keep });
+      return placePreview({ area, size: { width: box.offsetWidth, height: box.offsetHeight }, keep, overflowTop: 2 * m });
     });
     box.style.left = `${at.left}px`;
     box.style.top = `${at.top}px`;
