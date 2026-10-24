@@ -34,6 +34,11 @@ export function sourceFromLocation(loc: { search: string; hash: string; host: st
   return { kind: 'live', url, token, seat };
 }
 
+/** The Mock button, the backtick key and `loadScenario` exist only off the live source: a scenario replaces the game and drops the seat token. */
+export function mockScenariosAllowed(kind: SourceConfig['kind']): boolean {
+  return kind !== 'live';
+}
+
 /** Same page with the live/replay parameters removed: back to the mock scenarios. */
 export function mockUrl(href: string, scenarioId: string): string {
   const u = new URL(href);

@@ -113,6 +113,16 @@ export function watching(game: GameView): boolean {
   return you(game).hasLost && !game.result;
 }
 
+/** "Back to lobby" from `game`: what the UI state becomes. Keyed by game id, so the next game is not hidden by it. */
+export function leaveUi(game: GameView): Partial<UiState> {
+  return { leftGame: game.id, overlay: undefined };
+}
+
+/** The page has left this game ("Back to lobby"): it shows the left screen until another game opens. */
+export function hasLeft(game: GameView, ui: UiState): boolean {
+  return ui.leftGame === game.id;
+}
+
 export type GameEndView = 'concede' | 'out' | 'over';
 
 /** The game-end dialog or panel open now; they take the keyboard while open. */

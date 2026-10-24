@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { fitTileSize, largestFit, noRegrow, settleFit, tileKind, type FitState } from './tileFit';
+import { fitTileSize, largestFit, noRegrow, pileShape, settleFit, tileKind, type FitState } from './tileFit';
 import type { ChoicePrompt } from '../../model/types';
-import { FILTER_FROM } from './trayLogic';
+import type { ChoiceDraft } from '../../state/ui';
+import { FILTER_FROM, moveBetween, moveItem } from './trayLogic';
 
 describe('largestFit (tray card tiles shrink so the choices, key hints and confirm stay in view)', () => {
   it('keeps the full size when it fits', () => {
@@ -104,5 +105,31 @@ describe('tileKind (which trays have tiles that can become a list)', () => {
     const lists = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `l${i}`, label: 'L', hint: '', items: [] }));
     expect(tileKind({ id: 'o', shape: 'order', lists: lists(2) } as unknown as ChoicePrompt)).toBe('pick');
     expect(tileKind({ id: 'o', shape: 'order', lists: lists(1) } as unknown as ChoicePrompt)).toBeUndefined();
+  });
+});
+
+describe('pileShape (a card moving between the piles of scry/surveil re-fits the tiles: the piles change shape)', () => {
+  const pile = (id: string) => ({ id, label: id, hint: '', items: [] });
+  const twoPiles = { id: 'o', shape: 'order', lists: [pile('top'), pile('bottom')] } as unknown as ChoicePrompt;
+  const draft: ChoiceDraft = { promptId: 'o', selected: [], lists: { top: ['a', 'b', 'c'], bottom: [] } };
+
+  it('changes when a card moves to the other pile, down to emptying one (its empty-pile note then wraps in a narrow column)', () => {
+    const shapes = new Set<string>();
+    let d = draft;
+    for (const id of ['a', 'b', 'c']) {
+      shapes.add(pileShape(twoPiles, d));
+      d = moveBetween(d, id, 'top', 'bottom');
+    }
+    shapes.add(pileShape(twoPiles, d));
+    expect(shapes.size).toBe(4);
+  });
+
+  it('stays the same when a card only moves within its pile', () => {
+    expect(pileShape(twoPiles, moveItem(draft, 'top', 0, 1))).toBe(pileShape(twoPiles, draft));
+  });
+
+  it('is empty for what has no piles: a single ordered column, a pick', () => {
+    expect(pileShape({ id: 'o', shape: 'order', lists: [pile('stack')] } as unknown as ChoicePrompt, draft)).toBe('');
+    expect(pileShape(chooseN({}), draft)).toBe('');
   });
 });
