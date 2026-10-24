@@ -15,6 +15,28 @@ export const RATIO = 0.716;
 export const ATTACH_PEEK = 0.17;
 /** Staggered overlap: back cards are raised by this share of the height, so their name band shows. */
 export const STAGGER_RAISE = 0.13;
+/** Cards narrower than this (px) are compact: their name label and their counter chips share a band over the title bar. */
+export const COMPACT_BELOW = 150;
+/** Height of that band's counter chips, in rem (Card.module.css `.band`): the least a staggered back card is raised. */
+export const CHIP_BAND_REM = 1.2;
+
+/**
+ * Extra lift of a tapped back card in a staggered line, in px: a tapped card is `cw` high where an upright one is
+ * `cw / RATIO`, and the line is bottom-aligned, so without it the card's top (its title band) would sit that much
+ * lower, under the front cards.
+ */
+export function tapLift(cw: number): number {
+  return cw / RATIO - cw;
+}
+
+/**
+ * How far a staggered line raises its back cards, in px: `STAGGER_RAISE` of the height, but at least `minRaise`
+ * (the height of a counter chip), which on a tiny card is more than 13 %. The strip it exposes is all that shows
+ * of a back card when the front cards cover the rest.
+ */
+export function staggerRaise(cw: number, minRaise = 0): number {
+  return Math.max((cw / RATIO) * STAGGER_RAISE, minRaise);
+}
 /** Extra margin before a group separator, in gaps (Battlefield.module.css `.separator`). */
 export const SEPARATOR_GAPS = 1.5;
 const TAPPED_UNITS = 1 / RATIO;
@@ -64,10 +86,10 @@ function maxAtt(items: LayoutItem[]) {
 }
 
 /** Height of `lines` lines of cards `cw` wide; staggered lines add their back cards' raise. */
-export function rowHeight(items: LayoutItem[], cw: number, lines: number, gap: number, staggered = false): number {
+export function rowHeight(items: LayoutItem[], cw: number, lines: number, gap: number, staggered = false, minRaise = 0): number {
   if (items.length === 0) return 0;
   const ch = cw / RATIO;
-  const line = ch * (1 + ATTACH_PEEK * maxAtt(items)) + (staggered ? ch * STAGGER_RAISE : 0);
+  const line = ch * (1 + ATTACH_PEEK * maxAtt(items)) + (staggered ? staggerRaise(cw, minRaise) : 0);
   return lines * line + (lines - 1) * gap;
 }
 
@@ -111,7 +133,7 @@ const covered = (r: RowFit) => (r.cw > 0 ? r.overlap / r.cw : 0);
  * the height with the least overlap (then the fewest lines). Only when no
  * count fits does the size drop below `cw`: cards are never clipped.
  */
-function stagger(creatures: LayoutItem[], support: LayoutItem[], w: number, h: number, gap: number, cw: number, f: number): BattlefieldFit {
+function stagger(creatures: LayoutItem[], support: LayoutItem[], w: number, h: number, gap: number, cw: number, f: number, minRaise: number): BattlefieldFit {
   const both = creatures.length > 0 && support.length > 0;
   for (let size = Math.floor(cw); size >= 8; size--) {
     let best: { c: RowFit; s: RowFit; score: number; lines: number } | undefined;
@@ -121,8 +143,8 @@ function stagger(creatures: LayoutItem[], support: LayoutItem[], w: number, h: n
         const s = staggerRow(support, size * f, w, gap, sl);
         if (covered(c) > MAX_COVER || covered(s) > MAX_COVER) continue;
         const height =
-          rowHeight(creatures, size, c.lines, gap, c.overlap > 0) +
-          rowHeight(support, size * f, s.lines, gap, s.overlap > 0) +
+          rowHeight(creatures, size, c.lines, gap, c.overlap > 0, minRaise) +
+          rowHeight(support, size * f, s.lines, gap, s.overlap > 0, minRaise) +
           (both ? gap : 0);
         if (height > h + 0.01) continue;
         const score = Math.max(covered(c), covered(s));
@@ -145,6 +167,7 @@ export function fitBattlefield(
   gap: number,
   maxCw: number,
   minCw: number,
+  minRaise = 0,
 ): BattlefieldFit {
   if (w <= 0 || h <= 0 || creatures.length + support.length === 0) {
     return { creatures: EMPTY, support: EMPTY, supportFactor: SUPPORT_FACTORS[0] };
@@ -164,11 +187,11 @@ export function fitBattlefield(
       if (height <= h + 0.01) return { creatures: c, support: s, supportFactor: f };
     }
   }
-  return stagger(creatures, support, w, h, gap, minCw, SUPPORT_FACTORS.at(-1)!);
+  return stagger(creatures, support, w, h, gap, minCw, SUPPORT_FACTORS.at(-1)!, minRaise);
 }
 
 /** Creatures only (Focus layout, compact seats): largest size that fits, wrapping as needed. */
-export function fitRow(items: LayoutItem[], w: number, h: number, gap: number, maxCw: number, minCw: number): RowFit {
+export function fitRow(items: LayoutItem[], w: number, h: number, gap: number, maxCw: number, minCw: number, minRaise = 0): RowFit {
   if (items.length === 0 || w <= 0 || h <= 0) return EMPTY;
   for (let cw = Math.floor(maxCw); cw >= minCw; cw--) {
     for (let lines = 1; lines <= MAX_CREATURE_LINES; lines++) {
@@ -176,5 +199,5 @@ export function fitRow(items: LayoutItem[], w: number, h: number, gap: number, m
       if (r && rowHeight(items, cw, r.lines, gap) <= h + 0.01) return r;
     }
   }
-  return stagger(items, [], w, h, gap, minCw, 1).creatures;
+  return stagger(items, [], w, h, gap, minCw, 1, minRaise).creatures;
 }

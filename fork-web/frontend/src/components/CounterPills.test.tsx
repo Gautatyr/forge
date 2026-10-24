@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { CounterPills, counterLift, counterParts } from './CounterPills';
+import { CounterPills, counterParts } from './CounterPills';
 
 const pills = (counters: { kind: string; count: number }[]) => renderToStaticMarkup(<CounterPills counters={counters} />);
 
@@ -27,11 +27,9 @@ describe('counters on a battlefield permanent (issue #173)', () => {
     expect(html).toMatch(/<span[^>]*>Experience<\/span><span[^>]*>12<\/span>/);
   });
 
-  it('lifts the pills above the P/T box and the damage chip, which would otherwise cover the count', () => {
-    expect(counterLift({ damage: 0 })).toBe(0);
-    expect(counterLift({ power: 2, damage: 0 })).toBe(1);
-    expect(counterLift({ power: 2, damage: 3 })).toBe(2);
-    expect(renderToStaticMarkup(<CounterPills counters={[{ kind: 'Deathtouch', count: 1 }]} lift={1} />)).toContain('data-lift="1"');
-    expect(pills([{ kind: 'Charge', count: 1 }])).toContain('data-lift="0"');
+  it('puts the pills in the title band of a compact card and over the lower corner of a large one', () => {
+    const counters = [{ kind: 'Suspect', count: 2 }];
+    expect(renderToStaticMarkup(<CounterPills counters={counters} band />)).toMatch(/class="[^"]*inBand/);
+    expect(pills(counters)).not.toMatch(/inBand/);
   });
 });

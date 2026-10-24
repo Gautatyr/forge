@@ -5,7 +5,7 @@ import { useCardClick } from '../state/cardClick';
 import type { CardStatus } from '../state/cardStatus';
 import { useMatch } from '../state/MatchContext';
 import { useOverlayKey } from '../state/overlayKey';
-import { CounterPills, counterLift } from './CounterPills';
+import { CounterPills } from './CounterPills';
 import { Icon, type IconName } from './Icon';
 import { KeywordIcons, KW_AVOID_ATTR, type CardActions } from './KeywordIcons';
 import { useCardHover } from './useCardHover';
@@ -33,6 +33,8 @@ interface Props {
   ariaExtra?: string;
   /** Readable name over the title bar (small battlefield cards, pass-3 spec section 4). */
   nameLabel?: boolean;
+  /** A small battlefield card (under `COMPACT_BELOW`): the counters go in the title band, name label or not. */
+  compact?: boolean;
 }
 
 function ringClass(s: CardStatus): string | undefined {
@@ -91,7 +93,7 @@ function ptDirection(c: CardView): 'up' | 'down' | undefined {
   return undefined;
 }
 
-export function Card({ card: c, context, count = 1, groupIds, className, style, onActivate, ariaExtra, nameLabel = false }: Props) {
+export function Card({ card: c, context, count = 1, groupIds, className, style, onActivate, ariaExtra, nameLabel = false, compact = false }: Props) {
   const { game, ui, setUi } = useMatch();
   const click = useCardClick();
   const words = useOverlayKey();
@@ -112,6 +114,8 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
   const dir = ptDirection(c);
   // Attackers stay upright during combat so they remain readable (Arena does the same).
   const showTapped = c.tapped && onBoard && !s.attacking;
+  const counterBand = onBoard && compact && c.counters.length > 0;
+  const hasBand = nameLabel || counterBand;
   const hasIcons = onBoard && c.zone === 'battlefield' && iconKeywords(c.keywords).length > 0;
 
   const hover = useCardHover(c.id);
@@ -151,7 +155,7 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
     s.dimmed ? styles.dimmed : '',
     s.attacking && onBoard ? styles.nudged : '',
     count > 1 ? styles.grouped : '',
-    nameLabel ? styles.labelled : '',
+    hasBand ? styles.labelled : '',
     className ?? '',
   ].join(' ');
 
@@ -226,7 +230,7 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
               </span>
             ) : null}
 
-            {onBoard && c.counters.length > 0 ? <CounterPills counters={c.counters} lift={counterLift(c)} attrs={avoid} /> : null}
+            {onBoard && !compact && c.counters.length > 0 ? <CounterPills counters={c.counters} attrs={avoid} /> : null}
 
             {onBoard && c.damage > 0 ? (
               <span className={styles.damage} title={t('card.damage', { count: c.damage })} data-arrow-occluder {...avoid}>
@@ -260,9 +264,14 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
           </>
         ) : null}
       </button>
-      {nameLabel ? (
-        <span className={styles.nameLabel} aria-hidden>
-          {faceName(face)}
+      {hasBand ? (
+        <span className={styles.band}>
+          {counterBand ? <CounterPills counters={c.counters} band attrs={avoid} /> : null}
+          {nameLabel ? (
+            <span className={styles.nameLabel} aria-hidden>
+              {faceName(face)}
+            </span>
+          ) : null}
         </span>
       ) : null}
       {onBoard && c.zone === 'battlefield' ? (
