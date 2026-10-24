@@ -1,6 +1,5 @@
 package forge.fork.web.seat;
 
-import forge.game.Game;
 import forge.game.player.Player;
 import forge.game.zone.MagicStack;
 import forge.gamemodes.match.input.Input;
@@ -20,8 +19,8 @@ final class SkipOpponentStack {
     private boolean passNext;
 
     /** A player gets priority ({@code GameEventPlayerPriority}, before it is asked). */
-    void priority(Game game, Player priorityPlayer, Player seatPlayer, MagicStack stack, boolean on) {
-        passNext = on && seatPlayer != null && priorityPlayer == seatPlayer && StackInvolvement.allUninvolved(game, seatPlayer, stack);
+    void priority(Player priorityPlayer, Player seatPlayer, MagicStack stack, boolean on) {
+        passNext = on && seatPlayer != null && priorityPlayer == seatPlayer && StackInvolvement.allUninvolved(seatPlayer, stack);
     }
 
     /** Game thread, before the seat's input waits: the pass to run for it, or null. */

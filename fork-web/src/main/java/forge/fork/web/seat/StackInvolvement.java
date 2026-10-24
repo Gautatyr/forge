@@ -1,10 +1,10 @@
 package forge.fork.web.seat;
 
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-import forge.game.Game;
 import forge.game.GameObject;
 import forge.game.ability.AbilityUtils;
 import forge.game.ability.ApiType;
@@ -14,6 +14,7 @@ import forge.game.spellability.SpellAbility;
 import forge.game.spellability.SpellAbilityStackInstance;
 import forge.game.spellability.TargetChoices;
 import forge.game.zone.MagicStack;
+import forge.game.zone.ZoneType;
 
 /**
  * Does a stack item involve a player? "Involved" means it targets or affects the player, the player's permanents or the
@@ -55,12 +56,12 @@ final class StackInvolvement {
     private StackInvolvement() { }
 
     /** Every item on the stack is uninvolved for {@code you} (false for an empty stack). */
-    static boolean allUninvolved(Game game, Player you, MagicStack stack) {
+    static boolean allUninvolved(Player you, MagicStack stack) {
         if (stack.isEmpty()) {
             return false;
         }
         for (SpellAbilityStackInstance si : stack) {
-            if (involves(game, you, si)) {
+            if (involves(you, si)) {
                 return false;
             }
         }
@@ -68,7 +69,7 @@ final class StackInvolvement {
     }
 
     /** The stack item (with its sub-abilities) involves {@code you}, or cannot be told not to. */
-    static boolean involves(Game game, Player you, SpellAbilityStackInstance si) {
+    static boolean involves(Player you, SpellAbilityStackInstance si) {
         try {
             if (you == null || si == null || si.getActivatingPlayer() == null) {
                 return true;
@@ -78,12 +79,12 @@ final class StackInvolvement {
             }
             for (SpellAbilityStackInstance item = si; item != null; item = item.getSubInstance()) {
                 SpellAbility sa = item.getSpellAbility();
-                if (sa == null || involves(you, item.getTargetChoices()) || involves(you, sa.getTargets()) || reaches(game, you, sa)) {
+                if (sa == null || involves(you, item.getTargetChoices()) || involves(you, sa.getTargets()) || reaches(you, sa)) {
                     return true;
                 }
                 // a sub-ability the instance chain does not carry
                 for (SpellAbility sub = sa.getSubAbility(); sub != null; sub = sub.getSubAbility()) {
-                    if (involves(you, sub.getTargets()) || reaches(game, you, sub)) {
+                    if (involves(you, sub.getTargets()) || reaches(you, sub)) {
                         return true;
                     }
                 }
@@ -124,7 +125,7 @@ final class StackInvolvement {
     }
 
     /** What the ability applies to without targeting, as its parameters say. */
-    private static boolean reaches(Game game, Player you, SpellAbility sa) {
+    private static boolean reaches(Player you, SpellAbility sa) {
         ApiType api = sa.getApi();
         if (api == null) {
             return false; // a permanent spell: its effects are triggers of their own, put on the stack when it enters
@@ -163,14 +164,41 @@ final class StackInvolvement {
         return false;
     }
 
-    /** {@code you}, or a card of yours in any zone, matches the restriction as the ability's controller applies it. */
+    /** Zone parameters naming where an effect looks for cards. */
+    private static final Set<String> ZONES = Set.of("Origin", "OriginAlternative", "Zone", "ChoiceZone", "ValidZone");
+
+    /** Zones shared by all players: another player's effect reaches into them. Hand and library are private to their player: reached only through who is "Defined". */
+    private static final Set<ZoneType> SHARED = EnumSet.of(ZoneType.Battlefield, ZoneType.Graveyard, ZoneType.Exile, ZoneType.Command, ZoneType.Flashback);
+
+    /**
+     * {@code you}, or a card of yours where the effect looks, matches the restriction as the ability's controller applies
+     * it. The effect looks in the zones its parameters name ({@link #ZONES}), else on the battlefield; of those, only the
+     * shared ones count (a search of the activator's own library does not reach the seat's cards).
+     */
     private static boolean valid(Player you, Card host, String restriction, SpellAbility sa) {
         Player activator = sa.getActivatingPlayer();
+        Set<ZoneType> zones = EnumSet.noneOf(ZoneType.class);
+        for (String key : ZONES) {
+            if (sa.hasParam(key)) {
+                for (String z : sa.getParam(key).split(",")) {
+                    ZoneType zone = ZoneType.smartValueOf(z.trim());
+                    if (zone == null) {
+                        return true; // a zone not known here
+                    }
+                    if (SHARED.contains(zone)) {
+                        zones.add(zone);
+                    }
+                }
+            }
+        }
+        if (zones.isEmpty() && ZONES.stream().noneMatch(sa::hasParam)) {
+            zones.add(ZoneType.Battlefield);
+        }
         for (String r : restriction.split(",(?![^(]*\\))")) {
             if (you.isValid(r, activator, host, sa)) {
                 return true;
             }
-            for (Card c : you.getAllCards()) {
+            for (Card c : you.getCardsIn(zones)) {
                 if (c.isValid(r, activator, host, sa)) {
                     return true;
                 }

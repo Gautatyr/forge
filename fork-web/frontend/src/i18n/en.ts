@@ -437,6 +437,12 @@ export const en = {
   'stops.involved': 'Stop only when I\'m involved:',
   'stops.involvedTitle':
     'On opponents\' turns: stop at declare attackers only when you or your planeswalkers or battles are attacked, at declare blockers only when you\'re in the combat, and at the end step only on the turn of the player right before you. Spells and abilities on the stack still stop you. Off by default.',
+  'stops.skipOpp': 'Skip spells between opponents:',
+  'stops.skipOppTitle':
+    'Don\'t stop for spells and abilities on the stack that neither target nor affect you, your permanents or your cards (the ones opponents aim at each other). Anything that targets or affects you, or that you control, still stops you. Off by default.',
+  'stops.yields': 'Always yielding to:',
+  'stops.yieldRemove': 'Stop always yielding to {ability}',
+  'stops.yieldRemoveTitle': 'Stop always yielding to this',
   'stops.passAfterCast': 'Pass after casting:',
   'stops.passAfterCastTitle': 'After your own spell or ability goes on the stack, pass priority once so it resolves unless someone responds. Shift + click to keep priority for one cast. Off by default.',
 

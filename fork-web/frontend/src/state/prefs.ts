@@ -48,6 +48,11 @@ export interface Prefs {
   autoPay: boolean;
   /** Pass priority once after your own spell or ability goes on the stack (memo U1b; off by default, D4). Shift on the cast holds it. */
   passAfterCast: boolean;
+  /**
+   * "Skip spells between opponents" (ruling 2026-10-24; off by default, D4): you are not given priority for a stack item
+   * that neither targets nor affects you or your permanents. The bridge decides (`SkipOpponentStack`); sent on connect and on change.
+   */
+  skipOpponentStack: boolean;
   /** Pass priority when you have no playable action (issue #125; off by default, D4). The bridge applies it; sent on connect and on change. */
   autoPass: boolean;
   /** Honour the abilities you chose with "Always yield to this" (off by default, D4). */
@@ -69,6 +74,7 @@ export const DEFAULT_PREFS: Prefs = {
   stops: DEFAULT_STOPS,
   autoPay: false,
   passAfterCast: false,
+  skipOpponentStack: false,
   autoPass: false,
   autoYield: false,
   language: 'en',
@@ -103,6 +109,7 @@ export function parsePrefs(raw: string): Prefs {
     delete (p as { cardSize?: unknown }).cardSize;
     if (typeof p.autoPay !== 'boolean') p.autoPay = false;
     if (typeof p.passAfterCast !== 'boolean') p.passAfterCast = false;
+    if (typeof p.skipOpponentStack !== 'boolean') p.skipOpponentStack = false;
     if (typeof p.autoPass !== 'boolean') p.autoPass = false;
     if (typeof p.autoYield !== 'boolean') p.autoYield = false;
     // Nothing stored (or unreadable): French for a French browser, else English.

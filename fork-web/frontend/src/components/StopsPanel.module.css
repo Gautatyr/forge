@@ -278,3 +278,70 @@
   outline: var(--focus-ring);
   outline-offset: var(--focus-offset);
 }
+
+/* The abilities you always yield to: kept until you remove them. */
+.yields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--c-line);
+}
+
+.yieldsTitle {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  color: var(--c-text-2);
+}
+
+.yieldList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.yieldChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  max-width: 22rem;
+  padding: var(--sp-0) var(--sp-0) var(--sp-0) var(--sp-2);
+  border-radius: var(--r-pill);
+  border: 1px solid var(--c-line-strong);
+  background: var(--c-panel-raised);
+  font-size: var(--fs-xs);
+  color: var(--c-text);
+}
+
+.yieldText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.yieldRemove {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  color: var(--c-text-2);
+}
+
+.yieldRemove:hover {
+  background: var(--c-panel-hover);
+  color: var(--c-text);
+}
+
+.yieldRemove:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}

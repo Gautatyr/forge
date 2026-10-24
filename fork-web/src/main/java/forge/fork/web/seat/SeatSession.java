@@ -205,7 +205,7 @@ final class SeatSession implements IRemote {
             restartRoundIfAPlayerLeft();
             if (ThreadUtil.isGameThread() && e.priority() != null) {
                 passAfterCast.priority(game.getPlayer(e.priority().getId()), seatPlayer(), game.getStack(), match.passAfterCast(seat));
-                skipOpponentStack.priority(game, game.getPlayer(e.priority().getId()), seatPlayer(), game.getStack(), match.skipOpponentStack(seat));
+                skipOpponentStack.priority(game.getPlayer(e.priority().getId()), seatPlayer(), game.getStack(), match.skipOpponentStack(seat));
             }
         }
 

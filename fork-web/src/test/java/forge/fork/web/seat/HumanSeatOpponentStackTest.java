@@ -156,12 +156,20 @@ public class HumanSeatOpponentStackTest {
      * descriptions of the priority inputs the seat was asked with something on the stack.
      */
     private List<String> askedWithStack() throws Exception {
+        return askedWithStack(PhaseType.MAIN1);
+    }
+
+    /** The same, from the start of {@code from} on opponent 1's turn (what its permanents trigger then goes on the stack). */
+    private List<String> askedWithStack(PhaseType from) throws Exception {
         final PhaseHandler ph = game.getPhaseHandler();
-        ph.devModeSet(PhaseType.MAIN1, opps.get(0));
+        ph.devModeSet(from, opps.get(0));
         ph.onStackResolved();
         Future<?> loop = gameThread.submit(() -> {
-            for (int i = 0; i < 300 && !game.isGameOver() && !game.getStack().isEmpty(); i++) {
+            // until what was put on the stack, or triggered by what happened, has resolved
+            boolean seen = !game.getStack().isEmpty();
+            for (int i = 0; i < 300 && !game.isGameOver() && !(seen && game.getStack().isEmpty()); i++) {
                 ph.mainLoopStep();
+                seen |= !game.getStack().isEmpty();
             }
         });
         List<String> asked = new ArrayList<>();
@@ -238,6 +246,69 @@ public class HumanSeatOpponentStackTest {
     public void aCreatureSpellBetweenOpponentsIsPassed() throws Exception {
         start(true);
         cast(opps.get(0), "Grizzly Bears");
+        assertEquals(askedWithStack(), List.of());
+    }
+
+    /** The effect of a land's "when enters" trigger (its SVar), on the stack for the land's controller. */
+    private void enterEffect(Player p, String land, String svar) {
+        Card c = add(land, p, ZoneType.Battlefield);
+        stackIt(c, AbilityFactory.getAbility(c.getSVar(svar), c), p);
+    }
+
+    @Test
+    public void anEnterTriggerOfAnOpponentsLandIsPassed() throws Exception {
+        start(true);
+        enterEffect(opps.get(1), "Dismal Backwater", "TrigGainLife"); // "you gain 1 life": no Defined at all
+        assertEquals(askedWithStack(), List.of());
+        assertEquals(opps.get(1).getLife(), 21);
+    }
+
+    @Test
+    public void anEnterTriggerThatBouncesTheOpponentsOwnLandIsPassed() throws Exception {
+        start(true);
+        add("Forest", opps.get(1), ZoneType.Battlefield);
+        enterEffect(opps.get(1), "Gruul Turf", "TrigReturn"); // "return a land you control to its owner's hand"
+        assertEquals(askedWithStack(), List.of());
+    }
+
+    /** A real trigger of an opponent's permanent, which only concerns that opponent: Phyrexian Arena draws and loses life for its controller. */
+    @Test
+    public void aTriggerThatOnlyConcernsItsControllerIsPassed() throws Exception {
+        start(true);
+        add("Phyrexian Arena", opps.get(0), ZoneType.Battlefield);
+        assertEquals(askedWithStack(PhaseType.UPKEEP), List.of());
+        assertEquals(opps.get(0).getLife(), 19, "the trigger resolved");
+    }
+
+    /** An ability of an opponent's permanent, written as the card scripts do, with no target. */
+    private void opponentAbility(String script) {
+        Card host = add("Howling Mine", opps.get(0), ZoneType.Battlefield);
+        stackIt(host, AbilityFactory.getAbility(script, host), opps.get(0));
+    }
+
+    /** "Search your library for a basic land": the activator's library, not the seat's lands. */
+    @Test
+    public void aLibrarySearchBetweenOpponentsIsPassedWhateverTheSeatControls() throws Exception {
+        start(true);
+        add("Forest", me, ZoneType.Battlefield);
+        opponentAbility("AB$ ChangeZone | Cost$ 0 | Origin$ Library | Destination$ Battlefield | ChangeType$ Land.Basic | Hidden$ True");
+        assertEquals(askedWithStack(), List.of());
+    }
+
+    /** "Return a creature card from a graveyard": a shared zone, so the seat's graveyard is within reach. */
+    @Test
+    public void aGraveyardEffectThatCanTakeTheSeatsCardsStops() throws Exception {
+        start(true);
+        add("Grizzly Bears", me, ZoneType.Graveyard);
+        opponentAbility("AB$ ChangeZone | Cost$ 0 | Origin$ Graveyard | Destination$ Battlefield | ChangeType$ Creature | Hidden$ True");
+        assertEquals(askedWithStack(), List.of("Howling Mine"));
+    }
+
+    @Test
+    public void aGraveyardEffectOnTheOpponentsOwnCardsIsPassed() throws Exception {
+        start(true);
+        add("Grizzly Bears", me, ZoneType.Graveyard);
+        opponentAbility("AB$ ChangeZone | Cost$ 0 | Origin$ Graveyard | Destination$ Battlefield | ChangeType$ Creature.YouOwn | Hidden$ True");
         assertEquals(askedWithStack(), List.of());
     }
 

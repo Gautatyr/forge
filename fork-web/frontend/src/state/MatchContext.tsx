@@ -50,7 +50,7 @@ function historyReducer(h: History, a: HistoryAction): History {
   const next = applyIntent(h.game, a.intent);
   if (next === h.game) return h;
   // Only real game actions are undoable, not settings toggles.
-  const undoable = !['setAutoPass', 'setAutoYield', 'setAutoPay', 'toggleAutoYieldTo'].includes(a.intent.type);
+  const undoable = !['setAutoPass', 'setAutoYield', 'setAutoPay', 'toggleAutoYieldTo', 'removeAutoYieldTo'].includes(a.intent.type);
   return { ...h, game: next, past: undoable ? [...h.past, h.game].slice(-30) : h.past };
 }
 
@@ -78,7 +78,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   const [source, setSource] = useState<SourceConfig>(() => sourceFromLocation(location));
   // Before any child renders: every `t()` of this pass reads the new language.
   setLanguage(prefs.language);
-  const live = useLive(source, prefs.stops, prefs.autoPay, prefs.language, prefs.passAfterCast, prefs.autoPass, prefs.autoYield);
+  const live = useLive(source, prefs.stops, prefs.autoPay, prefs.language, prefs.passAfterCast, prefs.autoPass, prefs.autoYield, prefs.skipOpponentStack);
   const liveSend = live?.send;
   const autoYieldTo = live?.game.autoYieldTo ?? NO_YIELDS;
 

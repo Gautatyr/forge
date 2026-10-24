@@ -194,6 +194,32 @@ function StopsEditor() {
         {multi && perOpen ? opponents.map(opponentRow) : null}
       </div>
 
+      {game.autoYieldTo.length > 0 ? (
+        <section className={styles.yields} aria-labelledby="stops-yields">
+          <h3 id="stops-yields" className={styles.yieldsTitle}>
+            {t('stops.yields')}
+          </h3>
+          <ul className={styles.yieldList}>
+            {game.autoYieldTo.map((key) => (
+              <li key={key} className={styles.yieldChip}>
+                <span className={styles.yieldText} title={key}>
+                  {key}
+                </span>
+                <button
+                  type="button"
+                  className={styles.yieldRemove}
+                  aria-label={t('stops.yieldRemove', { ability: key })}
+                  title={t('stops.yieldRemoveTitle')}
+                  onClick={() => send({ type: 'removeAutoYieldTo', key })}
+                >
+                  <Icon name="close" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       <footer className={styles.foot}>
         {multi ? (
           <button type="button" className={styles.link} aria-expanded={perOpen} onClick={() => setPerOpen((o) => !o)}>
@@ -216,6 +242,20 @@ function StopsEditor() {
           </span>
           <span>
             {t('stops.involved')} <b>{stops.involvedOnly ? t('common.on') : t('common.off')}</b>
+          </span>
+        </label>
+        <label className={`${styles.switchRow} ${styles.next}`} title={t('stops.skipOppTitle')}>
+          <input
+            type="checkbox"
+            role="switch"
+            checked={prefs.skipOpponentStack}
+            onChange={(e) => setPrefs({ skipOpponentStack: e.target.checked })}
+          />
+          <span className={styles.switch} aria-hidden>
+            <span className={styles.knob} />
+          </span>
+          <span>
+            {t('stops.skipOpp')} <b>{prefs.skipOpponentStack ? t('common.on') : t('common.off')}</b>
           </span>
         </label>
         <label className={styles.switchRow} title={t('action.autoPassTitle')}>
