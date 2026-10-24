@@ -7,6 +7,8 @@ import { applyIntent, type MockGame } from '../mock/engine';
 import { switchesAutoYieldOn } from './autoYield';
 import { blockClick, refusedText } from './blockClick';
 import { engineNote, noteAfterAction } from './engineNote';
+import { followGame } from './gameId';
+import { stopsForNewGame } from './stops';
 import { currentAttackAim, focusForIntent, focusOnTurnChange, pickDefender } from './focus';
 import { buildScenario } from './seedGame';
 import { loadPrefs, savePrefs, type Prefs } from './prefs';
@@ -124,6 +126,12 @@ export function MatchProvider({ children }: { children: ReactNode }) {
 
   const game = live?.game ?? h.game;
   const scenarioId = source.kind === 'mock' ? h.scenarioId : source.kind;
+
+  // Per-opponent stop rows belong to one game: seat ids restart in the next game and may hold other opponents.
+  const [seenGameId, setSeenGameId] = useState<string>();
+  const followed = followGame(seenGameId, game.id);
+  if (followed.id !== seenGameId) setSeenGameId(followed.id);
+  if (followed.fresh && stopsForNewGame(prefs.stops) !== prefs.stops) setPrefsState((p) => ({ ...p, stops: stopsForNewGame(p.stops) }));
 
   // Live: engine messages and rejected answers or actions show in the prompt line, like any neutral note.
   const notice = live?.notice;

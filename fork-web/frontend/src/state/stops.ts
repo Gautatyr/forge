@@ -55,6 +55,11 @@ export function resetStops(): StopPrefs {
   return DEFAULT_STOPS;
 }
 
+/** A new game drops the per-opponent rows (seat ids restart in each game and may hold other opponents); the shared rows stay. */
+export function stopsForNewGame(stops: StopPrefs): StopPrefs {
+  return Object.keys(stops.perOpponent).length === 0 ? stops : { ...stops, perOpponent: {} };
+}
+
 /** You, or a planeswalker or battle of yours, are attacked in the combat under way (`defenderId` names its controller or protector). */
 function attacked(game: GameView): boolean {
   return !!game.combat?.attacks.some((a) => a.defenderId === game.youId);

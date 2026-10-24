@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { CallMessage, WireObject } from '../wire/generated/wire';
 import { autoAnswer, intentToFrames, stopFrames } from './commands';
 import { LiveSession } from './session';
-import { imageFromKey, logText, parseKeyword, passUntilYourTurnDone, toGameView } from './toView';
+import { imageFromKey, logText, parseKeyword, passEnded, passUntilYourTurnDone, toGameView } from './toView';
 import { cardName, faceName, faceText, faceType, isCreature, targetName, typeLine } from '../model/selectors';
 
 const ALIAS = 2 ** 30;
@@ -1131,6 +1131,26 @@ describe('payment, mana sources, "To my turn"', () => {
     expect(passUntilYourTurnDone(g, 5)).toBe(false);
     expect(passUntilYourTurnDone({ ...g, turn: { ...g.turn, number: 6, activePlayerId: '1' } }, 5)).toBe(false);
     expect(passUntilYourTurnDone({ ...g, turn: { ...g.turn, number: 9 } }, 5)).toBe(true);
+  });
+
+  it('ends "To my turn" when the engine ends the yield marker (an interrupt), whatever the cause (issue #170)', () => {
+    const s = session('MAIN1', 1);
+    const g = toGameView(s);
+    const pressed = { passingUntilYourTurn: true, passFromTurn: g.turn.number, passMarkerEnds: s.markerEnds };
+    expect(passEnded(g, pressed, s.markerEnds)).toBe(false);
+    // YieldController.clearActiveYieldAndDispatch: gui.applyYieldUpdate(ClearMarker)
+    s.apply({ t: 'call', method: 'applyYieldUpdate', args: [{ kind: 'ClearMarker', player: YOU }] });
+    expect(s.markerEnds).toBe(1);
+    expect(passEnded(toGameView(s), pressed, s.markerEnds)).toBe(true);
+    // pressed again afterwards: the earlier end does not end it
+    expect(passEnded(toGameView(s), { ...pressed, passMarkerEnds: s.markerEnds }, s.markerEnds)).toBe(false);
+  });
+
+  it('ignores the other yield updates', () => {
+    const s = session('MAIN1', 1);
+    s.apply({ t: 'call', method: 'applyYieldUpdate', args: [{ kind: 'StackYield', player: YOU, active: false, respectsInterrupts: false }] });
+    s.apply({ t: 'call', method: 'applyYieldUpdate', args: [{ kind: 'SetAutoPassUntilEndOfTurn', player: YOU, active: false }] });
+    expect(s.markerEnds).toBe(0);
   });
 });
 

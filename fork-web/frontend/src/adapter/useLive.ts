@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from 'react';
 import type { Intent } from '../model/intents';
 import type { GameView } from '../model/types';
+import { followGame, PENDING_GAME_ID } from '../state/gameId';
 import { DEFAULT_STOPS, type StopPrefs } from '../state/prefs';
 import { isStop } from '../state/stops';
 import { connectLive, streamUrl, type LiveSource } from './client';
@@ -10,13 +11,13 @@ import { bridgeImageLookup, ImageResolver } from './images';
 import { parseRecording, replaySource, RECORDINGS } from './replay';
 import type { Notice } from './session';
 import type { SourceConfig } from './source';
-import { NO_LOCAL, passUntilYourTurnDone, toGameView, type LiveLocal } from './toView';
+import { NO_LOCAL, passEnded, toGameView, type LiveLocal } from './toView';
 import { t, type Lang } from '../i18n';
 
 /** Shown until the first snapshot names the players. */
 export function placeholderView(what: string): GameView {
   return {
-    id: 'live-pending',
+    id: PENDING_GAME_ID,
     format: 'commander',
     youId: 'pending',
     players: [
@@ -136,16 +137,23 @@ export function useLive(
   const send = useCallback(
     (intent: Intent) => {
       if (!source || !game) return;
-      if (intent.type === 'passUntilYourTurn') setLocal((l) => ({ ...l, passingUntilYourTurn: true, passFromTurn: game.turn.number }));
+      if (intent.type === 'passUntilYourTurn') {
+        const passMarkerEnds = source.session.markerEnds;
+        setLocal((l) => ({ ...l, passingUntilYourTurn: true, passFromTurn: game.turn.number, passMarkerEnds }));
+      }
       if (intent.type === 'cancelPassUntilYourTurn') setLocal((l) => ({ ...l, passingUntilYourTurn: false }));
       source.send(intentToFrames(intent, source.session, game));
     },
     [source, game],
   );
 
-  // "To my turn" ends when your next turn comes (pressed on your own turn: the one after it).
+  // "To my turn" ends when your next turn comes (pressed on your own turn: the one after it), or when the engine
+  // ends it (an opponent's spell or ability, an attack on you), or with the game it was pressed in.
   // Adjusting state during render: React's pattern for state derived from a change.
-  if (game && local.passingUntilYourTurn && passUntilYourTurnDone(game, local.passFromTurn ?? -1)) {
+  const [seenGameId, setSeenGameId] = useState<string>();
+  const followed = game && followGame(seenGameId, game.id);
+  if (followed && followed.id !== seenGameId) setSeenGameId(followed.id);
+  if (game && local.passingUntilYourTurn && (followed?.fresh || passEnded(game, local, source?.session.markerEnds ?? 0))) {
     setLocal((l) => ({ ...l, passingUntilYourTurn: false }));
   }
 
@@ -202,7 +210,7 @@ export function useLive(
 
   // Phase stops → the engine (the bridge skips none until told): on connect, on a new game or player list, on every edit.
   const stopsKey =
-    config.kind === 'live' && source?.status === 'open' && game && game.id !== 'live-pending'
+    config.kind === 'live' && source?.status === 'open' && game && game.id !== PENDING_GAME_ID
       ? `${game.id}|${game.youId}|${game.players.map((p) => p.id).join(',')}|${JSON.stringify(stops)}`
       : undefined;
   const sentStops = useRef<string>(undefined);
