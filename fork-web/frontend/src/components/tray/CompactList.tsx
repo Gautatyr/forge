@@ -126,7 +126,7 @@ export function PileLists({ prompt, draft, setDraft: set }: BodyProps<OrderPromp
   const { ref, hold: setDraft } = usePileFloor(prompt.id, set);
   const items = new Map(prompt.lists.flatMap((l) => l.items).map((i) => [i.id, i]));
   return (
-    <div ref={ref} {...{ [PILE_FLOOR_ATTR]: '' }} className={styles.lists}>
+    <div ref={ref} {...{ [PILE_FLOOR_ATTR]: prompt.id }} className={styles.lists}>
       {prompt.lists.map((l) => {
         const ids = draft.lists[l.id] ?? [];
         const other = prompt.lists.find((x) => x.id !== l.id)!;
