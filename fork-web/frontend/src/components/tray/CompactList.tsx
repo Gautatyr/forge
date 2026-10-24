@@ -4,7 +4,7 @@ import { useMatch } from '../../state/MatchContext';
 import { Icon } from '../Icon';
 import { useCardHover } from '../useCardHover';
 import type { BodyProps } from './TrayBody';
-import { chosenIn, dropFromGroup, listHint, moveBetween, moveItem, moveLabel, stepGroup, toggleOption } from './trayLogic';
+import { chosenIn, countChars, dropFromGroup, listHint, moveBetween, moveItem, moveLabel, stepGroup, toggleOption } from './trayLogic';
 import styles from '../ChoiceTray.module.css';
 import { t } from '../../i18n';
 
@@ -50,7 +50,10 @@ function RowKey({ index, chosen }: { index: number; chosen: boolean }) {
   return (
     <>
       {index < 9 ? <kbd>{index + 1}</kbd> : null}
-      {chosen ? <Icon name="check" /> : null}
+      {/* Always laid out, hidden until chosen: the check never takes room from the label when you pick. */}
+      <span className={`${styles.checkSlot} ${chosen ? '' : styles.idle}`}>
+        <Icon name="check" />
+      </span>
     </>
   );
 }
@@ -77,13 +80,17 @@ export function PickList({ prompt, draft, setDraft, groups }: BodyProps<ChooseNP
             >
               <RowKey index={i} chosen={on} />
               <span className={styles.optionLabel}>{group ? `${o.label} ×${members.length}` : o.label}</span>
-              {state ? <span className={styles.optionDetail}>{state}</span> : null}
+              {state ? (
+                <span className={`${styles.optionDetail} ${group ? styles.groupCount : ''}`} style={group ? { minWidth: `${countChars(members.length)}ch` } : undefined}>
+                  {state}
+                </span>
+              ) : null}
             </button>
             {group ? (
               // Always laid out, hidden until a pick: the row keeps its size (visibility also leaves the tab order and the a11y tree).
               <button
                 type="button"
-                className={`${styles.option} ${styles.minus} ${on ? '' : styles.minusIdle}`}
+                className={`${styles.option} ${styles.minus} ${on ? '' : styles.idle}`}
                 aria-label={t('tray.fewer', { label: o.label })}
                 onClick={() => setDraft(dropFromGroup(draft, members))}
               >

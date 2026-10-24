@@ -342,3 +342,8 @@ export function anchorMenu(a: Rect, menu: { w: number; h: number }, view: { w: n
   const above = a.top - gap - menu.h;
   return { left, top: above >= gap ? above : clamp(a.bottom + gap, gap, view.h - gap - menu.h) };
 }
+
+/** Width in `ch` of a group's "chosen/total" at its widest ("14/14"): the count's slot is that wide in every state, so a row never changes size when you pick. */
+export function countChars(total: number): number {
+  return 2 * String(total).length + 1;
+}

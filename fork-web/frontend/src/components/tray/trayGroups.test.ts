@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ChooseNPrompt } from '../../model/types';
 import {
   chosenIn,
+  countChars,
   dropFromGroup,
   groupOptions,
   initialDraft,
@@ -112,5 +113,14 @@ describe('listHint (the compact list runs top to bottom)', () => {
     expect(listHint('Rightmost goes to the very bottom')).toBe('Last goes to the very bottom');
     expect(listHint('Order does not matter')).toBe('Order does not matter');
     expect(listHint('')).toBe('');
+  });
+});
+
+describe('countChars (a group row never changes size when you pick)', () => {
+  it('reserves the width of the widest "chosen/total": two digits each side from ten cards', () => {
+    expect(countChars(2)).toBe(3);
+    expect(countChars(9)).toBe(3);
+    expect(countChars(14)).toBe(5);
+    expect(countChars(100)).toBe(7);
   });
 });

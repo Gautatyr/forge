@@ -519,6 +519,12 @@
   white-space: nowrap;
 }
 
+/* A group's "chosen/total": digits of one width and room for the widest count, so picking never moves the label. */
+.listRow .groupCount {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
 /* A row never changes size when you pick: the 2 px chosen ring is drawn inside the 1 px border, and a group's minus
    keeps its place (hidden until a pick). */
 .listRow.chosen {
@@ -531,6 +537,11 @@
   cursor: pointer;
 }
 
-.minusIdle {
+/* A slot kept in place but not shown (a group's minus, the check of an unchosen row). */
+.idle {
   visibility: hidden;
+}
+
+.checkSlot {
+  display: inline-flex;
 }
