@@ -637,6 +637,70 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 'counters',
+    label: '1b · Commander: counters on every permanent',
+    description:
+      'Issue 173. Investigator’s Journal stand-ins (Arcane Signet, 2 Suspect counters; some tapped) on your board, and counters of several kinds on creatures, artifacts, enchantments and lands of every seat, for checking that no layout hides a counter. URL: ?n=<number of Signets> (default 6; about 20 staggers the support row at 1366x768), ?combat=1 for a blocker with damage and a shield counter, ?tap=1 for tapped creatures with two or three kinds.',
+    build: () => {
+      const q = new URLSearchParams(typeof location === 'undefined' ? '' : location.search);
+      const n = Number(q.get('n') ?? 6);
+      const b = new GameBuilder('ctr', 'commander');
+      const ids = commanderTable(b);
+      yourHand(b, HAND_7);
+      b.turn(9, 'you', 'main1', 'you');
+      const named = (pid: string, name: string) => b.p(pid).battlefield.filter((id) => b.g.cards[id]!.name === name);
+      const add = (id: string | undefined, ...cs: [string, number][]) => {
+        if (id) b.g.cards[id]!.counters.push(...cs.map(([kind, count]) => ({ kind, count })));
+      };
+      // you
+      for (let i = 0; i < n; i++) add(b.card('Arcane Signet', 'you', 'battlefield', { tapped: i % 5 === 3 }), ['Suspect', 2]);
+      add(named('you', 'Swiftfoot Boots')[0], ['Deathtouch', 1]);
+      add(ids.eidolon, ['Stun', 3]);
+      add(ids.spirit, ['Deathtouch', 1], ['Shield', 1]);
+      add(named('you', 'Sigil of the Empty Throne')[0], ['Suspect', 2]);
+      add(named('you', 'Overgrown Tomb')[0], ['Charge', 2]);
+      add(named('you', 'Command Tower')[0], ['Charge', 2]);
+      // mira
+      add(named('mira', 'Sol Ring')[0], ['Charge', 1], ['Suspect', 2]);
+      add(named('mira', 'Impact Tremors')[0], ['Experience', 12]);
+      add(ids.krenko, ['Shield', 1]);
+      add(ids.chieftain, ['Indestructible', 1]);
+      // theo
+      add(named('theo', 'Rhystic Study')[0], ['Doom', 5]);
+      add(named('theo', 'Tolarian Terror')[0], ['Stun', 3]);
+      add(named('theo', 'Sol Ring')[0], ['Charge', 3]);
+      add(named('theo', 'Mystic Sanctuary')[0], ['Lore', 2]);
+      // ana
+      add(named('ana', 'Viscera Seer')[0], ['-1/-1', 12]);
+      add(named('ana', 'Vampire Nighthawk')[0], ['Shield', 1]);
+      add(named('ana', 'Phyrexian Arena')[0], ['Doom', 5]);
+      add(named('ana', 'Overgrown Tomb')[0], ['Charge', 2]);
+      if (q.get('tap')) {
+        // Tapped permanents with several kinds: a tapped card is turned, so its P/T runs down the slot's left edge.
+        const tap = (id: string | undefined, ...cs: [string, number][]) => {
+          if (id) b.g.cards[id]!.tapped = true;
+          add(id, ...cs);
+        };
+        tap(named('theo', 'Tolarian Terror')[0], ['+1/+1', 1]);
+        tap(ids.chieftain, ['+1/+1', 2]);
+        tap(ids.krenko, ['+1/+1', 1], ['Lore', 2]);
+        tap(ids.eidolon, ['+1/+1', 1]);
+        tap(ids.spirit, ['+1/+1', 1]);
+        tap(named('theo', 'Drake token')[0], ['Flying', 1], ['+1/+1', 1]);
+        tap(named('mira', 'Mountain')[0], ['Charge', 2], ['Lore', 1], ['Doom', 3]);
+        tap(named('you', 'Plains')[1], ['Charge', 2], ['Lore', 1], ['Doom', 3]);
+      }
+      if (q.get('combat')) {
+        const nh = named('ana', 'Vampire Nighthawk')[0]!;
+        b.g.cards[nh]!.damage = 1;
+        b.g.cards[ids.knight]!.tapped = true;
+        b.g.turn = { number: 9, activePlayerId: 'you', step: 'combatDamage', priorityPlayerId: undefined };
+        b.g.combat = { attacks: [{ attackerId: ids.knight, defenderId: 'ana' }], blocks: [{ blockerId: nh, attackerId: ids.knight }] };
+      }
+      return b.done();
+    },
+  },
+  {
     id: 'stack6',
     label: '1b · Commander: a 6-item stack',
     description: 'Six items on the stack, three players responding. Only the top item lights its targets; hover another to see its own.',

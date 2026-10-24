@@ -49,7 +49,7 @@
   z-index: 1;
 }
 .stagger > .host:nth-child(even) {
-  translate: 0 calc(-1 * var(--raise));
+  translate: 0 calc(-1 * (var(--raise) + var(--tap-lift, 0px)));
 }
 
 .separator {

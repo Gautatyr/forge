@@ -1,7 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import type { CardView } from '../model/types';
 import { hiddenInCompact, inCreatureRow } from './battlefieldGroups';
-import { fitBattlefield, fitRow, MAX_COVER, rowHeight, SEPARATOR_GAPS, widestLine, type LayoutItem, type RowFit } from './battlefieldLayout';
+import {
+  COMPACT_BELOW,
+  fitBattlefield,
+  fitRow,
+  MAX_COVER,
+  RATIO,
+  rowHeight,
+  SEPARATOR_GAPS,
+  STAGGER_RAISE,
+  staggerRaise,
+  tapLift,
+  widestLine,
+  type LayoutItem,
+  type RowFit,
+} from './battlefieldLayout';
 import { handGeometry } from './handLayout';
 
 // Hand area at 1920×1080 with 16px rem: 1920 − rail 288 − padding 32 = 1600 wide, 25vh = 270 tall.
@@ -272,5 +286,52 @@ describe('creature row and compact seats (pass-3 spec, section 4)', () => {
     ];
     const all = Object.fromEntries(cards.map((c) => [c.id, c]));
     expect(hiddenInCompact(cards, all)).toEqual({ others: 1, lands: 2, untappedLands: 1 });
+  });
+});
+
+describe('staggered back cards keep their counter chips in view (issue #173)', () => {
+  const plain = (n: number) => Array.from({ length: n }, () => ({ tapped: false, attachments: 0 }));
+  const GAP = 8.8;
+  const CHIP = 14;
+
+  it('raises a back card by the chip band even when 13 % of a tiny card is less', () => {
+    expect(32 / RATIO * STAGGER_RAISE).toBeLessThan(CHIP);
+    expect(staggerRaise(32, CHIP)).toBe(CHIP);
+    expect(staggerRaise(32)).toBeCloseTo((32 / RATIO) * STAGGER_RAISE, 9);
+  });
+
+  it('leaves large cards at 13 % of their height', () => {
+    expect(staggerRaise(200, CHIP)).toBeCloseTo((200 / RATIO) * STAGGER_RAISE, 9);
+  });
+
+  it('counts the raise in a staggered row height, and only there', () => {
+    const items = plain(10);
+    expect(rowHeight(items, 32, 1, GAP, true, CHIP) - rowHeight(items, 32, 1, GAP, false, CHIP)).toBeCloseTo(CHIP, 9);
+    expect(rowHeight(items, 32, 1, GAP, false, CHIP)).toBeCloseTo(rowHeight(items, 32, 1, GAP), 9);
+  });
+
+  it('shrinks the cards so the box still holds when every staggered line carries the larger raise', () => {
+    const [w, h] = [420, 200];
+    const used = (f: ReturnType<typeof fitBattlefield>) =>
+      rowHeight(plain(6), f.creatures.cw, f.creatures.lines, GAP, f.creatures.overlap > 0, CHIP) +
+      rowHeight(plain(60), f.support.cw, f.support.lines, GAP, f.support.overlap > 0, CHIP) +
+      GAP;
+    const unaware = fitBattlefield(plain(6), plain(60), w, h, GAP, 180, 72);
+    const aware = fitBattlefield(plain(6), plain(60), w, h, GAP, 180, 72, CHIP);
+    expect(aware.support.overlap).toBeGreaterThan(0);
+    // A fit that ignores the chip raise overflows once the raise is counted (it passes only on the old fit) ...
+    expect(used(unaware)).toBeGreaterThan(h + 0.01);
+    // ... and the fit that knows it takes smaller cards and stays inside.
+    expect(aware.creatures.cw).toBeLessThan(unaware.creatures.cw);
+    expect(used(aware)).toBeLessThanOrEqual(h + 0.01);
+  });
+
+  it('lifts a tapped back card by the height an upright one has over it, so both tops line up', () => {
+    expect(tapLift(100)).toBeCloseTo(100 / RATIO - 100, 9);
+    expect(tapLift(100) + 100).toBeCloseTo(100 / RATIO, 9);
+  });
+
+  it('draws counters in the title band of cards narrower than the name-label width', () => {
+    expect(COMPACT_BELOW).toBe(150);
   });
 });

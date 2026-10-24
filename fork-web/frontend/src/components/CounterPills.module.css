@@ -1,0 +1,76 @@
+/* Large card (Card.module.css `.card` is the `card` container): over its lower left corner. The box stays inside the
+   card and clear of the P/T box (its widest, "10/10" with a direction arrow, is 4.6em), the damage chip and the
+   keyword icons, which are all lower right: a long kind name ("Suspect", "Experience") is cut, and the count stays. */
+.counters {
+  position: absolute;
+  left: 4%;
+  bottom: 4%;
+  max-width: calc(92% - 4.6em);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15em;
+  pointer-events: none;
+}
+
+/* Compact card: a row at the left of the title band (Card.module.css `.band`, the `cardband` container), before the
+   name label, which takes what is left (a staggered row covers the right of a card, never its left). Same pill, sized from the label font so a chip is never taller than the band. A
+   lone kind on a wide band keeps its name (cut with an ellipsis so the label keeps `--name-min`); everything else is a
+   count only. Chips that do not fit side by side wrap onto another row; a pill never grows past the band. */
+.inBand {
+  --name-min: 2.75rem;
+  position: static;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15em;
+  font-size: calc(var(--fs-xs) * 0.85);
+}
+
+.counter {
+  display: flex;
+  max-width: 100%;
+  gap: 0.3em;
+  padding: 0.05em 0.4em;
+  border-radius: var(--r-pill);
+  background: rgb(13 20 23 / 0.9);
+  border: 1px solid var(--c-text-2);
+  color: var(--c-text);
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  font-size: 0.95em;
+  white-space: nowrap;
+}
+
+.inBand .counter {
+  padding-inline: 0.15em;
+  line-height: 1.2;
+}
+
+.kind {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.count {
+  flex: none;
+}
+
+/* Count only: several kinds, or a band too narrow for a cut name beside the label. */
+.multi .kind {
+  display: none;
+}
+@container cardband (width < 5.5rem) {
+  .kind {
+    display: none;
+  }
+}
+@container cardband (width >= 5.5rem) {
+  .inBand:not(.multi) {
+    max-width: calc(100% - var(--name-min));
+  }
+}

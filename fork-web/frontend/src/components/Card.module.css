@@ -270,28 +270,6 @@
   top: calc(58% - 1.7em);
 }
 
-.counters {
-  position: absolute;
-  left: 4%;
-  bottom: 4%;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.15em;
-  pointer-events: none;
-}
-
-.counter {
-  padding: 0.05em 0.4em;
-  border-radius: var(--r-pill);
-  background: rgb(13 20 23 / 0.9);
-  border: 1px solid var(--c-text-2);
-  color: var(--c-text);
-  font-family: var(--font-mono);
-  font-weight: var(--fw-bold);
-  font-size: 0.95em;
-}
-
 .pt {
   position: absolute;
   right: 4%;
@@ -415,14 +393,38 @@
   box-shadow: none;
 }
 
-/* Name label over the printed title bar of small battlefield cards. Drawn on
-   the slot, not the card, so it stays horizontal on tapped cards. */
-.nameLabel {
+/* The title band of a small battlefield card: the counter chips, then the name label over the printed title bar.
+   Drawn on the slot, not the card, so it stays horizontal on tapped cards. It is the strip no layout hides:
+   a tapped card turns, a staggered back card is raised by at least a chip, an attached card shows its top. */
+.band {
   position: absolute;
   left: 4%;
   right: 4%;
   top: calc(var(--ch) * 0.035);
   z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-0);
+  container: cardband / inline-size;
+  pointer-events: none;
+}
+.tapped .band {
+  top: var(--sp-1);
+}
+/* A tapped creature's P/T box turns with the card: it runs down the slot's left edge, 2.1em thick. The band (name and
+   counters) starts after it. */
+.tapped.hasPt .band {
+  left: calc(4% + 2.2 * var(--ofs));
+}
+/* What the chips leave of the band: its own container, so the label can step aside when it is too short to read. */
+.nameSlot {
+  flex: 1 1 0;
+  min-width: 0;
+  container: namelabel / inline-size;
+  pointer-events: none;
+}
+.nameLabel {
+  display: block;
   padding: 0 var(--sp-1);
   border-radius: var(--r-sm);
   background: var(--c-label-band);
@@ -435,8 +437,23 @@
   text-overflow: ellipsis;
   pointer-events: none;
 }
-.tapped .nameLabel {
-  top: var(--sp-1);
+/* Beside counter chips the band and the label tighten (the digit chip keeps a fraction of the width the name needs), and
+   when the label is still under about three letters and an ellipsis it goes: a fragment says nothing. The count stays. */
+/* In a staggered row (Battlefield `--overlap`) the front card beside a back card covers its left edge, and an attachment
+   of that neighbour reaches into the raised strip: the chips start clear of the overlap, up to a quarter of the card
+   (a deeper overlap leaves only the raised strip, which nothing covers). */
+.withCounters {
+  left: max(4%, min(var(--overlap, 0px), 25%));
+  right: 1%;
+  gap: 1px;
+}
+.withCounters .nameLabel {
+  padding: 0 1px;
+}
+@container namelabel (width < 2.05rem) {
+  .withCounters .nameLabel {
+    visibility: hidden;
+  }
 }
 /* State badges move below the label. Upright: down the card. Tapped: the card is
    turned, so its left edge is the top of the slot. */
