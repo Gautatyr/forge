@@ -5,7 +5,9 @@ import {
   boardOpponents,
   finalPlayers,
   gameEndView,
+  hasLeft,
   headline,
+  leaveUi,
   leavingIds,
   newlyOut,
   ordinal,
@@ -162,5 +164,23 @@ describe('the action block once you are out', () => {
     const over = scenarioById('game-over').build();
     expect(primaryAction(over, INITIAL_UI, DEFAULT_STOPS)).toMatchObject({ label: 'Game over', enabled: false });
     expect(promptText(over)).toBe('');
+  });
+});
+
+describe('Back to lobby', () => {
+  const next = (g: MockGame): MockGame => ({ ...g, id: `${g.id}-next` });
+
+  it('hides the game that was left, never the next one (issue #157)', () => {
+    const a = table();
+    a.result = { winnerId: 'mira', reason: 'Last player standing.', ranking: ['mira', 'you', 'theo', 'ana'], nextGame: false };
+    expect(hasLeft(a, INITIAL_UI)).toBe(false);
+    const ui = { ...INITIAL_UI, ...leaveUi(a) };
+    expect(hasLeft(a, ui)).toBe(true);
+    // The lobby starts another game on the same page: a new game id, so the board shows again.
+    expect(hasLeft(next(a), ui)).toBe(false);
+  });
+
+  it('closes an open overlay', () => {
+    expect(leaveUi(table())).toMatchObject({ overlay: undefined });
   });
 });
