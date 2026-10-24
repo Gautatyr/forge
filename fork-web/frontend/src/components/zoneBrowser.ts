@@ -3,15 +3,16 @@ import type { CardId, GameView, PlayerId } from '../model/types';
 import type { ViewableZone } from '../state/ui';
 import { t } from '../i18n';
 
-/** "Your graveyard", "Theo's exile". */
+/** "Your graveyard", "Theo's exile", "Your library" (the cards of it you may look at). */
 export function zoneTitle(game: GameView, playerId: PlayerId, zone: ViewableZone): string {
   const p = player(game, playerId);
   return p.isYou ? t(`zt.you.${zone}`) : t(`zt.their.${zone}`, { name: p.name });
 }
 
-/** A zone's cards, newest first (as the side panel lists them). */
+/** A zone's cards, newest first (as the side panel lists them); a library's, top first. */
 export function zoneCardIds(game: GameView, playerId: PlayerId, zone: ViewableZone): CardId[] {
   const p = player(game, playerId);
+  if (zone === 'library') return [...p.library];
   const ids = zone === 'graveyard' ? p.graveyard : zone === 'exile' ? p.exile : p.command;
   return [...ids].reverse();
 }

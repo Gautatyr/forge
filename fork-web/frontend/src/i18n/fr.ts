@@ -317,15 +317,19 @@ export const fr: Record<MsgKey, Msg> = {
 
   'zt.you.graveyard': 'Votre cimetière',
   'zt.you.exile': 'Votre exil',
+  'zt.you.library': 'Votre bibliothèque',
   'zt.you.command': 'Votre zone de commandement',
   'zt.their.graveyard': 'Cimetière de {name}',
   'zt.their.exile': 'Exil de {name}',
+  'zt.their.library': 'Bibliothèque de {name}',
   'zt.their.command': 'Zone de commandement de {name}',
 
   'show.you.graveyard': 'Afficher votre cimetière',
   'show.you.exile': 'Afficher votre exil',
+  'show.you.library': 'Afficher les cartes de votre bibliothèque que vous pouvez regarder',
   'show.their.graveyard': 'Afficher le cimetière de {name}',
   'show.their.exile': 'Afficher l\'exil de {name}',
+  'show.their.library': 'Afficher les cartes de la bibliothèque de {name} que vous pouvez regarder',
 
   'cmd.unknown': 'Un commandant',
   'cmd.by': '{seat} {who}',

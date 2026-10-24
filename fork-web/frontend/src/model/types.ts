@@ -158,6 +158,8 @@ export interface PlayerView {
   counters: Counter[];
   handCount: number;
   libraryCount: number;
+  /** The library cards you may look at (Mystic Forge, Courser, a scry), top first; none when the engine lets you see none. */
+  library: CardId[];
   /** Ordered zones, bottom → top. */
   hand: CardId[];
   battlefield: CardId[];

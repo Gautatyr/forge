@@ -60,6 +60,24 @@ describe('toGameView', () => {
     expect(g.players[1]).toMatchObject({ isAi: true, handCount: 1, hand: [], commanderDamageTaken: [{ commanderId: '20', amount: 6 }] });
   });
 
+  it('lists the library cards you may look at, top first, and none for a library you may not (issue 185)', () => {
+    const s = session();
+    // Mystic Forge: the new top card arrives whole (engine id) in place of the placeholder, as a card change.
+    s.apply({ t: 'delta', game: 1, seq: 1, ts: 0, new: [
+      { type: 'card', id: 40, props: { Owner: 0, Controller: 0, Zone: 'Library', CurrentState: 'Original' } },
+      { type: 'cardState', id: 40, state: 'Original', props: { Name: 'Shock', Type: 'Instant' } },
+    ], changed: [{ type: 'player', id: 0, props: { Library: [40, ALIAS + 1] } }], removed: [], log: [], events: [] });
+    const g = toGameView(s);
+    expect(g.players[0]!.library).toEqual(['40']);
+    expect(g.cards['40']).toMatchObject({ name: 'Shock', zone: 'library' });
+    expect(g.players[0]).toMatchObject({ libraryCount: 2 });
+    expect(g.players[1]!.library).toEqual([]);
+    // The permission ends: the card is hidden again.
+    s.apply({ t: 'delta', game: 1, seq: 2, ts: 0, new: [{ type: 'card', id: ALIAS + 3, props: { Owner: 0, Controller: 0, Zone: 'Library' } }],
+      changed: [{ type: 'player', id: 0, props: { Library: [ALIAS + 3, ALIAS + 1] } }], removed: ['card:40', 'cardState:40:Original'], log: [], events: [] });
+    expect(toGameView(s).players[0]!.library).toEqual([]);
+  });
+
   it('maps visible cards and keeps hidden ones out', () => {
     const g = toGameView(session());
     expect(Object.keys(g.cards).sort()).toEqual(['10', '20', '30']);

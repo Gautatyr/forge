@@ -503,6 +503,23 @@ public class HumanSeatOtherZonesTest {
         assertTrue(!runs.get(1).litCard(), "summoning sick: not lit even with a legal target: " + runs.get(1));
     }
 
+    /** Issue #185: the seat that may look at the top card is sent the new top card whenever the top changes. */
+    @Test
+    public void mysticForgeExileShowsTheNewTopCardToTheSeat() throws Exception {
+        start();
+        Card forge = add("Mystic Forge", me, ZoneType.Battlefield);
+        Card sol = top("Dark Ritual", me);
+        Card below = TestEngine.add("Grizzly Bears", me, ZoneType.Library);
+        me.getZone(ZoneType.Library).remove(below);
+        me.getZone(ZoneType.Library).add(below, 1);
+        List<Run> runs = run(true, step(() -> forge, () -> in(sol, ZoneType.Exile)));
+        assertTrue(in(sol, ZoneType.Exile), "the top card was exiled; " + runs);
+        assertEquals(me.getZone(ZoneType.Library).get(0), below, "the new top card");
+        assertTrue(stream.snapshot(0).contains("Grizzly Bears"), "the seat is sent the new top card");
+        assertTrue(!stream.snapshot(1).contains("Grizzly Bears"), "not the opponent's seat");
+        assertTrue(!stream.snapshot().contains("Grizzly Bears"), "nor a spectator");
+    }
+
     @Test
     public void theTopOfTheLibraryIsHiddenFromEveryoneButTheSeatThatMayLook() throws Exception {
         start();

@@ -33,6 +33,7 @@ export function placeholderView(what: string): GameView {
         counters: [],
         handCount: 0,
         libraryCount: 0,
+        library: [],
         hand: [],
         battlefield: [],
         graveyard: [],

@@ -75,6 +75,7 @@ const plate = (id: string, name: string, seat: number): PlayerView => ({
   counters: [],
   handCount: 0,
   libraryCount: 40,
+  library: [],
   hand: [],
   battlefield: [],
   graveyard: [],

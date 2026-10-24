@@ -315,15 +315,19 @@ export const en = {
 
   'zt.you.graveyard': 'Your graveyard',
   'zt.you.exile': 'Your exile',
+  'zt.you.library': 'Your library',
   'zt.you.command': 'Your command zone',
   'zt.their.graveyard': '{name}\'s graveyard',
   'zt.their.exile': '{name}\'s exile',
+  'zt.their.library': '{name}\'s library',
   'zt.their.command': '{name}\'s command zone',
 
   'show.you.graveyard': 'Show your graveyard',
   'show.you.exile': 'Show your exile',
+  'show.you.library': 'Show the cards of your library you may look at',
   'show.their.graveyard': 'Show {name}\'s graveyard',
   'show.their.exile': 'Show {name}\'s exile',
+  'show.their.library': 'Show the cards of {name}\'s library you may look at',
 
   'cmd.unknown': 'A commander',
   'cmd.by': '{seat} {who}',
