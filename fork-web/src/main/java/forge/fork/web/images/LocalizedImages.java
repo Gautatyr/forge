@@ -24,8 +24,9 @@ import forge.fork.web.server.ImageSource;
  * goes wrong (no French printing, rate limit, timeout, bad file) falls back to {@code english}.
  * Only {@code c:} card keys are localized: face-down, token and other keys are always answered by
  * {@code english}, so the language never changes which key a viewer may obtain. A printing Scryfall
- * answered 404 for, or has only a placeholder picture of, is remembered until restart; transient failures
- * are not. Files cached before placeholders were detected cannot be told from real scans: the cache folder
+ * answered 404 for, or has only a placeholder picture of, is remembered: in memory, and as an empty
+ * {@code <sha256>.nofr} marker file beside the images (so it lives as long as the cache folder, survives restarts,
+ * and cannot be corrupted or raced: only its existence counts); transient failures are not. Files cached before placeholders were detected cannot be told from real scans: the cache folder
  * is emptied once ({@link #CHECKED_MARKER}).
  */
 public final class LocalizedImages implements ImageSource {
@@ -124,6 +125,9 @@ public final class LocalizedImages implements ImageSource {
                 Image hit = cached(key);
                 if (hit != null) {
                     french.complete(hit);
+                } else if (Files.exists(noFrenchFileOf(key))) {
+                    noFrench.add(key);
+                    french.complete(null);
                 } else {
                     miss(key, french);
                 }
@@ -165,6 +169,7 @@ public final class LocalizedImages implements ImageSource {
             byte[] bytes = downloader.download(url);
             if (bytes == Downloader.MISSING) {
                 noFrench.add(key);
+                noteNoFrench(key);
                 return null;
             }
             String type = bytes == null || bytes == Downloader.FAILED || bytes.length > CardImages.MAX_BYTES
@@ -184,6 +189,16 @@ public final class LocalizedImages implements ImageSource {
         }
     }
 
+    /** Writes the verdict marker; a failure only costs one more Scryfall call after the next restart. */
+    private void noteNoFrench(String key) {
+        try {
+            Files.createDirectories(cacheDir);
+            Files.write(noFrenchFileOf(key), new byte[0]);
+        } catch (IOException | RuntimeException e) {
+            System.err.println("[web] french image verdict not saved [" + key + "]: " + e);
+        }
+    }
+
     private Image cached(String key) {
         try {
             Path f = fileOf(key);
@@ -200,9 +215,17 @@ public final class LocalizedImages implements ImageSource {
 
     /** One flat file per key inside the cache folder: the key's SHA-256, never part of it. */
     Path fileOf(String key) {
+        return cacheDir.resolve(hash(key) + ".img");
+    }
+
+    /** The "Scryfall has no French scan of this printing" marker of a key. */
+    Path noFrenchFileOf(String key) {
+        return cacheDir.resolve(hash(key) + ".nofr");
+    }
+
+    private static String hash(String key) {
         try {
-            byte[] d = MessageDigest.getInstance("SHA-256").digest(key.getBytes(StandardCharsets.UTF_8));
-            return cacheDir.resolve(HexFormat.of().formatHex(d) + ".img");
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(key.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
         }
