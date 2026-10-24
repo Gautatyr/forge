@@ -21,7 +21,8 @@ import forge.fork.web.seat.WebSeats;
  * Unlike upstream's {@code forge.view.Main}, no crash reporting (Sentry) is set up.
  *
  * <pre>
- * --port P         bridge port (default 0: a free port)
+ * --port P         bridge port (default 47321, fixed so the page's saved settings survive a restart; a free
+ *                  port when taken; 0: always a free port)
  * --web-root DIR   built frontend to serve (default: fork-web/frontend/dist, found from the working dir)
  * --no-browser     print the match screen URL instead of opening the browser
  * </pre>
@@ -43,7 +44,7 @@ public final class Main {
         Consumer<String> openPage = opt.containsKey("no-browser")
                 ? url -> System.out.println("[web] open the match screen at " + url)
                 : BrowserOpener::open;
-        WebMatchHost host = new WebMatchHost(new WebMatchHost.Options(Integer.parseInt(opt.getOrDefault("port", "0")),
+        WebMatchHost host = new WebMatchHost(WebMatchHost.Options.launcher(opt.get("port"),
                 webRoot(opt.get("web-root")), WebSeats.Timeouts.DEFAULT), openPage);
         GuiDesktopWeb gui = new GuiDesktopWeb(host);
         GuiBase.setInterface(gui);
