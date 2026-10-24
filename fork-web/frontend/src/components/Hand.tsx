@@ -26,7 +26,7 @@ export function Hand() {
   const total = otherLeft + (other.length ? other.length * g.cardW + (other.length - 1) * g.gap : 0);
 
   return (
-    <section className={styles.hand} aria-label={t('hand.aria', { count: hand.length })}>
+    <section className={styles.hand} data-hand aria-label={t('hand.aria', { count: hand.length })}>
       <div ref={ref} className={styles.measure}>
         {box.w > 0 ? (
           <div

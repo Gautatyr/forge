@@ -8,8 +8,9 @@
   background: var(--c-bg);
 }
 
-/* Everything above the action block: the regions, and the hover preview over
-   them (HoverPreview.module.css sizes itself from this container). */
+/* Everything above the action block: the regions. Size containment: its height
+   is what the action block leaves, never what the regions ask for. Its top is
+   where the hover preview's area starts (HoverPreview.tsx). */
 .upper {
   flex: 1 1 0;
   position: relative;

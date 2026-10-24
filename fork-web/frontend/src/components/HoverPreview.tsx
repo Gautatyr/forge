@@ -6,9 +6,9 @@ import { useMatch } from '../state/MatchContext';
 import { CardArt } from './CardArt';
 import { linkNotes } from './cardLinks';
 import { Icon } from './Icon';
-import { overBoardWidth, placePreview, type Box } from './previewPlacement';
+import { layoutPreview, type Box } from './previewPlacement';
 import { hoverLitTargets } from './previewKeep';
-import { PREVIEW_BESIDE_ATTR, previewSpot } from './previewSpot';
+import { PREVIEW_BESIDE_ATTR } from './previewSpot';
 import styles from './HoverPreview.module.css';
 import { t } from '../i18n';
 
@@ -30,59 +30,65 @@ const boxOf = (el: Element): Box => {
 };
 
 /**
- * Short rail column: the preview shows over the board (also for a card hovered in the rail or drawer), so the rail's panels keep their size (nothing reflows while
- * the pointer moves). It takes the readable size of the 1920 in-rail preview and sits where it covers neither the
- * hovered card nor a card or tray of the open prompt (previewPlacement.ts). Placed before paint, from the DOM.
+ * The preview shows over the board (also for a card hovered in the rail or drawer), so the rail's panels keep their size
+ * (nothing reflows while the pointer moves). One place and one size for every hovered card: the size of the first fixed
+ * preview (previewPlacement.ts `overBoardWidth`, from the window only), flush with the rail (or the log drawer), its
+ * image bottom on the hand. It may cover the hovered card (the 2026-10-16 behaviour). Only what the open prompt is about
+ * moves or narrows it (previewPlacement.ts `layoutPreview`): the cards and tray of the prompt, the targets a hovered
+ * stack item lights. The box is the image alone; the notes block hangs out of the flow (above the image, or beside it when
+ * its rows do not fit above: previewPlacement.ts `layoutNotes`), so no card's notes ever move or resize the image and no
+ * note row is cut. Placed before paint, from the DOM.
  */
-function OverBoard({
-  cardId,
-  beside,
-  keepIds,
-  keepPlayerIds,
-  children,
-}: {
-  cardId: string;
-  beside: boolean;
-  keepIds: string[];
-  keepPlayerIds: string[];
-  children: ReactNode;
-}) {
+function Preview({ keepIds, keepPlayerIds, children }: { keepIds: string[]; keepPlayerIds: string[]; children: ReactNode }) {
   const anchor = useRef<HTMLSpanElement>(null);
   const el = useRef<HTMLDivElement>(null);
-  // Every render: the board reflows after paint, and the hovered card or the prompt may have changed.
+  // Every render: the board reflows after paint, and the prompt may have changed.
   useLayoutEffect(() => {
     const column = anchor.current?.parentElement;
     const box = el.current;
-    if (!column || !box) return;
+    const info = box?.querySelector<HTMLElement>('[data-preview-info]');
+    if (!column || !box || !info) return;
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
     const m = 0.5 * rem;
     // The board side of the screen: left of the rail, or of the log drawer while it is open (both carry the attribute).
     const right = Math.min(...[...document.querySelectorAll(`[${PREVIEW_BESIDE_ATTR}]`)].map((e) => e.getBoundingClientRect().left), window.innerWidth);
     const top = column.getBoundingClientRect().top;
-    const area: Box = { left: m, top: top + m, width: right - 2 * m, height: window.innerHeight - top - 2 * m };
-    box.style.setProperty('--pv-w', `${overBoardWidth(rem, area.height)}px`);
+    // The board above the hand: the preview never covers the hand unless there is no room (the readable floor wins).
+    const bottom = document.querySelector('[data-hand]')?.getBoundingClientRect().top ?? window.innerHeight;
+    const area: Box = { left: m, top: top + m, width: right - 2 * m, height: bottom - top - 2 * m };
     const cards = (id: string) => [...document.querySelectorAll<HTMLElement>(`[data-card-id="${CSS.escape(id)}"]`)];
-    const hoveredEls = cards(cardId);
-    // Hovered in the rail or drawer (a stack item, a zone card, a Recent link): that very element, which the area
-    // never contains, so the preview lands beside the panel at its height. Elsewhere: the card on the board.
-    const panel = beside ? [...document.querySelectorAll(`[${PREVIEW_BESIDE_ATTR}] *`)] : [];
-    const deepest = panel.filter((e) => e.matches(':hover')).pop() ?? panel.find((e) => e.matches(':focus-visible'));
-    const inPanel = deepest && (deepest.closest('[data-card-id], button') ?? deepest);
-    const hovered = inPanel ?? hoveredEls.find((e) => e.matches(':hover') || e.contains(document.activeElement)) ?? hoveredEls[0];
     const plates = (id: string) => [...document.querySelectorAll<HTMLElement>(`[data-player-id="${CSS.escape(id)}"]`)];
     const keep = [...keepIds.flatMap(cards), ...keepPlayerIds.flatMap(plates), ...document.querySelectorAll('[data-dock]')].map(boxOf);
-    // offset sizes ignore the `appear` animation's scale, still applied on first mount.
-    const { offsetWidth: width, offsetHeight: height } = box;
-    const at = placePreview({ area, size: { width, height }, hovered: hovered && boxOf(hovered), keep });
+    const sizeOf = (e: HTMLElement) => ({ width: e.offsetWidth, height: e.offsetHeight });
+    const at = layoutPreview({
+      area,
+      rem,
+      vh: window.innerHeight,
+      keep,
+      measure: (w) => {
+        box.style.setProperty('--pv-w', `${w}px`);
+        // offset sizes ignore the `appear` animation's scale, still applied on first mount. The box is the image alone.
+        return sizeOf(box);
+      },
+      measureNotes: (side, maxWidth) => {
+        info.dataset.side = side;
+        info.style.setProperty('--notes-w', `${maxWidth}px`);
+        info.style.maxHeight = 'none';
+        return sizeOf(info);
+      },
+    });
     box.style.left = `${at.left}px`;
     box.style.top = `${at.top}px`;
+    info.dataset.side = at.notes.side;
+    info.style.setProperty('--notes-w', `${at.notes.maxWidth}px`);
+    info.style.maxHeight = at.notes.maxHeight === null ? 'none' : `${at.notes.maxHeight}px`;
     box.style.visibility = 'visible';
   });
   return (
     <>
       <span ref={anchor} hidden />
       {createPortal(
-        <div ref={el} className={`${styles.preview} ${styles.overBoard}`} aria-hidden>
+        <div ref={el} className={styles.preview} aria-hidden>
           {children}
         </div>,
         document.body,
@@ -91,11 +97,8 @@ function OverBoard({
   );
 }
 
-/**
- * Large card image in a fixed place: over the rail, or left of the rail / log drawer when the card is in it; over
- * the board when the rail's column is too short (previewSpot.ts). `columnRem`: that column's height in rem.
- */
-export function HoverPreview({ columnRem }: { columnRem: number }) {
+/** Large card image over the board, above the hand, flush with the rail side (previewPlacement.ts). */
+export function HoverPreview() {
   const { game, ui } = useMatch();
   if (!ui.hover || ui.inspectId) return null;
   const c = game.cards[ui.hover.cardId];
@@ -106,7 +109,6 @@ export function HoverPreview({ columnRem }: { columnRem: number }) {
   const artFace = shown.image || !c.front.image ? shown : c.front;
   const img = artFace.image;
   const s = cardStatus(game, ui, c.id);
-  const spot = previewSpot(ui.hover, ui.logOpen, columnRem);
   const notes: string[] = [];
   if (c.faceDown?.seen) notes.push(c.faceDown.foretold ? t('card.foretoldNote') : t('card.faceDownNote'));
   if (c.zone === 'battlefield' && c.tapped) notes.push(t('hp.tapped'));
@@ -124,7 +126,7 @@ export function HoverPreview({ columnRem }: { columnRem: number }) {
   const body = (
     <>
       <CardArt key={img?.large ?? c.id} image={img} face={artFace} size="large" className={styles.img} />
-      <div className={styles.info}>
+      <div className={styles.info} data-preview-info>
         {notes.map((n) => (
           <span key={n} className={styles.note}>
             {n}
@@ -136,20 +138,13 @@ export function HoverPreview({ columnRem }: { columnRem: number }) {
       </div>
     </>
   );
-  if (spot === 'overBoard') {
-    // What the open prompt is about: the cards you picked or are targeting for (the source card of a spell); and
-    // what the hovered stack item targets (lit on the board while you hover it).
-    const lit = hoverLitTargets(game, ui);
-    const keepIds = [...new Set([...Object.keys(game.cards).filter((id) => cardStatus(game, ui, id).selected), ...lit.cards])];
-    return (
-      <OverBoard cardId={c.id} beside={!!ui.hover.beside} keepIds={keepIds} keepPlayerIds={lit.players}>
-        {body}
-      </OverBoard>
-    );
-  }
+  // What the open prompt is about: the cards you picked or are targeting for (the source card of a spell); and
+  // what the hovered stack item targets (lit on the board while you hover it).
+  const lit = hoverLitTargets(game, ui);
+  const keepIds = [...new Set([...Object.keys(game.cards).filter((id) => cardStatus(game, ui, id).selected), ...lit.cards])];
   return (
-    <div className={spot === 'rail' ? styles.preview : `${styles.preview} ${styles[spot]}`} aria-hidden>
+    <Preview keepIds={keepIds} keepPlayerIds={lit.players}>
       {body}
-    </div>
+    </Preview>
   );
 }

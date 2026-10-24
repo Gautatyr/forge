@@ -1,73 +1,68 @@
-/* One fixed place whatever the card's position (playtest 1 ruling): the bottom of the rail, below the panels
-   (Rail.module.css .upper is the container), so it never covers the board, the seats, the hand, the choice tray
-   or the action block. It takes its own height in the column, so the panels above it (stack, combat, Recent)
-   reflow and stay readable while it shows; the image is at most half of the column, the notes stack above it.
-   A card hovered inside the rail or the log drawer would sit under it: its preview takes the same box moved
-   left of the rail, or of the drawer while it is open (previewSpot.ts), as an overlay over the board.
-   Short rail column (previewSpot.ts): the preview leaves the rail for the board (.overBoard), so the panels keep
-   their size, whatever the hovered card (a rail or drawer card too: it sits flush left of the rail or drawer). */
+/* The hover preview: over the board, above the hand, flush with the rail side, fixed to the window. HoverPreview.tsx sets
+   left, top and --pv-w (previewPlacement.ts: the 2026-10-16 size, 486x679 px at 1920x1080, 647x904 at 2560x1440; never
+   under 271x378). The same image rect for every hovered card (the hovered card may be covered); only the open prompt
+   (its cards, its tray, a hovered stack item's targets) moves or narrows it. The box is the image alone. The notes block
+   hangs out of the flow (above it; beside it, left then right, when its rows do not fit above), so it never moves or
+   resizes the image and no row is cut. The rail's panels never move for it. */
 .preview {
-  --pv-notes: 5rem;
-  /* The image's width, shared with the notes block above it. */
-  --pv-w: min(100%, calc(50cqh * var(--card-ratio)));
-  flex: 0 0 auto;
+  position: fixed;
+  z-index: var(--z-preview);
+  visibility: hidden;
   box-sizing: border-box;
-  padding: 0 var(--sp-2) var(--sp-2);
   display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  align-items: center;
-  gap: var(--sp-2);
+  /* Explicit: a fixed box shrinks to the room right of its previous `left`, which would make the size depend on the card hovered before. */
+  width: var(--pv-w);
   pointer-events: none;
   transform-origin: bottom center;
   animation: appear var(--dur-fast) 70ms both var(--ease-out);
 }
 
-.besideRail,
-.besideDrawer {
-  --pv-w: min(100%, calc((100cqh - 2 * var(--sp-2) - var(--pv-notes)) * var(--card-ratio)));
-  position: absolute;
-  inset: var(--sp-2);
-  z-index: var(--z-preview);
-  padding: 0;
-  right: calc(100% + var(--sp-2));
-  left: auto;
-  width: calc(100% - 2 * var(--sp-2));
-}
-
-/* Over the board: fixed to the window, placed by HoverPreview.tsx (left, top and --pv-w are set there). */
-.overBoard {
-  position: fixed;
-  z-index: var(--z-preview);
-  padding: 0;
-  visibility: hidden;
-}
-
-/* The drawer is fixed to the viewport's right edge, as the rail is. */
-.besideDrawer {
-  right: calc(100% + max(0px, var(--drawer-w) - var(--rail-w)) + var(--sp-2));
-}
-
 .img {
-  order: 1;
-  width: var(--pv-w);
+  width: 100%;
   aspect-ratio: 0.716;
   border-radius: var(--r-card);
   box-shadow: var(--shadow-float);
 }
 
-/* One opaque block as wide as the image. */
+/* One opaque block, out of the flow. HoverPreview.tsx sets data-side and --notes-w (previewPlacement.ts `layoutNotes`).
+   Above: as wide as the image. Beside: as wide as its rows need, up to --notes-w, at the image's top. max-height is set
+   only when no placement holds every row (last resort). */
 .info {
+  position: absolute;
+  overflow: hidden;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: var(--sp-1);
   box-sizing: border-box;
-  width: var(--pv-w);
   padding: var(--sp-1);
   border-radius: var(--r-md);
   background: var(--c-bg);
   border: 1px solid var(--c-line-strong);
+}
+
+.info[data-side='above'] {
+  bottom: 100%;
+  left: 0;
+  margin-bottom: var(--sp-2);
+  width: var(--pv-w);
+}
+
+.info[data-side='left'],
+.info[data-side='right'] {
+  top: 0;
+  width: max-content;
+  max-width: var(--notes-w);
+}
+
+.info[data-side='left'] {
+  right: 100%;
+  margin-right: var(--sp-2);
+}
+
+.info[data-side='right'] {
+  left: 100%;
+  margin-left: var(--sp-2);
 }
 
 .note {

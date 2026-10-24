@@ -1,6 +1,5 @@
-import { useEffect, useRef, type FocusEvent, type MouseEvent } from 'react';
+import { useEffect, useRef } from 'react';
 import { useMatch } from '../state/MatchContext';
-import { previewBeside } from './previewSpot';
 
 /**
  * The hover preview of a card (HoverPreview): handlers for the element standing for `cardId`, on pointer or focus. The
@@ -11,10 +10,9 @@ export function useCardHover(cardId: string) {
   const { setUi } = useMatch();
   // Whether the pointer or focus is on the element: it started the hover and must end it.
   const hovered = useRef(false);
-  const onEnter = (e: MouseEvent | FocusEvent) => {
+  const onEnter = () => {
     hovered.current = true;
-    const beside = previewBeside(e.currentTarget as Element);
-    setUi((u) => (u.hover?.cardId === cardId && !u.hover.beside === !beside ? u : { ...u, hover: { cardId, beside } }));
+    setUi((u) => (u.hover?.cardId === cardId ? u : { ...u, hover: { cardId } }));
   };
   const onLeave = () => {
     hovered.current = false;
