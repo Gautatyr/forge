@@ -17,6 +17,8 @@ export interface BodyProps<P extends ChoicePrompt = ChoicePrompt> {
   /** Choose N: `visible` with identical cards grouped (one entry per option when nothing is identical). */
   groups: OptionGroup[];
   send: (intent: Intent) => void;
+  /** The tiles did not fit even at the smallest size: show the compact list instead (tileFit.ts, #140). */
+  compact: boolean;
 }
 
 /** One body per prompt shape. NumberShapes draws distribute, number and name a card (§2.3). */

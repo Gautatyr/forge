@@ -630,6 +630,7 @@ export const en = {
   'prompt.putInOrder': 'Put in order',
   'prompt.topOfLibrary': 'Top of library',
   'prompt.leftmostDrawn': 'Leftmost is drawn first',
+  'prompt.topDrawn': 'The top card is drawn first',
   'prompt.bottomOfLibrary': 'Bottom of library',
   'prompt.lastBottom': 'Last goes to the very bottom',
   'prompt.rightmostBottom': 'Rightmost goes to the very bottom',

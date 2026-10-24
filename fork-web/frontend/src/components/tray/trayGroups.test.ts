@@ -6,6 +6,7 @@ import {
   groupOptions,
   initialDraft,
   keyAction,
+  listHint,
   moveLabel,
   stepGroup,
   trayConfirm,
@@ -102,5 +103,14 @@ describe('two-list move buttons (pass 2 #1)', () => {
     expect(moveLabel({ label: 'Keep on top', moveTo: 'top' })).toBe('To top');
     expect(moveLabel({ label: 'Not chosen' })).toBe('To not chosen');
     expect(moveLabel({ label: 'Sideboard' })).toBe('To sideboard');
+  });
+});
+
+describe('listHint (the compact list runs top to bottom)', () => {
+  it('rewords the left-to-right pile hints, leaves the others', () => {
+    expect(listHint('Leftmost is drawn first')).toBe('The top card is drawn first');
+    expect(listHint('Rightmost goes to the very bottom')).toBe('Last goes to the very bottom');
+    expect(listHint('Order does not matter')).toBe('Order does not matter');
+    expect(listHint('')).toBe('');
   });
 });

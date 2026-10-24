@@ -432,6 +432,20 @@ const TRAY_SCENARIOS: Scenario[] = [
       options: top.map((id) => ({ id, label: b.g.cards[id]!.name, cardId: id })),
     };
   }),
+  trayScenario('look-many', '3l2 · Look: top 7 of your library', 'Seven cards at hand size: two rows of tiles, or the compact list when they do not fit (short windows).', (b) => {
+    const top = (['Doubling Season', 'Plains', 'Mesa Enchantress', 'Forest', 'Island', 'Swamp', 'Mountain'] as CardKey[]).map((k) => b.card(k, 'you', 'library'));
+    b.log('Hugo looks at the top 7 cards of their library.', 'you');
+    return {
+      id: 'look-many',
+      shape: 'chooseN',
+      title: 'You look at the top 7 cards of your library',
+      instruction: 'They stay on top in this order.',
+      confirmLabel: 'OK',
+      min: 0,
+      max: 0,
+      options: top.map((id) => ({ id, label: b.g.cards[id]!.name, cardId: id })),
+    };
+  }),
   trayScenario('ability-menu', '3m · Ability menu: Krosan Verge', 'The engine asks which ability: a menu anchored to the card, keys 1–2, Esc.', (b) => {
     const verge = b.p('you').battlefield.find((id) => b.g.cards[id]!.name === 'Krosan Verge')!;
     return {

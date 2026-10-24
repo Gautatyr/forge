@@ -632,6 +632,7 @@ export const fr: Record<MsgKey, Msg> = {
   'prompt.putInOrder': 'Mettre dans l\'ordre',
   'prompt.topOfLibrary': 'Dessus de la bibliothèque',
   'prompt.leftmostDrawn': 'La carte de gauche est piochée en premier',
+  'prompt.topDrawn': 'La carte du haut est piochée en premier',
   'prompt.bottomOfLibrary': 'Dessous de la bibliothèque',
   'prompt.lastBottom': 'La dernière va tout en bas',
   'prompt.rightmostBottom': 'Celle de droite va tout en bas',
