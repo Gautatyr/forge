@@ -43,7 +43,7 @@ Closing the browser tab does not end the game: reopen the link within a minute. 
 A tab left open from an earlier launch of Forge cannot rejoin: it stays frozen on its last view. Close it and use the page the new launch opens.
 
 ### Saved settings
-The page lives at `http://127.0.0.1:47321/` (a fixed port), so the browser keeps your settings between launches on the same computer and browser: stops (except the rows from "Set per opponent", which last one match), language, display options, Auto-pay and the switches in the Stops panel.
+The page lives at `http://127.0.0.1:47321/` (a fixed port), so the browser keeps your settings between launches on the same computer and browser: stops (except the rows from "Set per opponent", which are kept until you reload the page or close Forge, so a next game in the same page keeps them for the same seats), language, display options, Auto-pay and the switches in the Stops panel.
 
 If port 47321 is taken (a second Forge open at the same time), that Forge uses a free port and its page starts from default settings, stored apart. `make play ARGS="--port 9000"` picks the port yourself.
 
