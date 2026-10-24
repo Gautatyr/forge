@@ -6,7 +6,7 @@ import { useMatch } from '../state/MatchContext';
 import { CardArt } from './CardArt';
 import { linkNotes } from './cardLinks';
 import { Icon } from './Icon';
-import { fitPreview, overBoardWidth, placePreview, type Box } from './previewPlacement';
+import { layoutPreview, type Box } from './previewPlacement';
 import { hoverLitTargets } from './previewKeep';
 import { PREVIEW_BESIDE_ATTR } from './previewSpot';
 import styles from './HoverPreview.module.css';
@@ -33,9 +33,10 @@ const boxOf = (el: Element): Box => {
  * The preview shows over the board (also for a card hovered in the rail or drawer), so the rail's panels keep their size
  * (nothing reflows while the pointer moves). One place and one size for every hovered card: the size of the first fixed
  * preview (previewPlacement.ts `overBoardWidth`, from the window only), flush with the rail (or the log drawer), its
- * image bottom on the hand; the notes block stacks above the image. It may cover the hovered card (the 2026-10-16
- * behaviour). Only what the open prompt is about moves or narrows it (previewPlacement.ts `fitPreview`): the cards and
- * tray of the prompt, the targets a hovered stack item lights. Placed before paint, from the DOM.
+ * image bottom on the hand. It may cover the hovered card (the 2026-10-16 behaviour). Only what the open prompt is about
+ * moves or narrows it (previewPlacement.ts `layoutPreview`): the cards and tray of the prompt, the targets a hovered
+ * stack item lights. The box is the image alone; the notes block hangs above it, out of the flow, so no card's notes
+ * ever move or resize the image (they are clipped at the window top). Placed before paint, from the DOM.
  */
 function Preview({ keepIds, keepPlayerIds, children }: { keepIds: string[]; keepPlayerIds: string[]; children: ReactNode }) {
   const anchor = useRef<HTMLSpanElement>(null);
@@ -44,7 +45,8 @@ function Preview({ keepIds, keepPlayerIds, children }: { keepIds: string[]; keep
   useLayoutEffect(() => {
     const column = anchor.current?.parentElement;
     const box = el.current;
-    if (!column || !box) return;
+    const info = box?.querySelector<HTMLElement>('[data-preview-info]');
+    if (!column || !box || !info) return;
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
     const m = 0.5 * rem;
     // The board side of the screen: left of the rail, or of the log drawer while it is open (both carry the attribute).
@@ -56,15 +58,21 @@ function Preview({ keepIds, keepPlayerIds, children }: { keepIds: string[]; keep
     const cards = (id: string) => [...document.querySelectorAll<HTMLElement>(`[data-card-id="${CSS.escape(id)}"]`)];
     const plates = (id: string) => [...document.querySelectorAll<HTMLElement>(`[data-player-id="${CSS.escape(id)}"]`)];
     const keep = [...keepIds.flatMap(cards), ...keepPlayerIds.flatMap(plates), ...document.querySelectorAll('[data-dock]')].map(boxOf);
-    const start = overBoardWidth({ rem, vh: window.innerHeight, areaHeight: area.height });
-    // Narrower only until a spot is clear of the prompt (never under the readable floor).
-    const { at } = fitPreview(start, (w) => {
-      box.style.setProperty('--pv-w', `${w}px`);
-      // offset sizes ignore the `appear` animation's scale, still applied on first mount.
-      return placePreview({ area, size: { width: box.offsetWidth, height: box.offsetHeight }, keep, overflowTop: 2 * m });
+    info.style.maxHeight = 'none';
+    const at = layoutPreview({
+      area,
+      rem,
+      vh: window.innerHeight,
+      keep,
+      measure: (w) => {
+        box.style.setProperty('--pv-w', `${w}px`);
+        // offset sizes ignore the `appear` animation's scale, still applied on first mount. The box is the image alone.
+        return { image: { width: box.offsetWidth, height: box.offsetHeight }, notes: info.offsetHeight };
+      },
     });
     box.style.left = `${at.left}px`;
     box.style.top = `${at.top}px`;
+    info.style.maxHeight = `${at.notes}px`;
     box.style.visibility = 'visible';
   });
   return (

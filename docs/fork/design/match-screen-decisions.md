@@ -88,6 +88,12 @@ Source: the owner's answers to two questions raised by QA pass 3 (#29 visual not
 - **Spells between opponents:** "Stop only when I'm involved" keeps every stack stop as before. A **separate toggle** in the Stops panel, off by default, also skips stack items that neither target nor affect you or your permanents (spells and abilities the AIs aim at each other).
 - **Choice tray at small heights (#140):** when the tray's tiles cannot fit with their labels and key hints (short laptop windows, about 1366×650–700 and 1280×720), the tray shows a **compact list** (card name + key hint) instead of tiles; hovering a row shows the card preview. Larger windows keep the tiles.
 
+## Ruling on the hover preview size and place (2026-10-24, issue #172)
+Source: the owner's answer on #172. **Supersedes** the 2026-10-22 text "At larger sizes the fixed spot (refined in PRs #52 and #103) is unchanged" and the rail spot of PRs #52 and #103.
+- The hover preview is **big and in one fixed spot over the board**, flush with the rail side, its bottom on the hand. Sizes are the 2026-10-16 ones: 647x904 at 2560x1440 (full screen), 486x678 at 1920x1080. Smaller windows scale down, never under 271x378.
+- It **may cover the hovered card**. It is the **same rect for every hovered card**, whatever its zone (board, hand, stack, rail).
+- It **moves or narrows only when the open prompt needs room**: the prompt's cards, its tray, the targets a hovered stack item lights. Inside one prompt state it is still the same rect for every hovered card.
+
 ## Language (2026-10-15)
 - The match screen is switchable between **English and French**: UI text, keyword explanations, card names and text, and card images where Scryfall has French printings.
 - Forge already ships the data: `forge-gui/res/languages/fr-FR.properties` (UI strings) and `forge-gui/res/languages/cardnames-fr-FR.txt` (card names and text).

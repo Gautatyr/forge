@@ -1,33 +1,36 @@
-/* The hover preview, one place and one size for every hovered card (playtest 1 ruling): over the board, above the hand,
-   flush with the rail side, fixed to the window. HoverPreview.tsx sets left, top and --pv-w (previewPlacement.ts: the
-   2026-10-16 size, 486x679 px at 1920x1080; never under 271x378). It may cover the hovered card; only the open
-   prompt (its cards, its tray, a hovered stack item's targets) moves or narrows it. The rail's panels never move for
-   it; the notes block stacks above the image. */
+/* The hover preview: over the board, above the hand, flush with the rail side, fixed to the window. HoverPreview.tsx sets
+   left, top and --pv-w (previewPlacement.ts: the 2026-10-16 size, 486x679 px at 1920x1080, 647x904 at 2560x1440; never
+   under 271x378). The same image rect for every hovered card (the hovered card may be covered); only the open prompt
+   (its cards, its tray, a hovered stack item's targets) moves or narrows it. The box is the image alone. The notes block
+   hangs above it, out of the flow, so it never moves or resizes the image; it is clipped at the window top. The rail's
+   panels never move for it. */
 .preview {
   position: fixed;
   z-index: var(--z-preview);
   visibility: hidden;
   box-sizing: border-box;
   display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  align-items: center;
-  gap: var(--sp-2);
+  /* Explicit: a fixed box shrinks to the room right of its previous `left`, which would make the size depend on the card hovered before. */
+  width: var(--pv-w);
   pointer-events: none;
   transform-origin: bottom center;
   animation: appear var(--dur-fast) 70ms both var(--ease-out);
 }
 
 .img {
-  order: 1;
-  width: var(--pv-w);
+  width: 100%;
   aspect-ratio: 0.716;
   border-radius: var(--r-card);
   box-shadow: var(--shadow-float);
 }
 
-/* One opaque block as wide as the image. */
+/* One opaque block as wide as the image, above it. HoverPreview.tsx sets its max-height (the room above the image). */
 .info {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: var(--sp-2);
+  overflow: hidden;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;

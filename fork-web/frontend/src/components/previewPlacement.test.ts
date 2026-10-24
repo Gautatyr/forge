@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fitPreview, OVER_BOARD_MIN_W, overBoardWidth, placePreview, type Box } from './previewPlacement';
+import { fitPreview, layoutPreview, OVER_BOARD_MIN_W, overBoardWidth, placePreview, type Box } from './previewPlacement';
 
 const area: Box = { left: 8, top: 47, width: 1040, height: 665 }; // 1280x720: left of the rail, below the top bar
 const size = { width: 271, height: 460 };
@@ -13,30 +13,9 @@ describe('hover preview: one fixed place (playtest 1 ruling, issue #172)', () =>
     expect(placePreview({ area, size, keep: [] })).toEqual({ ...fixed, clear: true });
   });
 
-  it('is the same place whichever card is hovered: placement never reads the hovered card', () => {
-    // Cards on the rail side, in the middle and far left of the board: the inputs are the same, so the rect is.
-    const a = placePreview({ area, size, keep: [] });
-    expect(placePreview({ area, size, keep: [] })).toEqual(a);
-    expect(a.left).toBe(fixed.left);
-    expect(a.top).toBe(fixed.top);
-  });
-
-  it('is the same place for a long and a short notes block (the image bottom stays on the hand)', () => {
-    const tall = placePreview({ area, size: { width: 271, height: 520 }, keep: [] });
-    expect(tall.left).toBe(fixed.left);
-    expect(tall.top + 520).toBe(area.top + area.height);
-  });
-
-  it('a notes block taller than the room grows upward, up to overflowTop above the area, the image bottom still on the hand', () => {
-    const p = placePreview({ area, size: { width: 271, height: area.height + 9 }, keep: [], overflowTop: 16 });
-    expect(p.top).toBe(area.top - 9);
-    expect(p.top + area.height + 9).toBe(area.top + area.height);
-  });
-
-  it('stays inside the area, beyond overflowTop', () => {
+  it('the image keeps its place when it is too tall for the room (the floor wins): top on the area, never above it', () => {
     const p = placePreview({ area, size: { width: 271, height: 900 }, keep: [] });
     expect(p.top).toBe(area.top);
-    expect(placePreview({ area, size: { width: 271, height: 900 }, keep: [], overflowTop: 16 }).top).toBe(area.top - 16);
     expect(placePreview({ area, size: { width: 2000, height: 100 }, keep: [] }).left).toBe(area.left);
   });
 });
@@ -107,5 +86,42 @@ describe('clear flag and fitting (issue #172: the bigger preview never costs the
   it('keeps the wide size when it is clear, and stops at the floor when nothing clears', () => {
     expect(fitPreview(486, () => ({ clear: true })).width).toBe(486);
     expect(fitPreview(486, () => ({ clear: false })).width).toBe(OVER_BOARD_MIN_W);
+  });
+});
+
+describe('layoutPreview: the image rect does not depend on the notes (round 3, issue #172)', () => {
+  // A fake DOM: the image is 0.716 wide per high; the notes block wraps (taller when narrower), as in the page.
+  const env = { area, rem: 16, vh: 720, keep: [] as Box[] };
+  const measureWith = (notesAt271: number) => (width: number) => ({
+    image: { width, height: Math.round(width / 0.716) },
+    notes: Math.round((notesAt271 * 271) / width),
+  });
+  const imageRect = (r: { left: number; top: number; width: number }) => ({ left: r.left, top: r.top, width: r.width });
+
+  it('no prompt: the same image rect for a short and a very tall notes block, bottom on the hand', () => {
+    const rects = [0, 30, 67, 83, 109, 400].map((n) => layoutPreview({ ...env, measure: measureWith(n) }));
+    for (const r of rects) expect(imageRect(r)).toEqual(imageRect(rects[0]!));
+    const h = Math.round(rects[0]!.width / 0.716);
+    expect(rects[0]!.top + h).toBe(area.top + area.height);
+  });
+
+  it('a tray in keep: the same image rect for every notes height (fit and place on the image only)', () => {
+    // Tray across the bottom: the image narrows to clear it, whatever the card's notes.
+    const tray = box(area.left, 520, area.width, 192);
+    const rects = [0, 30, 57, 83, 109, 300].map((n) => layoutPreview({ ...env, keep: [tray], measure: measureWith(n) }));
+    for (const r of rects) expect(imageRect(r)).toEqual(imageRect(rects[0]!));
+    expect(rects[0]!.width).toBeLessThan(overBoardWidth({ rem: 16, vh: 720, areaHeight: area.height }));
+    expect(rects[0]!.clear).toBe(true);
+  });
+
+  it('notes taller than the reserve plus the overflow never push the image: its bottom stays on the hand', () => {
+    const tall = layoutPreview({ ...env, measure: measureWith(500) });
+    const short = layoutPreview({ ...env, measure: measureWith(10) });
+    const h = Math.round(tall.width / 0.716);
+    expect(tall.top + h).toBe(area.top + area.height);
+    expect(tall.top).toBe(short.top);
+    // The notes grow upward inside their own block: at most the room above the image (a 0.5 rem gap above it, down to a 0.5 rem margin at the window top).
+    expect(tall.notes).toBe(tall.top - 16);
+    expect(short.notes).toBe(Math.round((10 * 271) / short.width));
   });
 });
