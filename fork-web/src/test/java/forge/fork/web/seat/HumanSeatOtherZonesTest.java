@@ -550,6 +550,35 @@ public class HumanSeatOtherZonesTest {
         assertTrue(game.getCardsIn(ZoneType.Exile).isEmpty(), "the exiled card was cast; " + runs.get(1) + " sol in " + where(sol));
     }
 
+    /** Gonti's card is colored and only off-color mana is at hand: "mana of any type can be spent" still lights it, and it is cast. */
+    @Test
+    public void anOpponentsColoredCardExiledByGontiPaidWithOffColorMana() throws Exception {
+        start();
+        lands("Swamp", 6);
+        Card gonti = add("Gonti, Lord of Luxury", me, ZoneType.Hand);
+        Card bears = top("Grizzly Bears", ai);
+        promptAnswer = m -> {
+            if (!m.has("choices") || m.getAsJsonArray("choices").size() == 0) {
+                return null;
+            }
+            if (m.get("max").getAsInt() == 0) {
+                return JsonParser.parseString("[]");
+            }
+            for (JsonElement c : m.getAsJsonArray("choices")) {
+                if (c.getAsJsonObject().get("label").getAsString().contains("Grizzly Bears")) {
+                    return JsonParser.parseString("[" + c.getAsJsonObject().get("i").getAsInt() + "]");
+                }
+            }
+            return JsonParser.parseString("[" + m.getAsJsonArray("choices").get(0).getAsJsonObject().get("i").getAsInt() + "]");
+        };
+        List<Run> runs = run(true,
+                step(() -> gonti, () -> in(gonti, ZoneType.Battlefield) && game.getCardsIn(ZoneType.Exile).size() > 0),
+                step(() -> bears, () -> in(bears, ZoneType.Battlefield)));
+        assertEquals(runs.size(), 2, "two clicks: " + runs + " bears " + where(bears) + " exile " + game.getCardsIn(ZoneType.Exile));
+        assertTrue(runs.get(1).litCard(), "the opponent's colored exiled card is lit with only Swamps: " + runs.get(1));
+        assertTrue(in(bears, ZoneType.Battlefield), "Grizzly Bears cast with Swamps; it is in " + where(bears) + "; " + runs.get(1));
+    }
+
     @Test
     public void foretoldCardInExile() throws Exception {
         start();

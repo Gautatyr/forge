@@ -11,6 +11,7 @@ const ZONE_WORD: Partial<Record<CardView['zone'], MsgKey>> = {
   graveyard: 'zone.graveyard',
   exile: 'zone.exile',
   library: 'zone.library',
+  hand: 'zone.hand',
   battlefield: 'zone.battlefield',
 };
 

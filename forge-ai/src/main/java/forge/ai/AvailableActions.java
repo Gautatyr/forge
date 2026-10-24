@@ -2,9 +2,13 @@ package forge.ai;
 
 import forge.game.card.Card;
 import forge.game.card.CardLists;
+import forge.game.ability.AbilityUtils;
+import forge.game.card.CardPlayOption;
 import forge.game.card.CardView;
+import forge.game.mana.ManaPool;
 import forge.game.player.Player;
 import forge.game.spellability.SpellAbility;
+import forge.game.staticability.StaticAbilityManaConvert;
 import forge.game.zone.ZoneType;
 import org.tinylog.Logger;
 
@@ -107,8 +111,32 @@ public final class AvailableActions {
         if (sa.getPayCosts() == null || !sa.getPayCosts().hasManaCost()) {
             return true;
         }
-        // TODO include RemoveDeck:All when they weren't used
-        return ComputerUtilMana.canPayManaCost(sa, player, 0, false);
+        // The sweep runs under a temporary controller (the player is then its own controlling player), and
+        // ComputerUtilMana.payManaCost skips its mana conversions in that case: apply them here, or a card paid for with
+        // "mana of any type" (Gonti's exiled card) is never lit.
+        final ManaPool pool = player.getManaPool();
+        pool.restoreColorReplacements();
+        try {
+            applyManaConversions(sa, player, pool);
+            // TODO include RemoveDeck:All when they weren't used
+            return ComputerUtilMana.canPayManaCost(sa, player, 0, false);
+        } finally {
+            pool.restoreColorReplacements();
+        }
+    }
+
+    /** The conversions ComputerUtilMana.payManaCost applies for a cost that is not an effect's. */
+    private static void applyManaConversions(SpellAbility sa, Player player, ManaPool pool) {
+        final CardPlayOption mayPlay = sa.getMayPlayOption();
+        if (sa.isSpell() && mayPlay != null) {
+            mayPlay.applyManaConvert(pool);
+        } else if (sa.isActivatedAbility() && sa.getGrantorStatic() != null && sa.getGrantorStatic().hasParam("ManaConversion")) {
+            AbilityUtils.applyManaColorConversion(pool, sa.getGrantorStatic().getParam("ManaConversion"));
+        }
+        if (sa.hasParam("ManaConversion")) {
+            AbilityUtils.applyManaColorConversion(pool, sa.getParam("ManaConversion"));
+        }
+        StaticAbilityManaConvert.manaConvert(pool, player, sa.getHostCard(), sa);
     }
 
     private static boolean checkTimeout(long deadlineNanos, long timeoutMs) {

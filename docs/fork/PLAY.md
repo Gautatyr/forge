@@ -50,7 +50,7 @@ If port 47321 is taken (a second Forge open at the same time), that Forge uses a
 ## What works
 Checked on 4-player Commander games (you plus 3 AIs, 40 life) started from the lobby:
 - Mulligan (keep or mulligan), land drops, casting spells and your commander from the command zone (with commander tax).
-- Cards you may play from another zone (the top of your library with Mystic Forge or Bolas's Citadel, flashback, escape, foretell, adventure, impulse draw, an opponent's card you may cast) sit in a group beside your hand with their zone; click one to cast or play it. Clicking a permanent with nothing you can activate now does nothing (no message).
+- Cards you may play from another zone (the top of your library with Mystic Forge or Bolas's Citadel, flashback, escape, foretell, adventure, impulse draw, an opponent's exiled or in-hand card you may cast, with mana of any type or not) sit in a group beside your hand with their zone; click one to cast or play it. Clicking a permanent with nothing you can activate now does nothing (no message).
 - Mana payment: click your lands and mana rocks one by one, or **Pay automatically**; the plan shows which sources it would tap. Floating mana shows above the prompt: while you pay, click a floating symbol that still helps to spend it, or let **Pay automatically** use it.
 - Attacks: click your creatures, then **Attack with N** (or **Attack all**); click an opponent, planeswalker or battle first to change what they attack.
 - Blocks, targets, library searches, "may" triggers, trigger ordering, X costs, coin flips, ability menus, yes/no questions and cards an opponent reveals to you.

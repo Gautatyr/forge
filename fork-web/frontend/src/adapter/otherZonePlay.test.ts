@@ -1,7 +1,8 @@
 /**
  * Issue #174: a card the engine lets you play from outside your hand (the top of your library with Mystic Forge or
  * Bolas's Citadel, an opponent's exiled card with Gonti, a graveyard or exile permission) is clickable once the engine
- * lights it (setWeaklySelectable); an unlit one is not played.
+ * lights it (setWeaklySelectable); an unlit one is not played. A card of an opponent's hand you may play (Sen Triplets)
+ * is listed in the group too.
  */
 import { describe, expect, it } from 'vitest';
 import type { WireObject } from '../wire/generated/wire';
@@ -19,16 +20,21 @@ const cardObjs = (id: number, owner: number, zone: string, name: string, type: s
   { type: 'cardState', id, state: 'Original', props: { Name: name, Type: type } } as WireObject,
 ];
 
-/** Your priority in your main phase: Sol Ring on top of your library (60), Grizzly Bears in your graveyard (61), an opponent's exiled Plains (62), Llanowar Elves on the stack (63). */
+/**
+ * Your priority in your main phase: Sol Ring on top of your library (60), Grizzly Bears in your graveyard (61), an
+ * opponent's exiled Plains (62), Llanowar Elves on the stack (63), an opponent's Dark Ritual in hand (64), your own Forest in hand (65).
+ */
 function game(lit: number[]): GameView {
   const objects: WireObject[] = [
     { type: 'game', id: 1, props: { Players: [0, 1], Turn: 4, Phase: 'MAIN1', PlayerTurn: 0, GameType: 'Constructed', Stack: [] } },
-    { type: 'player', id: 0, props: { Name: 'Hugo', Life: 20, Library: [60], Graveyard: [61], HasPriority: true } },
-    { type: 'player', id: 1, props: { Name: 'AI', IsAI: true, Life: 20, Exile: [62] } },
+    { type: 'player', id: 0, props: { Name: 'Hugo', Life: 20, Library: [60], Graveyard: [61], Hand: [65], HasPriority: true } },
+    { type: 'player', id: 1, props: { Name: 'AI', IsAI: true, Life: 20, Exile: [62], Hand: [64] } },
     ...cardObjs(60, 0, 'Library', 'Sol Ring', 'Artifact'),
     ...cardObjs(61, 0, 'Graveyard', 'Grizzly Bears', 'Creature - Bear'),
     ...cardObjs(62, 1, 'Exile', 'Plains', 'Basic Land - Plains'),
     ...cardObjs(63, 0, 'Stack', 'Llanowar Elves', 'Creature - Elf'),
+    ...cardObjs(64, 1, 'Hand', 'Dark Ritual', 'Instant'),
+    ...cardObjs(65, 0, 'Hand', 'Forest', 'Basic Land - Forest'),
   ];
   const s = new LiveSession();
   s.apply({ t: 'snapshot', game: 1, seq: 0, label: 't', viewer: { seat: 0, player: 0 }, objects, log: [] });
@@ -75,6 +81,12 @@ describe('the group beside the hand', () => {
       'Grizzly Bears | Graveyard',
       'Plains | Exile · AI',
     ]);
+  });
+
+  it('lists a lit card of an opponent’s hand with its owner, never a card of your own hand', () => {
+    const g = game([64, 65]);
+    expect(otherZoneGroup(g).map((e) => `${e.card.name} | ${e.caption}`)).toEqual(['Dark Ritual | Hand · AI']);
+    expect(cardClick(g, '64')).toEqual({ kind: 'intent', intent: { type: 'play', cardId: '64' } });
   });
 
   it('lists nothing that is not lit', () => {
