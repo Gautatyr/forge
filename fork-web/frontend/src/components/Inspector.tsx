@@ -50,7 +50,7 @@ export function Inspector() {
         <div className={styles.faces}>
           {faces.map((f) => (
             <figure key={f.label} className={styles.face}>
-              {f.face.image ? <CardArt key={f.face.image.large} image={f.face.image} size="large" alt={faceName(f.face)} /> : null}
+              <CardArt key={f.face.image?.large ?? f.label} image={f.face.image} face={f.face} size="large" alt={faceName(f.face)} />
               {c.back ? (
                 <figcaption>
                   {f.label}

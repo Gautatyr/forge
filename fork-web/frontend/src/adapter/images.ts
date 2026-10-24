@@ -19,6 +19,17 @@ export interface ImageRef {
   token?: boolean;
 }
 
+/** The set code Forge gives a card it assigned to no edition (`CardEdition.UNKNOWN_CODE`: the Alchemy "A-" cards). */
+const NO_EDITION = '???';
+
+/**
+ * A card key of no edition has no picture anywhere (Forge's image cache has none, Scryfall has no card under the
+ * "A-" name and the paper card's text differs): ask no source, so the card is drawn as its engine text.
+ */
+export function hasNoArt(key: string | undefined): boolean {
+  return parseImageKey(key)?.set === NO_EDITION;
+}
+
 export function parseImageKey(key: string | undefined): { name: string; set: string } | undefined {
   const m = key ? /^c:([^|]+)\|([^|]*)/.exec(key) : null;
   return m ? { name: m[1]!, set: m[2]!.toLowerCase() } : undefined;

@@ -495,6 +495,7 @@ export const en = {
   'card.needsTitle': 'Needs {count} blockers, or none',
   'card.needs': 'Needs {count}',
   'card.counterTitle': '{count} {kind} counter(s)',
+  'card.loyalty': 'Loyalty {count}',
   'card.damage': '{count} damage marked',
 
   'hp.tapped': 'Tapped',

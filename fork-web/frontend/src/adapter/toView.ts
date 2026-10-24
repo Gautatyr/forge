@@ -31,7 +31,7 @@ import type {
 } from '../model/types';
 import type { CardProps, CardStateProps, PhaseType, PlayerProps, StackItemProps, ZoneType } from '../wire/generated/wire';
 import { engineLog, faceDownLookup, targetInstruction, tellApart } from './engineText';
-import { parseImageKey, scryfallLookup, type ImageLookup } from './images';
+import { hasNoArt, parseImageKey, scryfallLookup, type ImageLookup } from './images';
 import { cancelValue, freeMulliganKeep, promptToChoice, promptWords, inputToChoice, SELECT_PROMPT_PREFIX, targetKey, tossChooser } from './prompts';
 import { tossTitle } from '../state/gameStart';
 import { cardName, commanderTax, defendingPlayerOf } from '../model/selectors';
@@ -98,7 +98,7 @@ const SPECIAL_FACE = /^t:(hidden|morph|manifest|cloaked|foretell)$/;
  * view has no collector number); other keys (tokens `t:…`) go by the face's name.
  */
 export function imageFromKey(key: string | undefined, back = false, lookup: ImageLookup = scryfallLookup, name = ''): CardFace['image'] {
-  if (!key) return undefined;
+  if (!key || hasNoArt(key)) return undefined;
   const card = parseImageKey(key);
   return card ? lookup({ key, ...card, back }) : lookup({ key, name: SPECIAL_FACE.test(key) ? '' : name, set: '', back, token: true });
 }

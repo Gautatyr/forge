@@ -101,7 +101,10 @@ export function HoverPreview({ columnRem }: { columnRem: number }) {
   const c = game.cards[ui.hover.cardId];
   if (!c) return null;
   const face = currentFace(c);
-  const img = shownFace(c).image ?? c.front.image;
+  const shown = shownFace(c);
+  // The face the image is of (a face without its own image shows the front's): its data is the text card's.
+  const artFace = shown.image || !c.front.image ? shown : c.front;
+  const img = artFace.image;
   const s = cardStatus(game, ui, c.id);
   const spot = previewSpot(ui.hover, ui.logOpen, columnRem);
   const notes: string[] = [];
@@ -120,7 +123,7 @@ export function HoverPreview({ columnRem }: { columnRem: number }) {
 
   const body = (
     <>
-      {img ? <CardArt key={img.large} image={img} size="large" alt="" className={styles.img} /> : null}
+      <CardArt key={img?.large ?? c.id} image={img} face={artFace} size="large" className={styles.img} />
       <div className={styles.info}>
         {notes.map((n) => (
           <span key={n} className={styles.note}>

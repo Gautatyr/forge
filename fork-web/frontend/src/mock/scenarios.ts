@@ -1,6 +1,6 @@
 import { promptWords } from '../adapter/prompts';
 import { isCreature, isLand } from '../model/selectors';
-import type { ChoicePrompt, DistributeRecipient } from '../model/types';
+import type { CardFace, ChoicePrompt, DistributeRecipient } from '../model/types';
 import { GameBuilder, ref } from './builder';
 import { cardNames, type CardKey } from './cardDb';
 import { applyIntent, cultivatePrompt, type MockGame } from './engine';
@@ -856,6 +856,58 @@ export const SCENARIOS: Scenario[] = [
       yourHand(b, ['Ram Through', 'Primeval Titan', 'Forest', 'Beast Within', 'Cultivate']);
       b.turn(6, 'you', 'main1', 'you');
       b.log(`Forge AI attacks with ${ref(hero)}; Hugo takes 3 damage.`, 'ai', 5).log('Hugo draws a card.', 'you');
+      return b.done();
+    },
+  },
+  {
+    id: 'no-art',
+    label: '4c · 1v1: cards with no image',
+    description:
+      'Cards no source has a picture for are drawn from the engine data (issue #155): the opponent\'s Alchemy A-Faceless Haven (no edition), a long-text creature, a planeswalker and a token. Hover them.',
+    build: () => {
+      const b = new GameBuilder('no-art', 'constructed');
+      b.player('you', 'Hugo', 17, { libraryCount: 47, isAi: false }).player('ai', 'Forge AI', 12, {
+        libraryCount: 46,
+        handCount: 3,
+      });
+      b.many(3, 'Forest', 'you', 'battlefield');
+      b.card('Questing Beast', 'you', 'battlefield');
+      // The card is replaced by data with no image. The first is Forge's own (cardsfolder: A-Faceless Haven, no
+      // edition: its image key carries the set "???").
+      const noArt = (id: string, f: Partial<CardFace>) => {
+        const c = b.g.cards[id]!;
+        c.front = { name: '', manaCost: '', typeLine: '', oracleText: '', ...f };
+        c.name = c.front.name;
+      };
+      const haven = b.card('Forest', 'ai', 'battlefield');
+      noArt(haven, {
+        name: 'A-Faceless Haven',
+        typeLine: 'Snow Land',
+        oracleText: "{T}: Add {C}.\n{S}{S}{S}: Faceless Haven becomes a 3/3 creature with vigilance and all creature types until end of turn. It's still a land.",
+      });
+      const long = b.card('Goblin Guide', 'ai', 'battlefield');
+      noArt(long, {
+        name: 'Homebrew Warlord',
+        manaCost: '{2}{R}{R}',
+        typeLine: 'Legendary Creature — Goblin Warrior',
+        oracleText:
+          'Haste\nWhenever Homebrew Warlord attacks, create a 1/1 red Goblin creature token that is tapped and attacking. Sacrifice it at the beginning of the next end step.\nAt the beginning of your end step, if you control five or more Goblins, each opponent loses 3 life and you gain 3 life.\n{R}, Sacrifice another Goblin: Homebrew Warlord deals 2 damage to any target.',
+        power: '3',
+        toughness: '3',
+      });
+      const walker = b.card('Heartfire Hero', 'ai', 'battlefield');
+      noArt(walker, {
+        name: 'Custom Walker',
+        manaCost: '{3}{U}',
+        typeLine: 'Legendary Planeswalker — Test',
+        oracleText: "+1: Draw a card, then discard a card.\n-2: Return target creature to its owner's hand.",
+        loyalty: '4',
+      });
+      const token = b.card('Goblin Guide', 'ai', 'battlefield', { token: true });
+      noArt(token, { name: 'Construct Token', typeLine: 'Token Artifact Creature — Construct', oracleText: 'Defender', power: '0', toughness: '4' });
+      b.many(3, 'Mountain', 'ai', 'battlefield');
+      yourHand(b, ['Ram Through', 'Forest', 'Beast Within']);
+      b.turn(6, 'you', 'main1', 'you');
       return b.done();
     },
   },
