@@ -94,6 +94,10 @@ Source: the owner's answer on #172. **Supersedes** the 2026-10-22 text "At large
 - It **may cover the hovered card**. It is the **same rect for every hovered card**, whatever its zone (board, hand, stack, rail).
 - It **moves or narrows only when the open prompt needs room**: the prompt's cards, its tray, the targets a hovered stack item lights. Inside one prompt state it is still the same rect for every hovered card.
 
+## Ruling on spell stops while passing (2026-10-24, after the owner's first game)
+- With **Auto-pass when I can't act** on, an opponent's spell still stops the owner while they hold a castable instant, even one that can't answer that spell. The engine counts any castable card or activatable ability as "can act", and cannot judge whether a response is useful.
+- Options offered: stop only for spells that target you or your permanents; never stop for spells while passing; keep as is. **Owner ruling: keep as is.** Any opponent spell stops you while you hold something castable, and Space lets it resolve. Do not add a relevance heuristic or a "spells don't interrupt passing" option unless the owner asks again.
+
 ## Language (2026-10-15)
 - The match screen is switchable between **English and French**: UI text, keyword explanations, card names and text, and card images where Scryfall has French printings.
 - Forge already ships the data: `forge-gui/res/languages/fr-FR.properties` (UI strings) and `forge-gui/res/languages/cardnames-fr-FR.txt` (card names and text).
