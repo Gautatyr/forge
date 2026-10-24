@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import type { ChoicePrompt } from '../../model/types';
+import type { ChoiceDraft } from '../../state/ui';
 import { PILE_FLOOR_ATTR, restorePileFloor } from './pileHeight';
 import { FILTER_FROM } from './trayLogic';
 
@@ -73,6 +74,16 @@ export function tileKind(p: ChoicePrompt): TileKind | undefined {
   return p.options.length > FILTER_FROM ? 'browse' : 'pick';
 }
 
+/**
+ * The shape of the piles of scry and surveil: how many cards each holds. A card moving to the other pile changes it (the
+ * pile area can get taller than the tile size fits, e.g. an emptied pile's note wrapping in a narrow column), a reorder
+ * within a pile does not. `''` for what has no piles. A dependency of `useFitTiles` (#159).
+ */
+export function pileShape(p: ChoicePrompt, draft: ChoiceDraft): string {
+  if (p.shape !== 'order' || p.lists.length < 2) return '';
+  return p.lists.map((l) => draft.lists[l.id]?.length ?? 0).join('/');
+}
+
 /** Whether the first row of tiles (card, label, key hint; for a reveal at least half a card) is in view at the tile size set now. */
 function firstRowShows(el: HTMLElement, kind: TileKind): boolean {
   // A pick's tile is its card and label in one box (the card's parent); a reveal's card is the tile.
@@ -114,8 +125,9 @@ function fitTiles(el: HTMLElement, state: FitState, kind: TileKind | undefined):
  * A tray whose body is capped to the board's height shrinks its card tiles until the whole body (tiles, labels, key
  * hints) is in view without scrolling; a long prompt text above takes the room. When even the smallest tile does not
  * fit, a body that has a list form (`kind`) switches to the compact list (owner ruling 2026-10-24, #140) and the hook
- * returns true. Re-fits when the body, the prompt or the window changes; within a prompt the size only shrinks and the
- * list is final (`settleFit`); a window resize starts again from the full tiles.
+ * returns true. Re-fits when the body, the prompt, the window or (through `deps`; scry and surveil: `pileShape`) the piles
+ * change shape; within a prompt the size only shrinks and the list is final (`settleFit`); a window resize starts again
+ * from the full tiles.
  */
 export function useFitTiles(body: RefObject<HTMLElement | null>, deps: readonly unknown[], kind: TileKind | undefined): boolean {
   const state = useRef<FitState>({ floor: Infinity, list: false });
