@@ -38,6 +38,7 @@ import forge.gamemodes.match.Selection;
 import forge.gamemodes.match.DrawOfferMessage;
 import forge.gamemodes.match.YieldUpdate;
 import forge.gamemodes.match.input.Input;
+import forge.gamemodes.match.input.InputSelectTargets;
 import forge.gamemodes.net.IRemote;
 import forge.gamemodes.net.ProtocolMethod;
 import forge.gamemodes.net.event.GuiGameEvent;
@@ -361,13 +362,18 @@ final class SeatSession implements IRemote {
         return ask(p);
     }
 
-    private void call(ProtocolMethod method, Object[] args) {
-        if (method == ProtocolMethod.applyDelta || method == ProtocolMethod.setGameView) {
+    private void call(ProtocolMethod sentMethod, Object[] sentArgs) {
+        if (sentMethod == ProtocolMethod.applyDelta || sentMethod == ProtocolMethod.setGameView) {
             return; // state travels on the stream
         }
         if (closed) {
             return;
         }
+        // A refused target pick is a note, not the input's prompt: it must not replace the question the seat (and a
+        // reconnecting seat's greeting) shows (issue #156).
+        final boolean refusal = sentMethod == ProtocolMethod.showPromptMessage && isTargetRefusal(sentArgs);
+        final ProtocolMethod method = refusal ? ProtocolMethod.message : sentMethod;
+        final Object[] args = refusal ? new Object[] {sentArgs[1], null} : sentArgs;
         if (method == ProtocolMethod.updateButtons && args.length == 6 && args[4] instanceof Boolean cancel) {
             cancelEnabled = cancel;
         }
@@ -397,6 +403,12 @@ final class SeatSession implements IRemote {
      * of the queue of the controller whose player the message is for: the seat's own, or a player it controls.
      */
     private JsonObject inputInfo(Object[] args) {
+        Input in = promptInput(args);
+        return in == null ? null : InputInfo.of(in);
+    }
+
+    /** The input showing a {@code showPromptMessage} ({@code args}): the one on top of its player's controller's queue. */
+    private Input promptInput(Object[] args) {
         if (!(controller instanceof PlayerControllerHuman pch)) {
             return null;
         }
@@ -404,10 +416,18 @@ final class SeatSession implements IRemote {
         for (PlayerControllerHuman c : controllersOnThisGui(pch)) {
             Input in = c.getInputQueue().getInput();
             if (in != null && (owner == null || in.getOwner() != null && in.getOwner().getId() == owner.getId())) {
-                return InputInfo.of(in);
+                return in;
             }
         }
         return null;
+    }
+
+    /**
+     * A {@code showPromptMessage} of {@link InputSelectTargets} that names no card: every question of that input names its
+     * spell or ability's card, while its refusals ("The selected card is not a player.") are sent with none.
+     */
+    private boolean isTargetRefusal(Object[] args) {
+        return args.length == 3 && args[1] instanceof String && args[2] == null && promptInput(args) instanceof InputSelectTargets;
     }
 
     /**
