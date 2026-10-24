@@ -93,6 +93,13 @@ export function stepGroup(p: ChooseNPrompt, d: ChoiceDraft, members: string[]): 
 /** What a two-list move button says: "To graveyard". */
 export const moveLabel = (list: { label: string; moveTo?: string }): string => t('tray.to', { where: list.moveTo ?? list.label.toLowerCase() });
 
+/** A pile's hint as the compact list reads it: rows run top to bottom, not left to right. */
+export function listHint(hint: string): string {
+  if (hint === t('prompt.leftmostDrawn')) return t('prompt.topDrawn');
+  if (hint === t('prompt.rightmostBottom')) return t('prompt.lastBottom');
+  return hint;
+}
+
 export function counterText(p: ChooseNPrompt, n: number): string {
   if (p.quiet) return '';
   if (p.progress) return t('tray.progress', { n, max: p.max });
@@ -334,4 +341,9 @@ export function anchorMenu(a: Rect, menu: { w: number; h: number }, view: { w: n
   const left = clamp(a.left, gap, view.w - gap - menu.w);
   const above = a.top - gap - menu.h;
   return { left, top: above >= gap ? above : clamp(a.bottom + gap, gap, view.h - gap - menu.h) };
+}
+
+/** Width in `ch` of a group's "chosen/total" at its widest ("14/14"): the count's slot is that wide in every state, so a row never changes size when you pick. */
+export function countChars(total: number): number {
+  return 2 * String(total).length + 1;
 }

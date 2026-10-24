@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, type CSSProperties, type KeyboardEvent } from 
 import type { OrderPrompt } from '../../model/types';
 import { useMatch } from '../../state/MatchContext';
 import { Card } from '../Card';
+import { PileLists } from './CompactList';
 import type { BodyProps } from './TrayBody';
 import { TILE_CW } from './tileFit';
 import { moveBetween, moveItem, moveLabel, revealScrollTop } from './trayLogic';
@@ -10,7 +11,8 @@ import { t } from '../../i18n';
 
 /** One list: a column, first item at the top. Two lists: the scry layout, click moves a card across. */
 export function Order(props: BodyProps<OrderPrompt>) {
-  return props.prompt.lists.length === 1 ? <SingleList {...props} /> : <TwoLists {...props} />;
+  if (props.prompt.lists.length === 1) return <SingleList {...props} />;
+  return props.compact ? <PileLists {...props} /> : <TwoLists {...props} />;
 }
 
 function SingleList({ prompt, draft, setDraft }: BodyProps<OrderPrompt>) {

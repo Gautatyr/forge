@@ -354,3 +354,7 @@ Live (1920×1080, human seat, test decks vs an Islands-only AI): Goblin Guide (h
 |---|---|
 | Keyboard focus: white 6 px double ring (`--focus-ring`), never a state colour or line style. Cards: inside the card edge over the frame; plates: outside the state outline; other controls: 2 px outside. | `styles/tokens.css`, `styles/global.css`, `Card.module.css`, `PlayerPlate.module.css` |
 | Top bar "Round 7 · Turn 26" (FR "Tour de table 7 · Tour 26"): bridge `round` (`RoundCounter`); mock: turn ÷ players, rounded up. | `state/gameStart.ts` (`turnNumberText`), `TopBar.tsx`, `adapter/session.ts`, `mock/engine.ts` |
+## Choice tray compact list (issue #140)
+| What | Code |
+|---|---|
+| Tiles that cannot fit even at 4 rem become a list (name, key hint, chosen state; piles: index, name, ↑ / move / ↓); hover shows the card preview. Decided once per prompt; mock scenarios `long-title`, `surveil`, `scry`, `tutor-groups` at 1280x720 / 1366x700, `look-many` for the reveal rule. | `tray/tileFit.ts` (`settleFit`, `tileKind`), `tray/CompactList.tsx`, `useCardHover.ts`, `ChoiceTray.module.css` (`.compactList`) |

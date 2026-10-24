@@ -1,12 +1,15 @@
 import type { ChooseNPrompt } from '../../model/types';
 import { useMatch } from '../../state/MatchContext';
 import { Card } from '../Card';
+import { RevealList } from './CompactList';
 import type { BodyProps } from './TrayBody';
 import styles from '../ChoiceTray.module.css';
 
 /** Reveal / look: the cards at hand size, each with the hover preview; the footer's OK answers. */
-export function Reveal({ prompt }: BodyProps<ChooseNPrompt>) {
+export function Reveal(props: BodyProps<ChooseNPrompt>) {
+  const { prompt, compact } = props;
   const { game } = useMatch();
+  if (compact) return <RevealList {...props} />;
   return (
     <div className={styles.options}>
       {prompt.options.map((o) => {

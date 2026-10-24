@@ -17,7 +17,7 @@
 }
 
 /* An ordering prompt is a short column of rows: it needs less width than a card picker, so more of your board
-   stays visible either side of it. */
+   stays visible either side of it. (Not the compact list of two piles: its rows hold a name and three buttons.) */
 .narrow {
   width: min(40rem, calc(100% - 2rem));
 }
@@ -464,4 +464,84 @@
   flex-basis: 100%;
   margin: 0;
   text-align: center;
+}
+
+/* --- Compact list (#140): the tiles' replacement when they cannot fit, see tray/tileFit.ts ---------------------- */
+
+/* One row per choice, in as many columns as the tray is wide. */
+.compactList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
+  gap: var(--sp-1) var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A pile of cards (scry, surveil): one column, the first row on top. */
+.compactPile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.listItem {
+  display: flex;
+  align-items: stretch;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.row.listItem {
+  align-items: center;
+}
+
+/* The name and its detail on one line; a long name wraps, never truncates. */
+.listRow {
+  flex: 1;
+  min-width: 0;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.listRow .optionLabel {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.listRow .optionDetail {
+  width: auto;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* A group's "chosen/total": digits of one width and room for the widest count, so picking never moves the label. */
+.listRow .groupCount {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* A row never changes size when you pick: the 2 px chosen ring is drawn inside the 1 px border, and a group's minus
+   keeps its place (hidden until a pick). */
+.listRow.chosen {
+  border-width: 1px;
+  border-color: var(--c-selected);
+  box-shadow: inset 0 0 0 1px var(--c-selected);
+}
+
+.clickRow {
+  cursor: pointer;
+}
+
+/* A slot kept in place but not shown (a group's minus, the check of an unchosen row). */
+.idle {
+  visibility: hidden;
+}
+
+.checkSlot {
+  display: inline-flex;
 }

@@ -5,16 +5,19 @@ import { Card } from '../Card';
 import { Icon } from '../Icon';
 import { ManaCost } from '../ManaCost';
 import type { BodyProps } from './TrayBody';
+import { PickList } from './CompactList';
 import { TILE_CW } from './tileFit';
 import { chosenIn, dropFromGroup, stepGroup, toggleOption } from './trayLogic';
 import styles from '../ChoiceTray.module.css';
 import { t } from '../../i18n';
 
 /** Choose N: a card grid, colour symbols, or chips for text options (modes, types). Keys 1–9 toggle the first nine shown. */
-export function ChooseN({ prompt, draft, setDraft, groups }: BodyProps<ChooseNPrompt>) {
+export function ChooseN(props: BodyProps<ChooseNPrompt>) {
+  const { prompt, draft, setDraft, groups, compact } = props;
   const toggle = (id: string) => setDraft(toggleOption(prompt, draft, id));
   const cards = prompt.options.every((o) => o.cardId);
   if (groups.length === 0) return <p className={styles.note}>{t('tray.nothingMatches')}</p>;
+  if (compact && cards) return <PickList {...props} />;
   return (
     <div className={cards ? styles.options : styles.chips}>
       {groups.map(({ option: o, members }, i) =>

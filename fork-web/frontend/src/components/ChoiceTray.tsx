@@ -8,7 +8,7 @@ import { Card } from './Card';
 import { Icon, SeatGlyph } from './Icon';
 import { AbilityMenu } from './tray/AbilityMenu';
 import { TrayBody } from './tray/TrayBody';
-import { useFitTiles } from './tray/tileFit';
+import { tileKind, useFitTiles } from './tray/tileFit';
 import {
   counterText,
   FILTER_FROM,
@@ -193,8 +193,9 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
   // Keys 1–9 name what the player can count on screen: the tray's tiles, or the cards of the hand in hand order.
   const visible = groups.map((g) => g.option);
   const digitOptions = mode === 'inPlace' ? inPlaceOptions(game, prompt) : visible;
-  // Card tiles shrink until the whole body is in view; the prompt's text above them may be long.
-  useFitTiles(bodyRef, [prompt, mode, visible.length]);
+  // Card tiles shrink until the whole body is in view (the prompt's text above them may be long); when even the smallest
+  // size does not fit, the tray shows the compact list instead (#140).
+  const compact = useFitTiles(bodyRef, [prompt, mode, visible.length], mode === 'tray' ? tileKind(prompt) : undefined);
   const groupMembers = new Map(groups.map((g) => [g.option.id, g.members]));
 
   // Store the starting draft so the main button (primaryAction) answers the
@@ -282,7 +283,7 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
     );
 
   return (
-    <div ref={trayRef} className={`${styles.tray} ${prompt.shape === 'order' ? styles.narrow : ''}`} role="region" aria-label={prompt.title} style={{ '--tray-max': `${yourShare}%` } as CSSProperties}>
+    <div ref={trayRef} className={`${styles.tray} ${prompt.shape === 'order' && !compact ? styles.narrow : ''}`} role="region" aria-label={prompt.title} style={{ '--tray-max': `${yourShare}%` } as CSSProperties}>
       <header className={styles.head}>
         {source ? <Card card={source} context="thumb" style={{ '--cw': '2.6rem' } as CSSProperties} /> : null}
         <div className={styles.titles}>
@@ -318,7 +319,7 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
       ) : null}
 
       <div ref={bodyRef} className={styles.body}>
-        <TrayBody prompt={prompt} draft={draft} setDraft={setDraft} visible={visible} groups={groups} send={send} />
+        <TrayBody prompt={prompt} draft={draft} setDraft={setDraft} visible={visible} groups={groups} send={send} compact={compact} />
       </div>
 
       {footer}
