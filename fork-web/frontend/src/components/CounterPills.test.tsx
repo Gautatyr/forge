@@ -27,6 +27,13 @@ describe('counters on a battlefield permanent (issue #173)', () => {
     expect(html).toMatch(/<span[^>]*>Experience<\/span><span[^>]*>12<\/span>/);
   });
 
+  it('writes the kind only for a lone kind in the title band: several kinds are counts only (the band is shared with the name)', () => {
+    const band = (counters: { kind: string; count: number }[]) => renderToStaticMarkup(<CounterPills counters={counters} band />);
+    expect(band([{ kind: 'Suspect', count: 2 }])).not.toMatch(/class="[^"]*multi/);
+    expect(band([{ kind: 'Suspect', count: 2 }, { kind: 'Stun', count: 1 }])).toMatch(/class="[^"]*multi/);
+    expect(pills([{ kind: 'Suspect', count: 2 }, { kind: 'Stun', count: 1 }])).not.toMatch(/multi/);
+  });
+
   it('puts the pills in the title band of a compact card and over the lower corner of a large one', () => {
     const counters = [{ kind: 'Suspect', count: 2 }];
     expect(renderToStaticMarkup(<CounterPills counters={counters} band />)).toMatch(/class="[^"]*inBand/);

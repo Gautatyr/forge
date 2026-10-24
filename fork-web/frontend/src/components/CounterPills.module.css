@@ -13,10 +13,12 @@
   pointer-events: none;
 }
 
-/* Compact card: a row in the title band (Card.module.css `.band`, the `cardband` container), left of the name. Same
-   pill, sized from the label font so a chip is never taller than the band. Kinds that do not fit side by side wrap
-   onto another row; a pill never grows past the band. */
+/* Compact card: a row at the left of the title band (Card.module.css `.band`, the `cardband` container), before the
+   name label, which takes what is left (a staggered row covers the right of a card, never its left). Same pill, sized from the label font so a chip is never taller than the band. A
+   lone kind on a wide band keeps its name (cut with an ellipsis so the label keeps `--name-min`); everything else is a
+   count only. Chips that do not fit side by side wrap onto another row; a pill never grows past the band. */
 .inBand {
+  --name-min: 2.75rem;
   position: static;
   flex: 0 1 auto;
   min-width: 0;
@@ -44,6 +46,7 @@
 }
 
 .inBand .counter {
+  padding-inline: 0.15em;
   line-height: 1.2;
 }
 
@@ -57,9 +60,17 @@
   flex: none;
 }
 
-/* Too narrow for even a cut name: the count alone (the kind is in the hover text and the inspector). */
-@container cardband (width < 2.5rem) {
+/* Count only: several kinds, or a band too narrow for a cut name beside the label. */
+.multi .kind {
+  display: none;
+}
+@container cardband (width < 5.5rem) {
   .kind {
     display: none;
+  }
+}
+@container cardband (width >= 5.5rem) {
+  .inBand:not(.multi) {
+    max-width: calc(100% - var(--name-min));
   }
 }

@@ -640,7 +640,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'counters',
     label: '1b · Commander: counters on every permanent',
     description:
-      'Issue 173. Investigator’s Journal stand-ins (Arcane Signet, 2 Suspect counters; some tapped) on your board, and counters of several kinds on creatures, artifacts, enchantments and lands of every seat, for checking that no layout hides a counter. URL: ?n=<number of Signets> (default 6; about 20 staggers the support row at 1366x768), ?combat=1 for a blocker with damage and a shield counter.',
+      'Issue 173. Investigator’s Journal stand-ins (Arcane Signet, 2 Suspect counters; some tapped) on your board, and counters of several kinds on creatures, artifacts, enchantments and lands of every seat, for checking that no layout hides a counter. URL: ?n=<number of Signets> (default 6; about 20 staggers the support row at 1366x768), ?combat=1 for a blocker with damage and a shield counter, ?tap=1 for tapped creatures with two or three kinds.',
     build: () => {
       const q = new URLSearchParams(typeof location === 'undefined' ? '' : location.search);
       const n = Number(q.get('n') ?? 6);
@@ -675,6 +675,21 @@ export const SCENARIOS: Scenario[] = [
       add(named('ana', 'Vampire Nighthawk')[0], ['Shield', 1]);
       add(named('ana', 'Phyrexian Arena')[0], ['Doom', 5]);
       add(named('ana', 'Overgrown Tomb')[0], ['Charge', 2]);
+      if (q.get('tap')) {
+        // Tapped permanents with several kinds: a tapped card is turned, so its P/T runs down the slot's left edge.
+        const tap = (id: string | undefined, ...cs: [string, number][]) => {
+          if (id) b.g.cards[id]!.tapped = true;
+          add(id, ...cs);
+        };
+        tap(named('theo', 'Tolarian Terror')[0], ['+1/+1', 1]);
+        tap(ids.chieftain, ['+1/+1', 2]);
+        tap(ids.krenko, ['+1/+1', 1], ['Lore', 2]);
+        tap(ids.eidolon, ['+1/+1', 1]);
+        tap(ids.spirit, ['+1/+1', 1]);
+        tap(named('theo', 'Drake token')[0], ['Flying', 1], ['+1/+1', 1]);
+        tap(named('mira', 'Mountain')[0], ['Charge', 2], ['Lore', 1], ['Doom', 3]);
+        tap(named('you', 'Plains')[1], ['Charge', 2], ['Lore', 1], ['Doom', 3]);
+      }
       if (q.get('combat')) {
         const nh = named('ana', 'Vampire Nighthawk')[0]!;
         b.g.cards[nh]!.damage = 1;

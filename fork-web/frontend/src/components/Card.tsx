@@ -158,6 +158,7 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
     s.attacking && onBoard ? styles.nudged : '',
     count > 1 ? styles.grouped : '',
     hasBand ? styles.labelled : '',
+    onBoard && c.power !== undefined ? styles.hasPt : '',
     className ?? '',
   ].join(' ');
 
@@ -267,11 +268,11 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
         ) : null}
       </button>
       {hasBand ? (
-        <span className={styles.band}>
+        <span className={`${styles.band} ${counterBand ? styles.withCounters : ''}`}>
           {counterBand ? <CounterPills counters={c.counters} band attrs={avoid} /> : null}
           {nameLabel ? (
-            <span className={styles.nameLabel} aria-hidden>
-              {faceName(face)}
+            <span className={styles.nameSlot} aria-hidden>
+              <span className={styles.nameLabel}>{faceName(face)}</span>
             </span>
           ) : null}
         </span>

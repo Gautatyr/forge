@@ -310,15 +310,20 @@ describe('staggered back cards keep their counter chips in view (issue #173)', (
     expect(rowHeight(items, 32, 1, GAP, false, CHIP)).toBeCloseTo(rowHeight(items, 32, 1, GAP), 9);
   });
 
-  it('still fits the box when every staggered line carries the larger raise', () => {
+  it('shrinks the cards so the box still holds when every staggered line carries the larger raise', () => {
     const [w, h] = [420, 200];
-    const f = fitBattlefield(plain(6), plain(60), w, h, GAP, 180, 72, CHIP);
-    expect(f.support.overlap).toBeGreaterThan(0);
-    const used =
+    const used = (f: ReturnType<typeof fitBattlefield>) =>
       rowHeight(plain(6), f.creatures.cw, f.creatures.lines, GAP, f.creatures.overlap > 0, CHIP) +
       rowHeight(plain(60), f.support.cw, f.support.lines, GAP, f.support.overlap > 0, CHIP) +
       GAP;
-    expect(used).toBeLessThanOrEqual(h + 0.01);
+    const unaware = fitBattlefield(plain(6), plain(60), w, h, GAP, 180, 72);
+    const aware = fitBattlefield(plain(6), plain(60), w, h, GAP, 180, 72, CHIP);
+    expect(aware.support.overlap).toBeGreaterThan(0);
+    // A fit that ignores the chip raise overflows once the raise is counted (it passes only on the old fit) ...
+    expect(used(unaware)).toBeGreaterThan(h + 0.01);
+    // ... and the fit that knows it takes smaller cards and stays inside.
+    expect(aware.creatures.cw).toBeLessThan(unaware.creatures.cw);
+    expect(used(aware)).toBeLessThanOrEqual(h + 0.01);
   });
 
   it('lifts a tapped back card by the height an upright one has over it, so both tops line up', () => {
