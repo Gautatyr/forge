@@ -58,7 +58,7 @@ export function groupPermanents(cards: CardView[], game: GameView, ui: UiState, 
       continue;
     }
     const s = cardStatusWithChoice(game, ui, c.id);
-    const key = groupKey(c, JSON.stringify([s.attacking, s.blocking, s.selected, s.actionKind, s.dimmed]));
+    const key = groupKey(c, JSON.stringify([s.attacking, s.blocking, s.selected, s.actionKind, s.dimmed, s.inert]));
     const e = byKey.get(key);
     if (e) e.ids.push(c.id);
     else {
