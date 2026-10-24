@@ -280,6 +280,23 @@ public class HumanSeatOpponentStackTest {
         assertEquals(opps.get(0).getLife(), 19, "the trigger resolved");
     }
 
+    /** A real trigger whose effect reaches the seat ("each opponent loses 1 life"): the wrapped ability's parameters decide. */
+    @Test
+    public void aTriggerThatReachesTheSeatStops() throws Exception {
+        start(true);
+        add("Agent of Masks", opps.get(0), ZoneType.Battlefield);
+        assertEquals(askedWithStack(PhaseType.UPKEEP), List.of("Agent of Masks"));
+        assertTrue(me.getLife() < 20, "the trigger resolved: " + me.getLife());
+    }
+
+    /** A spell whose reach is in an SVar static ("your opponents can't cast spells this turn"): unsure, so it stops. */
+    @Test
+    public void anEffectWithStaticsStopsEvenWhenOn() throws Exception {
+        start(true);
+        cast(opps.get(0), "Silence");
+        assertEquals(askedWithStack(), List.of("Silence"));
+    }
+
     /** An ability of an opponent's permanent, written as the card scripts do, with no target. */
     private void opponentAbility(String script) {
         Card host = add("Howling Mine", opps.get(0), ZoneType.Battlefield);

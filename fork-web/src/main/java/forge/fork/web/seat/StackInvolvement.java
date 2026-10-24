@@ -13,6 +13,7 @@ import forge.game.player.Player;
 import forge.game.spellability.SpellAbility;
 import forge.game.spellability.SpellAbilityStackInstance;
 import forge.game.spellability.TargetChoices;
+import forge.game.trigger.WrappedAbility;
 import forge.game.zone.MagicStack;
 import forge.game.zone.ZoneType;
 
@@ -30,8 +31,10 @@ import forge.game.zone.ZoneType;
  * {@code TriggeredPlayer} the triggering one) and "Valid"-style parameters (tested against you and your cards in every
  * zone with {@code isValid}: a wrath reaches your creatures if you have any). The engine's convention for an absent
  * parameter is the activator ({@code SpellAbilityEffect}: {@code getParamOrDefault("Defined", "You")}).</li>
- * <li>An "All" effect (destroy all, damage all…) or a parameter that names players or controllers in a way not listed
- * here involves everyone.</li>
+ * <li>An "All" effect (destroy all, damage all…), an API whose reach is implicit ({@link #GLOBAL_APIS}), an
+ * {@code Effect} that creates statics, triggers or replacements (their reach is in an SVar), or a parameter that names
+ * players or controllers in a way not listed here involves everyone.</li>
+ * <li>A triggered ability is judged on the ability it wraps.</li>
  * </ul>
  * Game thread only (reads the engine).
  */
@@ -52,6 +55,15 @@ final class StackInvolvement {
 
     /** Parameter names that suggest a reach this class does not read: the item is taken as involved. */
     private static final Pattern REACH_HINT = Pattern.compile("(?i).*(player|opponent|each|owner|control|group|everyone|chooser).*");
+
+    /** Effect parameters whose reach lives in an SVar (a static, trigger or replacement effect the effect creates): not read, so involving. */
+    private static final Set<String> EFFECT_CARRIES = Set.of("StaticAbilities", "Triggers", "ReplacementEffects", "Abilities");
+
+    /** APIs whose reach is implicit (every player, the game, the turn structure) rather than a parameter: involving whatever their parameters say. */
+    private static final Set<ApiType> GLOBAL_APIS = EnumSet.of(ApiType.Balance, ApiType.Clash, ApiType.Vote, ApiType.VillainousChoice,
+            ApiType.MultiplePiles, ApiType.TwoPiles, ApiType.Fog, ApiType.Proliferate, ApiType.EndTurn, ApiType.EndCombatPhase,
+            ApiType.ReverseTurnOrder, ApiType.Planeswalk, ApiType.ChaosEnsues, ApiType.RunChaos, ApiType.RestartGame, ApiType.GameDrawn,
+            ApiType.DayTime, ApiType.TimeTravel, ApiType.Subgame, ApiType.Draft, ApiType.Phases);
 
     private StackInvolvement() { }
 
@@ -125,12 +137,17 @@ final class StackInvolvement {
     }
 
     /** What the ability applies to without targeting, as its parameters say. */
-    private static boolean reaches(Player you, SpellAbility sa) {
+    private static boolean reaches(Player you, SpellAbility stacked) {
+        // a triggered ability sits on the stack as a wrapper whose own parameter map is empty: read what it wraps
+        SpellAbility sa = stacked instanceof WrappedAbility w ? w.getWrappedAbility() : stacked;
         ApiType api = sa.getApi();
         if (api == null) {
             return false; // a permanent spell: its effects are triggers of their own, put on the stack when it enters
         }
-        if (api.name().endsWith("All")) {
+        if (api.name().endsWith("All") || GLOBAL_APIS.contains(api)) {
+            return true;
+        }
+        if (api == ApiType.Effect && EFFECT_CARRIES.stream().anyMatch(sa::hasParam)) {
             return true;
         }
         Card host = sa.getHostCard();

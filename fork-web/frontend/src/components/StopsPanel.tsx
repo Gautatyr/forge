@@ -156,7 +156,7 @@ function StopsEditor() {
       <header className={styles.head}>
         <div className={styles.titles}>
           <h2 id="stops-title">{t('stops.title')}</h2>
-          <p className={styles.help}>{t('stops.help')}</p>
+          <p className={styles.help}>{prefs.skipOpponentStack ? t('stops.helpSkip') : t('stops.help')}</p>
         </div>
         <button type="button" className={styles.done} onClick={() => setUi({ overlay: undefined })}>
           {t('stops.done')} <kbd>{t('key.esc')}</kbd>
