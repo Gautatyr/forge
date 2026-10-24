@@ -5,11 +5,11 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { WireObject } from '../wire/generated/wire';
-import { LiveSession } from '../adapter/session';
-import { toGameView } from '../adapter/toView';
+import { LiveSession } from './session';
+import { toGameView } from './toView';
 import { otherZoneGroup } from '../components/otherZoneGroup';
 import type { GameView } from '../model/types';
-import { cardClick } from './cardClick';
+import { cardClick } from '../state/cardClick';
 
 const YOU = { type: 'player', id: 0 } as const;
 const card = (id: number) => ({ type: 'card', id }) as const;
