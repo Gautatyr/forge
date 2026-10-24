@@ -358,3 +358,7 @@ Live (1920×1080, human seat, test decks vs an Islands-only AI): Goblin Guide (h
 | What | Code |
 |---|---|
 | Tiles that cannot fit even at 4 rem become a list (name, key hint, chosen state; piles: index, name, ↑ / move / ↓); hover shows the card preview. Decided once per prompt; mock scenarios `long-title`, `surveil`, `scry`, `tutor-groups` at 1280x720 / 1366x700, `look-many` for the reveal rule. | `tray/tileFit.ts` (`settleFit`, `tileKind`), `tray/CompactList.tsx`, `useCardHover.ts`, `ChoiceTray.module.css` (`.compactList`) |
+## Counter pills on narrow cards (issue #173)
+| What | Code |
+|---|---|
+| Counters on a battlefield permanent (any kind, any permanent type, every board that draws it) are one pill per kind over the lower left corner. A pill stays inside its card: the kind is cut with an ellipsis, the count never, and under 2.5 rem of card width only the count shows (kind in the hover text and the inspector). Before, a pill wider than a small support-row card ran under the next card and was hidden (28 px Sol Ring, "Charge 3" 36 px). Staggered rows (last-resort overlap) and compact seats (creature row only) still hide what they cover, by design. | `CounterPills.tsx`, `CounterPills.module.css`, `Card.tsx` |

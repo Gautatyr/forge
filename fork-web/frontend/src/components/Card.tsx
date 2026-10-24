@@ -5,6 +5,7 @@ import { useCardClick } from '../state/cardClick';
 import type { CardStatus } from '../state/cardStatus';
 import { useMatch } from '../state/MatchContext';
 import { useOverlayKey } from '../state/overlayKey';
+import { CounterPills } from './CounterPills';
 import { Icon, type IconName } from './Icon';
 import { KeywordIcons, KW_AVOID_ATTR, type CardActions } from './KeywordIcons';
 import { useCardHover } from './useCardHover';
@@ -225,15 +226,7 @@ export function Card({ card: c, context, count = 1, groupIds, className, style, 
               </span>
             ) : null}
 
-            {onBoard && c.counters.length > 0 ? (
-              <span className={styles.counters} data-arrow-occluder {...avoid}>
-                {c.counters.map((k) => (
-                  <span key={k.kind} className={styles.counter} title={t('card.counterTitle', { count: k.count, kind: k.kind })}>
-                    {k.kind === '+1/+1' ? `+${k.count}` : `${k.kind} ${k.count}`}
-                  </span>
-                ))}
-              </span>
-            ) : null}
+            {onBoard && c.counters.length > 0 ? <CounterPills counters={c.counters} attrs={avoid} /> : null}
 
             {onBoard && c.damage > 0 ? (
               <span className={styles.damage} title={t('card.damage', { count: c.damage })} data-arrow-occluder {...avoid}>
