@@ -566,6 +566,7 @@ export const fr: Record<MsgKey, Msg> = {
   'tray.nothingMatches': 'Rien ne correspond au filtre.',
   'tray.groupChosen': '{chosen} sur {total} choisies',
   'tray.groupCards': '{count} cartes',
+  'tray.groupFraction': '{chosen}/{total}',
   'tray.chosenCount': '{count} choisie(s)',
   'tray.groupAria': '{label}, {total} cartes, {chosen} choisie(s) : en choisir une de plus',
   'tray.fewer': 'En choisir une de moins : {label}',

@@ -564,6 +564,7 @@ export const en = {
   'tray.nothingMatches': 'Nothing matches the filter.',
   'tray.groupChosen': '{chosen} of {total} chosen',
   'tray.groupCards': '{count} cards',
+  'tray.groupFraction': '{chosen}/{total}',
   'tray.chosenCount': '{count} chosen',
   'tray.groupAria': '{label}, {total} cards, {chosen} chosen: choose one more',
   'tray.fewer': 'Choose one fewer {label}',

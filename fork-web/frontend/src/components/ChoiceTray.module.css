@@ -516,4 +516,21 @@
 .listRow .optionDetail {
   width: auto;
   margin-left: auto;
+  white-space: nowrap;
+}
+
+/* A row never changes size when you pick: the 2 px chosen ring is drawn inside the 1 px border, and a group's minus
+   keeps its place (hidden until a pick). */
+.listRow.chosen {
+  border-width: 1px;
+  border-color: var(--c-selected);
+  box-shadow: inset 0 0 0 1px var(--c-selected);
+}
+
+.clickRow {
+  cursor: pointer;
+}
+
+.minusIdle {
+  visibility: hidden;
 }

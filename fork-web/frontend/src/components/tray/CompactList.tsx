@@ -15,7 +15,7 @@ import { t } from '../../i18n';
  */
 
 /** A row standing for a card: hovering or focusing it shows the card's preview; the right click inspects it. */
-function CardRow({ cardId, className, children }: { cardId?: string; className?: string; children: ReactNode }) {
+function CardRow({ cardId, className, onRowClick, children }: { cardId?: string; className?: string; onRowClick?: () => void; children: ReactNode }) {
   const hover = useCardHover(cardId ?? '');
   const { setUi } = useMatch();
   return (
@@ -24,6 +24,14 @@ function CardRow({ cardId, className, children }: { cardId?: string; className?:
       data-list-row=""
       data-card-id={cardId}
       {...(cardId ? hover : {})}
+      // A click on the row itself (not on one of its buttons) acts as a click on the card does on a tile.
+      onClick={
+        onRowClick
+          ? (e) => {
+              if (!(e.target as HTMLElement).closest('button')) onRowClick();
+            }
+          : undefined
+      }
       onContextMenu={
         cardId
           ? (e) => {
@@ -56,7 +64,8 @@ export function PickList({ prompt, draft, setDraft, groups }: BodyProps<ChooseNP
         const chosen = chosenIn(draft, members);
         const on = chosen > 0;
         const click = () => setDraft(group ? stepGroup(prompt, draft, members) : toggleOption(prompt, draft, o.id));
-        const state = group ? (on ? t('tray.groupChosen', { chosen, total: members.length }) : t('tray.groupCards', { count: members.length })) : o.detail;
+        // A group's count is the same short "chosen/total" in every state, so a row never changes size when you pick.
+        const state = group ? t('tray.groupFraction', { chosen, total: members.length }) : o.detail;
         return (
           <CardRow key={o.id} cardId={o.cardId} className={styles.listItem}>
             <button
@@ -70,8 +79,14 @@ export function PickList({ prompt, draft, setDraft, groups }: BodyProps<ChooseNP
               <span className={styles.optionLabel}>{group ? `${o.label} ×${members.length}` : o.label}</span>
               {state ? <span className={styles.optionDetail}>{state}</span> : null}
             </button>
-            {group && on ? (
-              <button type="button" className={`${styles.option} ${styles.minus}`} aria-label={t('tray.fewer', { label: o.label })} onClick={() => setDraft(dropFromGroup(draft, members))}>
+            {group ? (
+              // Always laid out, hidden until a pick: the row keeps its size (visibility also leaves the tab order and the a11y tree).
+              <button
+                type="button"
+                className={`${styles.option} ${styles.minus} ${on ? '' : styles.minusIdle}`}
+                aria-label={t('tray.fewer', { label: o.label })}
+                onClick={() => setDraft(dropFromGroup(draft, members))}
+              >
                 −
               </button>
             ) : null}
@@ -117,7 +132,7 @@ export function PileLists({ prompt, draft, setDraft }: BodyProps<OrderPrompt>) {
                 const o = items.get(id)!;
                 const move = () => setDraft(moveBetween(draft, id, l.id, other.id));
                 return (
-                  <CardRow key={id} cardId={o.cardId} className={`${styles.row} ${styles.listItem}`}>
+                  <CardRow key={id} cardId={o.cardId} className={`${styles.row} ${styles.listItem} ${styles.clickRow}`} onRowClick={move}>
                     <span className={styles.rowIndex}>{i + 1}</span>
                     <span className={styles.rowText}>
                       <span className={styles.optionLabel}>{o.label}</span>
