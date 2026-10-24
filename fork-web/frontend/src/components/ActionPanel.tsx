@@ -5,6 +5,7 @@ import { currentAttackAim } from '../state/focus';
 import { watching } from '../state/gameEnd';
 import { useMatch } from '../state/MatchContext';
 import { canCancel, cancelLabel, primaryAction, promptText } from '../state/primaryAction';
+import { noteOver } from '../state/engineNote';
 import { pressPrimary, refusalNote, refusalNoteStale } from '../state/promptKeys';
 import { Icon } from './Icon';
 import { FloatingMana, PaymentCost } from './Payment';
@@ -28,26 +29,26 @@ export function ActionPanel() {
   const paying = d.kind === 'payMana' ? d : undefined;
   // A refusal note ends with the refusal: the second blocker made the block valid.
   const stale = refusalNoteStale(ui.promptNote, action.refusal);
-  const note = stale ? undefined : ui.promptNote;
+  // A refused attack declaration or pick stays until the player acts (send clears it) or the declaration or pick ends.
+  const over = noteOver(ui.promptNote, d);
+  const note = stale || over ? undefined : ui.promptNote;
   // Out of the game or game over: the block reads "Watching" / "Game over" and offers nothing (§2.6).
   const ended = game.result !== undefined || watching(game);
   const cancel = canCancel(game, ui);
   // A Cancel that is a game choice says what it does ("Decline: You lose 3 life", issue #81).
   const cancelText = cancelLabel(game);
 
-  // A refused attack declaration stays until the player acts (send clears it) or the declaration ends.
-  const attackOver = note?.sticky && d.kind !== 'declareAttackers';
   useEffect(() => {
     const current = ui.promptNote;
     if (!current) return;
-    if (stale || attackOver) {
+    if (stale || over) {
       setUi((u) => (u.promptNote?.id === current.id ? { ...u, promptNote: undefined } : u));
       return;
     }
     if (current.sticky) return;
     const timer = window.setTimeout(() => setUi((u) => (u.promptNote?.id === current.id ? { ...u, promptNote: undefined } : u)), NOTE_MS);
     return () => window.clearTimeout(timer);
-  }, [ui.promptNote, stale, attackOver, setUi]);
+  }, [ui.promptNote, stale, over, setUi]);
 
   return (
     <section className={styles.panel} aria-label={t('action.decision')}>
