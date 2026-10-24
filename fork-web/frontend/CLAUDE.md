@@ -6,7 +6,7 @@ design-token file. Data comes from mock scenarios, a recorded game, or the live 
 ## Layout
 - `src/model/` — the UI view-model. Components depend only on these types.
 - `src/mock/` — mock scenarios (switch with the "Mock" tag or the `` ` `` key; or
-  `?scenario=<id>&layout=<columns|table|focus>` in the URL).
+  `?scenario=<id>&layout=<columns|table|focus>` in the URL). Not offered in a live game (`mockScenariosAllowed`).
 - `src/components/`, `src/state/`, `src/styles/` — UI, UI state, tokens and global styles.
 - `src/wire/generated/` — wire types generated from the engine (issue #9). Only
   `src/wire/` and `src/adapter/` may import them; ESLint blocks imports elsewhere.
@@ -31,6 +31,8 @@ design-token file. Data comes from mock scenarios, a recorded game, or the live 
 - Card images (`src/adapter/images.ts`): live, the bridge's `/img?key=<image key>&token=…` for every card
   and token (Vite proxies `/img`), Scryfall by name as the fallback (`CardImage.fallback`); replay and mock,
   Scryfall (`cards/collection` in batches).
+  A card with no image source (edition `???`: the Alchemy "A-" cards; or every source failed) is drawn as `CardText`, the
+  engine's own data, in the hover preview and the inspector (`CardArt`).
 
 ## Dev loop and verification
 - `make web-dev` (per-worktree port), `make web-front-check` (install, type-check, lint,

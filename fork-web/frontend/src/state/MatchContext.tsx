@@ -1,5 +1,5 @@
 import { createContext, use, useCallback, useMemo, useReducer, useState, type ReactNode } from 'react';
-import { mockUrl, sourceFromLocation, type SourceConfig } from '../adapter/source';
+import { mockScenariosAllowed, mockUrl, sourceFromLocation, type SourceConfig } from '../adapter/source';
 import { useLive } from '../adapter/useLive';
 import type { Intent } from '../model/intents';
 import type { CardId, GameView, PlayerId } from '../model/types';
@@ -23,6 +23,8 @@ interface MatchApi {
   send: (intent: Intent) => void;
   setUi: (patch: Partial<UiState> | ((u: UiState) => UiState)) => void;
   setPrefs: (patch: Partial<Prefs>) => void;
+  /** Mock scenarios can be picked (never in a live game: it would replace the game and drop the seat token). */
+  mockAllowed: boolean;
   loadScenario: (id: string) => void;
   /** Click on a card: what it means depends on the current decision. */
   activateCard: (id: CardId) => void;
@@ -111,12 +113,14 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     if (focus) setUiState((u) => ({ ...u, focusOpponentId: focus }));
   }, [liveSend, setPrefs, prefs.autoYield, autoYieldTo]);
 
+  const mockAllowed = mockScenariosAllowed(source.kind);
   const loadScenario = useCallback((id: string) => {
+    if (!mockAllowed) return;
     setSource({ kind: 'mock' });
     dispatch({ type: 'load', id, autoPay: prefs.autoPay });
     setUiState({ ...INITIAL_UI });
     history.replaceState(null, '', mockUrl(location.href, id));
-  }, [prefs.autoPay]);
+  }, [mockAllowed, prefs.autoPay]);
 
   const game = live?.game ?? h.game;
   const scenarioId = source.kind === 'mock' ? h.scenarioId : source.kind;
@@ -199,11 +203,12 @@ export function MatchProvider({ children }: { children: ReactNode }) {
       send,
       setUi,
       setPrefs,
+      mockAllowed,
       loadScenario,
       activateCard,
       activatePlayer,
     }),
-    [game, ui, prefs, scenarioId, live, h.past.length, send, setUi, setPrefs, loadScenario, activateCard, activatePlayer],
+    [game, ui, prefs, scenarioId, live, h.past.length, send, setUi, setPrefs, mockAllowed, loadScenario, activateCard, activatePlayer],
   );
 
   return <Ctx value={api}>{children}</Ctx>;

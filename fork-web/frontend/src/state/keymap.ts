@@ -7,9 +7,9 @@ export interface Shortcut {
   group: 'Play' | 'Look' | 'Screen';
 }
 
-/** Built per call: the words follow the current language. */
-export function shortcuts(): Shortcut[] {
-  return [
+/** Built per call: the words follow the current language. `withMock`: the mock-scenario key works on this page (not in a live game). */
+export function shortcuts(withMock = true): Shortcut[] {
+  const all: Shortcut[] = [
     { keys: t('key.space'), action: t('sc.space'), group: 'Play' },
     { keys: t('key.esc'), action: t('sc.esc'), group: 'Play' },
     { keys: t('sc.shiftEnter'), action: t('sc.passTurn'), group: 'Play' },
@@ -30,4 +30,5 @@ export function shortcuts(): Shortcut[] {
     { keys: '?', action: t('sc.help'), group: 'Screen' },
     { keys: '`', action: t('sc.mock'), group: 'Screen' },
   ];
+  return withMock ? all : all.filter((s) => s.keys !== '`');
 }

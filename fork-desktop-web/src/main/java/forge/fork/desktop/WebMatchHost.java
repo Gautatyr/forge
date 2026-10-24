@@ -1,5 +1,6 @@
 package forge.fork.desktop;
 
+import java.net.BindException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -32,14 +33,34 @@ public final class WebMatchHost {
     static final int SEATS = 8;
 
     /**
-     * @param port    0 picks a free port
-     * @param webRoot the built frontend ({@code fork-web/frontend/dist})
-     * @param images  card images for {@code /img}, created when the server starts (after the card database)
+     * The launcher's default port: a fixed one keeps the page's browser origin, and so its saved settings
+     * ({@code localStorage}), the same from one launch to the next (issue #153).
      */
-    public record Options(int port, Path webRoot, WebSeats.Timeouts timeouts, Supplier<ImageSource> images) {
+    public static final int DEFAULT_PORT = 47321;
+
+    /**
+     * @param port               0 picks a free port
+     * @param webRoot            the built frontend ({@code fork-web/frontend/dist})
+     * @param images             card images for {@code /img}, created when the server starts (after the card database)
+     * @param fallbackToFreePort when {@code port} is taken, start on a free port instead of failing (a second
+     *                           Forge instance); an explicitly requested port is not a fallback case
+     */
+    public record Options(int port, Path webRoot, WebSeats.Timeouts timeouts, Supplier<ImageSource> images,
+                          boolean fallbackToFreePort) {
+        public Options(int port, Path webRoot, WebSeats.Timeouts timeouts, Supplier<ImageSource> images) {
+            this(port, webRoot, timeouts, images, false);
+        }
+
         /** Images from Forge's card image cache, downloading a missing one as the desktop does. */
         public Options(int port, Path webRoot, WebSeats.Timeouts timeouts) {
             this(port, webRoot, timeouts, ForgeImages::create);
+        }
+
+        /** The launcher's options: {@code --port} when given, else {@link #DEFAULT_PORT} with a free-port fallback. */
+        public static Options launcher(String portArg, Path webRoot, WebSeats.Timeouts timeouts) {
+            return portArg == null
+                    ? new Options(DEFAULT_PORT, webRoot, timeouts, ForgeImages::create, true)
+                    : new Options(Integer.parseInt(portArg), webRoot, timeouts);
         }
     }
 
@@ -78,18 +99,41 @@ public final class WebMatchHost {
             System.err.println("[web] no built frontend in " + options.webRoot().toAbsolutePath()
                     + " (run: make play, or pnpm build in fork-web/frontend)");
         }
-        WebServer s = new WebServer(options.port(), options.webRoot(), StreamHub.of(stream), tokens, options.images().get());
+        try {
+            server = bind(options.port());
+        } catch (RuntimeException e) {
+            if (!options.fallbackToFreePort() || options.port() == 0 || !isPortTaken(e)) {
+                throw e;
+            }
+            System.out.println("[web] port " + options.port() + " is taken (another Forge?): using a free port;"
+                    + " the page's saved settings are per port, so they start from the defaults on this one");
+            server = bind(0);
+        }
+    }
+
+    /** A started server on {@code port}; its event loops are stopped again when the bind fails. */
+    private WebServer bind(int port) {
+        WebServer s = new WebServer(port, options.webRoot(), StreamHub.of(stream), tokens, options.images().get());
         try {
             s.start();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             s.stop();
             throw new IllegalStateException("web server start interrupted", e);
-        } catch (RuntimeException e) {
+        } catch (Exception e) { // netty rethrows the bind's checked BindException unchecked-style
             s.stop();
-            throw e;
+            throw e instanceof RuntimeException re ? re : new IllegalStateException(e);
         }
-        server = s;
+        return s;
+    }
+
+    private static boolean isPortTaken(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof BindException) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

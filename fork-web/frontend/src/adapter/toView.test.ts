@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { CallMessage, WireObject } from '../wire/generated/wire';
 import { autoAnswer, intentToFrames, stopFrames } from './commands';
 import { LiveSession } from './session';
@@ -665,6 +665,14 @@ describe('helpers', () => {
       'https://api.scryfall.com/cards/named?exact=Lightning%20Bolt&set=m10&format=image&version=normal',
     );
     expect(imageFromKey('t:hidden')).toBeUndefined();
+  });
+
+  it('asks no source for a card of no edition (Alchemy "A-" cards): neither the bridge nor Scryfall has an image', () => {
+    const lookup = vi.fn(() => ({ normal: 'n', large: 'l' }));
+    expect(imageFromKey('c:A-Faceless Haven|???|1', false, lookup, 'A-Faceless Haven')).toBeUndefined();
+    expect(imageFromKey('c:A-Faceless Haven|???|1$alt', true, lookup, 'A-Faceless Haven')).toBeUndefined();
+    expect(lookup).not.toHaveBeenCalled();
+    expect(imageFromKey('c:Faceless Haven|MH1|1', false, lookup, 'Faceless Haven')).toBeDefined();
   });
 
   it('gives the image lookup every key, tokens by their name, special faces without one', () => {

@@ -497,6 +497,7 @@ export const fr: Record<MsgKey, Msg> = {
   'card.needsTitle': 'Demande {count} bloqueurs, ou aucun',
   'card.needs': 'Demande {count}',
   'card.counterTitle': '{count} marqueur(s) {kind}',
+  'card.loyalty': 'Loyauté {count}',
   'card.damage': '{count} dégâts marqués',
 
   'hp.tapped': 'Engagé',

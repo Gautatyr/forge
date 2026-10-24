@@ -11,7 +11,8 @@ Depends on `forge-gui-desktop` and `fork-web`; nothing depends on it. Package `f
   A web match quits after its game (end-game hook) and hands back to the lobby.
   A match started while a web match runs ends that one first (`WebHostedMatch.supersede`); the ended match
   does not hand back to the lobby.
-- `WebMatchHost`: one in-process `WebServer` per launch, serving `fork-web/frontend/dist` and card images
+- `WebMatchHost`: one in-process `WebServer` per launch on port 47321 (`DEFAULT_PORT`; a free port when taken; `--port` exact,
+  `0` = free: `Options.launcher`; a fixed origin keeps the page's `localStorage` across launches, decision 2026-10-24), serving `fork-web/frontend/dist` and card images
   (`/img`, Forge's image cache via `ForgeImages`); per-launch tokens (spectator + seats 0–7); opens the seat page
   (`/?live=1&seat=N#token=…`, the frontend's live source) when no page is connected.
 - The web seat turns on actionable highlights and the autotap preview for itself (`WebGuiGame`, `YieldController`
@@ -31,6 +32,7 @@ Depends on `forge-gui-desktop` and `fork-web`; nothing depends on it. Package `f
 - `make play` (ARGS="--no-browser" to print the URL): builds the frontend and modules, runs `run.sh`. Owner's guide: `docs/fork/PLAY.md`.
 - Live play without Swing: `MAIN=forge.fork.desktop.LobbyRun fork-desktop-web/run.sh --wait-client 900 --players 4 [--deck0 file.dck]`,
   then open the printed seat 0 URL in a browser.
+  `--games N --game-gap S` plays N matches in a row on the same server and page (check that an open page switches to the next game).
 - End-to-end: `fork-desktop-web/check/lobby-run.sh <outdir> <label> --players 4 [--deck0 file.dck]`
   (scripted seat 0 via `human-seat.mjs`, `VIEWERS=spectator,1,2,3` for `ws-check.mjs`; exit 0 = passed).
 - Never run `Main` against `~/.forge` from tooling: set `JAVA_TOOL_OPTIONS=-Duser.home=<scratch dir>`.

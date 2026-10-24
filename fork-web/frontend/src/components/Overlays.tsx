@@ -150,10 +150,10 @@ function ScaleSlider({ value, onCommit }: { value: number; onCommit: (v: number)
 }
 
 export function ShortcutsOverlay() {
-  const { ui, setUi } = useMatch();
+  const { ui, setUi, mockAllowed } = useMatch();
   if (ui.overlay !== 'shortcuts') return null;
   const groups = ['Play', 'Look', 'Screen'] as const;
-  const all = shortcuts();
+  const all = shortcuts(mockAllowed);
   return (
     <div className={styles.scrim} onClick={() => setUi({ overlay: undefined })}>
       <div className={styles.sheet} role="dialog" aria-label={t('sc.title')} onClick={(e) => e.stopPropagation()}>
@@ -252,7 +252,8 @@ export function LogDrawer() {
 }
 
 export function DevPanel() {
-  const { ui, setUi, scenarioId, loadScenario } = useMatch();
+  const { ui, setUi, scenarioId, mockAllowed, loadScenario } = useMatch();
+  if (!mockAllowed) return null;
   return (
     <>
       <button
