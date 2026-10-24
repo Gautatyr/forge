@@ -126,6 +126,8 @@ export class LiveSession {
   attackMax?: number;
   /** yields: the abilities you auto-yield ("Always yield to this"), by the engine's key; a new game starts empty. */
   yields: string[] = [];
+  /** How many times the engine ended your yield marker ("To my turn": an interrupt, or the target reached); never reset. */
+  markerEnds = 0;
   /** showRevealedCards: cards the engine shows you until the input ends (e.g. an opponent's hand). */
   revealed: number[] = [];
   /** Last card this client clicked (selectCard): names the spell being paid for when the engine's ref is unknown. */
@@ -442,6 +444,10 @@ export class LiveSession {
       }
       case 'finishGame':
         this.finished = true;
+        return;
+      case 'applyYieldUpdate':
+        // The engine's own ClearMarker (YieldController: an interrupt, or the marker's phase reached); your own cancel never comes here.
+        if ((a[0] as { kind?: unknown } | undefined)?.kind === 'ClearMarker') this.markerEnds += 1;
         return;
       default:
         return;

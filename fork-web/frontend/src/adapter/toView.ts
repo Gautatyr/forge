@@ -622,6 +622,8 @@ export interface LiveLocal {
   passingUntilYourTurn: boolean;
   /** Turn number when "To my turn" was pressed. */
   passFromTurn?: number;
+  /** `LiveSession.markerEnds` when it was pressed. */
+  passMarkerEnds?: number;
   /** The seat's settings, kept by the client and applied by the bridge (issue #125); off by default. */
   autoPass?: boolean;
   autoYield?: boolean;
@@ -638,6 +640,11 @@ export const NO_LOCAL: LiveLocal = { passingUntilYourTurn: false };
 /** "To my turn" (pressed on turn `fromTurn`) is over once a later turn of yours has started. */
 export function passUntilYourTurnDone(g: Pick<GameView, 'turn' | 'youId' | 'starting'>, fromTurn: number): boolean {
   return !g.starting && g.turn.activePlayerId === g.youId && g.turn.number > fromTurn;
+}
+
+/** "To my turn" has ended: your next turn came, or the engine ended the marker (`markerEnds` grew) after an interrupt. */
+export function passEnded(g: Pick<GameView, 'turn' | 'youId' | 'starting'>, local: LiveLocal, markerEnds: number): boolean {
+  return passUntilYourTurnDone(g, local.passFromTurn ?? -1) || markerEnds > (local.passMarkerEnds ?? 0);
 }
 
 export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup, local: LiveLocal = NO_LOCAL, autoPay = false): GameView {

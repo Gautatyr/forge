@@ -11,6 +11,7 @@ import {
   setOpponentStop,
   setSharedOpponentStop,
   setYourStop,
+  stopsForNewGame,
   sharedOpponentCell,
   stepHint,
 } from './stops';
@@ -49,6 +50,16 @@ describe('stops are kept in prefs', () => {
   });
   it('keeps the rest of the prefs', () => {
     expect(parsePrefs(JSON.stringify({ layout: 'table' })).layout).toBe('table');
+  });
+});
+
+describe('a new game (issue #170)', () => {
+  it('drops the per-opponent rows, keeps the shared rows and the switch', () => {
+    const s: StopPrefs = { yourTurn: ['upkeep'], opponentsTurn: ['end'], perOpponent: { '1': ['draw'] }, involvedOnly: true };
+    expect(stopsForNewGame(s)).toEqual({ yourTurn: ['upkeep'], opponentsTurn: ['end'], perOpponent: {}, involvedOnly: true });
+  });
+  it('returns the same object when there is nothing to drop', () => {
+    expect(stopsForNewGame(DEFAULT_STOPS)).toBe(DEFAULT_STOPS);
   });
 });
 
