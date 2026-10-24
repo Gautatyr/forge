@@ -7,6 +7,7 @@ import { CardArt } from './CardArt';
 import { linkNotes } from './cardLinks';
 import { Icon } from './Icon';
 import { overBoardWidth, placePreview, type Box } from './previewPlacement';
+import { hoverLitTargets } from './previewKeep';
 import { PREVIEW_BESIDE_ATTR, previewSpot } from './previewSpot';
 import styles from './HoverPreview.module.css';
 import { t } from '../i18n';
@@ -33,7 +34,19 @@ const boxOf = (el: Element): Box => {
  * the pointer moves). It takes the readable size of the 1920 in-rail preview and sits where it covers neither the
  * hovered card nor a card or tray of the open prompt (previewPlacement.ts). Placed before paint, from the DOM.
  */
-function OverBoard({ cardId, beside, keepIds, children }: { cardId: string; beside: boolean; keepIds: string[]; children: ReactNode }) {
+function OverBoard({
+  cardId,
+  beside,
+  keepIds,
+  keepPlayerIds,
+  children,
+}: {
+  cardId: string;
+  beside: boolean;
+  keepIds: string[];
+  keepPlayerIds: string[];
+  children: ReactNode;
+}) {
   const anchor = useRef<HTMLSpanElement>(null);
   const el = useRef<HTMLDivElement>(null);
   // Every render: the board reflows after paint, and the hovered card or the prompt may have changed.
@@ -56,7 +69,8 @@ function OverBoard({ cardId, beside, keepIds, children }: { cardId: string; besi
     const deepest = panel.filter((e) => e.matches(':hover')).pop() ?? panel.find((e) => e.matches(':focus-visible'));
     const inPanel = deepest && (deepest.closest('[data-card-id], button') ?? deepest);
     const hovered = inPanel ?? hoveredEls.find((e) => e.matches(':hover') || e.contains(document.activeElement)) ?? hoveredEls[0];
-    const keep = [...keepIds.flatMap(cards), ...document.querySelectorAll('[data-dock]')].map(boxOf);
+    const plates = (id: string) => [...document.querySelectorAll<HTMLElement>(`[data-player-id="${CSS.escape(id)}"]`)];
+    const keep = [...keepIds.flatMap(cards), ...keepPlayerIds.flatMap(plates), ...document.querySelectorAll('[data-dock]')].map(boxOf);
     // offset sizes ignore the `appear` animation's scale, still applied on first mount.
     const { offsetWidth: width, offsetHeight: height } = box;
     const at = placePreview({ area, size: { width, height }, hovered: hovered && boxOf(hovered), keep });
@@ -120,10 +134,12 @@ export function HoverPreview({ columnRem }: { columnRem: number }) {
     </>
   );
   if (spot === 'overBoard') {
-    // What the open prompt is about: the cards you picked or are targeting for (the source card of a spell).
-    const keepIds = Object.keys(game.cards).filter((id) => cardStatus(game, ui, id).selected);
+    // What the open prompt is about: the cards you picked or are targeting for (the source card of a spell); and
+    // what the hovered stack item targets (lit on the board while you hover it).
+    const lit = hoverLitTargets(game, ui);
+    const keepIds = [...new Set([...Object.keys(game.cards).filter((id) => cardStatus(game, ui, id).selected), ...lit.cards])];
     return (
-      <OverBoard cardId={c.id} beside={!!ui.hover.beside} keepIds={keepIds}>
+      <OverBoard cardId={c.id} beside={!!ui.hover.beside} keepIds={keepIds} keepPlayerIds={lit.players}>
         {body}
       </OverBoard>
     );

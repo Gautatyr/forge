@@ -167,6 +167,11 @@ final class SeatSession implements IRemote {
         if (!closed) {
             match.bindGame(this, gv);
         }
+        if (controller instanceof PlayerControllerHuman pch) {
+            // a toggle sent after bindController but before gameView was set was dropped by yieldSettingsChanged: the
+            // game thread has not started yet, so the seat's current settings go straight to the controller
+            SeatYields.apply(pch.getYieldController(), match.autoPass(seat), match.autoYield(seat));
+        }
         Game game = gv == null ? null : gv.getGame();
         if (game != null && game != safePointsOf) {
             safePointsOf = game;
@@ -859,6 +864,11 @@ final class SeatSession implements IRemote {
                 }
                 YieldUpdate u = yieldUpdate(game, update);
                 if (u == null) {
+                    if (vanishedYieldItem(update)) {
+                        // "Always yield to this" on an item that resolved meanwhile: nothing to do, nothing for the player to read
+                        System.out.println("[web] seat " + seat + ": AutoYieldTo for a stack item that is gone: ignored");
+                        return null;
+                    }
                     return "unsupported yield update";
                 }
                 c.sendYieldUpdate(u);
@@ -963,6 +973,24 @@ final class SeatSession implements IRemote {
             default:
                 return null;
         }
+    }
+
+    /** A well-formed {@code AutoYieldTo} whose stack item is no longer on the stack (it resolved, or was countered, since the click). */
+    private boolean vanishedYieldItem(JsonElement e) {
+        if (e == null || !e.isJsonObject() || gameView == null || gameView.getStack() == null) {
+            return false;
+        }
+        JsonObject o = e.getAsJsonObject();
+        Integer id = integer(o, "stackItem");
+        if (!"AutoYieldTo".equals(str(o, "kind")) || id == null || bool(o, "active") == null) {
+            return false;
+        }
+        for (StackItemView si : gameView.getStack()) {
+            if (si.getId() == id) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static String str(JsonObject o, String k) {

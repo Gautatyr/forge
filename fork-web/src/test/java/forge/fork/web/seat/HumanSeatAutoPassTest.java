@@ -61,6 +61,8 @@ public class HumanSeatAutoPassTest {
     private HumanSeatInvolvedStopsTest.Seat seat;
     /** The {@code autoYieldTo} lists the seat was sent, in order. */
     private final List<List<String>> yields = new ArrayList<>();
+    /** The {@code actionRejected} reasons the seat was sent. */
+    private final List<String> rejected = new ArrayList<>();
 
     @BeforeClass
     public void boot() {
@@ -76,9 +78,15 @@ public class HumanSeatAutoPassTest {
     }
 
     private void start() {
+        start(null);
+    }
+
+    /** {@code betweenBindAndOpen} runs after the controller is bound and before the seat's view opens (a new game's start). */
+    private void start(Runnable betweenBindAndOpen) {
         SilentDefaults.reset();
         SilentDefaults.setStrict(true);
         yields.clear();
+        rejected.clear();
         gameThread = Executors.newSingleThreadExecutor(r -> new Thread(r, "Game-autopass"));
         List<RegisteredPlayer> rps = new ArrayList<>();
         rps.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerHuman("You")));
@@ -96,6 +104,9 @@ public class HumanSeatAutoPassTest {
         gui.setGameView(null);
         gui.setGameView(game.getView());
         gui.setOriginalGameController(me.getView(), pch);
+        if (betweenBindAndOpen != null) {
+            betweenBindAndOpen.run();
+        }
         GameEventForwarder fwd = new GameEventForwarder(gui);
         gui.setForwarder(fwd);
         game.subscribeToEvents(fwd);
@@ -143,6 +154,12 @@ public class HumanSeatAutoPassTest {
         }
     }
 
+    private void noteRejection(JsonObject m) {
+        if (m != null && "actionRejected".equals(m.get("t").getAsString())) {
+            rejected.add(m.get("reason").getAsString());
+        }
+    }
+
     /** What the seat does at an input before the main button is pressed. */
     private interface OnInput {
         void at(Input in);
@@ -175,6 +192,7 @@ public class HumanSeatAutoPassTest {
                 m.getAsJsonArray("autoYieldTo").forEach(e -> keys.add(e.getAsString()));
                 yields.add(keys);
             }
+            noteRejection(m);
             Input in = pch.getInputQueue().getInput();
             if (in == null || in == acted || pch.getInputProxy().getInput() != in) {
                 continue;
@@ -193,6 +211,7 @@ public class HumanSeatAutoPassTest {
         loop.get(1, TimeUnit.SECONDS);
         // the last messages may still be in the inbox
         for (JsonObject m = seat.inbox.poll(); m != null; m = seat.inbox.poll()) {
+            noteRejection(m);
             if ("yields".equals(m.get("t").getAsString())) {
                 List<String> keys = new ArrayList<>();
                 m.getAsJsonArray("autoYieldTo").forEach(e -> keys.add(e.getAsString()));
@@ -307,5 +326,39 @@ public class HumanSeatAutoPassTest {
         assertTrue(pch.getYieldController().getBoolPref(forge.localinstance.properties.ForgePreferences.FPref.YIELD_AUTO_PASS_NO_ACTIONS),
                 "auto-pass kept");
         assertFalse(pch.getYieldController().getDisableAutoYields(), "auto-yield kept");
+    }
+
+    private static final String BOGUS_ITEM = "\"update\":{\"kind\":\"AutoYieldTo\",\"stackItem\":987654,\"active\":true}";
+
+    /** The item was gone when the deferred request ran: not an error for the player. */
+    @Test
+    public void alwaysYieldToAStackItemThatIsGoneIsIgnoredQuietly() throws Exception {
+        start();
+        action("sendYieldUpdate", BOGUS_ITEM);
+        playTurn(me, PhaseType.MAIN1, null);
+        assertEquals(rejected, List.of(), "nothing shown to the player");
+    }
+
+    @Test
+    public void aMalformedYieldUpdateIsStillRefused() throws Exception {
+        start();
+        action("sendYieldUpdate", "\"update\":{\"kind\":\"AutoYieldTo\",\"stackItem\":987654}");
+        action("sendYieldUpdate", "\"update\":{\"kind\":\"NoSuchKind\"}");
+        playTurn(me, PhaseType.MAIN1, null);
+        assertEquals(rejected, List.of("unsupported yield update", "unsupported yield update"));
+    }
+
+    /** The new game's controller is bound, the page toggles, then the view opens (SeatSession.openView). */
+    @Test
+    public void aToggleBetweenTheControllerBindingAndTheViewOpeningStillApplies() throws Exception {
+        start(() -> {
+            send("{\"t\":\"setAutoPass\",\"on\":true}");
+            send("{\"t\":\"setAutoYield\",\"on\":true}");
+        });
+        assertTrue(pch.getYieldController().getBoolPref(forge.localinstance.properties.ForgePreferences.FPref.YIELD_AUTO_PASS_NO_ACTIONS),
+                "auto-pass applied to the game's controller");
+        assertFalse(pch.getYieldController().getDisableAutoYields(), "auto-yield applied");
+        List<String> asked = playTurn(me, PhaseType.MAIN1, null);
+        assertEquals(asked, List.of(), "passed by the bridge, as if set before the game");
     }
 }
