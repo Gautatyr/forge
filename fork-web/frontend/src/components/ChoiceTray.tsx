@@ -8,7 +8,7 @@ import { Card } from './Card';
 import { Icon, SeatGlyph } from './Icon';
 import { AbilityMenu } from './tray/AbilityMenu';
 import { TrayBody } from './tray/TrayBody';
-import { tileKind, useFitTiles } from './tray/tileFit';
+import { pileShape, tileKind, useFitTiles } from './tray/tileFit';
 import {
   counterText,
   FILTER_FROM,
@@ -195,7 +195,7 @@ function PromptView({ prompt }: { prompt: ChoicePrompt }) {
   const digitOptions = mode === 'inPlace' ? inPlaceOptions(game, prompt) : visible;
   // Card tiles shrink until the whole body is in view (the prompt's text above them may be long); when even the smallest
   // size does not fit, the tray shows the compact list instead (#140).
-  const compact = useFitTiles(bodyRef, [prompt, mode, visible.length], mode === 'tray' ? tileKind(prompt) : undefined);
+  const compact = useFitTiles(bodyRef, [prompt, mode, visible.length, pileShape(prompt, draft)], mode === 'tray' ? tileKind(prompt) : undefined);
   const groupMembers = new Map(groups.map((g) => [g.option.id, g.members]));
 
   // Store the starting draft so the main button (primaryAction) answers the
