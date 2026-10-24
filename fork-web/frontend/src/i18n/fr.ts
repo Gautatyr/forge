@@ -431,6 +431,7 @@ export const fr: Record<MsgKey, Msg> = {
   'stops.onMine': 'Mon tour',
   'stops.title': 'Arrêts : où la partie vous attend',
   'stops.help': 'Vous pouvez toujours répondre quand la pile n\'est pas vide.',
+  'stops.helpSkip': 'Vous pouvez répondre quand la pile n\'est pas vide, sauf aux sorts et capacités entre adversaires qui ne vous concernent pas.',
   'stops.done': 'Terminé',
   'stops.byStep': 'Arrêts par étape',
   'stops.perOpp': 'Régler par adversaire',
@@ -438,7 +439,13 @@ export const fr: Record<MsgKey, Msg> = {
   'stops.autoPass': 'Passer auto si je ne peux pas agir :',
   'stops.involved': 'Ne m\'arrêter que si ça me concerne :',
   'stops.involvedTitle':
-    'Pendant les tours adverses : arrêt à la déclaration des attaquants seulement si vous, vos planeswalkers ou vos batailles êtes attaqués, à la déclaration des bloqueurs seulement si vous êtes dans le combat, et à l\'étape de fin seulement au tour du joueur juste avant vous. Les sorts et capacités sur la pile vous arrêtent toujours. Désactivé par défaut.',
+    'Pendant les tours adverses : arrêt à la déclaration des attaquants seulement si vous, vos planeswalkers ou vos batailles êtes attaqués, à la déclaration des bloqueurs seulement si vous êtes dans le combat, et à l\'étape de fin seulement au tour du joueur juste avant vous. Les sorts et capacités sur la pile vous arrêtent toujours (voir Ignorer les sorts entre adversaires). Désactivé par défaut.',
+  'stops.skipOpp': 'Ignorer les sorts entre adversaires :',
+  'stops.skipOppTitle':
+    'Ne pas vous arrêter pour les sorts et capacités sur la pile qui ne ciblent ni n\'affectent vous, vos permanents ou vos cartes (ceux que les adversaires visent entre eux). Ce qui vous cible, vous affecte ou que vous contrôlez vous arrête toujours. Désactivé par défaut.',
+  'stops.yields': 'Toujours céder à :',
+  'stops.yieldRemove': 'Ne plus toujours céder à {ability}',
+  'stops.yieldRemoveTitle': 'Ne plus toujours céder à ceci',
   'stops.passAfterCast': 'Passer après un sort :',
   'stops.passAfterCastTitle': 'Quand votre sort ou capacité arrive sur la pile, passe la priorité une fois : il se résout sauf si quelqu’un répond. Maj + clic pour garder la priorité le temps d’un sort. Désactivé par défaut.',
 

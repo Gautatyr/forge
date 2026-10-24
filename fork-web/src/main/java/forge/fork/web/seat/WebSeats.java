@@ -40,6 +40,8 @@ public final class WebSeats implements GameStream.SeatHooks {
     private volatile SeatSession publisher;
     /** Seats with "Pass priority after casting" on (U1b; off by default). Kept across the seat's games. */
     private final Set<Integer> passAfterCast = ConcurrentHashMap.newKeySet();
+    /** Seats with "Skip spells between opponents" on (owner ruling 2026-10-24; off by default). Kept across the seat's games. */
+    private final Set<Integer> skipOpponentStack = ConcurrentHashMap.newKeySet();
     /** Seats with "Auto-pass when I can't act" on (APINA) and with "Auto-yield" on (issue #125; off by default, D4). Kept across the seat's games. */
     private final Set<Integer> autoPass = ConcurrentHashMap.newKeySet();
     private final Set<Integer> autoYield = ConcurrentHashMap.newKeySet();
@@ -124,6 +126,11 @@ public final class WebSeats implements GameStream.SeatHooks {
         return passAfterCast.contains(seat);
     }
 
+    /** Any thread: the seat's "Skip spells between opponents" setting. */
+    boolean skipOpponentStack(int seat) {
+        return skipOpponentStack.contains(seat);
+    }
+
     /** Any thread: the seat's "Auto-pass when I can't act" setting. */
     boolean autoPass(int seat) {
         return autoPass.contains(seat);
@@ -148,6 +155,10 @@ public final class WebSeats implements GameStream.SeatHooks {
         String type = msg.has("t") && msg.get("t").isJsonPrimitive() ? msg.get("t").getAsString() : "";
         if ("setPassAfterCast".equals(type)) {
             set(passAfterCast, seat, msg);
+            return;
+        }
+        if ("setSkipOpponentStack".equals(type)) {
+            set(skipOpponentStack, seat, msg);
             return;
         }
         if ("setAutoPass".equals(type) || "setAutoYield".equals(type)) {

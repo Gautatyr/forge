@@ -211,7 +211,7 @@ public final class WireEnvelope {
                     new Field("index", "number", true, "reorderHand."),
                     new Field("decision", "NextGameDecision", true, null),
                     new Field("action", "DrawOfferMessageAction", true, null),
-                    new Field("update", "{ kind: string; [field: string]: unknown }", true, "sendYieldUpdate: SkipPhase, InvolvedStops, AutoYieldTo {stackItem, active}, SetMarker/ClearMarker, StackYield…"))),
+                    new Field("update", "{ kind: string; [field: string]: unknown }", true, "sendYieldUpdate: SkipPhase, InvolvedStops, AutoYieldTo {stackItem, active} or, to remove one, {key, active:false} (a key the seat's autoYieldTo lists), SetMarker/ClearMarker, StackYield…"))),
             new Message("requestResync", "RequestResyncMessage", "Asks for a fresh snapshot, then the seat's greeting.", List.of(
                     field("t", "'requestResync'", null))),
             new Message("setLanguage", "SetLanguageMessage", "Sets the language of this seat's card translations: fully visible cards then carry LocalName, LocalType and LocalOracleText (display only; Name, Type and OracleText stay English); anything but 'fr' is English and carries none. Sent after the greeting and on change; spectators stay English.", List.of(
@@ -219,6 +219,9 @@ public final class WireEnvelope {
                     field("lang", "'en' | 'fr'", null))),
             new Message("setPassAfterCast", "SetPassAfterCastMessage", "Pass priority after casting (off by default): once the seat's own spell or activated ability goes on the stack, the seat passes the priority it gets back once, unless the cast was sent with hold. Kept for the seat's later games; sent after the greeting and on change.", List.of(
                     field("t", "'setPassAfterCast'", null),
+                    field("on", "boolean", null))),
+            new Message("setSkipOpponentStack", "SetSkipOpponentStackMessage", "Skip spells between opponents (off by default): at a priority with a non-empty stack whose every item neither targets nor affects the seat or its cards, the seat passes without being asked; anything else keeps its priority. Kept for the seat's later games; sent after the greeting and on change.", List.of(
+                    field("t", "'setSkipOpponentStack'", null),
                     field("on", "boolean", null))),
             new Message("setAutoPass", "SetAutoPassMessage", "Auto-pass when I can't act (off by default): the seat passes the priority it has no playable action for; blocks, attacks, targets and choices are never skipped. Kept for the seat's later games; sent after the greeting and on change.", List.of(
                     field("t", "'setAutoPass'", null),

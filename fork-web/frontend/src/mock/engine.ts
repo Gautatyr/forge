@@ -1241,6 +1241,9 @@ function applyOne(prev: MockGame, intent: Intent): MockGame {
         ? g.autoYieldTo.filter((k) => k !== intent.key)
         : [...g.autoYieldTo, intent.key];
       return g;
+    case 'removeAutoYieldTo':
+      g.autoYieldTo = g.autoYieldTo.filter((k) => k !== intent.key);
+      return g;
     case 'undo':
       return prev; // handled by the store's history
     case 'concede':

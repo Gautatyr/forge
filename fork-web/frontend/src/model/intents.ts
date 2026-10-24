@@ -51,6 +51,8 @@ export type Intent =
   | { type: 'setAutoYield'; on: boolean }
   | { type: 'setAutoPay'; on: boolean }
   | { type: 'toggleAutoYieldTo'; key: string }
+  /** Drop one of the abilities you always yield to, by the key the bridge listed (its stack item may be gone). */
+  | { type: 'removeAutoYieldTo'; key: string }
   | { type: 'undo' }
   /** Concede this game: you are out, the others keep playing (design pass 4 §2.6). */
   | { type: 'concede' }

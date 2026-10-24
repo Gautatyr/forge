@@ -5,7 +5,7 @@ import type { GameView } from '../model/types';
 import { DEFAULT_STOPS, type StopPrefs } from '../state/prefs';
 import { isStop } from '../state/stops';
 import { connectLive, streamUrl, type LiveSource } from './client';
-import { autoAnswer, autoPassFrame, autoYieldFrame, intentToFrames, passAfterCastFrame, stopFrames } from './commands';
+import { autoAnswer, autoPassFrame, autoYieldFrame, intentToFrames, passAfterCastFrame, skipOpponentStackFrame, stopFrames } from './commands';
 import { bridgeImageLookup, ImageResolver } from './images';
 import { parseRecording, replaySource, RECORDINGS } from './replay';
 import type { Notice } from './session';
@@ -75,6 +75,7 @@ export function useLive(
   passAfterCast = false,
   autoPass = false,
   autoYield = false,
+  skipOpponentStack = false,
 ): LiveApi | undefined {
   const [source, setSource] = useState<LiveSource>();
   const [error, setError] = useState<string>();
@@ -186,6 +187,12 @@ export function useLive(
     if (config.kind !== 'live' || !source || source.status !== 'open' || !hello) return;
     source.send([passAfterCastFrame(passAfterCast)]);
   }, [config.kind, source, source?.status, hello, passAfterCast]);
+
+  // Skip spells between opponents → the bridge: the same.
+  useEffect(() => {
+    if (config.kind !== 'live' || !source || source.status !== 'open' || !hello) return;
+    source.send([skipOpponentStackFrame(skipOpponentStack)]);
+  }, [config.kind, source, source?.status, hello, skipOpponentStack]);
 
   // Auto-pass and auto-yield → the bridge: the same, and it applies them to each game of the seat.
   useEffect(() => {
