@@ -31,6 +31,8 @@ design-token file. Data comes from mock scenarios, a recorded game, or the live 
 - Card images (`src/adapter/images.ts`): live, the bridge's `/img?key=<image key>&token=…` for every card
   and token (Vite proxies `/img`), Scryfall by name as the fallback (`CardImage.fallback`); replay and mock,
   Scryfall (`cards/collection` in batches).
+  A card with no image source (edition `???`: the Alchemy "A-" cards; or every source failed) is drawn as `CardText`, the
+  engine's own data, in the hover preview and the inspector (`CardArt`).
 
 ## Dev loop and verification
 - `make web-dev` (per-worktree port), `make web-front-check` (install, type-check, lint,
