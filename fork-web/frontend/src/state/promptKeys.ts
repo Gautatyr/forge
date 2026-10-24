@@ -1,6 +1,7 @@
 import type { Intent } from '../model/intents';
 import type { GameView, TargetRef } from '../model/types';
 import { you } from '../model/selectors';
+import { targetsCancellable } from './primaryAction';
 import type { UiState } from './ui';
 
 /** The part of a DOM element the key handlers read (duck-typed so the logic runs without a DOM). */
@@ -33,6 +34,11 @@ export function dropsFocusAfterClick(active: KeyTarget | null | undefined): bool
   return !!active && isToggle(active) && !takesKeys(active);
 }
 
+/** The document's click listener (issue #126): blurs the active element when {@link dropsFocusAfterClick}. */
+export function blurAfterClick(active: (KeyTarget & { blur(): void }) | null | undefined): void {
+  if (active && dropsFocusAfterClick(active)) active.blur();
+}
+
 /**
  * Digits 1–9 in a card pick (a discard, an imprint, a cost): the Nth card of your hand in hand order, when it is
  * one of the legal cards. Board picks keep ignoring digits: their order is not on screen (#121).
@@ -45,11 +51,55 @@ export function pickDigitTarget(game: GameView, key: string): TargetRef | undefi
 }
 
 /**
+ * The digit keys 1–9 outside the tray, after the other keys: a card pick from your hand sends the Nth card; else a
+ * dual land's mana chooser (live only while paying or holding priority, so never alongside the tray) takes the Nth
+ * colour and closes. `handled`: the key was spent on the chooser, even when it has no Nth colour.
+ */
+export function digitAction(
+  game: GameView,
+  key: string,
+  promptKeys: boolean,
+  manaChoice: UiState['manaChoice'],
+): { handled: boolean; intent?: Intent; closeManaChoice?: boolean } {
+  if (!promptKeys) return { handled: false };
+  const target = pickDigitTarget(game, key);
+  if (target) return { handled: true, intent: { type: 'toggleTarget', target } };
+  if (!/^[1-9]$/.test(key) || !manaChoice) return { handled: false };
+  const colour = manaChoice.colours[Number(key) - 1];
+  return colour
+    ? { handled: true, closeManaChoice: true, intent: { type: 'tapForMana', cardId: manaChoice.cardId, colour } }
+    : { handled: true };
+}
+
+/**
  * A prompt's keys (Space, N, Y, digits 1–9) answer the prompt only while nothing sits over it: an inspector or an
  * overlay (shortcuts, display, dev) owns the keyboard until Esc closes it. Shared by the tray and the screen.
  */
 export function promptKeysLive(ui: Pick<UiState, 'inspectId' | 'overlay'>): boolean {
   return !ui.inspectId && !ui.overlay;
+}
+
+/** The prompt line's note for a refused primary answer (Space or a click): it lasts while the refusal does. */
+export function refusalNote(u: Pick<UiState, 'promptNote'>, text: string): NonNullable<UiState['promptNote']> {
+  return { id: (u.promptNote?.id ?? 0) + 1, text, refusal: true };
+}
+
+/** A refusal note whose refusal is gone or changed (the second blocker made the block valid) is out of date. */
+export function refusalNoteStale(note: UiState['promptNote'], refusal: string | undefined): boolean {
+  return !!note?.refusal && note.text !== refusal;
+}
+
+/**
+ * The primary button's answer, by click or Space: a refused one says why (`note`) and sends nothing (issue #129);
+ * otherwise the intent goes. (Space adds its own guards in {@link handleSpace}.)
+ */
+export function pressPrimary(
+  action: { intent?: Intent; refusal?: string },
+  send: (intent: Intent) => void,
+  note: (text: string) => void,
+): void {
+  if (action.refusal) note(action.refusal);
+  else if (action.intent) send(action.intent);
 }
 
 /**
@@ -87,7 +137,7 @@ export function escapeStep(
   if (ui.logOpen) return 'log';
   if (manaChoiceOpen) return 'mana';
   if (ui.pendingBlocker || ui.pendingAttacker) return 'pending';
-  if (d.kind === 'chooseTargets' || d.kind === 'payMana' || (d.kind === 'choice' && d.cancellable)) return 'cancel';
+  if (targetsCancellable(d) || d.kind === 'payMana' || (d.kind === 'choice' && d.cancellable)) return 'cancel';
   if (ui.zoneView) return 'zone';
   if ((d.kind === 'declareAttackers' || d.kind === 'declareBlockers') && d.draft.length > 0) return 'cancel';
   if (ui.trayPeek) return 'peek';

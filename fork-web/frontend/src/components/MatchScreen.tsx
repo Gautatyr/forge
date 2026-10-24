@@ -4,7 +4,7 @@ import { currentAttackAim } from '../state/focus';
 import { gameEndView, watching } from '../state/gameEnd';
 import { useMatch } from '../state/MatchContext';
 import { primaryAction } from '../state/primaryAction';
-import { dropsFocusAfterClick, escapeStep, handleSpace, ownsKey, pickDigitTarget, promptKeysLive } from '../state/promptKeys';
+import { blurAfterClick, digitAction, escapeStep, handleSpace, ownsKey, promptKeysLive, refusalNote } from '../state/promptKeys';
 import { NONE_GUARD } from './tray/trayLogic';
 import { Arrows } from './Arrows';
 import { Board } from './Board';
@@ -48,7 +48,7 @@ export function MatchScreen() {
 
     if (key === ' ') {
       handleSpace(e, ui, primaryAction(game, ui, prefs.stops), send, (text) =>
-        setUi((u) => ({ ...u, promptNote: { id: (u.promptNote?.id ?? 0) + 1, text } })),
+        setUi((u) => ({ ...u, promptNote: refusalNote(u, text) })),
       );
       return;
     }
@@ -118,20 +118,11 @@ export function MatchScreen() {
         }
         return;
     }
-    // A card pick from your hand (discard, imprint): the Nth card of the hand (#121, issue #131).
-    if (promptKeys) {
-      const target = pickDigitTarget(game, key);
-      if (target) return send({ type: 'toggleTarget', target });
-    }
-    // A dual land's mana chooser: live only while paying or holding priority, so never alongside the tray.
-    if (promptKeys && /^[1-9]$/.test(key) && manaChoice) {
-      const colour = manaChoice.colours[Number(key) - 1];
-      if (colour) {
-        setUi({ manaChoice: undefined });
-        send({ type: 'tapForMana', cardId: manaChoice.cardId, colour });
-      }
-      return;
-    }
+    // A card pick from your hand (discard, imprint): the Nth card of the hand (#121, issue #131); a dual land's mana chooser.
+    const digit = digitAction(game, key, promptKeys, manaChoice);
+    if (digit.closeManaChoice) setUi({ manaChoice: undefined });
+    if (digit.intent) send(digit.intent);
+    if (digit.handled) return;
     // A prompt's own keys (1–9, V, Y/N, Space, Esc in the ability menu) are handled by ChoiceTray.
   });
 
@@ -143,10 +134,7 @@ export function MatchScreen() {
 
   // A switch clicked with the pointer keeps focus, and Space would flip it back instead of passing (issue #126).
   useEffect(() => {
-    const h = () => {
-      const el = document.activeElement;
-      if (el instanceof HTMLElement && dropsFocusAfterClick(el)) el.blur();
-    };
+    const h = () => blurAfterClick(document.activeElement instanceof HTMLElement ? document.activeElement : null);
     document.addEventListener('click', h);
     return () => document.removeEventListener('click', h);
   }, []);

@@ -680,6 +680,7 @@ export const fr: Record<MsgKey, Msg> = {
   'session.answerRefused': 'Réponse refusée : {reason}',
   'session.actionRefused': '{method} : {reason}',
   'session.action': 'Action',
+  'session.cannotCancel': 'Ceci ne peut pas être annulé.',
 
   'mana.thisLand': 'ce terrain',
   'mana.chooserAria': 'Choisissez le mana qu\'ajoute {name}',

@@ -585,6 +585,8 @@ function decisionFor(s: LiveSession, view: Omit<GameView, 'decision'>): Decision
       max,
       ...(info?.kind === 'target' ? { purpose: 'target' as const } : {}),
       ...(info?.ability ? { ability: info.ability } : {}),
+      // A triggered ability's targets are mandatory: the engine disables its Cancel (InputSelectTargets).
+      ...(input.cancel.enabled ? {} : { cancellable: false }),
     };
   }
   const buttons = early ?? inputToChoice(input, view);

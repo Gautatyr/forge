@@ -310,7 +310,11 @@ export class LiveSession {
         this.notice(t('session.answerRefused', { reason: frame.reason }));
         return 'ok';
       case 'actionRejected':
-        this.notice(t('session.actionRefused', { method: frame.method ?? t('session.action'), reason: frame.reason }));
+        this.notice(
+          frame.method === 'selectButtonCancel'
+            ? t('session.cannotCancel')
+            : t('session.actionRefused', { method: frame.method ?? t('session.action'), reason: frame.reason }),
+        );
         return 'ok';
       case 'blockOptions':
         this.blockOptions = frame.attackers;

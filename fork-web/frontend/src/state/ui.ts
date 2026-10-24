@@ -28,9 +28,10 @@ export interface UiState {
   choiceDraft?: ChoiceDraft;
   /**
    * Neutral note shown in the prompt line for 3 s ("You can't play … right now."); `id` restarts the timer.
-   * `sticky`: stays until the player's next action (a refused attack declaration).
+   * `sticky`: stays until the player's next action (a refused attack declaration). `refusal`: why the primary button
+   * is refused ("needs 2 blockers"); it goes as soon as the button's refusal changes or ends.
    */
-  promptNote?: { id: number; text: string; sticky?: boolean };
+  promptNote?: { id: number; text: string; sticky?: boolean; refusal?: boolean };
   /** Chooser at a mana source that adds two or more kinds ("Add {G} · Add {W}"). */
   manaChoice?: { cardId: CardId; colours: ManaColour[] };
   /** You are out and chose "Watch the rest" in this game (its id). */

@@ -932,10 +932,29 @@ public class SeatSessionTest {
         assertEquals(controllerCalls.poll(5, TimeUnit.SECONDS), "useMana 2");
         action("{\"t\":\"action\",\"method\":\"nextGameDecision\",\"decision\":\"QUIT\"}");
         assertEquals(controllerCalls.poll(5, TimeUnit.SECONDS), "nextGameDecision QUIT");
+        gui.updateButtons(p0.getView(), "OK", "Cancel", true, true, true); // a Cancel the input allows
         for (String m : List.of("selectButtonCancel", "concede", "alphaStrike", "undoLastAction")) {
             action("{\"t\":\"action\",\"method\":\"" + m + "\"}");
             assertEquals(controllerCalls.poll(5, TimeUnit.SECONDS), m);
         }
+        done.countDown();
+        get(waiting);
+    }
+
+    /** Issue #139: the client is not trusted; a Cancel the input's button state does not allow is refused, not dispatched. */
+    @Test
+    public void aCancelTheInputDoesNotAllowIsRefused() throws Exception {
+        start();
+        stream.publish(List.of(), false);
+        CountDownLatch done = new CountDownLatch(1);
+        Future<Void> waiting = waitForInput(done);
+        gui.updateButtons(p0.getView(), "OK", "Cancel", false, false, true);
+        action("{\"t\":\"action\",\"method\":\"selectButtonCancel\"}");
+        assertEquals(client.next("actionRejected").get("reason").getAsString(), "cannot cancel here");
+        assertNull(controllerCalls.poll(200, TimeUnit.MILLISECONDS));
+        gui.updateButtons(p0.getView(), "OK", "Cancel", false, true, true);
+        action("{\"t\":\"action\",\"method\":\"selectButtonCancel\"}");
+        assertEquals(controllerCalls.poll(5, TimeUnit.SECONDS), "selectButtonCancel");
         done.countDown();
         get(waiting);
     }

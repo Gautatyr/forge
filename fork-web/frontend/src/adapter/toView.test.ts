@@ -261,6 +261,17 @@ describe('toGameView', () => {
     expect(s.input.info).toBeUndefined();
   });
 
+  it('marks a triggered ability’s targets uncancellable when the engine disables Cancel, and keeps a spell’s cancellable', () => {
+    const s = session();
+    s.apply(selection({ cards: [card(20)], min: 1, max: 1 }));
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Flametongue Kavu (10) - Select target creature', card(10)], input: { kind: 'target', ability: 'triggered' } });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, false, false] });
+    expect(toGameView(s).decision).toMatchObject({ kind: 'chooseTargets', purpose: 'target', ability: 'triggered', cancellable: false });
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Bolt (10) - Select any target', card(10)], input: { kind: 'target', ability: 'spell' } });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'Cancel', false, true, false] });
+    expect(toGameView(s).decision).not.toHaveProperty('cancellable', false);
+  });
+
   it('turns other two-button inputs into a yes/no tray, and prompts into the matching shape', () => {
     const s = session();
     buttons(s, 'Keep', 'Mulligan', 'Keep this hand?');
