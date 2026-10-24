@@ -45,20 +45,24 @@ public class BidLifeEffect extends SpellAbilityEffect {
             }
         }
 
-        boolean willBid = true;
+        // bidPlayers is in turn order, the starting bid holder (the activator) first. Ask each other player in turn
+        // after the current high bidder; the bidding ends once the high bid has gone round without being topped.
         Player winner = activator;
         int bid = startBidding;
-        while (willBid) {
-            willBid = false;
-            for (final Player p : bidPlayers) {
-                final boolean result = p.getController().confirmBidAction(sa, PlayerActionConfirmMode.BidLife,
-                        Localizer.getInstance().getMessage("lblDoYouWantTopBid") + bid, bid, winner);
-                willBid |= result;
-                if (result) { // a different choose number
-                    bid += p.getController().chooseNumber(sa, Localizer.getInstance().getMessage("lblBidLife") + ":", 1, 9);
-                    winner = p;
-                    host.getGame().getAction().notifyOfValue(sa, p,  Localizer.getInstance().getMessage("lblTopBidWithValueLife", bid), p);
-                }
+        int idx = bidPlayers.indexOf(winner);
+        int declined = 0;
+        while (declined < bidPlayers.size() - (bidPlayers.contains(winner) ? 1 : 0)) {
+            idx = (idx + 1) % bidPlayers.size();
+            final Player p = bidPlayers.get(idx);
+            final boolean result = p.getController().confirmBidAction(sa, PlayerActionConfirmMode.BidLife,
+                    Localizer.getInstance().getMessage("lblDoYouWantTopBid") + bid, bid, winner);
+            if (result) { // a different choose number
+                bid += p.getController().chooseNumber(sa, Localizer.getInstance().getMessage("lblBidLife") + ":", 1, 9);
+                winner = p;
+                declined = 0;
+                host.getGame().getAction().notifyOfValue(sa, p,  Localizer.getInstance().getMessage("lblTopBidWithValueLife", bid), p);
+            } else {
+                declined++;
             }
         }
 
