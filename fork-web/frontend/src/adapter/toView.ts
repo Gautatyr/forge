@@ -856,14 +856,21 @@ function stackTargets(s: LiveSession, id: number, cards: Record<string, CardView
   return out;
 }
 
+/**
+ * How a lit card outside your hand is cast, by its zone: flashback and escape work from the graveyard only; foretell
+ * from exile, for a foretold card (face down, so its keywords are the face-down face's); an adventure card from exile.
+ * A card of a hand or library (Sen Triplets, Future Sight) is cast for its normal cost: no keyword label.
+ */
 function castVia(c: CardView): OtherZoneCastVia {
-  // A foretold card is face down: its keywords are the face-down face's (none).
-  if (c.faceDown?.foretold) return 'foretell';
-  const k = c.keywords.map((x) => x.name.toLowerCase());
-  if (k.includes('flashback')) return 'flashback';
-  if (k.includes('escape')) return 'escape';
-  if (k.includes('foretell')) return 'foretell';
-  if (c.zone === 'exile' && /Adventure/.test(c.back?.typeLine ?? '')) return 'adventure';
+  if (c.zone === 'graveyard') {
+    const k = c.keywords.map((x) => x.name.toLowerCase());
+    if (k.includes('flashback')) return 'flashback';
+    if (k.includes('escape')) return 'escape';
+  }
+  if (c.zone === 'exile') {
+    if (c.faceDown?.foretold) return 'foretell';
+    if (/Adventure/.test(c.back?.typeLine ?? '')) return 'adventure';
+  }
   return 'other';
 }
 

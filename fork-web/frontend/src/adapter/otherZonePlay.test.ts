@@ -93,3 +93,36 @@ describe('the group beside the hand', () => {
     expect(otherZoneGroup(game([]))).toEqual([]);
   });
 });
+
+describe('the cast-way label follows the zone, not just the keywords', () => {
+  /** Think Twice (flashback {2}{U}) lit in the given zone, yours or the AI's. */
+  function thinkTwice(zone: 'Hand' | 'Library' | 'Graveyard', owner: 0 | 1): GameView {
+    const zones = { [zone]: [70] };
+    const objects: WireObject[] = [
+      { type: 'game', id: 1, props: { Players: [0, 1], Turn: 4, Phase: 'MAIN1', PlayerTurn: 0, GameType: 'Constructed', Stack: [] } },
+      { type: 'player', id: 0, props: { Name: 'Hugo', Life: 20, HasPriority: true, ...(owner === 0 ? zones : {}) } },
+      { type: 'player', id: 1, props: { Name: 'AI', IsAI: true, Life: 20, ...(owner === 1 ? zones : {}) } },
+      { type: 'card', id: 70, props: { Owner: owner, Controller: owner, Zone: zone, CurrentState: 'Original' } } as WireObject,
+      { type: 'cardState', id: 70, state: 'Original', props: { Name: 'Think Twice', Type: 'Instant', Keywords: ['Flashback {2}{U}'] } } as WireObject,
+    ];
+    const s = new LiveSession();
+    s.apply({ t: 'snapshot', game: 1, seq: 0, label: 't', viewer: { seat: 0, player: 0 }, objects, log: [] });
+    s.apply({ t: 'call', method: 'showPromptMessage', args: [YOU, 'Priority: Hugo', null] });
+    s.apply({ t: 'call', method: 'updateButtons', args: [YOU, 'OK', 'End Turn', true, true, true] });
+    s.apply({ t: 'call', method: 'setWeaklySelectable', args: [[card(70)]] });
+    return toGameView(s);
+  }
+  const captions = (g: GameView) => otherZoneGroup(g).map((e) => `${e.card.name} | ${e.caption}`);
+
+  it('names no flashback for a flashback card of an opponent’s hand (Sen Triplets: cast for its normal cost)', () => {
+    expect(captions(thinkTwice('Hand', 1))).toEqual(['Think Twice | Hand · AI']);
+  });
+
+  it('names no flashback for a flashback card on top of your library (Future Sight)', () => {
+    expect(captions(thinkTwice('Library', 0))).toEqual(['Think Twice | Library']);
+  });
+
+  it('keeps the flashback label for a flashback card in your graveyard', () => {
+    expect(captions(thinkTwice('Graveyard', 0))).toEqual(['Think Twice | Graveyard · flashback']);
+  });
+});
