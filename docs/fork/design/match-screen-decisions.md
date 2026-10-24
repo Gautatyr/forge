@@ -83,6 +83,11 @@ Source: [ui-direction-memo.md](ui-direction-memo.md) (section 4, open questions)
 Source: PR #107 (parked) and its reviews.
 - At small window heights (e.g. 1366×768), when the rail cannot hold a readable hover preview and the full Stack and Combat panels, **the preview shows over the board instead of in the rail**, so the panels stay complete. At larger sizes the fixed spot (refined in PRs #52 and #103) is unchanged. The preview never shrinks to an unreadable thumbnail.
 
+## Rulings after QA playtest 3 (2026-10-24)
+Source: the owner's answers to two questions raised by QA pass 3 (#29 visual notes) and the PR #135 audits (#140).
+- **Spells between opponents:** "Stop only when I'm involved" keeps every stack stop as before. A **separate toggle** in the Stops panel, off by default, also skips stack items that neither target nor affect you or your permanents (spells and abilities the AIs aim at each other).
+- **Choice tray at small heights (#140):** when the tray's tiles cannot fit with their labels and key hints (short laptop windows, about 1366×650–700 and 1280×720), the tray shows a **compact list** (card name + key hint) instead of tiles; hovering a row shows the card preview. Larger windows keep the tiles.
+
 ## Language (2026-10-15)
 - The match screen is switchable between **English and French**: UI text, keyword explanations, card names and text, and card images where Scryfall has French printings.
 - Forge already ships the data: `forge-gui/res/languages/fr-FR.properties` (UI strings) and `forge-gui/res/languages/cardnames-fr-FR.txt` (card names and text).
