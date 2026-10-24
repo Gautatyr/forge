@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import type { ChoicePrompt } from '../../model/types';
+import { PILE_FLOOR_ATTR } from './pileHeight';
 import { FILTER_FROM } from './trayLogic';
 
 /** The card width (rem) of a tray tile: the full size, or what the tray body sets in `--tile-cw` to fit. */
@@ -91,6 +92,8 @@ function fitTiles(el: HTMLElement, state: FitState, kind: TileKind | undefined):
   // Cards animate their size: measure the end state at once (the attribute switches the transitions off).
   el.dataset.fitting = '';
   el.style.removeProperty('--tile-cw');
+  // The pile area's held height (pileHeight.ts) belongs to the tile size before this fit: measure without it.
+  el.querySelectorAll<HTMLElement>(`[${PILE_FLOOR_ATTR}]`).forEach((p) => p.style.removeProperty('min-height'));
   const overflows = () => el.scrollHeight > el.clientHeight;
   let outcome = fitTileSize(TILE_CW_MIN, TILE_CW_MAX, (cw) => {
     el.style.setProperty('--tile-cw', `${cw}rem`);

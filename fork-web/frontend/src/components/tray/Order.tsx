@@ -3,6 +3,7 @@ import type { OrderPrompt } from '../../model/types';
 import { useMatch } from '../../state/MatchContext';
 import { Card } from '../Card';
 import { PileLists } from './CompactList';
+import { PILE_FLOOR_ATTR, usePileFloor } from './pileHeight';
 import type { BodyProps } from './TrayBody';
 import { TILE_CW } from './tileFit';
 import { moveBetween, moveItem, moveLabel, revealScrollTop } from './trayLogic';
@@ -96,11 +97,12 @@ function SingleList({ prompt, draft, setDraft }: BodyProps<OrderPrompt>) {
   );
 }
 
-function TwoLists({ prompt, draft, setDraft }: BodyProps<OrderPrompt>) {
+function TwoLists({ prompt, draft, setDraft: set }: BodyProps<OrderPrompt>) {
   const { game } = useMatch();
+  const { ref, hold: setDraft } = usePileFloor(prompt.id, set);
   const items = new Map(prompt.lists.flatMap((l) => l.items).map((i) => [i.id, i]));
   return (
-    <div className={styles.lists}>
+    <div ref={ref} {...{ [PILE_FLOOR_ATTR]: '' }} className={styles.lists}>
       {prompt.lists.map((l) => {
         const ids = draft.lists[l.id] ?? [];
         const other = prompt.lists.find((x) => x.id !== l.id)!;

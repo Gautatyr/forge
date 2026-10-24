@@ -3,6 +3,7 @@ import type { ChoiceOption, ChooseNPrompt, OrderPrompt } from '../../model/types
 import { useMatch } from '../../state/MatchContext';
 import { Icon } from '../Icon';
 import { useCardHover } from '../useCardHover';
+import { PILE_FLOOR_ATTR, usePileFloor } from './pileHeight';
 import type { BodyProps } from './TrayBody';
 import { chosenIn, countChars, dropFromGroup, listHint, moveBetween, moveItem, moveLabel, stepGroup, toggleOption } from './trayLogic';
 import styles from '../ChoiceTray.module.css';
@@ -121,10 +122,11 @@ export function RevealList({ prompt }: BodyProps<ChooseNPrompt>) {
 }
 
 /** Scry and surveil: the two piles side by side, one row per card with its move buttons. */
-export function PileLists({ prompt, draft, setDraft }: BodyProps<OrderPrompt>) {
+export function PileLists({ prompt, draft, setDraft: set }: BodyProps<OrderPrompt>) {
+  const { ref, hold: setDraft } = usePileFloor(prompt.id, set);
   const items = new Map(prompt.lists.flatMap((l) => l.items).map((i) => [i.id, i]));
   return (
-    <div className={styles.lists}>
+    <div ref={ref} {...{ [PILE_FLOOR_ATTR]: '' }} className={styles.lists}>
       {prompt.lists.map((l) => {
         const ids = draft.lists[l.id] ?? [];
         const other = prompt.lists.find((x) => x.id !== l.id)!;
