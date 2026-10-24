@@ -11,7 +11,8 @@ Depends on `forge-gui-desktop` and `fork-web`; nothing depends on it. Package `f
   A web match quits after its game (end-game hook) and hands back to the lobby.
   A match started while a web match runs ends that one first (`WebHostedMatch.supersede`); the ended match
   does not hand back to the lobby.
-- `WebMatchHost`: one in-process `WebServer` per launch, serving `fork-web/frontend/dist` and card images
+- `WebMatchHost`: one in-process `WebServer` per launch on port 47321 (`DEFAULT_PORT`; a free port when taken; `--port` exact,
+  `0` = free: `Options.launcher`; a fixed origin keeps the page's `localStorage` across launches, decision 2026-10-24), serving `fork-web/frontend/dist` and card images
   (`/img`, Forge's image cache via `ForgeImages`); per-launch tokens (spectator + seats 0–7); opens the seat page
   (`/?live=1&seat=N#token=…`, the frontend's live source) when no page is connected.
 - The web seat turns on actionable highlights and the autotap preview for itself (`WebGuiGame`, `YieldController`
