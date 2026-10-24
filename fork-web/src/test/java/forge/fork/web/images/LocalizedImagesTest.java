@@ -104,6 +104,88 @@ public class LocalizedImagesTest {
         }
     }
 
+    /** Item 6: the "no French scan" verdict survives a restart (same cache folder), with no further Scryfall call. */
+    @Test
+    public void noFrenchVerdictSurvivesARestart() throws Exception {
+        answer = LocalizedImages.Downloader.MISSING;
+        assertEquals(get(images().find(KEY, "fr")).bytes(), EN);
+        assertEquals(urlsAsked.size(), 1);
+        LocalizedImages restarted = images();
+        assertEquals(get(restarted.find(KEY, "fr")).bytes(), EN);
+        assertEquals(get(restarted.find(KEY, "fr")).bytes(), EN);
+        assertEquals(get(images().find(KEY, "fr")).bytes(), EN);
+        assertEquals(urlsAsked.size(), 1, "no Scryfall call after a restart");
+        // another card is unaffected
+        answer = FR;
+        assertEquals(get(images().find("c:Other|M10|1", "fr")).bytes(), FR);
+        assertEquals(urlsAsked.size(), 2);
+    }
+
+    /** The verdict is only about the key it was noted for, and transient failures leave none. */
+    @Test
+    public void transientFailureLeavesNoVerdict() throws Exception {
+        answer = LocalizedImages.Downloader.FAILED;
+        get(images().find(KEY, "fr"));
+        answer = FR;
+        assertEquals(get(images().find(KEY, "fr")).bytes(), FR);
+        assertEquals(urlsAsked.size(), 2);
+    }
+
+    /** A verdict file is only a marker: whatever it holds, and an unwritable folder, cannot break serving. */
+    @Test
+    public void verdictFilesAreMarkersAndWriteFailuresAreHarmless() throws Exception {
+        answer = LocalizedImages.Downloader.MISSING;
+        LocalizedImages l = images();
+        get(l.find(KEY, "fr"));
+        Path verdict = l.noFrenchFileOf(KEY);
+        assertTrue(Files.isRegularFile(verdict));
+        assertTrue(verdict.startsWith(cache));
+        Files.write(verdict, new byte[] {1, 2, 3, (byte) 0xff}); // corrupted: still a verdict
+        assertEquals(get(images().find(KEY, "fr")).bytes(), EN);
+        assertEquals(urlsAsked.size(), 1);
+        // the cache folder cannot be written (a file stands in its place): French fails soft, English is served
+        Path blocked = Files.createTempFile("forge-web-fr-blocked", "");
+        LocalizedImages b = new LocalizedImages(key -> CompletableFuture.completedFuture(new Image(EN, "image/jpeg")),
+                k -> "https://scry.test/" + k, url -> LocalizedImages.Downloader.MISSING, blocked, edt, io, dl, 5_000);
+        assertEquals(get(b.find(KEY, "fr")).bytes(), EN);
+        Files.deleteIfExists(blocked);
+    }
+
+    /** Several instances (threads, restarts) noting the same verdict at once is harmless. */
+    @Test
+    public void concurrentVerdictWritersAreHarmless() throws Exception {
+        answer = LocalizedImages.Downloader.MISSING;
+        List<CompletableFuture<Image>> all = new java.util.ArrayList<>();
+        for (int i = 0; i < 8; i++) {
+            all.add(images().find(KEY, "fr"));
+        }
+        for (CompletableFuture<Image> f : all) {
+            assertEquals(get(f).bytes(), EN);
+        }
+        assertEquals(get(images().find(KEY, "fr")).bytes(), EN);
+        int asked = urlsAsked.size();
+        assertEquals(get(images().find(KEY, "fr")).bytes(), EN);
+        assertEquals(urlsAsked.size(), asked);
+        try (Stream<Path> files = Files.list(cache)) {
+            assertEquals(files.filter(f -> f.toString().endsWith(".nofr")).count(), 1);
+        }
+    }
+
+    /** The one-off stale-placeholder cleanup still drops old images; a verdict (only the new code writes them) stays. */
+    @Test
+    public void staleImageCleanupStillWorksWithVerdictsPresent() throws Exception {
+        answer = LocalizedImages.Downloader.MISSING;
+        LocalizedImages probe = images();
+        get(probe.find(KEY, "fr"));
+        Files.deleteIfExists(cache.resolve(LocalizedImages.CHECKED_MARKER));
+        String other = "c:Other|M10|1";
+        Files.write(probe.fileOf(other), FR); // a banner an earlier version cached
+        LocalizedImages l = images();
+        assertFalse(Files.exists(l.fileOf(other)));
+        assertTrue(Files.exists(l.noFrenchFileOf(KEY)));
+        assertTrue(Files.exists(cache.resolve(LocalizedImages.CHECKED_MARKER)));
+    }
+
     @Test
     public void transientFailureFallsBackButIsRetried() throws Exception {
         answer = LocalizedImages.Downloader.FAILED;

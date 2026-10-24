@@ -44,6 +44,16 @@ describe('hover preview over the board (small heights)', () => {
     expect(hits(p, chosen)).toBe(false);
   });
 
+  it('keeps clear of the targets a hovered stack item lights: a creature and a player plate by the rail', () => {
+    const railCard = box(1100, 250, 80, 112); // the stack item in the rail
+    const creature = box(900, 250, 70, 98); // flush against the rail side, at the item's height
+    const plate = box(700, 50, 340, 64); // the targeted player's plate, along the top
+    const p = placePreview({ area, size, hovered: railCard, keep: [creature, plate] });
+    expect(hits(p, creature)).toBe(false);
+    expect(hits(p, plate)).toBe(false);
+    expect(hits(p, railCard)).toBe(false);
+  });
+
   it('keeps clear of the prompt tray as well', () => {
     const tray = box(700, 400, 340, 300);
     const p = placePreview({ area, size, hovered: box(100, 300), keep: [tray] });
