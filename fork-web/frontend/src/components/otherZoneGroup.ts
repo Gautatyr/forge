@@ -14,10 +14,13 @@ const ZONE_WORD: Partial<Record<CardView['zone'], MsgKey>> = {
   battlefield: 'zone.battlefield',
 };
 
-function caption(c: CardView, via: OtherZoneCastVia): string {
+function caption(game: GameView, c: CardView, via: OtherZoneCastVia): string {
   const key = ZONE_WORD[c.zone];
   const zone: string = key ? tDynamic(key) : c.zone;
-  return via === 'other' ? zone : t('zone.via', { zone, via: tDynamic(`via.${via}` as MsgKey) });
+  // An opponent's card you may cast (Gonti's exiled card): its zone is named with its owner.
+  const owner = c.ownerId === game.youId ? undefined : game.players.find((p) => p.id === c.ownerId)?.name;
+  const where = owner === undefined ? zone : t('zone.ofPlayer', { zone, owner });
+  return via === 'other' ? where : t('zone.via', { zone: where, via: tDynamic(`via.${via}` as MsgKey) });
 }
 
 /**
@@ -37,7 +40,7 @@ export function otherZoneGroup(game: GameView): OtherZoneEntry[] {
   }
   for (const { cardId, via } of me.otherZoneCasts ?? []) {
     const c = game.cards[cardId];
-    if (c) out.push({ card: c, caption: caption(c, via) });
+    if (c) out.push({ card: c, caption: caption(game, c, via) });
   }
   return out;
 }

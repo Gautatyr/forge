@@ -780,12 +780,13 @@ export function toGameView(s: LiveSession, images: ImageLookup = scryfallLookup,
       }
     : undefined;
 
-  // Your cards outside hand and command zone the engine says you may play now (actionable highlights).
+  // The cards outside hand and command zone the engine says you may play now (actionable highlights): yours, or an
+  // opponent's you may cast (Gonti's exiled card).
   const youView = players.find((p) => p.isYou);
   if (youView && s.input.ok.label === 'OK' && !s.prompt) {
     const other = [...s.weakly.keys()]
       .map(sid)
-      .filter((id) => cards[id] && cards[id]!.ownerId === youView.id && ['graveyard', 'exile', 'library'].includes(cards[id]!.zone));
+      .filter((id) => cards[id] && ['graveyard', 'exile', 'library'].includes(cards[id]!.zone));
     if (other.length) youView.otherZoneCasts = other.map((cardId) => ({ cardId, via: castVia(cards[cardId]!) }));
   }
 

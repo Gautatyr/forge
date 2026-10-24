@@ -34,8 +34,12 @@ export function cardClick(game: GameView, id: CardId, hold = false): CardClick {
   if (d.kind !== 'priority' && d.kind !== 'waiting') return { kind: 'default' };
 
   if (c.zone !== 'battlefield') {
-    if (c.ownerId !== game.youId || c.zone === 'stack' || c.zone === 'library') return { kind: 'none' };
+    if (c.zone === 'stack') return { kind: 'none' };
+    // What the engine lights (setWeaklySelectable) may be played from any zone, whoever owns it: the top of a library
+    // (Mystic Forge, Bolas's Citadel), an opponent's exiled card (Gonti), a graveyard or exile permission.
     if (d.kind === 'priority' && d.playable.includes(id)) return { kind: 'intent', intent: { type: 'play', cardId: id, ...(hold && { hold }) } };
+    // Not lit: a library card or an opponent's card is not yours to click.
+    if (c.ownerId !== game.youId || c.zone === 'library') return { kind: 'none' };
     return { kind: 'note', text: t('click.cantPlay', { name: cardName(c) }) };
   }
   if (d.kind !== 'priority' || c.controllerId !== game.youId) return { kind: 'none' };

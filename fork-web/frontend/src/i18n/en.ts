@@ -306,6 +306,7 @@ export const en = {
   'zone.command': 'Command zone',
   'zone.commandTax': 'Command zone · tax +{tax}',
   'zone.via': '{zone} · {via}',
+  'zone.ofPlayer': '{zone} · {owner}',
 
   'via.flashback': 'flashback',
   'via.escape': 'escape',
