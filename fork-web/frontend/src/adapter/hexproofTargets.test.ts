@@ -66,6 +66,13 @@ describe('targets the engine does not offer', () => {
     expect(cardStatus(g, INITIAL_UI, '61').actionKind).toBeUndefined();
   });
 
+  it("the opponent's hexproof one shows no pointer cursor (inert), the offered ones do (#180)", () => {
+    const g = toGameView(targeting());
+    expect(cardStatus(g, INITIAL_UI, '61').inert).toBe(true);
+    expect(cardStatus(g, INITIAL_UI, '60').inert).toBe(false);
+    expect(cardStatus(g, INITIAL_UI, '62').inert).toBe(false);
+  });
+
   it('still sends a click on it, for the engine to refuse (it names the reason)', () => {
     const s = targeting();
     const g = toGameView(s);

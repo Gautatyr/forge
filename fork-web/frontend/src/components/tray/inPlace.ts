@@ -17,9 +17,9 @@ export function cardStatusWithChoice(game: GameView, ui: UiState, id: CardId): C
   const refs = inPlaceRefs(game, d.prompt);
   if (!refs) return s;
   const optionId = refs.cards.get(id);
-  if (!optionId) return { ...s, dimmed: game.cards[id]?.zone === 'battlefield' };
+  if (!optionId) return { ...s, dimmed: game.cards[id]?.zone === 'battlefield', inert: true };
   const chosen = trayDraft(d.prompt, ui.choiceDraft).selected.includes(optionId);
-  return { ...s, actionable: true, actionKind: undefined, selected: chosen, dimmed: false };
+  return { ...s, actionable: true, actionKind: undefined, selected: chosen, dimmed: false, inert: false };
 }
 
 /** Whether this player is an in-place option, and whether it is chosen. */
