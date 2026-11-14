@@ -1,8 +1,10 @@
 # Upstream contributions, batch 1 (2026-11-14) — PR drafts for the owner
 
-Each draft waits for the owner's go before it is posted (decision log, 2026-11-14). Branches are on the fork (`Gautatyr/forge`), based on upstream `master`.
+Each draft waits for the owner's go before it is posted (decision log, 2026-11-14).
 
-## 1. `contrib/boggart-trawler-oracle` — commit `7048f149ffa`
+Owner rules for PR text (2026-11-14): no "Written with Claude Code" line (the `Co-Authored-By: Claude` trailer on each commit is the disclosure); no "not checked in a game" disclaimers. State only what was verified. Branches are on the fork (`Gautatyr/forge`), based on upstream `master`.
+
+## 1. `contrib/boggart-trawler-oracle` — commit `7048f149ffa` — **POSTED as upstream PR 12871 (2026-11-14)**
 - Status: ready for the owner. Orchestrator review: diff = 3 `Oracle:` lines; names checked against Scryfall (Boggart Trawler, Great Desert Prospector, Marina Vendrell's Grimoire). CI command passed (2,589 tests, 0 failures, JDK 17).
 - Agent notes: the in-game text already used `CARDNAME`; the `Oracle:` line shows in the card catalog and the MDFC combined text. Not checked in a running game. Possible follow-ups, not in this PR: The Crab Queen's `Oracle:` line contains a literal `CARDNAME`; Thrór's Map is written "Thror's Map" in its Oracle line.
 
@@ -14,12 +16,10 @@ Boggart Trawler's Oracle line said "When Goblin Trawler enters, ..."; it now say
 
 A scan of all card scripts for Oracle triggers that name another card found two more typos of the same kind, fixed here: Great Desert Prospector ("Great Desert Surveyor") and Marina Vendrell's Grimoire ("Marine Vendrell's Grimoire"). Names checked against Scryfall.
 
-Script text only, so no tests. `mvn -U -B clean test` passes on JDK 17. Not checked in a running game.
-
-Written with Claude Code (co-author on the commit).
+Script text only, so no tests. `mvn -U -B clean test` passes on JDK 17.
 ```
 
-## 2. `contrib/narset-rebound-this-turn` — commit `7ab646d0869`
+## 2. `contrib/narset-rebound-this-turn` — commit `7ab646d0869` — **POSTED as upstream PR 12872 (2026-11-14)**
 - Status: ready for the owner. Orchestrator review: diff = `ThisTurn$ True` added on the −2 line; Bloodrage Alpha and Tenacious Pup (left alone) have no "this turn" in their Oracle. Scripted repro failed before, passes after; CI command passed (2,539 desktop tests, 0 failures).
 - Agent note: the AI's `NarsetRebound` logic was not reviewed; the AI activates −2 and casts in the same turn, so the shorter lifetime should not affect it.
 
@@ -31,9 +31,7 @@ The -2 reads "When you cast your next instant or sorcery spell from your hand th
 
 Cause: the DelayedTrigger line lacked `ThisTurn$ True`, so it was registered as a permanent delayed trigger. Fix: add the flag. The other SpellCast delayed triggers worded "this turn" already have it; Bloodrage Alpha and Tenacious Pup say "your next ..." with no "this turn" and are left alone.
 
-Checked with a scripted engine scenario (not a hand-played game): -2, pass to another turn, cast Opt from hand. Before, Opt was exiled; after, it goes to the graveyard. Casting in the same turn still gives rebound. Script-only, so no tests; `mvn -U -B clean test` passes.
-
-Written with Claude Code (co-author on the commit).
+Checked with a scripted engine scenario: -2, pass to another turn, cast Opt from hand. Before, Opt was exiled; after, it goes to the graveyard. Casting in the same turn still gives rebound. Script-only, so no tests; `mvn -U -B clean test` passes.
 ```
 
 ## 3. `contrib/hapatra-ai-targets` — commit `01355a4242d`
@@ -48,9 +46,7 @@ When an AI player casts Hapatra, its enter trigger ("for each opponent, put X -1
 
 Cause: the PutCounter line lacks `IsCurse$ True`, and `SpellAbility.isCurse()` only checks that parameter. `CountersPutAi.doTriggerNoCost` treats the counters as a bonus and looks only at the AI's own creatures; as the ability is "up to one" (`TargetMin$ 0`), it ends with no target. 61 of 70 targeted -1/-1 counter scripts set the flag (e.g. Ifnir Deadlands). Fix: add it here.
 
-Checked with a scripted engine scenario (not a hand-played game): 4 AI players, the AI casts Hapatra itself through the main loop, with three opposing Serra Angels and a 6-mana card in its graveyard. Before, the trigger targets nothing; after, it targets one Angel per opponent and all three die. Script-only, so no tests; `mvn -U -B clean test` passes.
-
-Written with Claude Code (co-author on the commit).
+Checked with a scripted engine scenario: 4 AI players, the AI casts Hapatra itself through the main loop, with three opposing Serra Angels and a 6-mana card in its graveyard. Before, the trigger targets nothing; after, it targets one Angel per opponent and all three die. Script-only, so no tests; `mvn -U -B clean test` passes.
 ```
 
 ## 4. `contrib/skyclave-apparition-tokens` — commit `11e8b619a06`
@@ -65,9 +61,7 @@ Both cards say "the exiled card's owner creates an X/X ... token, where X is the
 
 Cause: `TokenOwner$ RememberedOwner` makes one token per owner, and `X:Remembered$CardManaCost` sums all remembered cards. Fix: RepeatEach over the remembered cards (`UseImprinted$ True`, as Desolation does), one token per card, owned and sized by that card. Under CR 607.2a the leaves ability refers to every card the linked enter ability exiled; there is no specific ruling for the doubled case.
 
-Checked with scripted engine scenarios, including through the priority loop (not a hand-played game): doubled with two opponents now gives a 2/2 and a 4/4; two cards from one opponent give that opponent both tokens; single exile, nothing exiled, and a card that already left exile are unchanged. Script-only, so no tests; `mvn -U -B clean test` passes.
-
-Written with Claude Code (co-author on the commit).
+Checked with scripted engine scenarios, including through the priority loop: doubled with two opponents now gives a 2/2 and a 4/4; two cards from one opponent give that opponent both tokens; single exile, nothing exiled, and a card that already left exile are unchanged. Script-only, so no tests; `mvn -U -B clean test` passes.
 ```
 
 ## 5. `contrib/fiend-hunter-doubled-etb` — commits `e59f2d749dc` + `6ca10fe1007`
@@ -82,11 +76,9 @@ When Elesh Norn, Mother of Machines (or Panharmonicon, for the two creatures) ma
 
 Fix: Fiend Hunter, Tidehollow Sculler and Free-for-All now use ExiledWith / ExiledWithSource, like Oblivion Ring and Faceless Butcher, instead of a remembered list. This also fixes flickering them after the exile (Ephemerate on Sculler, Flicker of Fate on Free-for-All), where the old leave trigger's cleanup emptied the new permanent's list. Search the City still needs its list (its triggers match names against it), so it drops the flag and clears the list when it enters, with a static trigger as Naya Soulbeast does.
 
-Tested in scripted headless games through the real priority loop, not by hand: each card doubled by Norn failed before and passes after; Fiend Hunter also with Panharmonicon and as a Clone copy; Ephemerate after the exile, and in response to the enter trigger (that card stays exiled); Free-for-All's upkeep return. `mvn clean test` passes. No tests added (script-only change).
+Tested in scripted headless games through the real priority loop: each card doubled by Norn failed before and passes after; Fiend Hunter also with Panharmonicon and as a Clone copy; Ephemerate after the exile, and in response to the enter trigger (that card stays exiled); Free-for-All's upkeep return. `mvn clean test` passes. No tests added (script-only change).
 
 Journey to Nowhere and a few similar scripts lose cards the same way through ForgetOtherTargets$; I'll send those separately.
-
-Written with Claude Code (co-author on the commit).
 ```
 
 ## 6. `contrib/exile-until-leaves-doubled-etb` — commit `8fbf59eee30`
@@ -102,9 +94,7 @@ Journey to Nowhere, Faceless Devourer, Gravegouger, Leonin Relic-Warder, Petrado
 
 Fix: drop RememberTargets/ForgetOtherTargets and return with Defined$ ExiledWith, as Oblivion Ring does; Slithery Stalker's cleanup is no longer needed. Same approach as the Fiend Hunter PR.
 
-Checked with scripted engine scenarios through the priority loop (not a hand-played game), for all seven: doubled by Norn, all exiled cards return (failed before); single trigger; leaving before the enter trigger resolves (target stays exiled); flicker after the exile. Script-only, so no tests.
+Checked with scripted engine scenarios through the priority loop, for all seven: doubled by Norn, all exiled cards return (failed before); single trigger; leaving before the enter trigger resolves (target stays exiled); flicker after the exile. Script-only, so no tests.
 
 `mvn clean test`: one failure, CardEditionCollectionCardMockTestCase (Shivan Dragon, SLZ), which also fails on current master since #12869.
-
-Written with Claude Code (co-author on the commit).
 ```
