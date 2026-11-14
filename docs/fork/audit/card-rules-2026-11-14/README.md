@@ -4,7 +4,9 @@
 **Scope:** the 1,136 distinct non-basic cards of the 19 decks in `~/.forge/decks/commander/`, split into 5 groups by deck; one Opus 5.5 high analyst agent per group, ~20–26 min each. Agents triaged by bug risk and wrote TestNG engine tests asserting Oracle/CR outcomes (mostly 3–4 player games, all seats AI-controlled).
 **Coverage:** ~300 cards with real assertions (g1 ~75, g2 ~35, g3 77, g4 57, g5 58), 317 tests (87 + 26 + 72 + 71 + 61). The rest were skipped as low risk (≈95 lands per big group, rocks, simple removal) or listed as not reached in each report.
 
-## Confirmed bugs (each has a failing test; root causes re-checked in the code by the orchestrator)
+> **Correction (2026-11-14, same day): row 1 is withdrawn — a false positive of the test harness.** The fix agent reproduced it only through `ComputerUtil.playStack`, which skips the priority loop. In real play, `PhaseHandler` (upstream master, around lines 1209–1229) compares the card's zone before and after `playChosenSpellAbility` and fires `triggerChangesZoneAll` for the cast (upstream PR 4585, "Fix Tormod, the Desecrator not triggering from Gravecrawler"). Through the real loop (`PriorityTestBase`, plus `game.copyLastState()` after setup), Imotekh + Muldrotha gives 2 tokens and Tormod + flashback gives 1 Zombie. Casting from hand gives none, and a cancelled flashback gives none. The orchestrator's earlier check covered `moveToStack` only, not its caller. **Lesson:** an audit test that checks a batch (`ChangesZoneAll`) trigger fired by a cast must go through the priority loop, not `playStack`. Scratch tests: fix-agent run, 2026-11-14.
+
+## Confirmed bugs (each has a failing test; root causes re-checked in the code by the orchestrator; row 1 withdrawn, see the correction above)
 
 | # | Card(s) / deck | What goes wrong | Cause | Upstream | Severity |
 |---|---|---|---|---|---|

@@ -42,12 +42,12 @@ Duplicate search done on upstream PRs and issues (titles and bodies):
 | Narset Transcendent, rebound never expires | none | one script flag (`ThisTurn$ True`) | trivial, matches 35 of 38 peer scripts |
 | Hapatra, AI picks no target | none | one script flag (`IsCurse$ True`) | trivial |
 | Boggart Trawler text | none | one Oracle line | trivial |
-| Cast from graveyard misses "leave your graveyard" triggers | none (no PR touches `moveToStack`) | engine: record the cast's zone change in `CardZoneTable` (`GameAction`/`PlaySpellAbility`) + 1 test | feasible, but engine-level: adversarial review required, may draw maintainer discussion |
+| ~~Cast from graveyard misses "leave your graveyard" triggers~~ | **withdrawn 2026-11-14: false positive** (the priority loop in `PhaseHandler` fires it; the audit test bypassed the loop) | — | no contribution |
 | Garruk, Veiled Butcher | issue 12143 + PR 12218 open | — | already handled; at most confirm the bug on the issue |
 
 Verdict: **feasible.**
 - The four script fixes are the kind upstream merges within a day. Per the rules they need no tests: check them in a game instead.
-- The engine fix is a good, well-scoped first engine PR: root cause known, failing tests exist, and one general test fits the rules. It needs the owner to be comfortable answering review questions about it.
+- ~~The engine fix is a good, well-scoped first engine PR.~~ Withdrawn 2026-11-14: the "bug" was a test-harness false positive (see the table). Lesson for future audits and contributions: reproduce through the real priority loop (`PriorityTestBase`) before claiming an engine bug.
 
 Costs and risks:
 - **Owner time.** You must be able to explain each change and answer reviewers.

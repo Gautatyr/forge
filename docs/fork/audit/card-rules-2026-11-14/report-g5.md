@@ -3,7 +3,9 @@
 Saved by the orchestrator from the agent's final message. Test class: `tests/G5DeckCardsTest.java` (originally in worktree `agent-addf5e0e77ff80eff`, detached at 29bf33f7a5b). Final run: 61 tests, 2 failures (the bug below), 2 skipped (Anrakyr and Nim Deathmantle: the AI declined an optional payment), 57 passed.
 Command: `mvn -o -B -pl forge-gui-desktop -am test -Dtest=G5DeckCardsTest -Dsurefire.failIfNoSpecifiedTests=false`
 
-## Confirmed bug: casting a card from a graveyard never fires "one or more cards leave your graveyard" triggers
+> **WITHDRAWN 2026-11-14 — false positive.** The test cast through `ComputerUtil.playStack`, which skips the priority loop. In real play, `PhaseHandler` fires `triggerChangesZoneAll` after each cast (around lines 1209–1229 on upstream master). Through the real loop, both cases trigger correctly. See the correction in `README.md`. The text below is kept as written.
+
+## (Withdrawn) casting a card from a graveyard never fires "one or more cards leave your graveyard" triggers
 - Cards: Imotekh the Stormlord via Anrakyr the Traveller (Imotekh deck). Engine-level: every `Mode$ ChangesZoneAll | Origin$ Graveyard` trigger is affected (56 card scripts at this commit, e.g. Tormod the Desecrator, Quintorius, Desecrated Tomb, Chalk Outline, Kheru Goldkeeper), via flashback, Muldrotha, Gravecrawler-style casts, etc.
 - Oracle (Imotekh): "Whenever one or more artifact cards leave your graveyard, create two 2/2 black Necron Warrior artifact creature tokens."
 - Expected (CR 601.2a): casting moves the card from the graveyard to the stack, so it leaves the graveyard and the trigger fires.
