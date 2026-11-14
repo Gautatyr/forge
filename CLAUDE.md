@@ -24,6 +24,7 @@ Per-folder `CLAUDE.md` files load only when an agent touches that folder.
   - Fork work: issues, PRs and comments go on `Gautatyr/forge`. PRs target `Gautatyr/forge`, base `develop` (`gh pr create --repo Gautatyr/forge --base develop`).
   - Upstream contributions: a branch `contrib/<slug>` from `upstream/master`, following upstream's `CONTRIBUTING.md` (not this file's gates), pushed to `origin`; PR with `gh pr create -R Card-Forge/forge --base master --head Gautatyr:contrib/<slug>`. Flow and rules: `docs/fork/audit/upstream-contributing.md`.
   - **Every upstream write (PR, issue, comment, reply to a review) is drafted first and read by the owner; post it only after the owner's go for that item.**
+  - **Before calling anything a rules bug, and before coding a fix:** read the official rulings of every card involved (Scryfall "Notes and Rules Information", source `wotc`) and the current Comprehensive Rules (text file linked from magic.wizards.com/en/rules). Then reproduce through the real priority loop (`PriorityTestBase`), not `ComputerUtil.playStack`.
   - In anything posted on the fork (issues, PRs, comments, pushed commit messages), never write `Card-Forge/forge#123` or upstream issue/PR URLs: GitHub would add a backlink on upstream. Write "upstream issue 123" in plain text instead. Inside an upstream PR or issue, `#123` is upstream's own and is fine.
   - Never @-mention anyone.
   - Pushing to the `upstream` remote is disabled (`git remote set-url --push upstream DISABLED`); never re-enable it. Upstream PRs come from the fork's branches.
