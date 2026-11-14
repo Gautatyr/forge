@@ -410,3 +410,8 @@ Newest last. Each entry: the decision, why, and what it implies.
 - Goal: a better AI that plays more realistically; the way we get there matters.
 - Constraints: zero running cost, runs on the player's computer (a modern graphics card may be required), no online service, no LLM at play time, no fork build to play it (so it must eventually be accepted upstream).
 - Analysis and staged path (learned evaluation first, then a learned policy): `docs/fork/audit/ml-ai-feasibility.md`, sections 7–8. Nothing started.
+
+## 2026-11-14 — MTG model: brainstorm first, engine-agnostic (owner; refines the entry above)
+- The owner did not accept the staged, Forge-centred path (`audit/ml-ai-feasibility.md` sections 7–8).
+- Direction for the brainstorm: a high-level MTG model usable beyond Forge, connected to Forge by an adapter; not trained only against Forge's AI; wide research before any decision; no external contact until the owner ends the brainstorm.
+- Brainstorm map and research: `docs/fork/mtg-model/README.md`. Nothing decided, nothing started.

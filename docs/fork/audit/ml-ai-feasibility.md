@@ -2,6 +2,8 @@
 
 **Question (owner, 2026-11-14):** Forge's AI is a large set of hand-written rules. It breaks often and is a poor "fake player". How feasible is a real machine-learning model, trained by us, that plays the game closer to a human? Later: several difficulty levels and personalities.
 
+> **Update 2026-11-14 (later):** the owner did not accept sections 7–8 (the recommendation and the staged, Forge-centred path). The brainstorm continues in [../mtg-model/README.md](../mtg-model/README.md) with wider research. Corrections: a private Commander corpus exists (Playgroup.gg, see `mtg-model/research/human-game-data.md`); the 36 s per game is ~87 % Forge AI deliberation (profile in `mtg-model/README.md`).
+
 **Context:** the rule-based AI and its simulation mode are audited in [ai.md](ai.md) (2026-10-15). This document covers only the machine-learning routes. Measurements were taken on upstream `master` plus the fork (`develop` `3a8911f3cfd`).
 
 ## Short answer

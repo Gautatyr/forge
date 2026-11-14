@@ -1,0 +1,193 @@
+# MTG model: brainstorm map (2026-11-14)
+
+**Status: brainstorming.** Nothing is decided. No external contact, no code. This page maps the options and the evidence; the research reports are in [research/](research/). The earlier Forge-centred analysis ([../audit/ml-ai-feasibility.md](../audit/ml-ai-feasibility.md)) is background; its sections 7–8 (recommendation, staged path) were not accepted.
+
+## 1. The owner's goals, constraints and ideas
+- **Goal:** a better AI that plays more realistically, like a human. Difficulty levels and personalities later. The way we get there matters.
+- **Constraints:**
+  - It runs on the player's computer, offline, at zero running cost; a modern graphics card may be the minimum requirement.
+  - It must eventually be playable in the official Forge, not in a fork build.
+  - An LLM is not the player.
+- **Ideas (owner, 2026-11-14):**
+  - Build a high-level MTG model, usable outside Forge too, and connect it to Forge through an adapter.
+  - Don't train only on Forge's AI: it is a weak opponent.
+  - Look at many resources before deciding.
+  - Speed up simulation:
+    - a barebones simulator;
+    - a Rust rewrite of what is slow;
+    - cheap cloud machines (a couple of euros a month at most).
+  - Judge the engine's speed against the model's own "speed of thought" (section 3).
+
+## 2. What we measured (owner's PC: Ryzen 7 5800X3D 8 cores/16 threads, 32 GB, Radeon RX 7800 XT 16 GB)
+- **Forge AI-vs-AI, 4-player Commander** (Kaalia, Norn, Teysa, Zhulodok; 8 games, seed 42):
+  - 35.7 s per game on average (17–107 s), 22 turns;
+  - per game: ~46 spells, ~16 activations, ~75 triggers, ~15 attackers;
+  - one JVM used ~1.4 cores and 1.2 GB.
+  - The same seed gave different games in a second run, so seeded runs are not reproducible.
+- **Profile of those games** (Java Flight Recorder, 4 games, 16,895 CPU samples):
+  - 90 % of samples have Forge AI code on the stack. Only 3.6 % of those are the engine carrying out a play the AI already chose.
+  - So **~87 % of the time is Forge's AI deliberating and ~12 % is the rules engine**: about 4–5 s of engine work per game (estimate).
+  - Inside the engine, ~70 % of samples are under static-ability or state-based-action recomputation. That is a design hot spot whatever the language.
+- **Model inference on CPU.** A numpy transformer on one core, 128 tokens (one token per visible object):
+  - 0.4M parameters: 22 ms; 3M: 134 ms; 19M: 773 ms; 85M: 3.3 s per decision.
+  - These timings are **about 10× too slow to use as such**. numpy here uses the reference `cblas` (7 GFLOPS on one core; an optimised BLAS reaches roughly 50–100). They are consistent with the operation counts used in section 3.
+  - GPU inference was not measured: no PyTorch installed.
+
+## 3. Where the time goes once Forge's AI is replaced (the owner's framing)
+Time per game = engine time + model calls × time per model call (+ search, if the model looks ahead).
+
+Assumptions:
+- ~1,500 model calls per 4-player game. kiln-mtg measured 2,327 decisions per 4-player game in its own engine; Forge is unmeasured. Forced decisions (one legal action) need no call.
+- Forge's engine: ~4.5 s per game.
+- Model sizes as in section 2.
+- CPU: optimised BLAS, 50–100 GFLOPS per core (estimate).
+- GPU: many games batched together, 10–20 TFLOPS effective on the RX 7800 XT (estimate, not measured).
+
+| Model | Work per call | Model time per game, CPU (1 core) | Model time per game, GPU batched | Bottleneck with Forge's engine (4.5 s) |
+|---|---|---|---|---|
+| tiny, 0.4M parameters | 0.12 GFLOP | ~2–6 s | ~0.02 s | GPU: engine. CPU: even |
+| small, 3M | 0.86 GFLOP | ~15–25 s | ~0.1 s | GPU: engine. CPU: model |
+| medium, 19M | 5 GFLOP | ~1.5–2.5 min | ~0.4–0.8 s | GPU: engine. CPU: model |
+| large, 85M | 22 GFLOP | ~5–11 min | ~2–3 s | GPU: both. CPU: model |
+
+What follows:
+- **Training with a GPU: the engine is the bottleneck,** as the owner said. Forge's engine alone allows ~1.8 games/s on 8 cores, about 150,000 games a day (estimate).
+  - The GPU can serve ~7–15 games/s with a small model, but only ~1.3–2.7 with a medium one.
+  - So a faster engine pays off up to the GPU's limit for the chosen model size.
+- **Search multiplies the engine's share.** Search means the model looks ahead (MageZero, Forge's Flat Monte Carlo, AlphaZero-style). Each decision then costs N simulated continuations, plus a game copy each.
+  - Forge's copy rebuilds every card from its script (cost not measured).
+  - kiln-mtg's copy takes 665 ns.
+  - With search, engine and copy speed are almost the whole story.
+- **Playing against humans, latency hardly matters.** 0.1 s per decision is invisible to a player. Even a CPU-only medium model, or a GPU large model, is fine. Training is what needs speed; playing does not.
+- **Design lever:** an NNUE-style incremental encoding (re-encode only the objects that changed since the last decision) cuts CPU cost per call a lot. This shapes the model architecture.
+
+## 4. Findings per question
+### 4.1 Is there a bank of recorded human Commander games? ([research/human-game-data.md](research/human-game-data.md))
+- **No public one.**
+  - Playgroup.gg holds the only real corpus: 780,000+ logged paper games (outcomes, life, eliminations) and ~26,000 online games a month with card-level casts. It is private; access means asking them.
+- **Public, but not Commander:**
+  - 17lands: Arena Limited, per-turn summaries, ~23M games, CC BY 4.0.
+  - MTGO PDBot logs: ~61,000 1v1 matches with targets.
+  - Arena's own log for a player's games, including Brawl (1v1, 100 cards): full state, but you must collect it yourself.
+- **Not human:** 37,000 Forge AI-vs-AI Commander game logs on Hugging Face (MIT).
+- **Scale reference:**
+  - Maia used 12M games per skill band.
+  - A personal style model needed at least 5,000 games per person.
+  - Diplomacy's imitation model used 150,000+ games.
+  - So our group's games would serve to **check and anchor** human-likeness, not to train from scratch.
+
+### 4.2 Past MTG models to learn from, start from, or test against ([research/prior-work.md](research/prior-work.md))
+**Recent open MTG projects (2025–2026, all 1v1 so far):**
+- **MageZero** (MIT): AlphaZero-style search plus a graph network over game entities; an open, hashed card vocabulary; one head per decision type; XMage.
+- **jackmaiorino** (MIT):
+  - PPO with a curriculum of opponents, on XMage;
+  - mtg-kernel, a Rust engine;
+  - Spellbench, an engine-neutral bot protocol with Elo boards;
+  - Archon 2 weights on Hugging Face (1.23M parameters).
+- **Argentum Engine** (Kotlin, MIT): 2–6 players, a gym API, instant state copies, an AlphaZero-style search interface.
+- **A Forge HTTP bridge** for 2–4-seat Commander (gab-25/mtg_forge_engine, GPL).
+
+No public MTG AI handles 4-player Commander.
+
+**Analogues:**
+- **ygo-agent** (Yu-Gi-Oh!, ~13,500 cards, LLM text embeddings for cards): 100M+ games on ~32 RTX 4090s for 5 days, but it also trains on a GTX 1650.
+- **Pluribus** (6-player poker): under $150 of CPU. Multiplayer self-play works without equilibrium guarantees.
+- **Cicero and piKL** (Diplomacy): human-like through human data plus search kept close to the human policy.
+- **AlphaStar:** a league of past versions and "exploiters".
+- **ByteRL:** beat a top Hearthstone player, yet was easy to exploit in LOCM.
+
+**Lessons:**
+1. Build cards from their features, and score each legal action as a pointer.
+2. Search on top of the network brings most of the strength.
+3. A diverse league and an exploitability test, not one fixed opponent. This answers "don't train against Forge's weak AI".
+4. Human-likeness comes from human data plus anchored search.
+5. Multiplayer MTG is almost unexplored.
+6. Engine speed, not the GPU, is the bottleneck.
+
+### 4.3 Forge's script language, or an abstract MTG language with adapters? ([research/representation.md](research/representation.md))
+**Forge's scripts:**
+- The syntax is perfectly regular: all 88,629 ability lines are `Key$ Value` lists.
+- The vocabulary is large: 194 effect types used, 139 trigger modes, 81 static modes, 34 replacement events, 253 keyword heads, 1,297 parameter keys.
+- **The meaning lives only in Java** (~129,500 lines of forge-game).
+- 29 % of scripts carry Forge-AI hints.
+
+**XMage** cards are Java code (32,824 classes), not data.
+
+**Options:**
+- (A) Forge scripts as the vocabulary.
+- (B) Embeddings of the oracle text.
+- (C) A new abstract MTG language. A second rules engine in disguise: high effort.
+- (D) A hybrid. The report leans to (D):
+  - each card is described by its oracle-text vector, Scryfall/MTGJSON fields, and optional Forge-script tokens, joined by `oracle_id`;
+  - game state and actions use an **engine-neutral protocol**;
+  - each engine has an adapter.
+
+**What the protocol needs:**
+- PettingZoo-style turn loop with per-seat views;
+- new object ids on every zone change (rule 400.7);
+- per-seat hidden information;
+- ~25–30 decision kinds covering Forge's 113 `PlayerController` methods;
+- legal actions as a scored candidate list;
+- one JSONL record per decision.
+
+The closest existing pieces: mtg-bench's PROTOCOL.md (2 players only), Spellbench, and Argentum's gym.
+
+### 4.4 Faster simulation ([research/simulation-speed.md](research/simulation-speed.md))
+**Language versus design:**
+- Java to Rust alone: about 1.5–3× faster (benchmarks).
+- Design changes (cheap state copies, incremental updates, no event or UI overhead): 10–1000×.
+
+**Existing fast engines (all young, rules differ from Forge):**
+- **kiln-mtg** (Rust, 4-player Commander first): 17 ms per game, 665 ns per state copy. Only 402 cards; no license.
+- **arcana** (Rust, 1v1): 5.6 ms per random game; 20,590 generated cards.
+- **phase.rs** (Rust, parses oracle text): 29,342 cards, 4-seat Commander runner. 38 crashes in 2,000 games.
+- **Manabrew:** a Rust port of Forge that reads Forge's scripts. AGPL; "selected matchups"; its parity harness was abandoned.
+- **Argentum** (Kotlin): ~10 random 1v1 games/s on 8 threads.
+
+**Forge's rules engine:** 129,549 lines; ~63 % is the card-script interpreter. A Rust re-implementation is ~130–160k lines and 1–2+ years to reach parity (Manabrew is the yardstick).
+
+**The owner's option 1 (barebones simulator):** 10³–10⁵× faster, but it teaches only combat and mana curve.
+
+**Hybrids:**
+- Train mostly on a fast engine, then fine-tune and evaluate on Forge. This needs a shared protocol (4.3).
+- Risk: the model learns to exploit rules differences. Lockstep differential testing guards against that.
+
+### 4.5 Cloud and free compute ([research/compute-costs.md](research/compute-costs.md))
+**The owner's PC is the cheapest compute:** €1.20–1.68 a day of electricity at full load (EDF Tarif Bleu, Aug 2026).
+
+**Free:**
+- Modal: $30 of credit every month.
+- Oracle Always Free: now 2 ARM cores and 12 GB.
+- GCP: a one-off $300 trial.
+- Kaggle: GPUs for training, slower than the RX 7800 XT.
+
+**Not allowed by their terms:** Colab free (bans game training) and GitHub Actions (account risk for the fork).
+
+**€2–5 a month buys about what €2 of the PC's electricity does:** ~25–45k Forge-AI games, or a few RTX 4090 hours. Cloud buys speed in bursts, not savings. The faster engine outweighs every price difference.
+
+**The RX 7800 XT is officially supported by ROCm/PyTorch.** CachyOS is not an officially supported OS, so use Arch packages or the `rocm/pytorch` Docker image.
+
+## 5. The option space (axes, not a plan)
+| Axis | Options seen | What the evidence says |
+|---|---|---|
+| Training engine | Forge (Java, full rules, ~4.5 s per game without its AI); Argentum (Kotlin, MIT, gym); phase.rs or kiln (Rust); our own engine; a barebones simulator | Engine speed matters most when training with a GPU and with search. Fidelity matters for the final play in Forge |
+| Model–engine boundary | Forge-specific API; an engine-neutral protocol with adapters | Neutral fits the owner's "model first". Spellbench, mtg-bench and Argentum's gym show the shape |
+| Card knowledge | Forge-script tokens; oracle-text vectors from a small text encoder run once, offline; Scryfall fields; hashed card ids | Features generalise to new cards; a hybrid is the most robust |
+| Learning signal | self-play league; Forge AI as an early sparring partner and yardstick; imitation of human games; search | League plus exploiters avoids a weak fixed opponent; human data anchors realism |
+| Format progression | 1v1 first (more prior work and data, Arena Brawl logs, Spellbench); 4-player Commander from day one | Every prior MTG agent is 1v1; Commander multiplayer is new ground |
+| Play-time strength | pure policy (fast, more "human"); policy plus search (stronger) | piKL: search anchored to a human-like policy keeps both |
+| Compute | owner's PC; free credits; bursts of cheap cloud | The PC plus free tiers covers a hobby budget |
+
+## 6. Open questions for the owner
+1. Is a small text encoder, run **once offline** to turn each card's text into numbers, acceptable under "no LLM"? It never plays.
+2. Must training run on Forge? Or can it run mostly on a faster engine, with Forge for the final tuning and for play?
+3. Start with 1v1 (Brawl or Duel Commander), or go straight to 4-player Commander?
+4. Would the group record its games (a recorder in Forge) to measure and anchor human-likeness?
+5. License: a model meant for use outside Forge suggests separate model and training code under a permissive license, with a GPL adapter inside Forge. Is that the intent?
+6. Where should the project live: this fork's docs for now, or its own repository later?
+
+## 7. Measurements that would settle open points (not started)
+- **Decisions per Forge 4-player game, and the engine-only time,** with a trivial policy in place of Forge's AI. This checks the ~1,500 calls and ~4.5 s used above.
+- **Cost of a Forge game copy** (`GameCopier`), which decides whether search on Forge is practical.
+- **GPU inference speed** on the RX 7800 XT (needs PyTorch with ROCm, which the owner would install).
+- **Throughput of phase.rs and Argentum on a 4-player Commander game.**
