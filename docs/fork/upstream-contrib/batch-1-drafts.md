@@ -34,7 +34,7 @@ Cause: the DelayedTrigger line lacked `ThisTurn$ True`, so it was registered as 
 Checked with a scripted engine scenario: -2, pass to another turn, cast Opt from hand. Before, Opt was exiled; after, it goes to the graveyard. Casting in the same turn still gives rebound. Script-only, so no tests; `mvn -U -B clean test` passes.
 ```
 
-## 3. `contrib/hapatra-ai-targets` — commit `01355a4242d`
+## 3. `contrib/hapatra-ai-targets` — commit `01355a4242d` — **POSTED as upstream PR 12874 (2026-11-14)**
 - Status: ready for the owner. Orchestrator review: diff = `IsCurse$ True` added to the trigger's PutCounter line. Reproduced through the real game loop (4 AI players, the AI casts Hapatra by itself): before, `targeting []` and all three Angels survive; after, one Angel per opponent is targeted and all die. CI command passed (2,539 desktop tests, 0 failures).
 - Agent notes: 61 of 70 targeted M1M1 PutCounter scripts already set the flag. Decimator Beetle and Persistent Constrictor have a similar shape and were tested working (left alone). Shy Town (a Planechase plane) may share the defect but could not be reproduced (not in the test card database), so it was left out.
 
