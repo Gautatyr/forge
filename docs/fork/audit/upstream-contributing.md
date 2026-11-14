@@ -23,7 +23,7 @@ Status: **analysis only, nothing posted upstream.** The fork rule "never interac
 
 ## 2. How upstream behaves in practice (measured 2026-11-14)
 - **AI-assisted work is normal:** 205 of the last 1,000 commits on upstream `master` carry a `Co-authored-by: Claude …` line (Opus 5.5 most often).
-- **Small fixes merge fast:** in the 60 most recent merged PRs, median time to merge was 8 h (max 89 h). One-line card-script fixes from occasional contributors (e.g. #12802, #12805, #12811, #12812, #12844) merged within 0–38 h.
+- **Small fixes merge fast:** in the 60 most recent merged PRs, median time to merge was 8 h (max 89 h). One-line card-script fixes from occasional contributors (e.g. upstream PRs 12802, 12805, 12811, 12812, 12844) merged within 0–38 h.
 - **Few rejections:** of the last 100 closed PRs, 6 were closed without merging.
 - **Large backlog:** 247 open PRs, median age 65 days. These are mostly large engine, AI or feature PRs from regulars; a large or debatable engine change can wait weeks.
 - **Our access:** `Gautatyr` has pull-only permission on Card-Forge/forge (no push), so a push there is impossible even by mistake.
