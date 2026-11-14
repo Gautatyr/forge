@@ -49,7 +49,8 @@ Cause: the PutCounter line lacks `IsCurse$ True`, and `SpellAbility.isCurse()` o
 Checked with a scripted engine scenario: 4 AI players, the AI casts Hapatra itself through the main loop, with three opposing Serra Angels and a 6-mana card in its graveyard. Before, the trigger targets nothing; after, it targets one Angel per opponent and all three die. Script-only, so no tests; `mvn -U -B clean test` passes.
 ```
 
-## 4. `contrib/skyclave-apparition-tokens` — commit `11e8b619a06`
+## 4. `contrib/skyclave-apparition-tokens` — commit `11e8b619a06` — **WITHDRAWN, not posted (2026-11-14): Forge is correct**
+- Official Wizards ruling on Skyclave Apparition (2020-09-25): "If the first ability exiled cards owned by more than one player, each of those players creates a token with power and toughness equal to the sum of the mana values of all cards exiled by the first ability." Elesh Norn's ruling (2023-02-04) states the general principle: when "the exiled card" gives several answers for a variable, the sum is used. Forge's two 6/6s are right; Severance Priest follows the same principle. Our audit and this branch read CR 607.2a without checking the card's rulings. The fork branch is kept for the record only.
 - Status: ready for the owner. Orchestrator review: both scripts now loop over the remembered cards (`RepeatEach … UseImprinted$ True`, the idiom of e.g. Desolation) and make one token per card, owned by and sized by that card; the "still exiled" condition is kept per card. Reproduced before the fix through the real game loop (`PriorityTestBase`) and the direct-cast harness; after the fix, 7/7 direct and 4/4 real-loop cases pass. CI command passed (2,539 desktop tests, 0 failures).
 - Agent notes: Severance Priest has the same defect and is fixed in the same commit (checked in the direct-cast harness only). The doubled-trigger ruling is a CR 607.2a reading; no official ruling exists.
 
@@ -72,7 +73,7 @@ Checked with scripted engine scenarios, including through the priority loop: dou
 
 **Body:**
 ```
-When Elesh Norn, Mother of Machines (or Panharmonicon, for the two creatures) makes the enter trigger fire twice, ForgetOtherRemembered$ on the second resolution wiped the cards the first one exiled (CR 607.2a: the leave ability refers to all of them). Fiend Hunter and Tidehollow Sculler: when they leave, only one card comes back. Free-for-All: the second trigger exiles nothing and empties the list, so no creature ever comes back at upkeep or goes to the graveyard. Search the City: only five of the ten cards count.
+When Elesh Norn, Mother of Machines (or Panharmonicon, for the two creatures) makes the enter trigger fire twice, ForgetOtherRemembered$ on the second resolution wiped the cards the first one exiled. Per the official rulings on Norn and Panharmonicon, the leave ability refers to all cards exiled by every instance of the enter trigger. Fiend Hunter and Tidehollow Sculler: when they leave, only one card comes back. Free-for-All: the second trigger exiles nothing and empties the list, so no creature ever comes back at upkeep or goes to the graveyard. Search the City: only five of the ten cards count.
 
 Fix: Fiend Hunter, Tidehollow Sculler and Free-for-All now use ExiledWith / ExiledWithSource, like Oblivion Ring and Faceless Butcher, instead of a remembered list. This also fixes flickering them after the exile (Ephemerate on Sculler, Flicker of Fate on Free-for-All), where the old leave trigger's cleanup emptied the new permanent's list. Search the City still needs its list (its triggers match names against it), so it drops the flag and clears the list when it enters, with a static trigger as Naya Soulbeast does.
 
@@ -90,7 +91,7 @@ Journey to Nowhere and a few similar scripts lose cards the same way through For
 
 **Body:**
 ```
-Journey to Nowhere, Faceless Devourer, Gravegouger, Leonin Relic-Warder, Petradon, Petravark and Slithery Stalker lose exiled cards when their enter trigger is doubled (Elesh Norn, Mother of Machines; Panharmonicon for the artifacts and creatures). ForgetOtherTargets$ on the enter trigger made the second resolution wipe the first one's cards, which then never return when the permanent leaves (CR 607.2a).
+Journey to Nowhere, Faceless Devourer, Gravegouger, Leonin Relic-Warder, Petradon, Petravark and Slithery Stalker lose exiled cards when their enter trigger is doubled (Elesh Norn, Mother of Machines; Panharmonicon for the artifacts and creatures). ForgetOtherTargets$ on the enter trigger made the second resolution wipe the first one's cards, which then never return when the permanent leaves. Per the official rulings on Norn and Panharmonicon, "the exiled card" refers to all cards exiled by every instance of the enter trigger.
 
 Fix: drop RememberTargets/ForgetOtherTargets and return with Defined$ ExiledWith, as Oblivion Ring does; Slithery Stalker's cleanup is no longer needed. Same approach as the Fiend Hunter PR.
 

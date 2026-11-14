@@ -6,7 +6,9 @@
 
 > **Correction (2026-11-14, same day): row 1 is withdrawn — a false positive of the test harness.** The fix agent reproduced it only through `ComputerUtil.playStack`, which skips the priority loop. In real play, `PhaseHandler` (upstream master, around lines 1209–1229) compares the card's zone before and after `playChosenSpellAbility` and fires `triggerChangesZoneAll` for the cast (upstream PR 4585, "Fix Tormod, the Desecrator not triggering from Gravecrawler"). Through the real loop (`PriorityTestBase`, plus `game.copyLastState()` after setup), Imotekh + Muldrotha gives 2 tokens and Tormod + flashback gives 1 Zombie. Casting from hand gives none, and a cancelled flashback gives none. The orchestrator's earlier check covered `moveToStack` only, not its caller. **Lesson:** an audit test that checks a batch (`ChangesZoneAll`) trigger fired by a cast must go through the priority loop, not `playStack`. Scratch tests: fix-agent run, 2026-11-14.
 
-## Confirmed bugs (each has a failing test; root causes re-checked in the code by the orchestrator; row 1 withdrawn, see the correction above)
+> **Correction 2 (2026-11-14): row 3 (Skyclave Apparition) is withdrawn — Forge follows the official ruling.** Wizards' ruling on Skyclave Apparition (2020-09-25): "If the first ability exiled cards owned by more than one player, each of those players creates a token with power and toughness equal to the sum of the mana values of all cards exiled by the first ability." The two 6/6s are correct. The audit argued from CR 607.2a without checking the card's rulings. **Lesson:** check the card's official rulings (Scryfall "Notes and Rules Information", source `wotc`) before calling anything a rules bug. Row 2 (Fiend Hunter) is *confirmed* by the official rulings on Elesh Norn and Panharmonicon: "the exiled card" refers to all cards exiled by every instance of the trigger.
+
+## Confirmed bugs (each has a failing test; root causes re-checked in the code by the orchestrator; rows 1 and 3 withdrawn, see the corrections above)
 
 | # | Card(s) / deck | What goes wrong | Cause | Upstream | Severity |
 |---|---|---|---|---|---|

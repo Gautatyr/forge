@@ -58,6 +58,11 @@ Costs and risks:
 - **Checkout:** `/home/hugo/workspace/CodeRepository/forge-contrib`, a git worktree of the fork repo, detached at upstream `master` (`5a7f95b72a3` when created). It shares the fork repo's remotes:
   - `upstream` = Card-Forge/forge, fetch only (push URL `DISABLED`).
   - `origin` = Gautatyr/forge, a GitHub fork of Card-Forge/forge, so PRs can come from its branches.
+- **Before calling something a rules bug:**
+  1. Read the card's official rulings (Scryfall "Notes and Rules Information", source `wotc`) and the rulings of the cards it interacts with.
+  2. Reproduce through the real priority loop (`PriorityTestBase`).
+
+  Two audit findings were withdrawn on 2026-11-14 for skipping one of these: Skyclave Apparition had an official ruling matching Forge, and the cast-from-graveyard trigger came from a test harness shortcut.
 - **Flow per contribution** (once the owner approves):
   1. `git -C ../forge-contrib fetch upstream`
   2. `git -C ../forge-contrib switch -c contrib/<slug> upstream/master`
