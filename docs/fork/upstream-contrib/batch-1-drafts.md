@@ -88,3 +88,23 @@ Journey to Nowhere and a few similar scripts lose cards the same way through For
 
 Written with Claude Code (co-author on the commit).
 ```
+
+## 6. `contrib/exile-until-leaves-doubled-etb` — commit `8fbf59eee30`
+- Status: ready for the owner. Same mechanism and same fix as #5 (found by #5's adversarial review). Orchestrator review: 7 scripts, 14+/15−; enter triggers drop `RememberTargets`/`ForgetOtherTargets`, leave triggers return `Defined$ ExiledWith` (Oblivion Ring's form); Slithery Stalker's now-useless cleanup removed. Real-loop scenarios (`PriorityTestBase`): doubled by Norn failed on all seven before, 28/28 scenarios pass after (doubled, single, leaves before the trigger resolves, flicker after the exile).
+- **CI:** 1 failure, `CardEditionCollectionCardMockTestCase` (Shivan Dragon expected FDN, found SLZ). Orchestrator confirmed it fails on clean upstream `master` `f65df0c1281` too: upstream's own CI on master is red since the merge of upstream PR 12869 (SLZ edition update, 11:43 UTC), which added a Shivan Dragon printing. Upstream fixed the same test before (PRs 1494, 2053).
+- Left alone, flagged for the owner: Laquatus's Champion and Soul Scourge (they track a targeted *player*; doubled, both players lose life but only one gains it back). No official ruling for the doubled case and no clean script fix, so not in this PR.
+
+**Title:** Journey to Nowhere and six similar cards: return every card exiled by a doubled enter trigger
+
+**Body:**
+```
+Journey to Nowhere, Faceless Devourer, Gravegouger, Leonin Relic-Warder, Petradon, Petravark and Slithery Stalker lose exiled cards when their enter trigger is doubled (Elesh Norn, Mother of Machines; Panharmonicon for the artifacts and creatures). ForgetOtherTargets$ on the enter trigger made the second resolution wipe the first one's cards, which then never return when the permanent leaves (CR 607.2a).
+
+Fix: drop RememberTargets/ForgetOtherTargets and return with Defined$ ExiledWith, as Oblivion Ring does; Slithery Stalker's cleanup is no longer needed. Same approach as the Fiend Hunter PR.
+
+Checked with scripted engine scenarios through the priority loop (not a hand-played game), for all seven: doubled by Norn, all exiled cards return (failed before); single trigger; leaving before the enter trigger resolves (target stays exiled); flicker after the exile. Script-only, so no tests.
+
+`mvn clean test`: one failure, CardEditionCollectionCardMockTestCase (Shivan Dragon, SLZ), which also fails on current master since #12869.
+
+Written with Claude Code (co-author on the commit).
+```
