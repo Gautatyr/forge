@@ -191,3 +191,57 @@ The closest existing pieces: mtg-bench's PROTOCOL.md (2 players only), Spellbenc
 - **Cost of a Forge game copy** (`GameCopier`), which decides whether search on Forge is practical.
 - **GPU inference speed** on the RX 7800 XT (needs PyTorch with ROCm, which the owner would install).
 - **Throughput of phase.rs and Argentum on a 4-player Commander game.**
+
+## 8. Round 2: the owner's answers and follow-ups (2026-11-14)
+**Owner's answers to section 6:**
+1. A text encoder, or any LLM, is fine as a **tool** to prepare data. It must not be the playing model.
+2. Forge is the end goal; training can happen anywhere. But the owner needs to **play against early versions in Forge long before the final one**: that is the only real way to judge the model. So the Forge adapter is needed early.
+3. 1v1 first or Commander first: undecided. 1v1 and Commander are quite different games.
+4. Recording the group's games: improbable and complex. Rely on self-play exploring many paths instead.
+5. **A separate project, the owner's own**, not under Forge's licence. The part inside Forge is only the adapter.
+
+**Follow-ups:**
+- **Is ~600k games a day enough?**
+  - 7 games/s is the GPU's capacity with a small model. With Forge's engine the cap is ~1.8 games/s (~150k/day), so 600k/day needs a faster engine.
+  - Reference points (games to reach a level):
+    - jackmaiorino, 1v1 Pauper, fixed decks: ~50k games to reach XMage's heuristic AI;
+    - KataGo: 4.2M games to beat ELF OpenGo;
+    - AlphaZero chess: ~20M games to superhuman and ~44M to beat Stockfish 8 (secondary sources quoting the paper's Methods);
+    - ygo-agent: 100M+ games.
+  - At 600k/day, those are ~2 hours, ~7 days, ~1–2.5 months and ~6 months.
+  - The number for Commander is unknown. A learning curve shows within days whether a model is learning.
+  - Ways to need fewer games:
+    - a fixed deck pool first (the owner's 19 decks);
+    - imitation of Forge's AI to skip the random-play phase;
+    - card features that transfer;
+    - a curriculum.
+  - Search-based training spends many simulated continuations per decision, so its games per day are lower.
+- **"Paper games" in the Playgroup.gg corpus** are games played in person with physical cards, which players log in an app afterwards: who played, commanders, winner, how it ended, life and damage by turn, mulligans. **Not the moves.** Their online table (Playgroup Live) records casts and zone moves, but not the choices that were available. So it is not a move-by-move corpus.
+- **One model for several formats** (the owner's extrapolation) is how Maia-2 replaced 9 per-level models with one model plus a skill input. The format (player count, life, commander rules) becomes an input. Mixing formats risks "negative transfer" if one format dominates the training mix; weighting the mix and fine-tuning on Commander manage it. With the format as an input, 1v1 games teach format-specific habits as such, not as Commander habits.
+- **Human-likeness with little human data** (no recording infrastructure):
+  1. **Search anchored to a human-like policy (piKL).** In chess and Go it predicted human moves better than imitation alone, while winning over 85 % against the imitation model. It still needs some human-like base policy.
+  2. **Preference feedback.** A person marks which of two moves looks more natural, or flags a weird move during a test game. Christiano et al. 2017 taught behaviours with 15 minutes to 5 hours of a non-expert's feedback. For us: a "this move felt wrong" flag while the owner plays test versions.
+  3. **Transfer from abundant 1v1 human data** (17lands, MTGO logs), with the format as an input, for generic habits: mulligans, attacks, sequencing.
+  4. **Human limits by design:** limited lookahead, imperfect memory, calibrated noise. Cheap but crude: Maia found that weakened engines do not play like humans.
+- **Self-play exploring many paths** (answer 4) is exactly reinforcement learning by self-play. Randomness makes the model try alternatives, and results reinforce the good ones; a league of past versions avoids going in circles. It gives strength, not human style. Style comes from the signals above.
+- **The Rust rewrite with AI agents.** The owner doubts "1–2 years". Translating 130k lines is fast with agents. The slow parts are:
+  - Java's shared mutable object graph does not map line by line onto Rust's ownership model, so it becomes a redesign;
+  - proving the same behaviour needs differential testing against Forge;
+  - fast copies need a new state layout (the actual goal);
+  - Forge changes daily.
+
+  Manabrew (a Rust port reading Forge's scripts) is at "selected matchups" after 6 months and ~1,400 commits. Revised view: **months for a scoped engine** (e.g. the ~1,100 cards of the owner's decks); full parity with Forge is the long tail.
+- **Licence consequences of answer 5** (not legal advice):
+  - The model, the training code and the protocol can be the owner's own, under any licence, in their own repository.
+  - The Forge adapter lives in Forge under GPL-3, which upstream needs anyway.
+  - A Rust **port of Forge** is a derivative of GPL code, so it would be GPL too (Manabrew is AGPL). It cannot be the owner's own.
+  - A **clean-room** engine, written from the Comprehensive Rules and not from Forge's code, can be the owner's. It can still be checked against Forge by playing the same situations through the protocol (comparing behaviour, not copying code).
+  - Card knowledge: Forge's scripts are part of its GPL repository. An own-licence model should learn cards from Scryfall/MTGJSON data plus the text encoder. Forge-specific features can come from the adapter at run time. Card texts belong to Wizards of the Coast (Fan Content Policy: free, non-commercial).
+
+**Open points after round 2:**
+- **Training engine:**
+  - Forge via the adapter (simple, slow, available now);
+  - a clean-room engine of the owner's (fast, own licence, months);
+  - an existing MIT engine (Argentum: Kotlin, 2–6 players, gym API).
+- **Early play in Forge before upstream accepts anything** means a local Forge build with the adapter, like the one built on 2026-11-14. To confirm that this is acceptable for testing.
+- 1v1 or Commander first; the format mix.

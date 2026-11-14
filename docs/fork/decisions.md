@@ -415,3 +415,10 @@ Newest last. Each entry: the decision, why, and what it implies.
 - The owner did not accept the staged, Forge-centred path (`audit/ml-ai-feasibility.md` sections 7–8).
 - Direction for the brainstorm: a high-level MTG model usable beyond Forge, connected to Forge by an adapter; not trained only against Forge's AI; wide research before any decision; no external contact until the owner ends the brainstorm.
 - Brainstorm map and research: `docs/fork/mtg-model/README.md`. Nothing decided, nothing started.
+
+## 2026-11-14 — MTG model: separate project of the owner's; Forge gets only an adapter (owner)
+- The model, its training code and its protocol are a separate project, the owner's own, not under Forge's licence. Inside Forge there is only the adapter.
+- LLMs and text encoders are fine as tools to prepare data; never as the playing model.
+- Training may run on any engine; Forge is the end goal. The owner must be able to play early versions in Forge, so the Forge adapter is needed early.
+- No recording of the group's games. Strength comes from self-play; human-likeness from light signals (see `mtg-model/README.md` section 8).
+- Still brainstorming: nothing started, no external contact.
