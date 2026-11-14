@@ -405,3 +405,8 @@ Newest last. Each entry: the decision, why, and what it implies.
   - On the fork, upstream references stay plain text ("upstream issue N").
 - **Why:** the owner now plays the vanilla upstream app built from upstream `master` (see `audit/upstream-contributing.md`), so fixes are worth more upstream than in the fork. Upstream accepts AI-assisted PRs with disclosure and merges small script fixes within hours.
 - Rules and measurements: `audit/upstream-contributing.md`. Root `CLAUDE.md` "Fork rules" updated.
+
+## 2026-11-14 — A machine-learned AI must be custom, offline and local (owner)
+- Goal: a better AI that plays more realistically; the way we get there matters.
+- Constraints: zero running cost, runs on the player's computer (a modern graphics card may be required), no online service, no LLM at play time, no fork build to play it (so it must eventually be accepted upstream).
+- Analysis and staged path (learned evaluation first, then a learned policy): `docs/fork/audit/ml-ai-feasibility.md`, sections 7–8. Nothing started.
