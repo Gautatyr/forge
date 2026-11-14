@@ -391,3 +391,17 @@ Newest last. Each entry: the decision, why, and what it implies.
 - **Abstruse Archaic:** activatable by the web seat with a colorless ability on the stack and no summoning sickness (probe and live); otherwise the engine offers no ability, `selectCard` does nothing and the page shows nothing (no note). Not changed here.
 - **Upstream-file edit (#174, review round 1):** `forge-ai/.../AvailableActions.java` (`canAfford`). The highlight sweep runs under a temporary controller (`Player.runWithController`), so `ComputerUtilMana.payManaCost` (`getControllingPlayer() == null`) skipped its mana conversions: a colored card payable only through "mana of any type" (Gonti's exiled card, Thief of Sanity, Hostage Taker...) was never lit, and the page treats an unlit opponent card as not playable. `canAfford` now applies the same conversions (may-play option, grantor `ManaConversion`, the ability's `ManaConversion`, `StaticAbilityManaConvert`) on the player's pool and restores it after. `ComputerUtilMana` is unchanged (auto-pay relies on the skip). Test: `HumanSeatOtherZonesTest.anOpponentsColoredCardExiledByGontiPaidWithOffColorMana`.
 - A lit card in an opponent's hand (Sen Triplets) is listed in the group too (caption `Hand · <owner>`); `adapter/otherZonePlay.test.ts`.
+
+## 2026-11-14 — The fork contributes fixes upstream, owner-gated (supersedes "The fork does not contribute upstream" and "No interaction with upstream at all", 2026-10-15)
+- **Owner decision 2026-11-14:** we try contributing to Card-Forge/forge. First batch: every confirmed defect of the card-rules audit (`audit/card-rules-2026-11-14/`) not already covered by an upstream issue or PR, all in parallel. Garruk, Veiled Butcher is excluded (upstream issue 12143, PR 12218).
+- **Owner gate:** Claude drafts every upstream write (PR, issue, comment, reply to a review); the owner reads it, and it is posted only after the owner's go for that item.
+- **Flow:**
+  - Branch `contrib/<slug>` from `upstream/master`, in `../forge-contrib` or an agent worktree. Follow upstream's `CONTRIBUTING.md`, not the fork's gates: one goal per PR, root cause, no tests for script-only fixes, one general test for engine fixes, `mvn -U -B clean test` passes, and a `Co-Authored-By: Claude` line.
+  - An adversarial agent review runs before the draft goes to the owner.
+  - The branch is pushed to `origin`; the PR is opened from `Gautatyr:contrib/<slug>` to `Card-Forge:master`.
+- **Guards kept:**
+  - The `upstream` push URL stays `DISABLED`; Gautatyr has pull-only access upstream anyway.
+  - Never @-mention anyone.
+  - On the fork, upstream references stay plain text ("upstream issue N").
+- **Why:** the owner now plays the vanilla upstream app built from upstream `master` (see `audit/upstream-contributing.md`), so fixes are worth more upstream than in the fork. Upstream accepts AI-assisted PRs with disclosure and merges small script fixes within hours.
+- Rules and measurements: `audit/upstream-contributing.md`. Root `CLAUDE.md` "Fork rules" updated.

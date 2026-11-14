@@ -19,12 +19,14 @@ Per-folder `CLAUDE.md` files load only when an agent touches that folder.
 
 ## Fork rules
 - **Branches:** `master` mirrors `upstream/master` and is never committed to. Work lands on `develop` (the default branch). Sync with `git fetch upstream && git merge upstream/master` on `develop`.
-- **Changes flow upstream → fork only.** Every edit to an upstream file can conflict on the next sync. Keep such edits small and isolated; prefer new files and new modules. Record any deliberate upstream-file edit in `docs/fork/decisions.md`.
-- **Never interact with upstream (Card-Forge/forge).** Allowed contact is read-only: `git fetch upstream` to pull its changes, and reading its public issues and PRs when useful (e.g. `gh issue list -R Card-Forge/forge`). Never write anything there.
-  - Issues, PRs and comments go on `Gautatyr/forge` only. PRs target `Gautatyr/forge`, base `develop` (`gh pr create --repo Gautatyr/forge --base develop`).
-  - In anything posted to GitHub (issues, PRs, comments, pushed commit messages), never write `Card-Forge/forge#123` or upstream issue/PR URLs: GitHub would add a backlink on upstream. Write "upstream issue 123" in plain text instead.
+- **Fork code flows upstream → fork through syncs.** Every edit to an upstream file can conflict on the next sync. Keep such edits small and isolated; prefer new files and new modules. Record any deliberate upstream-file edit in `docs/fork/decisions.md`.
+- **Upstream (Card-Forge/forge): read freely, write only with the owner's go** (decision 2026-11-14).
+  - Fork work: issues, PRs and comments go on `Gautatyr/forge`. PRs target `Gautatyr/forge`, base `develop` (`gh pr create --repo Gautatyr/forge --base develop`).
+  - Upstream contributions: a branch `contrib/<slug>` from `upstream/master`, following upstream's `CONTRIBUTING.md` (not this file's gates), pushed to `origin`; PR with `gh pr create -R Card-Forge/forge --base master --head Gautatyr:contrib/<slug>`. Flow and rules: `docs/fork/audit/upstream-contributing.md`.
+  - **Every upstream write (PR, issue, comment, reply to a review) is drafted first and read by the owner; post it only after the owner's go for that item.**
+  - In anything posted on the fork (issues, PRs, comments, pushed commit messages), never write `Card-Forge/forge#123` or upstream issue/PR URLs: GitHub would add a backlink on upstream. Write "upstream issue 123" in plain text instead. Inside an upstream PR or issue, `#123` is upstream's own and is fine.
   - Never @-mention anyone.
-  - Pushing to the `upstream` remote is disabled (`git remote set-url --push upstream DISABLED`); never re-enable it.
+  - Pushing to the `upstream` remote is disabled (`git remote set-url --push upstream DISABLED`); never re-enable it. Upstream PRs come from the fork's branches.
 - **Pushing to the fork (`origin`, Gautatyr/forge) is allowed** without asking: feature branches, and `develop` after merges. Never force-push `develop` or `master`. `master` only ever mirrors `upstream/master`.
 - **New UI work goes in new modules** and plugs into the `forge-gui` interfaces (`IGuiBase`, `IGuiGame`). Do not restyle `forge-gui-desktop` in place: upstream changes it constantly.
 - **Do not delete or gut `forge-gui-desktop`:** it hosts the engine and AI tests and the headless `sim` benchmark.

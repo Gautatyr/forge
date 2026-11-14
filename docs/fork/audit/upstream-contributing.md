@@ -1,6 +1,6 @@
 # Contributing to upstream Card-Forge — rules, feasibility, local setup (2026-11-14)
 
-Status: **analysis only, nothing posted upstream.** The fork rule "never interact with upstream" (root `CLAUDE.md`, decision of 2026-10-15) still holds until the owner decides otherwise.
+Status: **adopted 2026-11-14** (decision log, "The fork contributes fixes upstream, owner-gated"). Every upstream write is drafted, then read by the owner, and posted only after the owner's go.
 
 ## 1. Upstream's rules (`CONTRIBUTING.md` on upstream `master`, read 2026-11-14)
 - **Setup:** fork on GitHub, clone the fork, JDK 17+, Maven. Build: `mvn -U -B clean -P windows-linux install` (`-DskipTests` for speed).
@@ -26,7 +26,11 @@ Status: **analysis only, nothing posted upstream.** The fork rule "never interac
 - **Small fixes merge fast:** in the 60 most recent merged PRs, median time to merge was 8 h (max 89 h). One-line card-script fixes from occasional contributors (e.g. upstream PRs 12802, 12805, 12811, 12812, 12844) merged within 0–38 h.
 - **Few rejections:** of the last 100 closed PRs, 6 were closed without merging.
 - **Large backlog:** 247 open PRs, median age 65 days. These are mostly large engine, AI or feature PRs from regulars; a large or debatable engine change can wait weeks.
-- **Our access:** `Gautatyr` has pull-only permission on Card-Forge/forge (no push), so a push there is impossible even by mistake.
+- **Our access:** `Gautatyr` has pull-only permission on Card-Forge/forge (no push), so a push there is impossible even by mistake. Every outside contributor works this way: branches live in their own fork, and the PR asks upstream to pull from it.
+- **Review questions on small fixes are rare.** Of the 120 most recent merged PRs, 15 were small script-only fixes (10 lines or fewer, all under `forge-gui/res/`):
+  - 11 got no written comment from anyone else; 1 got "thanks".
+  - 3 got an "Initial Claude review" comment that maintainer MostCromulent posts on some PRs (17 of the 120): 2 said "no blocking issues", 1 found a real problem the author had to fix.
+  - Expect the questions to be about whether the fix is right and complete, not about style.
 
 ## 3. Feasibility for our findings (audit `card-rules-2026-11-14`)
 Duplicate search done on upstream PRs and issues (titles and bodies):
