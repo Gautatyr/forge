@@ -100,3 +100,8 @@ Checked with scripted engine scenarios through the priority loop, for all seven:
 
 `mvn clean test`: one failure, CardEditionCollectionCardMockTestCase (Shivan Dragon, SLZ), which also fails on current master since #12869.
 ```
+
+## Status update 2026-11-14 (evening)
+- Merged upstream: PR 12871 (Boggart Trawler and two other Oracle names, merged 16:39 UTC), PR 12874 (Hapatra, 14:34 UTC), PR 12872 (Narset, 19:59 UTC).
+- PR 12875 (doubled enter trigger, 11 scripts): approved, both CI checks green; waiting for a maintainer to merge.
+- No review comments needed a reply.
