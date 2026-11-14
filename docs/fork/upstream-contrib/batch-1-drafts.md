@@ -69,3 +69,22 @@ Checked with scripted engine scenarios, including through the priority loop (not
 
 Written with Claude Code (co-author on the commit).
 ```
+
+## 5. `contrib/fiend-hunter-doubled-etb` — commits `e59f2d749dc` + `6ca10fe1007`
+- Status: ready for the owner. Round 1 (clear-on-enter for all four cards) got "changes needed" from an independent adversarial review: the engine already tracks the exiling permanent (`ExiledWith`, used by Oblivion Ring and Faceless Butcher), and the round-1 version left two flicker bugs (Ephemerate on Tidehollow Sculler, Flicker of Fate on Free-for-All). Round 2 switches Fiend Hunter, Tidehollow Sculler and Free-for-All to `ExiledWith`/`ExiledWithSource`; Search the City keeps a clear-on-enter static trigger (its other abilities need the list).
+- Orchestrator review: final diff = 4 scripts, 11+/11−, matching the reviewer's prescription. 16 real-loop scenarios pass (doubling by Norn and Panharmonicon, Clone copy, Ephemerate after the exile and in response to the enter trigger, Free-for-All upkeep, Search the City with and without Norn, no doubling, early leave); 8 of them fail without the fix. CI command passed (2,589 tests). Upstream has not touched these files since the branch base. Two commits; upstream squash-merges.
+
+**Title:** Fiend Hunter, Tidehollow Sculler, Free-for-All, Search the City: keep every card exiled by a doubled enter trigger
+
+**Body:**
+```
+When Elesh Norn, Mother of Machines (or Panharmonicon, for the two creatures) makes the enter trigger fire twice, ForgetOtherRemembered$ on the second resolution wiped the cards the first one exiled (CR 607.2a: the leave ability refers to all of them). Fiend Hunter and Tidehollow Sculler: when they leave, only one card comes back. Free-for-All: the second trigger exiles nothing and empties the list, so no creature ever comes back at upkeep or goes to the graveyard. Search the City: only five of the ten cards count.
+
+Fix: Fiend Hunter, Tidehollow Sculler and Free-for-All now use ExiledWith / ExiledWithSource, like Oblivion Ring and Faceless Butcher, instead of a remembered list. This also fixes flickering them after the exile (Ephemerate on Sculler, Flicker of Fate on Free-for-All), where the old leave trigger's cleanup emptied the new permanent's list. Search the City still needs its list (its triggers match names against it), so it drops the flag and clears the list when it enters, with a static trigger as Naya Soulbeast does.
+
+Tested in scripted headless games through the real priority loop, not by hand: each card doubled by Norn failed before and passes after; Fiend Hunter also with Panharmonicon and as a Clone copy; Ephemerate after the exile, and in response to the enter trigger (that card stays exiled); Free-for-All's upkeep return. `mvn clean test` passes. No tests added (script-only change).
+
+Journey to Nowhere and a few similar scripts lose cards the same way through ForgetOtherTargets$; I'll send those separately.
+
+Written with Claude Code (co-author on the commit).
+```
