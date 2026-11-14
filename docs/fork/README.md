@@ -31,6 +31,8 @@ Audience: the owner and friends, possibly the public later. Never monetised.
 | [audit/rules-engine.md](audit/rules-engine.md) | Audit of the rules engine, rules fidelity, known defects, test workflow. |
 | [audit/ai.md](audit/ai.md) | Audit of the AI, the simulation AI, improvement paths, the `sim` benchmark CLI. |
 | [audit/human-seat.md](audit/human-seat.md) | How the web human seat answers every `IGuiGame` method and `Input`; silent defaults; known gaps (#46). |
+| [audit/card-rules-2026-11-14/](audit/card-rules-2026-11-14/README.md) | Card-rules audit of the owner's 19 Commander decks on upstream master (2026-11-14): 5 confirmed bugs, per-group reports, test classes. |
+| [audit/upstream-contributing.md](audit/upstream-contributing.md) | Upstream's contribution rules (incl. AI-agent policy), feasibility of contributing, the local `forge-contrib` setup (2026-11-14). |
 
 ## Codebase state (summary, 2026-10-15)
 Measured on commit `0b0f7ecc511`.
