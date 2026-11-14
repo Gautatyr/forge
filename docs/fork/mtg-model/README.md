@@ -245,3 +245,53 @@ The closest existing pieces: mtg-bench's PROTOCOL.md (2 players only), Spellbenc
   - an existing MIT engine (Argentum: Kotlin, 2–6 players, gym API).
 - **Early play in Forge before upstream accepts anything** means a local Forge build with the adapter, like the one built on 2026-11-14. To confirm that this is acceptable for testing.
 - 1v1 or Commander first; the format mix.
+
+## 9. Round 3: measured inference speed; clean-room engine vs Forge port (2026-11-14)
+**Owner:** a local Forge build with the adapter is fine for testing early versions; the official build only at the end. PyTorch for ROCm and OpenBLAS are installed (`sudo pacman -S --needed blas-openblas python-pytorch-opt-rocm`, ~26 GiB).
+
+### Inference speed, measured
+PyTorch 2.15.0 on HIP 7.2 sees the RX 7800 XT (gfx1101). numpy with OpenBLAS: ~480 GFLOPS on the CPU (was 7 with the reference BLAS).
+
+Setup: `measure/torch_infer_bench.py`, transformer encoder, 128 tokens (one per visible object).
+
+| Model | CPU, 1 core, per decision | GPU, one decision at a time | GPU, batched, bfloat16 (throughput) | GPU time per game (1,500 calls) | Games/s the GPU can serve |
+|---|---|---|---|---|---|
+| tiny, 0.4M | 1.4 ms | 0.4 ms | 79,000 decisions/s | 0.02 s | ~53 |
+| small, 3.2M | 9.3 ms | 1.0 ms | 19,000 decisions/s | 0.08 s | ~13 |
+| medium, 19M | 45 ms | 1.5 ms | 4,400 decisions/s | 0.34 s | ~2.9 |
+| large, 85M | 191 ms | 2.9 ms | 1,200 decisions/s | 1.2 s | ~0.8 |
+
+Readings:
+- **Playing against a human:** under 3 ms per decision on the GPU, under 50 ms on one CPU core up to the medium size. The AI's thinking will be invisible.
+- **Training:** with Forge's engine (~1.8 games/s on 8 cores, estimate), the engine is the bottleneck up to the medium model. The GPU becomes the limit only around the large one. A 10–100× faster engine moves the limit to the GPU for every size above tiny.
+- Effective GPU speed is ~22 TFLOPS in bfloat16, so section 3's estimate (10–20) was slightly pessimistic.
+- CPU runs with 8 threads were slower than with 1 (thread over-subscription), so per-core numbers are the useful ones: one game per core.
+
+### How much Forge hard-codes (measured)
+- **The engine:** a few dozen card-name checks in forge-game Java, e.g. damage doublers like "Gratuitous Violence" and "Pyromancer's Swath" in the damage code.
+- **The AI:** about 70 checks in forge-ai, 46 per-card classes in `SpecialCardAi`, and `AILogic$` in 1,814 scripts.
+- **Scripts: 3,692 scripts carry "Remember/Imprint" plumbing.** The script author manages state by hand: what was exiled, what to return, when to forget. The bugs fixed upstream today (Fiend Hunter and 10 similar cards, upstream PR 12875) were exactly that plumbing.
+
+### Clean-room engine vs a port of Forge
+| | Port of Forge (e.g. to Rust) | Clean-room engine (own design, from the Comprehensive Rules) |
+|---|---|---|
+| **Licence** | GPL (derived from Forge's code); not the owner's | The owner's |
+| **Starting point** | 130k lines of working Java plus 34k card scripts: a complete, running specification | The Comprehensive Rules and card texts. Forge is only a behaviour reference, through the adapter |
+| **First playable subset** | Fast: translate the core and the needed effects, reuse the scripts | Weeks to a few months: core rules plus card definitions for a chosen pool |
+| **Broad card coverage** | Comes with the interpreter. The tail is ~200 effect types × ~1,300 parameter keys | The main cost: every card needs a definition (own card language, or an oracle-text parser, plus per-card code for the truly unique cards). An LLM tool can draft definitions; tests decide |
+| **Fidelity to Forge** | High by construction, if tested against Forge | Different; measured by playing the same situations in both engines |
+| **Speed** | A literal port gains ~1.5–3×. More needs a new state layout, which removes the port's advantage | Designed for cheap copies from day one |
+| **Hard-coding** | Inherits Forge's: script plumbing, name checks, quirks | The owner's choices. Unique cards still need specific code, but it lives in each card's definition, not in the core |
+| **Upkeep** | Chase Forge's daily changes, or freeze and drift | New sets: write or generate definitions, then test |
+| **2026 evidence** (project claims, unverified) | Manabrew (Rust port of Forge): 6 months, ~1,400 commits, "selected matchups", parity harness abandoned | phase.rs: ~8 months, ~8.7k commits, 29k cards claimed, 1.9 % crashes in 4-player games. Argentum: ~10 months, ~17k commits, 21.7k cards claimed. kiln: 402 verified cards |
+
+**Reading:**
+- In 2026, AI-assisted clean-room engines progress at least as fast as the one Forge port. The port drags Forge's architecture along, and that architecture is what makes it slow.
+- For the owner's goals (own licence, speed, no hand-managed plumbing), clean-room fits better.
+- Its risk is rules correctness on the long tail, in any engine. Two levers:
+  - **scope:** start with the cards actually played (the owner's 19 decks, ~1,100 cards);
+  - **differential testing:** Forge as the referee, through the adapter.
+- Effort estimates (agent work, uncertain):
+  - a solid core: about 1–3 months (turns, priority, stack, zones, mana, costs, combat, state-based actions, triggers, replacement effects, layers, commander rules);
+  - definitions for ~1,100 cards: about 1–2 months;
+  - broad coverage: further months, mostly verification.

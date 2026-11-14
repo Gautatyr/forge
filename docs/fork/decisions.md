@@ -422,3 +422,7 @@ Newest last. Each entry: the decision, why, and what it implies.
 - Training may run on any engine; Forge is the end goal. The owner must be able to play early versions in Forge, so the Forge adapter is needed early.
 - No recording of the group's games. Strength comes from self-play; human-likeness from light signals (see `mtg-model/README.md` section 8).
 - Still brainstorming: nothing started, no external contact.
+
+## 2026-11-14 — MTG model: early versions are tested in a local Forge build (owner)
+- Playing early model versions in a local Forge build that contains the adapter is fine; the official build is only for the end.
+- PyTorch for ROCm and OpenBLAS are installed on the owner's PC (measured inference speed: `mtg-model/README.md` section 9).
