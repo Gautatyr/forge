@@ -295,3 +295,61 @@ Readings:
   - a solid core: about 1–3 months (turns, priority, stack, zones, mana, costs, combat, state-based actions, triggers, replacement effects, layers, commander rules);
   - definitions for ~1,100 cards: about 1–2 months;
   - broad coverage: further months, mostly verification.
+
+## 10. Round 4: games per hour with a fast engine; the card pool (2026-11-14)
+### Training throughput on the owner's GPU (measured)
+`measure/torch_train_bench.py` runs a forward pass, a backward pass and an AdamW step, in bfloat16, with 128 tokens and batches of 256.
+
+| Model | Training samples/s | Playing (inference) decisions/s, from section 9 |
+|---|---|---|
+| tiny, 0.4M | 18,100 | 79,000 |
+| small, 3.2M | 3,830 | 19,000 |
+| medium, 19M | 1,030 | 4,400 |
+| large, 85M | 312 | 1,200 |
+
+**Learning from a decision costs ~4–5× playing it.**
+
+In self-play, every decision is also a training sample: E = 1 or 2 passes over the data (PPO commonly does 1–4). GPU time per game = 1,500 / inference rate + E × 1,500 / training rate.
+
+| Model | GPU-bound games/hour (E = 1 … 2) | Per day |
+|---|---|---|
+| tiny | ~35,000 … 19,500 | ~850k … 470k |
+| small | ~7,600 … 4,200 | ~180k … 100k |
+| medium | ~2,000 … 1,100 | ~48k … 27k |
+| large | ~590 … 330 | ~14k … 8k |
+
+- **With an optimised Rust engine, the GPU is the limit for every size.**
+  - Estimate: 10–100 µs of engine work per decision, so 0.02–0.2 s per game per core, so hundreds of games/s on 14 cores.
+  - The engine would sit mostly idle.
+- **Correction:** the "7 games/s, 600k/day" of round 2 counted playing only, not learning.
+- **Forge's engine without its AI** (~4.5 s per game per core, estimated from the profile, not measured) gives ~1.8 games/s on 8 cores. That is comparable to the small model's GPU limit (1.2–2.1 games/s).
+  - For plain self-play with a small model, Forge would roughly keep up.
+  - A fast engine pays off in two cases: tiny models, and lookahead (search).
+- **With lookahead** (32 network evaluations per decision):
+  - GPU-bound games/hour drop to ~4,700 (tiny), ~1,100 (small), ~260 (medium), ~70 (large).
+  - But each game is a much better lesson: search produces better training targets.
+  - Each game needs ~48,000 engine copies.
+    - A Rust engine copying in 1–10 µs spends 0.05–0.5 s per game on copies.
+    - If a Forge copy costs milliseconds (not measured; it rebuilds cards from scripts), it would spend minutes per game.
+  - **Lookahead is where the fast engine is required.**
+- **Levers:**
+  - fewer tokens per decision (64 instead of 128 is ~2× cheaper);
+  - a learned card vector computed once per card;
+  - fused kernels (`torch.compile`, not measured on ROCm);
+  - training on a subset of decisions;
+  - bursts on a rented faster GPU.
+
+### Card pool: the owner's decks plus 2018+ Commander precons
+Counted with `measure/card_pool.py` (Forge's decklists in `forge-gui/res/quest/commanderprecons`). The usage counts come from those cards' Forge scripts, used only to measure how much rules machinery the pool needs.
+
+| Pool | Distinct non-basic cards | Effect types | Trigger modes | Static modes | Replacement events | Keywords |
+|---|---|---|---|---|---|---|
+| All 34,111 Forge scripts | — | 194 | 139 | 81 | 34 | 252 |
+| Owner's 19 decks | 1,136 | 102 | 31 | 25 | 11 | 82 |
+| + 146 Commander precons from 2018–2026 | 6,233 | 142 (73 %) | 86 (62 %) | 46 (57 %) | 26 (76 %) | 173 (69 %) |
+
+- **Precon count:** MTGJSON lists 173 Commander precons released since 2018; Forge ships 146. The complete pool is somewhat larger, est. ~6,500–7,000 cards.
+- **Cost:** 5.5× the cards of the owner's decks alone, but only ~1.4–2.8× the rules machinery. It covers roughly two-thirds to three-quarters of Forge's vocabulary.
+- **Why it matters for training:** a realistic casual-Commander meta with many archetypes, so the model is not trained on one meta.
+- **Testing unseen cards:** e.g. train with 2018–2024 precons and test generalisation on the 2025–2026 ones.
+- **Engine effort for ~6,500 cards:** several months of agent work for the card definitions, with verification as the bottleneck (estimate). The core rules estimate is unchanged.
