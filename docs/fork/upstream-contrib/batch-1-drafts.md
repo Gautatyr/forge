@@ -35,3 +35,37 @@ Checked with a scripted engine scenario (not a hand-played game): -2, pass to an
 
 Written with Claude Code (co-author on the commit).
 ```
+
+## 3. `contrib/hapatra-ai-targets` — commit `01355a4242d`
+- Status: ready for the owner. Orchestrator review: diff = `IsCurse$ True` added to the trigger's PutCounter line. Reproduced through the real game loop (4 AI players, the AI casts Hapatra by itself): before, `targeting []` and all three Angels survive; after, one Angel per opponent is targeted and all die. CI command passed (2,539 desktop tests, 0 failures).
+- Agent notes: 61 of 70 targeted M1M1 PutCounter scripts already set the flag. Decimator Beetle and Persistent Constrictor have a similar shape and were tested working (left alone). Shy Town (a Planechase plane) may share the defect but could not be reproduced (not in the test card database), so it was left out.
+
+**Title:** Hapatra, the Desert Fang: AI now targets opposing creatures with its enter trigger
+
+**Body:**
+```
+When an AI player casts Hapatra, its enter trigger ("for each opponent, put X -1/-1 counters on up to one target creature that player controls") goes on the stack with no targets, so the card does nothing. With targets chosen by hand the engine is correct.
+
+Cause: the PutCounter line lacks `IsCurse$ True`, and `SpellAbility.isCurse()` only checks that parameter. `CountersPutAi.doTriggerNoCost` treats the counters as a bonus and looks only at the AI's own creatures; as the ability is "up to one" (`TargetMin$ 0`), it ends with no target. 61 of 70 targeted -1/-1 counter scripts set the flag (e.g. Ifnir Deadlands). Fix: add it here.
+
+Checked with a scripted engine scenario (not a hand-played game): 4 AI players, the AI casts Hapatra itself through the main loop, with three opposing Serra Angels and a 6-mana card in its graveyard. Before, the trigger targets nothing; after, it targets one Angel per opponent and all three die. Script-only, so no tests; `mvn -U -B clean test` passes.
+
+Written with Claude Code (co-author on the commit).
+```
+
+## 4. `contrib/skyclave-apparition-tokens` — commit `11e8b619a06`
+- Status: ready for the owner. Orchestrator review: both scripts now loop over the remembered cards (`RepeatEach … UseImprinted$ True`, the idiom of e.g. Desolation) and make one token per card, owned by and sized by that card; the "still exiled" condition is kept per card. Reproduced before the fix through the real game loop (`PriorityTestBase`) and the direct-cast harness; after the fix, 7/7 direct and 4/4 real-loop cases pass. CI command passed (2,539 desktop tests, 0 failures).
+- Agent notes: Severance Priest has the same defect and is fixed in the same commit (checked in the direct-cast harness only). The doubled-trigger ruling is a CR 607.2a reading; no official ruling exists.
+
+**Title:** Skyclave Apparition, Severance Priest: one token per exiled card
+
+**Body:**
+```
+Both cards say "the exiled card's owner creates an X/X ... token, where X is the mana value of the exiled card". When the enter trigger resolves twice (e.g. with Elesh Norn, Mother of Machines), two cards are exiled, and the scripts made one token per owner sized by the sum: Grizzly Bears (MV 2) and Hill Giant (MV 4) from two opponents gave each opponent a 6/6.
+
+Cause: `TokenOwner$ RememberedOwner` makes one token per owner, and `X:Remembered$CardManaCost` sums all remembered cards. Fix: RepeatEach over the remembered cards (`UseImprinted$ True`, as Desolation does), one token per card, owned and sized by that card. Under CR 607.2a the leaves ability refers to every card the linked enter ability exiled; there is no specific ruling for the doubled case.
+
+Checked with scripted engine scenarios, including through the priority loop (not a hand-played game): doubled with two opponents now gives a 2/2 and a 4/4; two cards from one opponent give that opponent both tokens; single exile, nothing exiled, and a card that already left exile are unchanged. Script-only, so no tests; `mvn -U -B clean test` passes.
+
+Written with Claude Code (co-author on the commit).
+```
