@@ -36,6 +36,20 @@ Then follow `docs/fork/audit/upstream-contributing.md` and the owner gate (decis
   - read upstream's CONTRIBUTING (performance PRs need profiling on 1v1, 4-player Commander and token boards);
   - the owner's go.
 
+## Found by the ML model work (noted from 2026-11-15; owner: "note it down, we may work or report it later")
+The work is in the separate mtg-model project. Evidence lives there, under `docs/research/`, and on the fork's `mtg-model/*` branches. Nothing below is confirmed against upstream `master` yet. Each item needs the steps at the top of this file before any upstream write.
+
+| Candidate | What we know | Evidence |
+|---|---|---|
+| **AI forced attackers are added in thread-finish order** | `AiAttackController` added forced attackers to combat in the order its worker threads finished. Under CPU load the attack order changes, so a seeded game is not reproducible. Fixed on the training branch by adding them in attacker order. | mtg-model `research/determinism-review.md`; fork commit `45624ecf4a0` |
+| **AI hangs forever in some games** | With the AI thinking limit lifted, about 1 % of 4-player Commander games never finish. Each hang is deterministic: job 226 hung again at the same turn with a 90-minute limit. One stack trace was inside `AiBlockController.makeGangBlocks`; another game loops on "Moving spell to Hand" at turn 44. With Forge's normal 5 s AI limit these become slow turns rather than hangs. The diagnosis per hang is in progress (task S). | mtg-model `research/baseline-v2.md`, `stall-rule.md` (when done), `g3a-visibility.md` |
+| **AI "can I pay / can I play" checks change AI state** | Checking playability, without playing anything, does several things: it draws from the game's random stream (`chooseOptionalCosts` → CharmAi's entwine check); it clears AI memory sets (`canPayCost`, `HELD_MANA_SOURCES_*`); and it overwrites a mana ability's "express choice" (`AbilityManaPart`), which `predictMana` reads back at the next filter-land payment. So merely asking whether a spell is playable can change the AI's later choices. | mtg-model `research/census-inert-review.md` (rounds 1–2) |
+| **Global `AiCache` is static** | The cache (`evaluateBoardPosition`, `aiLifeInDanger`, ...) is static and cleared only when an AI starts its next priority decision. It may be shared across games in one JVM. Unverified for real multi-match hosting. | mtg-model `research/census-inert-review.md` |
+| **AI playability includes coin flips** | A planeswalker ability that uses all loyalty is refused half the time by a random draw inside the payability check (`ComputerUtilCost` ~597-609). Possibly deliberate AI policy, but it makes "is this legal" answers random. | mtg-model `research/adapter-v2-spec-review-2.md` (finding 3) |
+| **`AiController.confirmPayment` always throws** | The AI never reaches that path; one inventory lists it as an AI path. Low value. | mtg-model `research/g2a-notes.md` |
+| **`CardView.canBeShownTo` zone at a zone-exit event** | The view's zone was null at a zone-exit event, so the visibility agent wrote its own copy with the zone passed in. A possible GUI/view edge case; unverified. | mtg-model `research/g3a-visibility.md` |
+| **Performance (see the section above)** | The static-recompute filter is now reviewed twice: 0 violations over all 169 decks, 1.6–1.75× faster Forge AI games. | mtg-model `research/static-probe.md`, `filters-review-2.md` |
+
 **Not ours to fix:**
 - Upstream `master` fails `CardEditionCollectionCardMockTestCase` (Shivan Dragon, SLZ) since upstream PR 12869. Upstream fixed this same test before (PRs 1494, 2053).
 - Garruk, Veiled Butcher is handled by upstream issue 12143 and PR 12218.
