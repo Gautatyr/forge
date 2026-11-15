@@ -21,6 +21,21 @@ Then follow `docs/fork/audit/upstream-contributing.md` and the owner gate (decis
 | Sneak Attack | The AI declined the "you may" on resolution, so haste and the end-step sacrifice were never tested. Unconfirmed. | card-rules audit, g1 |
 | Henzie "Toolbox" Torre | A "Blitz" option may be offered for a creature with mana value below 4; the cast is then correctly rejected. Desktop UI not checked. | card-rules audit, g1 |
 
+## Performance candidate (noted 2026-11-15, owner: "we will look into it later")
+- **The work:** a CR 601.3e hypothetical static-recompute filter, plus an alternative-cost cache in `GameActionUtil`.
+  - Forge's AI spends ~73 % of its CPU in legal-play enumeration: `getAllPossibleAbilities` → `getAlternativeCosts` → `checkStaticAbilities`.
+  - The filter skips the per-spell hypothetical recompute when no Continuous static can affect the hypothetical source.
+- **Measured:** 1.6× faster 4-player Commander games for Forge's own AI (1.152 → 0.720 s per log turn, seeded games identical); 0 violations in verify mode over 230k skipped calls; 2,546 tests pass.
+- **Where:**
+  - code on the fork branch `mtg-model/static-probe` (commits `f30097b2be3`, `065888ff281`, training-only flags `-Dmtgmodel.staticFilter` / `-Dmtgmodel.altCostFilter`);
+  - evidence in the mtg-model repository, `docs/research/static-probe.md`.
+- **Before proposing it upstream:**
+  - an Opus review (running);
+  - coverage of the OptionalCost branch and a verify sweep over many decks;
+  - remove the training-only flags;
+  - read upstream's CONTRIBUTING (performance PRs need profiling on 1v1, 4-player Commander and token boards);
+  - the owner's go.
+
 **Not ours to fix:**
 - Upstream `master` fails `CardEditionCollectionCardMockTestCase` (Shivan Dragon, SLZ) since upstream PR 12869. Upstream fixed this same test before (PRs 1494, 2053).
 - Garruk, Veiled Butcher is handled by upstream issue 12143 and PR 12218.
